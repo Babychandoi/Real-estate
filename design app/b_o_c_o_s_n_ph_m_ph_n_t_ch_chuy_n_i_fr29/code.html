@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface-container-highest": "#d3e4fe", "outline-variant": "#c2c7d1", "surface-container-lowest": "#ffffff", "secondary-container": "#82f5c1", "surface-variant": "#d3e4fe", "on-secondary": "#ffffff", "tertiary-fixed-dim": "#ffb77d", "on-surface-variant": "#42474f", "on-primary-container": "#8ebdf9", "on-error-container": "#93000a", "on-tertiary-fixed": "#2f1500", "on-secondary-fixed": "#002114", "secondary-fixed": "#85f8c4", "surface-container-high": "#dce9ff", "error": "#ba1a1a", "surface-tint": "#2d6197", "tertiary": "#522900", "error-container": "#ffdad6", "inverse-surface": "#213145", "tertiary-container": "#733c00", "on-tertiary": "#ffffff", "on-tertiary-container": "#ffa658", "on-error": "#ffffff", "primary-container": "#0f4c81", "surface-container-low": "#eff4ff", "outline": "#727780", "on-primary-fixed": "#001c37", "inverse-on-surface": "#eaf1ff", "on-secondary-container": "#00714e", "on-background": "#0b1c30", "tertiary-fixed": "#ffdcc3", "background": "#f8f9ff", "on-primary": "#ffffff", "primary-fixed-dim": "#a0c9ff", "surface": "#f8f9ff", "surface-container": "#e5eeff", "primary": "#00355f", "on-secondary-fixed-variant": "#005137", "inverse-primary": "#a0c9ff", "surface-bright": "#f8f9ff", "on-tertiary-fixed-variant": "#6e3900", "surface-dim": "#cbdbf5", "secondary-fixed-dim": "#68dba9", "primary-fixed": "#d2e4ff", "on-surface": "#0b1c30", "on-primary-fixed-variant": "#07497d", "secondary": "#006c4a" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-xl": "2.5rem", "space-lg": "1.5rem", "space-md": "1rem", "space-xs": "0.25rem", "space-sm": "0.5rem", "gutter": "1rem", "margin-mobile": "1rem", "gutter-mobile": "0.75rem", "margin": "2rem" }, "fontFamily": { "headline-md": ["Be Vietnam Pro"], "display-mobile": ["Be Vietnam Pro"], "body-sm": ["Be Vietnam Pro"], "headline-sm": ["Be Vietnam Pro"], "body-lg": ["Be Vietnam Pro"], "price-display": ["Be Vietnam Pro"], "display": ["Be Vietnam Pro"], "headline-lg": ["Be Vietnam Pro"], "label-sm": ["Be Vietnam Pro"], "headline-md-mobile": ["Be Vietnam Pro"], "title": ["Be Vietnam Pro"], "headline-lg-mobile": ["Be Vietnam Pro"], "label-md": ["Be Vietnam Pro"], "body-md": ["Be Vietnam Pro"] }, "fontSize": { "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}], "display-mobile": ["30px", {"lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "700"}], "body-sm": ["13px", {"lineHeight": "18px", "fontWeight": "400"}], "headline-sm": ["18px", {"lineHeight": "26px", "fontWeight": "600"}], "body-lg": ["16px", {"lineHeight": "26px", "fontWeight": "400"}], "price-display": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.02em", "fontWeight": "700"}], "display": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}], "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}], "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "500"}], "headline-md-mobile": ["20px", {"lineHeight": "28px", "fontWeight": "600"}], "title": ["16px", {"lineHeight": "24px", "fontWeight": "600"}], "headline-lg-mobile": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700"}], "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600"}], "body-md": ["14px", {"lineHeight": "22px", "fontWeight": "400"}] } } } }</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 inset-x-0 z-50 bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin-mobile flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0 flex-1"><img alt="Clean minimalist geometric logo for modern real estate platform BDS WF 2026, combining a sleek house silhouette with a location pin and shield of trust, flat vector style, deep navy #0f4c81 and emerald green accents." class="h-8 w-auto object-contain shrink-0" src="https://lh3.googleusercontent.com/aida/AEtjO1UlhvO7yDQyLtWCKoxDJfmAYJluqCcyg6cPV-2eT7KnPz6458kPUOdtjbrgfmaMACZJlIdiyeASjgcmnp5ITfrbgrYZlu13jXzJdHrFIg2ukRt6mvo5o-d2AJQaxcxp8b0QxbafVtgJSI5AWcpaVt6sZ4jjhdrtRS5WeLPAfJELJB6QlihSYnF68eLZZIdpP2LpqGXixzYY58Wcxq6epAcROq19O9AS2ouAqm2kQaidY6IIxYrWlpgC3aE"/><div class="flex flex-col min-w-0"><div class="flex items-center gap-space-xs"><span class="font-title text-title text-primary truncate">BDS WF 2026</span><span class="px-1.5 py-0.5 rounded bg-primary text-on-primary font-label-sm text-label-sm tracking-wider uppercase font-semibold shrink-0">ADMIN / BÁO CÁO</span></div><span class="font-label-sm text-label-sm text-on-surface-variant truncate">Báo Cáo &amp; Audit</span></div></div><div class="flex items-center gap-space-xs shrink-0"><button aria-label="Thông báo quản trị" class="w-11 h-11 flex items-center justify-center rounded-full text-on-surface hover:bg-surface-container transition-colors relative"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-error ring-2 ring-surface"></span></button><button aria-label="Hồ sơ quản trị" class="w-9 h-9 rounded-full bg-primary-container text-on-primary flex items-center justify-center shadow-sm hover:opacity-90 transition-opacity"><span class="material-symbols-outlined text-[20px]">person</span></button></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-24 bg-surface"><div class="flex flex-col w-full">
+<!-- Interactive Top Action Area: Title, Metadata & Period Filter -->
+<div class="px-margin-mobile pt-space-md pb-space-xs flex flex-col gap-space-sm">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-space-xs mb-0.5">
+<span class="px-1.5 py-0.5 rounded bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-semibold tracking-wide uppercase">FR29 Analytics</span>
+<span class="px-1.5 py-0.5 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+            Waterfall 0.9.1
+          </span>
+</div>
+<h1 class="font-headline-md-mobile text-headline-md-mobile text-primary tracking-tight">Báo cáo Sản phẩm &amp; Phân tích Chuyển đổi</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 line-clamp-2">Thống kê nguồn tin, SLA kiểm duyệt, phễu chuyển đổi và chất lượng lead theo chuẩn Waterfall 0.9.1.</p>
+</div>
+<button aria-label="Xuất Báo Cáo" class="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl bg-surface-container-high text-primary hover:bg-primary hover:text-on-primary transition-colors shadow-sm" id="exportReportBtn" title="Xuất Báo Cáo PDF/CSV">
+<span class="material-symbols-outlined text-[20px]">file_download</span>
+</button>
+</div>
+<!-- Period Filter Pills (Horizontal Scroll on Mobile) -->
+<div class="flex items-center gap-space-xs overflow-x-auto py-1 no-scrollbar -mx-margin-mobile px-margin-mobile" id="periodFilterBar">
+<button class="filter-pill px-3.5 py-1.5 rounded-full font-label-md text-label-md bg-primary text-on-primary whitespace-nowrap shadow-sm transition-all" data-period="7d">
+        7 ngày qua
+      </button>
+<button class="filter-pill px-3.5 py-1.5 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container whitespace-nowrap transition-all" data-period="30d">
+        30 ngày
+      </button>
+<button class="filter-pill px-3.5 py-1.5 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container whitespace-nowrap transition-all" data-period="q3">
+        Quý 3/2026
+      </button>
+<button class="filter-pill px-3.5 py-1.5 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container whitespace-nowrap transition-all flex items-center gap-1" data-period="custom">
+<span>Tùy chọn</span>
+<span class="material-symbols-outlined text-[16px]">tune</span>
+</button>
+</div>
+</div>
+<div class="px-margin-mobile flex flex-col gap-space-md mt-space-xs">
+<!-- 1. Compliance Banner (FR29 & NFR06) -->
+<div class="bg-surface-container-low rounded-xl p-space-md shadow-sm flex items-start gap-space-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container-highest flex items-center justify-center shrink-0 text-primary mt-0.5">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-space-xs">
+<span class="font-title text-title text-primary text-sm font-semibold">Quy chuẩn đo lường FR29 &amp; NFR06</span>
+<span class="px-1.5 py-0.2 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm uppercase font-bold">Chuẩn</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 leading-relaxed">
+          Hệ thống phân biệt rõ ràng giữa <strong class="text-primary font-semibold">contact_click</strong> (bấm nút gọi) và <strong class="text-secondary font-semibold">lead_submit</strong> (gửi lead xác minh OTP). Toàn bộ dữ liệu PII (SĐT, họ tên) đã được ẩn danh hóa và loại trừ hoàn toàn bot/crawler.
+        </p>
+</div>
+</div>
+<!-- 2. Core KPI Metric Cards Grid (2x2) -->
+<div class="grid grid-cols-2 gap-gutter-mobile">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant font-medium">Tin còn hạn</span>
+<span class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">real_estate_agent</span>
+</span>
+</div>
+<div class="mt-2">
+<div class="font-headline-md-mobile text-headline-md-mobile text-primary font-bold">1.248</div>
+<div class="flex items-center gap-1 mt-1 font-label-sm text-label-sm text-secondary font-semibold">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span>+14% kỳ trước</span>
+</div>
+</div>
+<div class="mt-2 pt-2 bg-surface-container-low rounded p-1.5 text-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">100% đối soát toạ độ GIS</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant font-medium">Lượt xem tin</span>
+<span class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</span>
+</div>
+<div class="mt-2">
+<div class="font-headline-md-mobile text-headline-md-mobile text-on-surface font-bold">84.320</div>
+<div class="flex items-center gap-1 mt-1 font-label-sm text-label-sm text-secondary font-semibold">
+<span class="material-symbols-outlined text-[16px]">person_check</span>
+<span>98.4% người dùng thật</span>
+</div>
+</div>
+<div class="mt-2 pt-2 bg-surface-container-low rounded p-1.5 text-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">Lọc sạch bot &amp; crawler NFR06</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant font-medium">Phản hồi liên hệ</span>
+<span class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">contact_phone</span>
+</span>
+</div>
+<div class="mt-2">
+<div class="font-headline-md-mobile text-headline-md-mobile text-primary font-bold">4.820</div>
+<div class="flex flex-col gap-0.5 mt-1 font-label-sm text-label-sm text-on-surface-variant">
+<span>• 3.410 click gọi</span>
+<span class="text-secondary font-semibold">• 1.410 lead OTP</span>
+</div>
+</div>
+<div class="mt-2 pt-2 bg-surface-container-low rounded p-1.5 text-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">contact_click &amp; lead_submit</span>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant font-medium">Tỷ lệ CĐ BR01</span>
+<span class="w-7 h-7 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</span>
+</div>
+<div class="mt-2">
+<div class="font-headline-md-mobile text-headline-md-mobile text-secondary font-bold">5.71%</div>
+<div class="flex items-center gap-1 mt-1 font-label-sm text-label-sm text-secondary font-semibold">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span>Đạt BR01 (≥ 5.0%)</span>
+</div>
+</div>
+<div class="mt-2 pt-2 bg-secondary-container/40 rounded p-1.5 text-center">
+<span class="font-label-sm text-label-sm text-on-secondary-container font-semibold">Vượt mục tiêu +0.71%</span>
+</div>
+</div>
+</div>
+<!-- 3. Conversion Funnel Analysis (FR29 & UC08.4) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-space-xs">
+<div class="w-7 h-7 rounded-lg bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined text-[18px]">filter_alt</span>
+</div>
+<h2 class="font-title text-title text-primary">Phễu Chuyển Đổi Khách Hàng (FR29)</h2>
+</div>
+<button aria-label="Xem giải thích phễu" class="text-on-surface-variant hover:text-primary transition-colors" id="funnelInfoBtn">
+<span class="material-symbols-outlined text-[18px]">help_outline</span>
+</button>
+</div>
+<!-- Funnel Stages Graphic & List -->
+<div class="flex flex-col gap-2.5">
+<!-- Stage 1 -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-on-surface font-semibold">1. Xem Danh Sách &amp; Bản Đồ</span>
+<span class="text-primary font-bold">142.500 lượt (100%)</span>
+</div>
+<div class="w-full h-3 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500" style="width: 100%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Listing Impression trên feed và mini-map</span>
+</div>
+<!-- Stage 2 -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-on-surface font-semibold">2. Xem Chi Tiết Tin Đăng</span>
+<span class="text-primary font-bold">84.320 lượt (59.2%)</span>
+</div>
+<div class="w-full h-3 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-primary-container rounded-full transition-all duration-500" style="width: 59.2%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Listing Detail View (Người dùng đọc pháp lý &amp; tiện ích)</span>
+</div>
+<!-- Stage 3 -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<div class="flex items-center gap-1">
+<span class="text-on-surface font-semibold">3. Bấm Nút Gọi / Zalo</span>
+<span class="px-1 py-0.2 rounded bg-surface-container-high text-primary font-label-sm text-label-sm">contact_click</span>
+</div>
+<span class="text-primary font-bold">3.410 lượt (4.04%)</span>
+</div>
+<div class="w-full h-3 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-surface-tint rounded-full transition-all duration-500" style="width: 40.4%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Chạm CTA gọi điện hoặc mở Zalo Chat</span>
+</div>
+<!-- Stage 4 -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<div class="flex items-center gap-1">
+<span class="text-on-surface font-semibold">4. Gửi Lead Xác Thực OTP</span>
+<span class="px-1 py-0.2 rounded bg-secondary-container text-on-secondary-container font-label-sm text-label-sm">lead_submit</span>
+</div>
+<span class="text-secondary font-bold">1.410 lượt (1.67%)</span>
+</div>
+<div class="w-full h-3 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-secondary rounded-full transition-all duration-500" style="width: 25.4%;"></div>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Khách để lại thông tin và xác nhận số điện thoại</span>
+</div>
+<!-- Stage 5 -->
+<div class="flex flex-col gap-1 bg-surface-container-low p-space-sm rounded-lg">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-secondary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+              5. Môi Giới Tiếp Nhận 24h (BR03)
+            </span>
+<span class="text-secondary font-bold">1.298 lead (92.1%)</span>
+</div>
+<div class="w-full h-3 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-secondary rounded-full transition-all duration-500" style="width: 92.1%;"></div>
+</div>
+<div class="flex items-center justify-between font-label-sm text-label-sm text-on-surface-variant mt-0.5">
+<span>SLA xử lý cuộc gọi &lt; 24h</span>
+<span class="text-secondary font-semibold">Đạt chuẩn SLA 92.1%</span>
+</div>
+</div>
+</div>
+<!-- Comparison Callout Note -->
+<div class="mt-space-sm pt-space-sm bg-surface-container-lowest flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-[18px] text-primary shrink-0">info</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+<span class="font-semibold text-primary">Phân tách nguồn lead:</span> 3.410 lượt liên hệ nhanh qua hotline và 1.298 lead định danh OTP chất lượng cao đã khử trùng theo BR03.
+        </p>
+</div>
+</div>
+<!-- 4. SLA Review & Moderation Monitoring (BR04 & FR08) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<div class="w-7 h-7 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">policy</span>
+</div>
+<h2 class="font-title text-title text-primary">SLA Kiểm Duyệt &amp; Vận Hành (BR04)</h2>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm font-semibold">96.8% Đạt SLA</span>
+</div>
+<!-- 3 SLA Mini Metric Blocks -->
+<div class="grid grid-cols-2 gap-space-sm">
+<div class="bg-surface-container-low rounded-lg p-space-sm flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Thời gian duyệt TB</span>
+<div class="font-headline-sm text-headline-sm text-primary font-bold mt-1">3h 45m</div>
+<span class="font-label-sm text-label-sm text-secondary mt-0.5">Mục tiêu: ≤ 8h làm việc</span>
+</div>
+<div class="bg-surface-container-low rounded-lg p-space-sm flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Còn hàng 30 ngày (BR02)</span>
+<div class="font-headline-sm text-headline-sm text-secondary font-bold mt-1">94.2%</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant mt-0.5">Mục tiêu: ≥ 90%</span>
+</div>
+</div>
+<!-- Revision Status Breakdown (FR08) -->
+<div class="flex flex-col gap-1.5 pt-1">
+<div class="flex items-center justify-between font-label-md text-label-md">
+<span class="text-on-surface-variant font-medium">Tổng số hồ sơ xử lý kỳ này</span>
+<span class="text-on-surface font-bold">342 hồ sơ</span>
+</div>
+<!-- Multi-segment Progress Bar -->
+<div class="w-full h-3 rounded-full bg-surface-container flex overflow-hidden">
+<!-- Approved (284/342 = 83%) -->
+<div class="bg-secondary h-full transition-all" style="width: 83%;" title="Phê duyệt: 284"></div>
+<!-- Request Revisions (48/342 = 14%) -->
+<div class="bg-tertiary-fixed-dim h-full transition-all" style="width: 14%;" title="Yêu cầu sửa: 48"></div>
+<!-- Rejected (10/342 = 3%) -->
+<div class="bg-error h-full transition-all" style="width: 3%;" title="Từ chối/Gỡ: 10"></div>
+</div>
+<!-- Legend -->
+<div class="grid grid-cols-3 gap-1 pt-1 font-label-sm text-label-sm">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>Duyệt: <strong class="text-on-surface">284</strong></span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></span>
+<span>Sửa: <strong class="text-on-surface">48</strong></span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span>Gỡ: <strong class="text-on-surface">10</strong></span>
+</div>
+</div>
+</div>
+</div>
+<!-- 5. Traffic & Acquisition Channels (FR26) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<div class="w-7 h-7 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">traffic</span>
+</div>
+<h2 class="font-title text-title text-primary">Nguồn Lượng Truy Cập &amp; Kênh Lead</h2>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">FR26 SEO &amp; Direct</span>
+</div>
+<!-- Channel Progress Stacks -->
+<div class="flex flex-col gap-2">
+<div>
+<div class="flex justify-between font-label-md text-label-md mb-1">
+<span class="text-on-surface">Trực tiếp / App BDS WF</span>
+<span class="font-bold text-primary">42%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="bg-primary h-full rounded-full" style="width: 42%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-label-md text-label-md mb-1">
+<span class="text-on-surface">Tìm kiếm tự nhiên (Google SEO)</span>
+<span class="font-bold text-primary">38%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="bg-primary-container h-full rounded-full" style="width: 38%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-label-md text-label-md mb-1">
+<span class="text-on-surface">Mạng xã hội &amp; Zalo Share</span>
+<span class="font-bold text-primary">15%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="bg-surface-tint h-full rounded-full" style="width: 15%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between font-label-md text-label-md mb-1">
+<span class="text-on-surface">Kênh đối tác &amp; Khác</span>
+<span class="font-bold text-primary">5%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="bg-outline-variant h-full rounded-full" style="width: 5%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- 6. Top Performing Projects & Listings -->
+<div class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<div class="w-7 h-7 rounded-lg bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">trending_up</span>
+</div>
+<h2 class="font-title text-title text-primary">Top BĐS Hiệu Suất Cao Nhất</h2>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-container text-primary font-label-sm text-label-sm font-semibold">Tỷ lệ CĐ</span>
+</div>
+<div class="flex flex-col gap-2.5">
+<!-- Item 1 -->
+<div class="bg-surface-container-low rounded-lg p-space-sm flex items-center justify-between gap-space-xs">
+<div class="flex items-center gap-space-sm min-w-0 flex-1">
+<div class="w-7 h-7 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-label-sm shrink-0">1</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface font-semibold truncate">Vinhomes Smart City</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Nam Từ Liêm, Hà Nội</span>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0">
+<span class="font-label-md text-label-md text-secondary font-bold">6.2% CĐ</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">340 lead OTP</span>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="bg-surface-container-low rounded-lg p-space-sm flex items-center justify-between gap-space-xs">
+<div class="flex items-center gap-space-sm min-w-0 flex-1">
+<div class="w-7 h-7 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-bold text-label-sm shrink-0">2</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface font-semibold truncate">The Matrix One Mễ Trì</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Mễ Trì, Nam Từ Liêm</span>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0">
+<span class="font-label-md text-label-md text-secondary font-bold">5.8% CĐ</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">215 lead OTP</span>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="bg-surface-container-low rounded-lg p-space-sm flex items-center justify-between gap-space-xs">
+<div class="flex items-center gap-space-sm min-w-0 flex-1">
+<div class="w-7 h-7 rounded-full bg-surface-container-highest text-primary flex items-center justify-center font-bold text-label-sm shrink-0">3</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface font-semibold truncate">Nhà ngõ ô tô Cầu Giấy</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Dịch Vọng Hậu, Cầu Giấy</span>
+</div>
+</div>
+<div class="flex flex-col items-end shrink-0">
+<span class="font-label-md text-label-md text-secondary font-bold">5.1% CĐ</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">180 lead OTP</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Action / Auditor Toast Banner -->
+<div class="bg-surface-container rounded-xl p-space-md flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="material-symbols-outlined text-primary text-[24px]">verified</span>
+<div class="flex flex-col min-w-0">
+<span class="font-title text-title text-primary text-sm font-semibold truncate">Kiểm định dữ liệu đợt này</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Đã đối soát 100% giao dịch mã hóa NFR12</span>
+</div>
+</div>
+<button class="px-3 py-1.5 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-medium shrink-0 hover:bg-primary-container transition-colors shadow-sm" id="runAuditCheckBtn">
+        Đối soát
+      </button>
+</div>
+<!-- Footer System Metadata (NFR12 & SRS Note) -->
+<div class="pt-space-xs pb-space-md flex flex-col items-center text-center gap-1">
+<div class="flex items-center gap-1 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+<span>Dữ liệu tổng hợp lúc 00:00 UTC | Giờ VN (UTC+7 - NFR12)</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant/80">
+        Đối soát định kỳ theo chuẩn SRS Waterfall BDS WF 2026. Mọi hành vi spam/bot đã tự động bị cô lập.
+      </p>
+</div>
+</div>
+</div>
+<script>
+  (function initFR29Dashboard() {
+    // Period filter interactive toggle
+    const filterPills = document.querySelectorAll('.filter-pill');
+    filterPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        filterPills.forEach(p => {
+          p.classList.remove('bg-primary', 'text-on-primary', 'shadow-sm');
+          p.classList.add('bg-surface-container-low', 'text-on-surface-variant');
+        });
+        pill.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
+        pill.classList.add('bg-primary', 'text-on-primary', 'shadow-sm');
+
+        // Visual feedback
+        const periodName = pill.getAttribute('data-period');
+        const originalText = pill.innerText;
+        pill.innerText = 'Đang tải...';
+        setTimeout(() => {
+          pill.innerText = originalText;
+        }, 350);
+      });
+    });
+
+    // Export button micro-interaction
+    const exportBtn = document.getElementById('exportReportBtn');
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        exportBtn.innerHTML = '<span class="material-symbols-outlined text-[20px] animate-spin">sync</span>';
+        setTimeout(() => {
+          exportBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">check</span>';
+          setTimeout(() => {
+            exportBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">file_download</span>';
+          }, 1500);
+        }, 600);
+      });
+    }
+
+    // Run audit check feedback
+    const auditBtn = document.getElementById('runAuditCheckBtn');
+    if (auditBtn) {
+      auditBtn.addEventListener('click', () => {
+        auditBtn.innerText = 'Đang chạy...';
+        setTimeout(() => {
+          auditBtn.innerText = 'Khớp 100%';
+          auditBtn.classList.replace('bg-primary', 'bg-secondary');
+          setTimeout(() => {
+            auditBtn.innerText = 'Đối soát';
+            auditBtn.classList.replace('bg-secondary', 'bg-primary');
+          }, 2000);
+        }, 700);
+      });
+    }
+
+    // Info icon alert
+    const funnelInfo = document.getElementById('funnelInfoBtn');
+    if (funnelInfo) {
+      funnelInfo.addEventListener('click', () => {
+        alert('Phễu FR29 chuẩn: Đo lường từ Listing Impression -> Chi tiết -> Click Hotline -> Lead OTP được broker nhận trong 24h.');
+      });
+    }
+  })();
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(15,76,129,0.08)]" data-active-classes="text-primary font-semibold"><div class="flex justify-around items-center h-16 px-margin-mobile"><a class="flex flex-col items-center justify-center gap-0.5 min-w-[72px] h-14 text-on-surface-variant hover:text-primary transition-colors" data-path="du-an-bds" href="#"><span class="material-symbols-outlined text-[24px]">domain</span><span class="font-label-md text-label-md">Dự án BĐS</span></a><a class="flex flex-col items-center justify-center gap-0.5 min-w-[72px] h-14 text-on-surface-variant hover:text-primary transition-colors" data-path="cms-bai-viet" href="#"><span class="material-symbols-outlined text-[24px]">article</span><span class="font-label-md text-label-md">CMS Bài viết</span></a><a class="flex flex-col items-center justify-center gap-0.5 min-w-[72px] h-14 text-on-surface-variant hover:text-primary transition-colors" data-path="bao-cao-audit" href="#"><span class="material-symbols-outlined text-[24px]">analytics</span><span class="font-label-md text-label-md">Báo cáo &amp; Audit</span></a></div></nav></body></html>

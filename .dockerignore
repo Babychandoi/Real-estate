@@ -1,0 +1,17 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+**/target/
+**/build/
+**/dist/
+**/node_modules/
+*.log
+*.pid
+*.dump
+.idea/
+.vscode/
+**/coverage/
+**/playwright-report/
+**/test-results/

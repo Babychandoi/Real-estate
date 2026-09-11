@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-tertiary": "#ffffff", "on-secondary-fixed-variant": "#005137", "secondary": "#006c4a", "primary-fixed": "#d2e4ff", "primary-container": "#0f4c81", "on-secondary-fixed": "#002114", "surface-container": "#e5eeff", "error-container": "#ffdad6", "background": "#f8f9ff", "secondary-fixed": "#85f8c4", "outline-variant": "#c2c7d1", "outline": "#727780", "tertiary-container": "#733c00", "on-primary": "#ffffff", "surface-container-high": "#dce9ff", "secondary-fixed-dim": "#68dba9", "surface": "#f8f9ff", "surface-dim": "#cbdbf5", "inverse-primary": "#a0c9ff", "surface-variant": "#d3e4fe", "on-secondary": "#ffffff", "primary-fixed-dim": "#a0c9ff", "surface-container-highest": "#d3e4fe", "inverse-surface": "#213145", "on-surface": "#0b1c30", "surface-tint": "#2d6197", "on-tertiary-fixed-variant": "#6e3900", "tertiary-fixed-dim": "#ffb77d", "on-background": "#0b1c30", "tertiary-fixed": "#ffdcc3", "error": "#ba1a1a", "on-error": "#ffffff", "on-primary-fixed-variant": "#07497d", "inverse-on-surface": "#eaf1ff", "on-primary-fixed": "#001c37", "on-tertiary-container": "#ffa658", "secondary-container": "#82f5c1", "primary": "#00355f", "on-secondary-container": "#00714e", "tertiary": "#522900", "surface-container-low": "#eff4ff", "on-tertiary-fixed": "#2f1500", "on-surface-variant": "#42474f", "surface-container-lowest": "#ffffff", "on-error-container": "#93000a", "on-primary-container": "#8ebdf9", "surface-bright": "#f8f9ff" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter": "1rem", "space-lg": "1.5rem", "space-sm": "0.5rem", "margin": "2rem", "space-xs": "0.25rem", "margin-mobile": "1rem", "space-md": "1rem", "space-xl": "2.5rem", "gutter-mobile": "0.75rem" }, "fontFamily": { "label-sm": ["Be Vietnam Pro"], "headline-lg": ["Be Vietnam Pro"], "label-md": ["Be Vietnam Pro"], "price-display": ["Be Vietnam Pro"], "headline-md": ["Be Vietnam Pro"], "body-md": ["Be Vietnam Pro"], "body-sm": ["Be Vietnam Pro"], "title": ["Be Vietnam Pro"], "display-mobile": ["Be Vietnam Pro"], "headline-lg-mobile": ["Be Vietnam Pro"], "headline-md-mobile": ["Be Vietnam Pro"], "body-lg": ["Be Vietnam Pro"], "headline-sm": ["Be Vietnam Pro"], "display": ["Be Vietnam Pro"] }, "fontSize": { "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.03em", "fontWeight": "500" }], "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "price-display": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }], "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }], "title": ["16px", { "lineHeight": "24px", "fontWeight": "600" }], "display-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "700" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-md-mobile": ["20px", { "lineHeight": "28px", "fontWeight": "600" }], "body-lg": ["16px", { "lineHeight": "26px", "fontWeight": "400" }], "headline-sm": ["18px", { "lineHeight": "26px", "fontWeight": "600" }], "display": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }] } } } }</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col antialiased"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin-mobile flex items-center justify-between"><div class="flex items-center gap-space-sm"><button aria-label="Quay lại" class="w-11 h-11 flex items-center justify-center text-on-surface rounded-full hover:bg-surface-container-high transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[22px]">arrow_back</span></button><img alt="BDS WF Logo" class="h-7 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAitVhx7dr1S9vMFfI8qAt9vpISuKxVoytmkX4QOK1gJV_xPcU_pCZWsTahn-12FtY8WnmUQ5-NCjmjj_b-Msiqv7y1tQ4ME_IX49Wh5vld5kBPcxo7ptztJ2HSXxGmMjEApHk5jeF6YLHjIdy94Sc5i7Nyn0PtaVuR_xTutXrp8MSgyZSX1oey-RrPCvFl9cG4Il1t79rmZEHbc2QfblduCcouO4M4GxtWsU7S8ui3xQzwWgol7mMy"/><h1 class="font-headline-sm text-headline-sm text-on-surface truncate max-w-[180px]">Chi Tiet Bat Dong San</h1></div><div class="flex items-center gap-space-xs"><button aria-label="Chia sẻ" class="w-11 h-11 flex items-center justify-center text-on-surface-variant rounded-full hover:bg-surface-container-high transition-colors"><span class="material-symbols-outlined text-[20px]">share</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 bg-surface min-h-screen"><div class="flex flex-col w-full pb-28">
+<!-- Image Gallery Carousel Container -->
+<div class="relative w-full aspect-[4/3] bg-surface-container overflow-hidden group">
+<div class="flex w-full h-full overflow-x-auto snap-x snap-mandatory scroll-smooth no-scrollbar" id="galleryTrack" style="-webkit-overflow-scrolling: touch;">
+<!-- Slide 1 -->
+<div class="w-full h-full flex-shrink-0 snap-center relative">
+<img class="w-full h-full object-cover" data-alt="Spacious contemporary living room inside Vinhomes GreenBay apartment in Hanoi, bright warm afternoon sunlight flowing through panoramic floor-to-ceiling glass doors, neutral linen couch, refined oak herringbone wooden floor, polished marble coffee table, indoor potted fiddle leaf fig tree, architectural interior photography, elegant navy blue and soft amber tone" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLjf52ksFP3DmDdSemyDEio2ZDQRWPV0pcnc1G-su5M94B_H5jjntn41tF46QyQkXkZON2veuaedwMZf6lasw537FFEuFK-of-iNulW7w7NpvxzTAJEwfNcMjm_JEso-H77hJKPrqswJWwNodztoHuN-HRkGpueO4wRqX4VnI-E9dqvW10ndwcrwZDDosGShu2-GQobpUOkkOPApvsWKXrHd2Li307TsiCmwnBQ9RuJsqZW0qdzDkg"/>
+</div>
+<!-- Slide 2 -->
+<div class="w-full h-full flex-shrink-0 snap-center relative">
+<img class="w-full h-full object-cover" data-alt="Modern master bedroom interior with a king size bed dressed in crisp white linen and muted navy blue throw pillows, warm wood acoustic wall paneling, soft ambient ceiling strip lighting, city view through large window, high-end Vietnamese luxury condominium style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuArPEUf6k8Nu9mnFfDQSuSgnuH4X-BcVuiVesn7SXQQEyQYFMbsxcDQ4iO5-C1ayDemUewxq6yVfgXtLVrcipwpFeGW-9n81puYGUTCRbNIMwgnmT0rmEUHQb0BgFI5cwcZC9SWRhm12rCVu9te1pch7Ndr3ikfytvEVgfl7So8tRfpvfJZhVjoWM8YXxFV21Ru8Dto4mPlt5ECf5nn-J7Xj-Iu8s_rfNNBposDO5uFfiDMPZY8zS6G"/>
+</div>
+<!-- Slide 3 -->
+<div class="w-full h-full flex-shrink-0 snap-center relative">
+<img class="w-full h-full object-cover" data-alt="Bespoke gourmet open kitchen with seamless quartz island counter, built-in induction stove, matte deep navy cabinets, warm under-cabinet LED strip glow, designer pendant lights, spotless upscale apartment interior" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBBQfw6bktSuurr1ijvotgF_BKvEBGqSNZcpBsc2SFmoLrB2P3zkRcAOMxPb-QwMEr5ZxBU2kLWwHtaR3yc3NDHdiDstVseqvUdRGN_ZCqvsAypKbLAEgTkG6_aQekmOTrEBQkn3L9M35OsSXlAD0DoPHkOZoZD08sobQh1MjGSda3c8EbMIdKUsePXE7-A1FicTKVDZUt0omoIiVH0szOh6xIjzo5lLSR-yuWQNIlK1TQ1lga5mTf_"/>
+</div>
+<!-- Slide 4 -->
+<div class="w-full h-full flex-shrink-0 snap-center relative">
+<img class="w-full h-full object-cover" data-alt="Scenic sunset panoramic view from modern high-floor balcony overlooking lush GreenBay lake park in Me Tri Hanoi, comfortable outdoor armchairs, potted green orchids, golden hour sky reflecting off tranquil urban lake waters" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBY-aq5GUCYhp5T7tOg5hdxc5MqmgLBk4hCB4SIp1lMaN-JG1Z0hTBWFOzzirK8jVQQ6u3HTeEIO7tcsvi82o1JqbbBvix7ZJ86MRuCvUQGGCFAU7eS9weyByUfk0tQOIgo-AzwLSrleWBy6V68Wct5yYik5vpgk91RQkFKXTI8pVDIvJzws8N_v6gb11l7kidWKv0bSj1Px6C1FIFDFhir8D4c4D0FXKQsUYdPHjCWYmO_DVn_rKS_"/>
+</div>
+</div>
+<!-- Floating Top Utility Overlay -->
+<div class="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none z-10">
+<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/85 text-on-primary font-label-sm text-label-sm backdrop-blur-md shadow-sm">
+<span class="material-symbols-outlined text-[14px]">verified</span>
+        Chính chủ gửi bán
+      </span>
+<div class="flex items-center gap-2 pointer-events-auto">
+<button aria-label="Lưu tin đăng" class="w-10 h-10 rounded-full bg-surface/90 text-on-surface flex items-center justify-center backdrop-blur-md shadow-md active:scale-95 transition-all" id="bookmarkBtn" onclick="toggleBookmark()">
+<span class="material-symbols-outlined text-[20px] text-error" id="bookmarkIcon">favorite</span>
+</button>
+</div>
+</div>
+<!-- Image Counter & Interactive Thumb Dots -->
+<div class="absolute bottom-3 right-3 z-10">
+<div class="px-3 py-1 rounded-full bg-inverse-surface/80 backdrop-blur-md text-inverse-on-surface font-label-sm text-label-sm flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[14px]">photo_camera</span>
+<span id="carouselIndex">1</span>/12 ảnh
+      </div>
+</div>
+<div class="absolute bottom-3 left-3 z-10 flex gap-1.5 items-center">
+<span class="indicator-dot w-5 h-1.5 rounded-full bg-on-primary shadow-sm transition-all duration-300"></span>
+<span class="indicator-dot w-1.5 h-1.5 rounded-full bg-on-primary/50 shadow-sm transition-all duration-300"></span>
+<span class="indicator-dot w-1.5 h-1.5 rounded-full bg-on-primary/50 shadow-sm transition-all duration-300"></span>
+<span class="indicator-dot w-1.5 h-1.5 rounded-full bg-on-primary/50 shadow-sm transition-all duration-300"></span>
+</div>
+</div>
+<!-- Content Container -->
+<div class="px-margin-mobile flex flex-col gap-space-md mt-4">
+<!-- Title & Price Block -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between gap-2">
+<div class="flex items-baseline gap-2">
+<span class="font-price-display text-price-display text-primary font-bold">4.85 tỷ</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">~65.5 tr/m²</span>
+</div>
+<button class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface-container-high text-primary font-label-md text-label-md active:scale-95 transition-transform shadow-sm" id="compareBtn" onclick="toggleCompare()">
+<span class="material-symbols-outlined text-[16px]" id="compareIcon">add_circle</span>
+<span id="compareText">So sánh (1/3)</span>
+</button>
+</div>
+<h2 class="font-headline-md-mobile text-headline-md-mobile text-on-surface leading-tight mt-1">
+        Căn hộ cao cấp 2PN 74m² Vinhomes GreenBay Mễ Trì
+      </h2>
+<p class="flex items-center gap-1 text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[16px] text-primary">location_on</span>
+        Mễ Trì, Quận Nam Từ Liêm, TP. Hà Nội
+      </p>
+</div>
+<!-- Quick Spec Chips -->
+<div class="grid grid-cols-3 gap-gutter-mobile p-3 rounded-xl bg-surface-container-lowest shadow-sm">
+<div class="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-container-low text-center">
+<div class="flex items-center gap-1 text-on-surface-variant mb-0.5">
+<span class="material-symbols-outlined text-[16px]">square_foot</span>
+<span class="font-label-sm text-label-sm">Diện tích</span>
+</div>
+<span class="font-title text-title text-on-surface font-semibold">74 m²</span>
+</div>
+<div class="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-container-low text-center">
+<div class="flex items-center gap-1 text-on-surface-variant mb-0.5">
+<span class="material-symbols-outlined text-[16px]">bed</span>
+<span class="font-label-sm text-label-sm">Phòng ngủ</span>
+</div>
+<span class="font-title text-title text-on-surface font-semibold">2 PN</span>
+</div>
+<div class="flex flex-col items-center justify-center p-2 rounded-lg bg-surface-container-low text-center">
+<div class="flex items-center gap-1 text-on-surface-variant mb-0.5">
+<span class="material-symbols-outlined text-[16px]">bathtub</span>
+<span class="font-label-sm text-label-sm">Vệ sinh</span>
+</div>
+<span class="font-title text-title text-on-surface font-semibold">2 WC</span>
+</div>
+</div>
+<!-- Verification Badge Card (FR22) -->
+<div class="relative overflow-hidden rounded-xl bg-surface-container-low p-4 shadow-sm">
+<div class="absolute -right-5 -bottom-5 w-24 h-24 bg-secondary-fixed/30 rounded-full blur-xl pointer-events-none"></div>
+<div class="flex items-start gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary text-on-secondary flex items-center justify-center flex-shrink-0 shadow-sm mt-0.5">
+<span class="material-symbols-outlined text-[22px]">verified_user</span>
+</div>
+<div class="flex flex-col flex-1">
+<div class="flex items-center gap-2">
+<h3 class="font-title text-title text-secondary font-semibold">Kiểm Định Minh Bạch</h3>
+<span class="px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm">Hợp chuẩn FR22</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+            Tin đã kiểm duyệt 10/09/2026 • Còn hiệu lực (30 ngày). Đã đối chiếu số điện thoại và hiện trạng căn hộ thực tế.
+          </p>
+<div class="flex flex-wrap gap-2 mt-2.5">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-lowest text-on-surface font-label-sm text-label-sm shadow-xs">
+<span class="material-symbols-outlined text-[14px] text-secondary">check_circle</span>
+              Sổ đỏ chính chủ
+            </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-lowest text-on-surface font-label-sm text-label-sm shadow-xs">
+<span class="material-symbols-outlined text-[14px] text-secondary">check_circle</span>
+              Không tranh chấp
+            </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-surface-container-lowest text-on-surface font-label-sm text-label-sm shadow-xs">
+<span class="material-symbols-outlined text-[14px] text-secondary">check_circle</span>
+              Ảnh thật 100%
+            </span>
+</div>
+</div>
+</div>
+</div>
+<!-- Key Attributes Bento Box -->
+<div class="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-lowest shadow-sm">
+<h3 class="font-title text-title text-on-surface font-semibold mb-1">Đặc điểm bất động sản</h3>
+<div class="grid grid-cols-2 gap-3">
+<div class="flex items-center gap-2.5 p-2 rounded-lg bg-surface-container-low">
+<div class="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">explore</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Hướng cửa</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Đông Bắc</span>
+</div>
+</div>
+<div class="flex items-center gap-2.5 p-2 rounded-lg bg-surface-container-low">
+<div class="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">balcony</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Ban công</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Tây Nam</span>
+</div>
+</div>
+<div class="flex items-center gap-2.5 p-2 rounded-lg bg-surface-container-low">
+<div class="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">gavel</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Pháp lý</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Sổ đỏ lâu dài</span>
+</div>
+</div>
+<div class="flex items-center gap-2.5 p-2 rounded-lg bg-surface-container-low">
+<div class="w-8 h-8 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">chair</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Nội thất</span>
+<span class="font-body-md text-body-md text-on-surface font-medium">Đầy đủ cao cấp</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Description Accordion / Text -->
+<div class="flex flex-col gap-2 p-4 rounded-xl bg-surface-container-lowest shadow-sm">
+<h3 class="font-title text-title text-on-surface font-semibold">Mô tả chi tiết</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed line-clamp-4" id="descContent">
+        Chính chủ chuyển công tác cần nhượng lại căn góc 2 phòng ngủ tòa G2 Vinhomes GreenBay Mễ Trì. Căn hộ thiết kế mở tối ưu ánh sáng tự nhiên, ban công nhìn trọn vẹn hồ điều hòa 8ha và công viên xanh mát. Đã trang bị đầy đủ nội thất nhập khẩu Châu Âu: sàn gỗ tự nhiên, thiết bị vệ sinh Kohler, tủ bếp Hafele cao cấp. Sẵn sàng dọn vào ở ngay.
+      </p>
+<button class="self-start text-primary font-label-md text-label-md mt-1 flex items-center gap-0.5" id="descToggleBtn" onclick="toggleDescription()">
+        Xem thêm
+        <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+<!-- Location & Nearby Amenities -->
+<div class="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center justify-between">
+<h3 class="font-title text-title text-on-surface font-semibold">Vị trí &amp; Tiện ích lân cận</h3>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm">Bán kính ước tính</span>
+</div>
+<!-- Google Maps Static Pipeline Placeholder -->
+<div class="w-full h-44 rounded-xl bg-cover bg-center relative overflow-hidden shadow-inner flex items-center justify-center" data-location="Vinhomes GreenBay Me Tri Hanoi" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAXHfEV6FjoOWXl9aFGKpatkPjGffZxNehKUYSZkxQXghGG92ZOtwZEaeJXCm_U2lmRiaQ813DGnMJIrm8sV5q8DZSa40MdEylk_CfzF3mQpPaoWTlNPpGc8UntqEMJjhJlAOX4JpFiizkrXY0v29iK2AnJ2HCskO4Kl-hvb1plHnq-92T5EYXEjBpi0jXjNgSuL5STMpe82SaLaB5vlML_vKmXBASxcOGCIb2lfj4MXmQGdde_5tMd');">
+<div class="absolute inset-0 bg-primary-container/20 backdrop-blur-[1px]"></div>
+<div class="relative z-10 flex flex-col items-center">
+<div class="w-12 h-12 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-lg animate-pulse">
+<span class="material-symbols-outlined text-[28px]">apartment</span>
+</div>
+<span class="mt-1.5 px-3 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur text-on-surface font-label-md text-label-md shadow-sm">
+            Vinhomes GreenBay Mễ Trì
+          </span>
+</div>
+</div>
+<!-- Distance Chips -->
+<div class="grid grid-cols-3 gap-2 mt-1">
+<div class="flex items-center gap-1.5 p-2 rounded-lg bg-surface-container-low">
+<span class="material-symbols-outlined text-[18px] text-primary">school</span>
+<div class="flex flex-col min-w-0">
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Vinschool</span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">250m</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 p-2 rounded-lg bg-surface-container-low">
+<span class="material-symbols-outlined text-[18px] text-primary">local_hospital</span>
+<div class="flex flex-col min-w-0">
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">BV Y Học Cổ Truyền</span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">1.2 km</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 p-2 rounded-lg bg-surface-container-low">
+<span class="material-symbols-outlined text-[18px] text-primary">shopping_bag</span>
+<div class="flex flex-col min-w-0">
+<span class="font-label-sm text-label-sm text-on-surface-variant truncate">Vincom D'Capitale</span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">800m</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Seller Identity Card (FR02) -->
+<div class="flex flex-col gap-3 p-4 rounded-xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img class="w-13 h-13 rounded-full object-cover shadow-sm" data-alt="Warm and trustworthy headshot portrait of Vietnamese apartment homeowner in mid-30s smiling gently, casual professional navy blazer, soft neutral studio lighting, authentic property seller avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrqqiUKnMn7fsGTACTihmrZJGAfTLMUeWIrtPw4uMoLNe7lHz3dEQ6Ydk0JolKOFctSNEXunNR_clqxNvusdNjprkO42aabW_-LTU_EQrMPEai5DzMdTF24vH3hoItdyUTdcr9x1APffqc4Q26tGs9yqLkbwsOxeoIZ9NSxOacUqHjUp_uzihuY1OZWqf6bO_htZ6QVvHZ_tIGckgc03j9P5Zs4881DxWVs_ZK2AXOlCZPByG21Fv5"/>
+<span class="absolute bottom-0 right-0 w-4 h-4 rounded-full bg-secondary border-2 border-surface-container-lowest flex items-center justify-center text-on-secondary">
+<span class="material-symbols-outlined text-[10px]">check</span>
+</span>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex items-center gap-1.5">
+<h4 class="font-title text-title text-on-surface font-semibold truncate">Nguyễn Hoàng Long</h4>
+<span class="px-2 py-0.5 rounded-full bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm flex-shrink-0">Chính chủ</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-secondary">schedule</span>
+              Phản hồi trong 1h
+            </span>
+<span class="text-outline-variant">•</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Đã tham gia 3 năm</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-2">
+<div class="flex items-center gap-1 text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[18px] text-secondary">shield</span>
+          Đã xác minh CMND / Thẻ Căn cước
+        </div>
+<button class="px-3 py-1.5 rounded-lg bg-surface-container-high text-primary font-label-md text-label-md active:scale-95 transition-transform">
+          Xem 2 tin khác
+        </button>
+</div>
+</div>
+<!-- Safe Inquiry Form Sheet Trigger / Context Banner -->
+<div class="rounded-xl bg-surface-container-high p-4 flex items-center justify-between gap-3 shadow-xs">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center flex-shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-[20px]">lock_reset</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface font-semibold">Bảo mật thông tin liên hệ</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Số điện thoại của bạn chỉ hiển thị khi bạn chấp thuận kết nối</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Safe Lead Modal Drawer -->
+<div class="fixed inset-0 z-50 flex items-end justify-center bg-inverse-surface/60 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300" id="leadModal">
+<div class="w-full max-w-md bg-surface-container-lowest rounded-t-2xl p-margin-mobile flex flex-col gap-4 transform translate-y-full transition-transform duration-300 pb-safe shadow-2xl" id="leadDrawer">
+<div class="w-12 h-1 rounded-full bg-outline-variant self-center"></div>
+<div class="flex items-start justify-between">
+<div>
+<h3 class="font-headline-md-mobile text-headline-md-mobile text-on-surface font-bold">Yêu Cầu Tư Vấn An Toàn</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Gửi yêu cầu trực tiếp đến chính chủ Nguyễn Hoàng Long</p>
+</div>
+<button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant" onclick="closeLeadModal()">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<div class="flex flex-col gap-3">
+<div>
+<label class="font-label-md text-label-md text-on-surface block mb-1">Họ và tên của bạn</label>
+<input class="w-full px-3.5 py-2.5 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="Ví dụ: Trần Văn Nam" type="text"/>
+</div>
+<div>
+<label class="font-label-md text-label-md text-on-surface block mb-1">Số điện thoại liên hệ</label>
+<input class="w-full px-3.5 py-2.5 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="090 ••• ••••" type="tel"/>
+</div>
+<div>
+<label class="font-label-md text-label-md text-on-surface block mb-1">Thời gian xem nhà thuận tiện</label>
+<div class="grid grid-cols-3 gap-2">
+<button class="slot-btn py-2 px-1 rounded-lg bg-surface-container text-center font-label-sm text-label-sm text-on-surface" onclick="selectTimeSlot(this)" type="button">Cuối tuần này</button>
+<button class="slot-btn py-2 px-1 rounded-lg bg-primary text-center font-label-sm text-label-sm text-on-primary font-semibold" onclick="selectTimeSlot(this)" type="button">Tối các ngày trong tuần</button>
+<button class="slot-btn py-2 px-1 rounded-lg bg-surface-container text-center font-label-sm text-label-sm text-on-surface" onclick="selectTimeSlot(this)" type="button">Khác</button>
+</div>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="material-symbols-outlined text-[16px] text-secondary">verified</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Cam kết không quấy rầy, không chuyển giao số ĐT</span>
+</div>
+<button class="w-full h-12 rounded-lg bg-primary text-on-primary font-title text-title font-semibold shadow-md active:scale-98 transition-transform mt-2" onclick="submitLeadSuccess()">
+          Xác nhận gửi thông tin
+        </button>
+</div>
+</div>
+</div>
+<!-- Persistent Lead Conversion Action Dock (Sticky Bottom Bar) -->
+<aside aria-label="Thanh hành động liên hệ" class="fixed bottom-0 inset-x-0 z-40 bg-surface/95 backdrop-blur-xl border-t border-surface-container-high/40 shadow-[0_-8px_24px_rgba(15,76,129,0.08)] pb-safe">
+<div class="h-16 px-margin-mobile flex items-center justify-between gap-3 max-w-md mx-auto">
+<!-- Direct Quick Call Button -->
+<a class="flex-1 h-12 rounded-xl bg-surface-container-high text-primary flex items-center justify-center gap-2 font-title text-title font-semibold active:scale-95 transition-all shadow-xs" href="tel:0912345678">
+<span class="material-symbols-outlined text-[20px]">call</span>
+        Gọi ngay
+      </a>
+<!-- Direct Primary Lead CTA -->
+<button class="flex-[1.5] h-12 rounded-xl bg-primary text-on-primary flex items-center justify-center gap-2 font-title text-title font-semibold active:scale-95 transition-all shadow-md" onclick="openLeadModal()">
+<span class="material-symbols-outlined text-[20px]">edit_note</span>
+        Gửi yêu cầu tư vấn
+      </button>
+</div>
+</aside>
+</div>
+<script>
+  // Carousel Scroll Tracking
+  const track = document.getElementById('galleryTrack');
+  const indexEl = document.getElementById('carouselIndex');
+  const dots = document.querySelectorAll('.indicator-dot');
+
+  if (track) {
+    track.addEventListener('scroll', () => {
+      const slideWidth = track.clientWidth;
+      const currentIndex = Math.round(track.scrollLeft / slideWidth);
+      if (indexEl) indexEl.innerText = currentIndex + 1;
+
+      dots.forEach((dot, idx) => {
+        if (idx === currentIndex) {
+          dot.classList.remove('w-1.5', 'bg-on-primary/50');
+          dot.classList.add('w-5', 'bg-on-primary');
+        } else {
+          dot.classList.remove('w-5', 'bg-on-primary');
+          dot.classList.add('w-1.5', 'bg-on-primary/50');
+        }
+      });
+    }, { passive: true });
+  }
+
+  // Toggle Bookmark Microinteraction
+  let isSaved = true;
+  function toggleBookmark() {
+    isSaved = !isSaved;
+    const icon = document.getElementById('bookmarkIcon');
+    if (icon) {
+      if (isSaved) {
+        icon.innerText = 'favorite';
+        icon.classList.add('text-error');
+        icon.style.fontVariationSettings = "'FILL' 1";
+      } else {
+        icon.innerText = 'favorite_border';
+        icon.classList.remove('text-error');
+        icon.style.fontVariationSettings = "'FILL' 0";
+      }
+    }
+  }
+
+  // Toggle Property Compare (FR17)
+  let isCompared = false;
+  function toggleCompare() {
+    isCompared = !isCompared;
+    const text = document.getElementById('compareText');
+    const icon = document.getElementById('compareIcon');
+    const btn = document.getElementById('compareBtn');
+    
+    if (isCompared) {
+      text.innerText = 'Đã thêm (2/3)';
+      icon.innerText = 'check';
+      btn.classList.remove('bg-surface-container-high', 'text-primary');
+      btn.classList.add('bg-primary', 'text-on-primary');
+    } else {
+      text.innerText = 'So sánh (1/3)';
+      icon.innerText = 'add_circle';
+      btn.classList.remove('bg-primary', 'text-on-primary');
+      btn.classList.add('bg-surface-container-high', 'text-primary');
+    }
+  }
+
+  // Expand / Collapse Description
+  let isExpanded = false;
+  function toggleDescription() {
+    isExpanded = !isExpanded;
+    const desc = document.getElementById('descContent');
+    const btn = document.getElementById('descToggleBtn');
+    if (isExpanded) {
+      desc.classList.remove('line-clamp-4');
+      btn.innerHTML = 'Thu gọn <span class="material-symbols-outlined text-[16px]">expand_less</span>';
+    } else {
+      desc.classList.add('line-clamp-4');
+      btn.innerHTML = 'Xem thêm <span class="material-symbols-outlined text-[16px]">expand_more</span>';
+    }
+  }
+
+  // Lead Generation Drawer Handlers
+  function openLeadModal() {
+    const modal = document.getElementById('leadModal');
+    const drawer = document.getElementById('leadDrawer');
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    modal.classList.add('opacity-100', 'pointer-events-auto');
+    drawer.classList.remove('translate-y-full');
+    drawer.classList.add('translate-y-0');
+  }
+
+  function closeLeadModal() {
+    const modal = document.getElementById('leadModal');
+    const drawer = document.getElementById('leadDrawer');
+    drawer.classList.add('translate-y-full');
+    drawer.classList.remove('translate-y-0');
+    setTimeout(() => {
+      modal.classList.add('opacity-0', 'pointer-events-none');
+      modal.classList.remove('opacity-100', 'pointer-events-auto');
+    }, 200);
+  }
+
+  function selectTimeSlot(selected) {
+    document.querySelectorAll('.slot-btn').forEach(btn => {
+      btn.className = 'slot-btn py-2 px-1 rounded-lg bg-surface-container text-center font-label-sm text-label-sm text-on-surface';
+    });
+    selected.className = 'slot-btn py-2 px-1 rounded-lg bg-primary text-center font-label-sm text-label-sm text-on-primary font-semibold';
+  }
+
+  function submitLeadSuccess() {
+    const drawer = document.getElementById('leadDrawer');
+    drawer.innerHTML = `
+      <div class="py-8 flex flex-col items-center text-center gap-3">
+        <div class="w-14 h-14 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
+          <span class="material-symbols-outlined text-[32px]">task_alt</span>
+        </div>
+        <h4 class="font-headline-md-mobile text-headline-md-mobile text-on-surface font-bold">Gửi Yêu Cầu Thành Công</h4>
+        <p class="font-body-md text-body-md text-on-surface-variant max-w-xs">
+          Chính chủ Nguyễn Hoàng Long đã nhận được thông tin và sẽ phản hồi qua Zalo / SĐT trong vòng 1 giờ làm việc.
+        </p>
+        <button onclick="closeLeadModal()" class="mt-3 px-6 py-2.5 rounded-lg bg-primary text-on-primary font-title text-title font-semibold shadow-sm">
+          Hoàn tất
+        </button>
+      </div>
+    `;
+  }
+</script></main></body></html>

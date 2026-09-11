@@ -1,0 +1,93 @@
+name: bds-enterprise-stack
+
+services:
+  # CSDL PostgreSQL tích hợp phần mở rộng PostGIS cho dữ liệu địa không gian GIS (FR05, FR06)
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: bds-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bds}
+      POSTGRES_USER: ${POSTGRES_USER:-bds}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bds} -d ${POSTGRES_DB:-bds}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - bds-network
+
+  # Redis Cache cho Quota Rate Limiting, OTP Cache và Phễu chuyển đổi (FR12, FR29)
+  redis:
+    image: redis:7-alpine
+    container_name: bds-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - bds-network
+
+  # Backend Spring Boot 3 Modular Monolith (32 FR & 8 UC, OpenAPI 3.0 UI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bds-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bds}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-bds}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bds-network
+
+  # Frontend React 18 SPA phục vụ qua Nginx Reverse Proxy
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bds-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://backend:8080
+      VITE_PUBLIC_API_BASE_URL: /api
+    depends_on:
+      - backend
+    networks:
+      - bds-network
+
+volumes:
+  postgres-data:
+    driver: local
+
+networks:
+  bds-network:
+    driver: bridge

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+
+<html lang="vi"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "surface-container-highest": "#e1e2e8",
+          "on-tertiary-container": "#ffa658",
+          "on-primary-fixed": "#001c37",
+          "error": "#ba1a1a",
+          "on-error-container": "#93000a",
+          "inverse-on-surface": "#eff0f6",
+          "on-primary": "#ffffff",
+          "surface-tint": "#39608d",
+          "on-background": "#0b1c30",
+          "tertiary-container": "#733c00",
+          "surface-dim": "#d8dae0",
+          "outline-variant": "#c2c7d1",
+          "inverse-surface": "#2e3135",
+          "secondary-container": "#82f5c1",
+          "secondary-fixed": "#85f8c4",
+          "on-error": "#ffffff",
+          "surface-container-low": "#f2f3f9",
+          "primary-fixed": "#d2e4ff",
+          "on-surface-variant": "#42474f",
+          "on-secondary": "#ffffff",
+          "surface-container-high": "#dce9ff",
+          "primary-container": "#00355f",
+          "on-tertiary-fixed": "#2f1500",
+          "tertiary": "#331700",
+          "on-secondary-container": "#0b714e",
+          "inverse-primary": "#a3c9fc",
+          "surface-bright": "#f8f9ff",
+          "primary": "#001f3c",
+          "surface-variant": "#d3e4fe",
+          "secondary-fixed-dim": "#68dba9",
+          "on-primary-container": "#8ebdf9",
+          "on-secondary-fixed": "#002114",
+          "outline": "#727780",
+          "on-primary-fixed-variant": "#07497d",
+          "primary-fixed-dim": "#a0c9ff",
+          "on-tertiary-fixed-variant": "#693c10",
+          "secondary": "#006c4a",
+          "surface-container": "#eceef3",
+          "tertiary-fixed-dim": "#fcb883",
+          "on-secondary-fixed-variant": "#005137",
+          "tertiary-fixed": "#ffdcc3",
+          "surface-container-lowest": "#ffffff",
+          "on-surface": "#0b1c30",
+          "background": "#f8f9ff",
+          "surface": "#f8f9ff",
+          "on-tertiary": "#ffffff",
+          "error-container": "#ffdad6"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "full": "9999px"
+        },
+        "spacing": {
+          "space-md": "1rem",
+          "space-xs": "0.25rem",
+          "space-xl": "2rem",
+          "margin-sm": "1rem",
+          "gutter-sm": "1rem",
+          "gutter": "1.5rem",
+          "space-lg": "1.5rem",
+          "space-sm": "0.5rem",
+          "margin": "2rem",
+          "space-2xl": "3rem"
+        },
+        "fontFamily": {
+          "display-mobile": [
+            "Be Vietnam Pro"
+          ],
+          "body-md": [
+            "Be Vietnam Pro"
+          ],
+          "headline-lg": [
+            "Be Vietnam Pro"
+          ],
+          "headline-sm": [
+            "Be Vietnam Pro"
+          ],
+          "price-display": [
+            "Be Vietnam Pro"
+          ],
+          "body-sm": [
+            "Be Vietnam Pro"
+          ],
+          "title": [
+            "Be Vietnam Pro"
+          ],
+          "display": [
+            "Be Vietnam Pro"
+          ],
+          "headline-lg-mobile": [
+            "Be Vietnam Pro"
+          ],
+          "body-lg": [
+            "Be Vietnam Pro"
+          ],
+          "label-md": [
+            "Be Vietnam Pro"
+          ],
+          "headline-md": [
+            "Be Vietnam Pro"
+          ]
+        },
+        "fontSize": {
+          "display-mobile": [
+            "32px",
+            {
+              "lineHeight": "38px",
+              "letterSpacing": "-0.02em",
+              "fontWeight": "700"
+            }
+          ],
+          "body-md": [
+            "14px",
+            {
+              "lineHeight": "22px",
+              "fontWeight": "400"
+            }
+          ],
+          "headline-lg": [
+            "32px",
+            {
+              "lineHeight": "40px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "700"
+            }
+          ],
+          "headline-sm": [
+            "18px",
+            {
+              "lineHeight": "26px",
+              "fontWeight": "600"
+            }
+          ],
+          "price-display": [
+            "24px",
+            {
+              "lineHeight": "30px",
+              "letterSpacing": "-0.02em",
+              "fontWeight": "700"
+            }
+          ],
+          "body-sm": [
+            "12px",
+            {
+              "lineHeight": "18px",
+              "fontWeight": "400"
+            }
+          ],
+          "title": [
+            "16px",
+            {
+              "lineHeight": "24px",
+              "fontWeight": "600"
+            }
+          ],
+          "display": [
+            "40px",
+            {
+              "lineHeight": "48px",
+              "letterSpacing": "-0.02em",
+              "fontWeight": "700"
+            }
+          ],
+          "headline-lg-mobile": [
+            "26px",
+            {
+              "lineHeight": "34px",
+              "letterSpacing": "-0.01em",
+              "fontWeight": "700"
+            }
+          ],
+          "body-lg": [
+            "16px",
+            {
+              "lineHeight": "26px",
+              "fontWeight": "400"
+            }
+          ],
+          "label-md": [
+            "12px",
+            {
+              "lineHeight": "16px",
+              "letterSpacing": "0.02em",
+              "fontWeight": "600"
+            }
+          ],
+          "headline-md": [
+            "24px",
+            {
+              "lineHeight": "32px",
+              "fontWeight": "600"
+            }
+          ]
+        }
+      },
+    },
+  }</script></head><body class="bg-surface font-body-md text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(11,28,48,0.06)]"><div class="max-w-[1360px] mx-auto px-margin h-20 flex items-center justify-between gap-gutter"><div class="flex items-center gap-space-lg"><a class="flex items-center gap-space-sm group" data-path="kham-pha" href="#"><div class="w-9 h-9 rounded-lg bg-primary flex items-center justify-center text-on-primary shadow-sm"><span class="material-symbols-outlined text-[20px]">apartment</span></div><div class="flex flex-col"><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm text-primary tracking-tight font-bold">BDS WF 2026</span><span class="px-space-xs py-0.5 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-label-md leading-none">Hà Nội Pilot</span></div><span class="font-body-sm text-body-sm text-on-surface-variant -mt-0.5">Cổng thông tin xác thực</span></div></a><nav class="hidden xl:flex items-center gap-space-md h-20" data-active-classes="text-primary font-bold border-b-2 border-primary"><a class="text-on-surface-variant hover:text-on-surface transition-colors font-title text-title flex items-center h-full px-space-xs" data-path="kham-pha" href="#">Khám phá</a><a class="text-on-surface-variant hover:text-on-surface transition-colors font-title text-title flex items-center h-full px-space-xs" data-path="tim-kiem-va-ban-do" href="#">Tìm kiếm &amp; Bản đồ</a><a class="text-on-surface-variant hover:text-on-surface transition-colors font-title text-title flex items-center h-full px-space-xs" data-path="du-an" href="#">Dự án</a><a aria-current="page" class="transition-colors flex items-center h-full px-space-xs text-primary font-bold border-b-2 border-primary" data-path="so-sanh" href="#">So sánh</a><a class="text-on-surface-variant hover:text-on-surface transition-colors font-title text-title flex items-center h-full px-space-xs" data-path="tin-tuc-va-quy-che" href="#">Tin tức &amp; Quy chế</a></nav></div><div class="flex items-center gap-space-md"><a class="hidden lg:flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container transition-colors text-on-surface" href="tel:1900xxxx"><span class="material-symbols-outlined text-[18px] text-secondary">support_agent</span><div class="flex flex-col"><span class="font-body-sm text-body-sm text-on-surface-variant leading-none">Tư vấn 24/7</span><span class="font-title text-title text-primary leading-none mt-0.5">1900 xxxx</span></div></a><a class="flex items-center gap-space-xs px-space-lg h-11 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-title text-title shadow-sm transition-all" data-path="dang-tin" href="#"><span class="material-symbols-outlined text-[20px]">add_circle</span><span>Đăng tin</span></a><button aria-label="Thông báo" class="relative w-10 h-10 rounded-full flex items-center justify-center bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-error ring-2 ring-surface-container-lowest"></span></button><a aria-label="Hộp Lead" class="relative w-10 h-10 rounded-full flex items-center justify-center bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors" data-path="hop-lead" href="#"><span class="material-symbols-outlined text-[22px]">mark_chat_unread</span><span class="absolute top-1.5 right-1.5 px-1 min-w-[16px] h-4 rounded-full bg-secondary text-on-secondary font-label-md text-label-md flex items-center justify-center">3</span></a><a class="flex items-center gap-space-sm pl-space-xs hover:opacity-90 transition-opacity" data-path="tai-khoan" href="#"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/AEtjO1VNjbxLY3kQW84IrA4j6eQcLcctUqt_Mggefi8-RqtqcC8FwSccLmK2LoadOk_BDye_UYfMP9jul2R-p-Grc2OO5HPUGYIkCYO38-fdv-mANTSY0zEDHqb3ojVsDEZcViG8nSt6wj0n8PQ8XTUD6kaTFwgMkZQ4iySLYE1p_VlJZ3JqeQpYk3wgYYI6Eqi8Tjb1tyZZk6IPSlEEW6fRxVMWUcNDRU3LbvY3_XF5Ai-PJjMv8JrzKOn5R8ENYqtDJX1ByHwSXB1L"/><div class="hidden md:flex flex-col text-left"><span class="font-label-md text-label-md text-on-surface leading-tight">Chuyên viên BDS</span><span class="font-body-sm text-body-sm text-secondary leading-tight flex items-center gap-0.5"><span class="material-symbols-outlined text-[12px]">verified</span>Đã xác thực</span></div></a></div></div></header><main class="w-full pt-20 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<div class="max-w-[1360px] mx-auto px-margin py-space-xl w-full flex flex-col gap-space-xl">
+<!-- Top Control Bar -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-space-lg">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-sm flex-wrap">
+<h1 class="font-headline-md text-headline-md text-primary tracking-tight font-bold">Đối chiếu thông số bất động sản (FR17)</h1>
+<div class="flex items-center gap-space-xs">
+<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-md text-label-md font-semibold">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+              Chuẩn mục đích: Mua bán
+            </span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed font-label-md text-label-md font-semibold">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+              Đã chọn 3/3 bất động sản tối đa
+            </span>
+</div>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">
+          Đối sánh trực quan theo quy chuẩn phân khu Hà Nội Pilot 2026. Tự động kiểm tra chéo pháp lý sổ đỏ và tọa độ quy hoạch số.
+        </p>
+</div>
+<div class="flex items-center gap-space-md flex-wrap">
+<!-- Toggle Highlight Differences -->
+<label class="flex items-center gap-space-sm cursor-pointer select-none bg-surface-container-low hover:bg-surface-container px-space-md py-space-sm rounded-lg transition-colors">
+<input checked="" class="sr-only peer" id="toggle-diff" type="checkbox"/>
+<div class="w-11 h-6 bg-surface-dim peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary relative"></div>
+<span class="font-title text-title text-on-surface">Làm nổi bật điểm khác biệt</span>
+</label>
+<button class="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface font-title text-title transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px] text-primary">download</span>
+<span>Xuất PDF báo cáo</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-sm rounded-lg bg-primary hover:bg-primary-container text-on-primary font-title text-title transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">swap_horiz</span>
+<span>Thay đổi BĐS so sánh</span>
+</button>
+</div>
+</div>
+<!-- Main Comparison Matrix -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col">
+<!-- Table Header: 3 Properties Cards -->
+<div class="grid grid-cols-12 bg-surface-container-low p-space-md lg:p-space-lg gap-space-md items-stretch">
+<div class="hidden lg:flex col-span-3 flex-col justify-end pb-space-md">
+<div class="flex items-center gap-space-xs text-primary font-title text-title">
+<span class="material-symbols-outlined text-[22px]">compare</span>
+<span>Chỉ số đối soát</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">Căn hộ tại các đại đô thị phía Tây &amp; Đông Hà Nội</p>
+</div>
+<!-- Col 1: Vinhomes GreenBay -->
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-surface-container-lowest rounded-lg p-space-md shadow-sm flex flex-col gap-space-sm relative">
+<button aria-label="Xóa bất động sản" class="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-inverse-surface/60 hover:bg-inverse-surface text-on-primary flex items-center justify-center transition-colors" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+<div class="relative w-full h-44 rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Modern bright living room interior of Vinhomes GreenBay apartment with floor to ceiling glass windows showing green central lake view, Scandinavian oak furniture, soft natural daylight and warm beige tones" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxnwY54jUb2k3XuVBf8brtIKvrxurxDDwZ6VfQd61dEYE4yjQXzOAsqtvdwi2wo28hBtX1N195nkGd7Uz9rtngvxvejZkI-NkpZZ__JJCtua_C-UkEPDe7JosegqBGWRxFRrh2UTVbSU6Gl6h3Ak72rNzaoFlnjA1RUoC8NbaeCseGrdxgJHvtA2NOMVlRdz-JkQqo7GiA_vGzlPjnWuEsxDh-ur5ksEqM68_ZL6NIdZW7sMVc1LE"/>
+<span class="absolute bottom-2 left-2 px-2.5 py-1 rounded bg-primary/80 backdrop-blur-md text-on-primary font-label-md text-label-md">
+              74 m² tim tường
+            </span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">Vinhomes GreenBay</span>
+<h2 class="font-headline-sm text-headline-sm text-primary font-bold line-clamp-1">Căn 2PN Mễ Trì</h2>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-price-display text-price-display text-primary">4.85 tỷ</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">~65.5 tr/m²</span>
+</div>
+</div>
+</div>
+<!-- Col 2: The Matrix One -->
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-surface-container-lowest rounded-lg p-space-md shadow-sm flex flex-col gap-space-sm relative ring-2 ring-secondary/20">
+<button aria-label="Xóa bất động sản" class="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-inverse-surface/60 hover:bg-inverse-surface text-on-primary flex items-center justify-center transition-colors" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+<div class="relative w-full h-44 rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Luxury condominium living room at The Matrix One My Dinh with wide panoramic curved glass balcony looking out to 14 hectare city park, minimalist Italian leather sofa, high end recessed architectural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKWX_N0iARkpWdCuX0kNq-d8fXXbXlhLkTbIDiccsSS0SDY7nq-vHKxwKggSU1JZpNv6pH_kTuBt2FK0c4F7rhkZu0-vsJWbAW7F0n8ALlN-h0ZxcEO8Z_BlbYjU61gkNfzAcIZAEzTy7ENj7VFGr_8dFGUxCPM8fkFo7C7f45COZ_W-k_6NMhMZ6O0QZSR0UdpfZyD0D_TsLkTpBofSWHtXG818-1lEhiSpqvaHXysc5ohl4dQ7Y"/>
+<span class="absolute bottom-2 left-2 px-2.5 py-1 rounded bg-primary/80 backdrop-blur-md text-on-primary font-label-md text-label-md">
+              72 m² tim tường
+            </span>
+<span class="absolute top-2 left-2 px-2 py-0.5 rounded bg-secondary text-on-secondary font-label-md text-label-md">Đơn giá tốt</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">The Matrix One</span>
+<h2 class="font-headline-sm text-headline-sm text-primary font-bold line-clamp-1">Căn 2PN Mỹ Đình</h2>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-price-display text-price-display text-primary">4.65 tỷ</span>
+<span class="font-body-sm text-body-sm text-secondary font-bold">~64.5 tr/m²</span>
+</div>
+</div>
+</div>
+<!-- Col 3: Masteri West Heights -->
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-surface-container-lowest rounded-lg p-space-md shadow-sm flex flex-col gap-space-sm relative">
+<button aria-label="Xóa bất động sản" class="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-inverse-surface/60 hover:bg-inverse-surface text-on-primary flex items-center justify-center transition-colors" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+<div class="relative w-full h-44 rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Master bedroom suite in Masteri West Heights Smart City with large soundproof double glazed windows overlooking lush greenery, built-in wardrobes, subtle LED strip accents, tranquil residential ambiance" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCSEEup6xwYAxHRwGA0NghzfHVfJEJzp1CoDAm9R2BKY9hVE1eVCe3sXUlK0TZ8tkQdaltXqXPZPDEBVcc4pH607mxhYdVh0MZk_cQnyknDboH_HHBTE3tIJHM8KcrWSZ5GSOGt54GODl5vVV2vDO78z1Ky8dld_PRTC0SivktEVhKCz2iMy6Wctoq-SnT79rPIOiNfu8F7huk2iR523BmxVoZDcfDdR-bQY44qYNGQnUEeSu3krAs"/>
+<span class="absolute bottom-2 left-2 px-2.5 py-1 rounded bg-primary/80 backdrop-blur-md text-on-primary font-label-md text-label-md">
+              65 m² tim tường
+            </span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-secondary uppercase font-semibold tracking-wider">Masteri West Heights</span>
+<h2 class="font-headline-sm text-headline-sm text-primary font-bold line-clamp-1">Căn 2PN Tây Mỗ</h2>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-price-display text-price-display text-primary">3.45 tỷ</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">~58.1 tr/m²</span>
+</div>
+</div>
+</div>
+</div>
+<!-- SECTION 1: Giá bán & Đơn vị tính (FR17) -->
+<div class="flex flex-col">
+<div class="bg-surface-container-high/60 px-space-lg py-space-sm flex items-center gap-space-xs text-primary font-headline-sm text-headline-sm">
+<span class="material-symbols-outlined text-[22px]">payments</span>
+<span>1. Giá bán &amp; Đơn vị tính (FR17 tính toán)</span>
+</div>
+<!-- Row: Tổng giá -->
+<div class="grid grid-cols-12 px-space-lg py-space-md hover:bg-surface-container-low transition-colors items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Tổng giá công khai</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">4.85 tỷ VNĐ</span>
+<span class="font-body-sm text-body-sm text-secondary flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">check</span>Bao trọn phí sang tên</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">4.65 tỷ VNĐ</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Bao thuế TNCN &amp; phí công chứng</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">3.45 tỷ VNĐ</span>
+<span class="font-body-sm text-body-sm text-secondary flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">check</span>Bao phí chuyển nhượng</span>
+</div>
+</div>
+<!-- Row: Đơn giá thông thủy -->
+<div class="grid grid-cols-12 px-space-lg py-space-md bg-surface-container-low/40 items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Đơn giá / m² thông thủy</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<div class="inline-flex items-center gap-space-xs px-3 py-1.5 rounded-lg bg-surface-container-lowest">
+<span class="font-headline-sm text-headline-sm text-on-surface font-bold">65.5</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">triệu/m²</span>
+</div>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<div class="inline-flex items-center gap-space-xs px-3 py-1.5 rounded-lg bg-secondary-container text-on-secondary-container">
+<span class="font-headline-sm text-headline-sm font-bold">64.5</span>
+<span class="font-body-sm text-body-sm">triệu/m²</span>
+<span class="material-symbols-outlined text-[16px]">trending_down</span>
+</div>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<div class="inline-flex items-center gap-space-xs px-3 py-1.5 rounded-lg bg-secondary-container text-on-secondary-container">
+<span class="font-headline-sm text-headline-sm font-bold">58.1</span>
+<span class="font-body-sm text-body-sm">triệu/m²</span>
+<span class="font-label-md text-label-md bg-secondary text-on-secondary px-1.5 py-0.5 rounded">Rẻ nhất</span>
+</div>
+</div>
+</div>
+<!-- Row: Hình thức thương lượng -->
+<div class="grid grid-cols-12 px-space-lg py-space-md hover:bg-surface-container-low transition-colors items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Hình thức thương lượng</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<span class="inline-flex items-center gap-1.5 text-secondary font-title text-title">
+<span class="material-symbols-outlined text-[18px]">check_circle</span>
+              Gia lộc nhẹ (20-30 triệu)
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<span class="inline-flex items-center gap-1.5 text-on-surface-variant font-title text-title">
+<span class="material-symbols-outlined text-[18px]">lock</span>
+              Giá cố định (Chốt bán nhanh)
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<span class="inline-flex items-center gap-1.5 text-secondary font-title text-title">
+<span class="material-symbols-outlined text-[18px]">handshake</span>
+              Đàm phán theo tiến độ thanh toán
+            </span>
+</div>
+</div>
+</div>
+<!-- SECTION 2: Pháp lý & Chứng thực sàn (FR22) -->
+<div class="flex flex-col">
+<div class="bg-surface-container-high/60 px-space-lg py-space-sm flex items-center gap-space-xs text-primary font-headline-sm text-headline-sm">
+<span class="material-symbols-outlined text-[22px]">gavel</span>
+<span>2. Pháp lý &amp; Chứng thực sàn (FR22)</span>
+</div>
+<!-- Row: Tình trạng chủ quyền -->
+<div class="grid grid-cols-12 px-space-lg py-space-md hover:bg-surface-container-low transition-colors items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Tình trạng pháp lý</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<div class="p-space-sm rounded-lg bg-secondary-container/40 flex flex-col">
+<span class="font-title text-title text-secondary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+                Sổ hồng lâu dài
+              </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Sẵn sàng công chứng sang tên 24h</span>
+</div>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<div class="p-space-sm rounded-lg bg-secondary-container/40 flex flex-col">
+<span class="font-title text-title text-secondary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+                Sổ hồng (Cấp 2024)
+              </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Không thế chấp, không tranh chấp</span>
+</div>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<div class="p-space-sm rounded-lg bg-surface-container-high flex flex-col">
+<span class="font-title text-title text-primary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">description</span>
+                Hợp đồng mua bán CĐT
+              </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Đang nộp hồ sơ chờ cấp sổ đợt 2</span>
+</div>
+</div>
+</div>
+<!-- Row: Mức độ kiểm định sàn -->
+<div class="grid grid-cols-12 px-space-lg py-space-md bg-surface-container-low/40 items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Xác thực sàn BDS WF</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<span class="inline-flex items-center gap-1 text-secondary font-body-md text-body-md font-semibold">
+<span class="material-symbols-outlined text-[18px]">shield</span>
+              Chính chủ CCCD gắn chip
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<span class="inline-flex items-center gap-1 text-secondary font-body-md text-body-md font-semibold">
+<span class="material-symbols-outlined text-[18px]">shield</span>
+              Trùng khớp bản đồ quy hoạch số
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3">
+<span class="inline-flex items-center gap-1 text-secondary font-body-md text-body-md font-semibold">
+<span class="material-symbols-outlined text-[18px]">shield</span>
+              Xác thực dư nợ tín dụng BIDV
+            </span>
+</div>
+</div>
+</div>
+<!-- SECTION 3: Quy mô & Thiết kế căn hộ -->
+<div class="flex flex-col">
+<div class="bg-surface-container-high/60 px-space-lg py-space-sm flex items-center gap-space-xs text-primary font-headline-sm text-headline-sm">
+<span class="material-symbols-outlined text-[22px]">floor_lamp</span>
+<span>3. Quy mô &amp; Thiết kế căn hộ</span>
+</div>
+<!-- Row: Diện tích -->
+<div class="grid grid-cols-12 px-space-lg py-space-md hover:bg-surface-container-low transition-colors items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Diện tích thông thủy / Tim tường</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">69.8 m²</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Tim tường: 74.0 m² (Tỷ lệ 94.3%)</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">67.2 m²</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Tim tường: 72.1 m² (Tỷ lệ 93.2%)</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">59.4 m²</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Tim tường: 65.0 m² (Tỷ lệ 91.3%)</span>
+</div>
+</div>
+<!-- Row: Phòng ngủ & Vệ sinh -->
+<div class="grid grid-cols-12 px-space-lg py-space-md bg-surface-container-low/40 items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Cấu trúc công năng</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-title text-title text-primary font-semibold">2 Phòng ngủ · 2 WC</span>
+<span class="font-body-sm text-body-sm text-secondary">Căn góc 2 mặt thoáng</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-title text-title text-primary font-semibold">2 Phòng ngủ · 2 WC</span>
+<span class="font-body-sm text-body-sm text-secondary">2 logia riêng biệt</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-title text-title text-primary font-semibold">2 Phòng ngủ + 1 · 2 WC</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Có góc làm việc đa năng</span>
+</div>
+</div>
+<!-- Row: Hướng ban công & Cửa chính -->
+<div class="grid grid-cols-12 px-space-lg py-space-md hover:bg-surface-container-low transition-colors items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Hướng cửa / Ban công</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-body-md text-body-md text-on-surface-variant">Cửa: Tây Bắc</span>
+<span class="font-title text-title text-secondary font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">air</span>
+              Ban công: Đông Nam (Mát quanh năm)
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-body-md text-body-md text-on-surface-variant">Cửa: Tây Nam</span>
+<span class="font-title text-title text-on-surface font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+              Ban công: Đông Bắc (View công viên)
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-body-md text-body-md text-on-surface-variant">Cửa: Đông Bắc</span>
+<span class="font-title text-title text-on-surface font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">sunny</span>
+              Ban công: Tây Nam (View nội khu bể bơi)
+            </span>
+</div>
+</div>
+</div>
+<!-- SECTION 4: Vị trí & Chi phí dịch vụ ước tính -->
+<div class="flex flex-col">
+<div class="bg-surface-container-high/60 px-space-lg py-space-sm flex items-center gap-space-xs text-primary font-headline-sm text-headline-sm">
+<span class="material-symbols-outlined text-[22px]">location_city</span>
+<span>4. Vị trí &amp; Chi phí vận hành hàng tháng</span>
+</div>
+<!-- Row: Phí quản lý dịch vụ -->
+<div class="grid grid-cols-12 px-space-lg py-space-md hover:bg-surface-container-low transition-colors items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Phí quản lý ước tính</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">~14.000 đ/m²</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Khoảng 980.000 đ/tháng (Vinhomes O&amp;M)</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">~18.000 đ/m²</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Khoảng 1.200.000 đ/tháng (CBRE tiêu chuẩn 5 sao)</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary font-bold">~16.000 đ/m²</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Khoảng 950.000 đ/tháng (Masterise Property)</span>
+</div>
+</div>
+<!-- Row: Tiện ích liền kề -->
+<div class="grid grid-cols-12 px-space-lg py-space-md bg-surface-container-low/40 items-center">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Tiện ích đặc quyền</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col gap-1">
+<span class="font-body-md text-body-md text-on-surface">Hồ điều hòa 8ha, Vinschool, Vincom</span>
+<span class="font-body-sm text-body-sm text-secondary">3 phút tới TT Hội nghị Quốc gia</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col gap-1">
+<span class="font-body-md text-body-md text-on-surface">Công viên cảnh quan 14ha, bể bơi vô cực tầng 43</span>
+<span class="font-body-sm text-body-sm text-secondary">Kế bên đường đua F1 cũ &amp; Bệnh viện Hồng Ngọc</span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 flex flex-col gap-1">
+<span class="font-body-md text-body-md text-on-surface">Vườn trên không, bể bơi tầng thượng Panorama</span>
+<span class="font-body-sm text-body-sm text-secondary">Đối diện công viên trung tâm Smart City</span>
+</div>
+</div>
+</div>
+<!-- SECTION 5: Nội thất & Tình trạng bàn giao -->
+<div class="flex flex-col">
+<div class="bg-surface-container-high/60 px-space-lg py-space-sm flex items-center gap-space-xs text-primary font-headline-sm text-headline-sm">
+<span class="material-symbols-outlined text-[22px]">chair</span>
+<span>5. Nội thất &amp; Tình trạng thực tế</span>
+</div>
+<!-- Row: Mức độ nội thất -->
+<div class="grid grid-cols-12 px-space-lg py-space-lg hover:bg-surface-container-low transition-colors items-start">
+<div class="col-span-12 lg:col-span-3 font-title text-title text-on-surface mb-1 lg:mb-0">Hiện trạng hoàn thiện</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-surface-container-lowest p-space-md rounded-lg flex flex-col gap-space-xs shadow-sm">
+<span class="font-title text-title text-primary font-bold">Đầy đủ cao cấp (Full đồ)</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Sofa da bò Ý, bàn ăn đá phiến, tủ bếp An Cường phủ Acrylic, 3 điều hòa Daikin Inverter âm trần, đệm King Koil.</p>
+<span class="inline-flex items-center gap-1 text-secondary font-label-md text-label-md mt-1">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+              Xách vali vào ở ngay
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-surface-container-lowest p-space-md rounded-lg flex flex-col gap-space-xs shadow-sm">
+<span class="font-title text-title text-primary font-bold">Bàn giao chuẩn CĐT</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Đã có sàn gỗ công nghiệp nhập khẩu, thiết bị vệ sinh Duravit cao cấp, bếp từ Bosch &amp; hút mùi Hafele. Chưa có đồ rời.</p>
+<span class="inline-flex items-center gap-1 text-on-surface-variant font-label-md text-label-md mt-1">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+              Dễ tùy biến decor theo gu riêng
+            </span>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-surface-container-lowest p-space-md rounded-lg flex flex-col gap-space-xs shadow-sm">
+<span class="font-title text-title text-primary font-bold">Nội thất kiến trúc sư thiết kế</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Phong cách Japandi tối giản, hệ tủ liền tường thông minh, thiết bị smarthome Lumi điều khiển qua điện thoại.</p>
+<span class="inline-flex items-center gap-1 text-secondary font-label-md text-label-md mt-1">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+              Tình trạng mới 99%
+            </span>
+</div>
+</div>
+</div>
+</div>
+<!-- AI / Expert Algorithmic Recommendation Box -->
+<div class="bg-gradient-to-br from-primary-container to-primary text-on-primary rounded-xl p-space-xl shadow-md flex flex-col lg:flex-row items-start lg:items-center justify-between gap-space-xl relative overflow-hidden">
+<div class="flex items-start gap-space-md z-10 max-w-4xl">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest/15 backdrop-blur-md flex items-center justify-center shrink-0 text-secondary-fixed">
+<span class="material-symbols-outlined text-[28px]">insights</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-sm flex-wrap">
+<span class="font-title text-title text-secondary-fixed font-bold uppercase tracking-wide">Nhận định chuyên gia thuật toán BDS WF 2026</span>
+<span class="px-2 py-0.5 rounded bg-surface-container-lowest/20 font-label-md text-label-md text-surface-bright">Điểm tín nhiệm: 9.6/10</span>
+</div>
+<p class="font-body-md text-body-md text-surface-variant leading-relaxed">
+            • <strong class="text-on-primary">The Matrix One</strong> sở hữu đơn giá thông thủy ưu việt nhất phân khúc trung tâm Mỹ Đình (~64.5 tr/m²) cùng tiêu chuẩn hoàn thiện bàn giao chuẩn Đức.<br/>
+            • <strong class="text-on-primary">Vinhomes GreenBay</strong> vượt trội về pháp lý Sổ đỏ lâu dài có sẵn, hướng Đông Nam đón gió tự nhiên và môi trường sinh thái hồ 8ha cho gia đình.<br/>
+            • <strong class="text-on-primary">Masteri West Heights</strong> phù hợp ngân sách dưới 3.5 tỷ với tổng mức vốn khởi điểm thấp nhất, tối ưu tỷ suất cho thuê chuyên gia ngoại.
+          </p>
+</div>
+</div>
+<div class="flex flex-col gap-2 shrink-0 w-full lg:w-auto z-10">
+<button class="px-space-lg py-3 rounded-lg bg-secondary text-on-secondary font-title text-title hover:opacity-90 transition-opacity flex items-center justify-center gap-space-xs shadow-sm" type="button">
+<span class="material-symbols-outlined text-[20px]">calculate</span>
+<span>Tính toán đòn bẩy vay 70%</span>
+</button>
+</div>
+<!-- Background Graphic Accents -->
+<div class="absolute -right-16 -bottom-16 w-64 h-64 rounded-full bg-surface-variant/10 blur-3xl pointer-events-none"></div>
+</div>
+<!-- Space for Sticky Bar clearance -->
+<div class="h-16"></div>
+</div>
+<!-- Sticky Bottom Action Bar -->
+<aside aria-label="Thanh thao tác cố định" class="fixed bottom-0 left-0 right-0 z-40 bg-surface-container-lowest/95 backdrop-blur-md shadow-[0_-4px_24px_rgba(11,28,48,0.08)] py-space-sm">
+<div class="max-w-[1360px] mx-auto px-margin flex flex-col sm:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-space-xs text-secondary font-title text-title">
+<span class="material-symbols-outlined text-[20px]">verified</span>
+<span class="hidden md:inline">Bảo đảm thông tin xác thực 100% qua mã định danh BĐS</span>
+<span class="md:hidden">Đã đối soát 3 BĐS</span>
+</div>
+</div>
+<div class="flex items-center gap-space-md w-full sm:w-auto">
+<button class="flex-1 sm:flex-none flex items-center justify-center gap-space-xs px-space-lg h-12 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-title text-title transition-colors" type="button">
+<span class="material-symbols-outlined text-[20px]">bookmark</span>
+<span>Lưu bảng so sánh</span>
+</button>
+<button class="flex-1 sm:flex-none flex items-center justify-center gap-space-xs px-space-xl h-12 rounded-lg bg-secondary hover:opacity-90 text-on-secondary font-title text-title shadow-sm transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">call</span>
+<span>Liên hệ tư vấn (3 tin)</span>
+</button>
+</div>
+</div>
+</aside>
+</div>
+<script>
+  (function() {
+    const toggle = document.getElementById('toggle-diff');
+    if (!toggle) return;
+    toggle.addEventListener('change', function() {
+      const highlights = document.querySelectorAll('.bg-secondary-container, .bg-secondary-container\\/40, .ring-2');
+      highlights.forEach(el => {
+        if (!toggle.checked) {
+          el.dataset.prevClass = el.className;
+          el.classList.add('transition-opacity', 'opacity-60');
+        } else {
+          el.classList.remove('opacity-60');
+        }
+      });
+    });
+  })();
+</script></main><footer class="w-full bg-surface-container-lowest shadow-[0_-1px_12px_rgba(11,28,48,0.04)] pt-space-2xl pb-space-xl"><div class="max-w-[1360px] mx-auto px-margin"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-gutter pb-space-2xl"><div class="lg:col-span-4 flex flex-col gap-space-md"><div class="flex items-center gap-space-sm"><div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-on-primary"><span class="material-symbols-outlined text-[18px]">real_estate_agent</span></div><span class="font-headline-sm text-headline-sm text-primary font-bold">BDS WF 2026</span></div><p class="font-body-md text-body-md text-on-surface-variant pr-space-lg">Nền tảng giao dịch và thẩm định bất động sản thế hệ mới. Ứng dụng mô hình số hóa dữ liệu chuẩn quy hoạch phân khu Hà Nội Pilot 2026.</p><div class="flex flex-col gap-space-xs mt-space-xs"><div class="flex items-center gap-space-xs text-secondary font-title text-title"><span class="material-symbols-outlined text-[20px]">verified_user</span><span>Cam kết chống tin ảo 24/7 theo định danh thực</span></div><div class="flex items-center gap-space-xs text-on-surface-variant font-body-sm text-body-sm"><span class="material-symbols-outlined text-[18px]">gavel</span><span>Tuân thủ Luật 122/2025/QH15 &amp; Nghị định 248/2026/NĐ-CP</span></div><div class="flex items-center gap-space-xs text-on-surface-variant font-body-sm text-body-sm"><span class="material-symbols-outlined text-[18px]">shield_lock</span><span>Bảo vệ Dữ liệu Cá nhân theo Luật 91/2025/QH15</span></div></div></div><div class="lg:col-span-3 flex flex-col gap-space-sm"><h3 class="font-title text-title text-primary font-bold uppercase tracking-wider">Pháp lý &amp; Chuẩn dữ liệu</h3><ul class="flex flex-col gap-space-sm font-body-md text-body-md text-on-surface-variant"><li><a class="hover:text-primary transition-colors flex items-center gap-space-xs" data-path="tin-tuc-va-quy-che" href="#"><span class="material-symbols-outlined text-[16px]">chevron_right</span>Quy chế kiểm duyệt niêm yết 2026</a></li><li><a class="hover:text-primary transition-colors flex items-center gap-space-xs" href="#"><span class="material-symbols-outlined text-[16px]">chevron_right</span>Chính sách Bảo mật dữ liệu người dùng</a></li><li><a class="hover:text-primary transition-colors flex items-center gap-space-xs" href="#"><span class="material-symbols-outlined text-[16px]">chevron_right</span>Quy trình giải quyết tranh chấp &amp; Khiếu nại</a></li><li><a class="hover:text-primary transition-colors flex items-center gap-space-xs" href="#"><span class="material-symbols-outlined text-[16px]">chevron_right</span>Công bố Giấy phép TMĐT &amp; Định mức hoa hồng</a></li></ul></div><div class="lg:col-span-2 flex flex-col gap-space-sm"><h3 class="font-title text-title text-primary font-bold uppercase tracking-wider">Khu vực Pilot</h3><ul class="flex flex-col gap-space-sm font-body-md text-body-md text-on-surface-variant"><li><a class="hover:text-primary transition-colors" data-path="tim-kiem-va-ban-do" href="#">Khu Đông: Long Biên, Gia Lâm</a></li><li><a class="hover:text-primary transition-colors" data-path="tim-kiem-va-ban-do" href="#">Khu Tây: Nam Từ Liêm, Hoài Đức</a></li><li><a class="hover:text-primary transition-colors" data-path="tim-kiem-va-ban-do" href="#">Khu Bắc: Tây Hồ, Đông Anh</a></li><li><a class="hover:text-primary transition-colors" data-path="tim-kiem-va-ban-do" href="#">Khu Nam: Hoàng Mai, Thanh Trì</a></li></ul></div><div class="lg:col-span-3 flex flex-col gap-space-sm"><h3 class="font-title text-title text-primary font-bold uppercase tracking-wider">Chứng nhận &amp; Giám sát</h3><div class="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-space-xs"><div class="flex items-center gap-space-xs text-secondary"><span class="material-symbols-outlined text-[22px]">task_alt</span><span class="font-title text-title">Hệ thống Thẩm định Tự động</span></div><p class="font-body-sm text-body-sm text-on-surface-variant">100% tọa độ, pháp lý sổ đỏ/hợp đồng mua bán được đối soát với dữ liệu bản đồ số Hà Nội.</p></div><div class="flex items-center gap-space-sm mt-space-xs"><div class="px-space-md py-space-xs rounded bg-surface-container text-on-surface font-label-md text-label-md flex items-center gap-space-xs"><span class="material-symbols-outlined text-[16px] text-secondary">security</span>Đã đăng ký Bộ Công Thương</div></div></div></div><div class="pt-space-lg flex flex-col md:flex-row items-center justify-between gap-space-md text-on-surface-variant font-body-sm text-body-sm"><p>© 2026 BDS WF 2026 Platform. Bản quyền thuộc Công ty Cổ phần Công nghệ Bất động sản Hà Nội.</p><div class="flex items-center gap-space-lg"><span>Hotline Pháp lý: <strong class="text-primary">1900 xxxx</strong> (Nhánh 2)</span><span>Email: <strong class="text-primary">hotro@bdswf2026.vn</strong></span></div></div></div></footer></body></html>
