@@ -131,6 +131,19 @@ public class MediaStorageService {
         if (attached != null && attached > 0) {
             throw new IllegalStateException("Ảnh đang thuộc lịch sử revision và không thể xóa vật lý.");
         }
+        String privateUrl = "/api/v1/media/kyc/" + objectKey;
+        Integer kycAttached = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM user_kyc_profiles
+                WHERE id_card_front_url=? OR id_card_back_url=? OR selfie_url=?
+                """, Integer.class, privateUrl, privateUrl, privateUrl);
+        Integer verificationAttached = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM listing_verifications
+                WHERE document_urls IS NOT NULL AND document_urls LIKE ?
+                """, Integer.class, "%" + privateUrl + "%");
+        if ((kycAttached != null && kycAttached > 0)
+                || (verificationAttached != null && verificationAttached > 0)) {
+            throw new IllegalStateException("Tài liệu đang được gắn với hồ sơ xác minh nên không thể xóa.");
+        }
         try {
             minio.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(objectKey).build());
             jdbc.update("DELETE FROM media_objects WHERE object_key=? AND owner_id=?", objectKey, ownerId);
@@ -153,12 +166,44 @@ public class MediaStorageService {
         }
     }
 
+    public void validateKycOwnership(UUID ownerId, List<String> mediaUrls) {
+        if (mediaUrls == null || mediaUrls.isEmpty()) {
+            throw new IllegalArgumentException("Cần cung cấp đầy đủ các ảnh định danh bắt buộc.");
+        }
+        String prefix = "/api/v1/media/kyc/";
+        for (String mediaUrl : mediaUrls) {
+            if (mediaUrl == null || !mediaUrl.startsWith(prefix)) {
+                throw new IllegalArgumentException("Đường dẫn ảnh định danh không hợp lệ.");
+            }
+            String objectKey = mediaUrl.substring(prefix.length());
+            Integer owned = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM media_objects
+                    WHERE object_key=? AND owner_id=? AND visibility='KYC_PRIVATE'
+                    """, Integer.class, objectKey, ownerId);
+            if (owned == null || owned == 0) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "Ảnh định danh không tồn tại hoặc thuộc tài khoản khác.");
+            }
+        }
+    }
+
     @Scheduled(cron = "${app.media.orphan-cleanup-cron:0 30 3 * * *}")
     public void cleanupOrphans() {
         var keys = jdbc.queryForList("""
                 SELECT object_key FROM media_objects m
                 WHERE m.created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours'
                   AND NOT EXISTS (SELECT 1 FROM listing_media lm WHERE lm.media_url=CONCAT('/api/v1/public/media/',m.object_key))
+                  AND NOT EXISTS (
+                    SELECT 1 FROM user_kyc_profiles k
+                    WHERE k.id_card_front_url=CONCAT('/api/v1/media/kyc/',m.object_key)
+                       OR k.id_card_back_url=CONCAT('/api/v1/media/kyc/',m.object_key)
+                       OR k.selfie_url=CONCAT('/api/v1/media/kyc/',m.object_key)
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM listing_verifications v
+                    WHERE v.document_urls IS NOT NULL
+                      AND v.document_urls LIKE CONCAT('%/api/v1/media/kyc/',m.object_key,'%')
+                  )
                 ORDER BY m.created_at LIMIT 100
                 """, String.class);
         for (String key : keys) {

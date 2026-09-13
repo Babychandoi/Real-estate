@@ -12,7 +12,7 @@ public interface LeadPersistencePort {
     List<Lead> findByListingId(UUID listingId, int page, int size);
     List<Lead> findByListingIds(List<UUID> listingIds, int page, int size);
     List<Lead> findPage(int page, int size);
-    long countByPhoneLookupHash(String phoneLookupHash);
+    long countByPhoneLookupHashSince(String phoneLookupHash, java.time.Instant since);
     long countAll();
     long countByStatuses(List<com.company.bds.lead.domain.model.LeadStatus> statuses);
 }

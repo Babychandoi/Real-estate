@@ -21,6 +21,6 @@ public interface LeadJpaRepository extends JpaRepository<LeadJpaEntity, UUID> {
 
     List<LeadJpaEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
-    long countByPhoneLookupHash(String phoneLookupHash);
+    long countByPhoneLookupHashAndCreatedAtAfter(String phoneLookupHash, java.time.Instant since);
     long countByStatusIn(List<LeadStatus> statuses);
 }

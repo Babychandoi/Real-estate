@@ -25,25 +25,24 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Backend tests
         working-directory: backend
-        run: ./mvnw --batch-mode verify
+        run: sh mvnw --batch-mode verify
       - name: Frontend checks
         working-directory: frontend
-        run: npm ci && npm audit --audit-level=high && npm run build
+        run: npm ci && npm audit --audit-level=high && npm run lint && npm run build
+      - name: Start integration stack
+        run: docker compose --env-file .env.demo.example up -d --build --wait
       - name: Install Playwright browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium firefox webkit
       - name: Visual regression and accessibility
         working-directory: frontend
         run: npm run test:e2e
-      - name: Build images
-        run: docker compose build
         env:
-          POSTGRES_PASSWORD: ci-only-password-not-for-production
-          REDIS_PASSWORD: ci-only-redis-not-for-production
-          DEMO_ACCOUNT_PASSWORD: ci-only-demo-password-not-for-production
-          MINIO_ROOT_USER: ci-media
-          MINIO_ROOT_PASSWORD: ci-only-minio-password-not-for-production
-      - uses: aquasecurity/trivy-action@0.28.0
+          PLAYWRIGHT_EXTERNAL_SERVER: '1'
+      - name: Stop integration stack
+        if: always()
+        run: docker compose --env-file .env.demo.example down -v
+      - uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .

@@ -34,8 +34,9 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, UU
            "ORDER BY l.createdAt DESC")
     List<UUID> findPublicActiveListingIds(Pageable pageable);
 
-    @Query("SELECT DISTINCT l FROM ListingJpaEntity l LEFT JOIN FETCH l.revisions WHERE l.id IN :ids")
-    List<ListingJpaEntity> findAllByIdWithRevisions(@Param("ids") List<UUID> ids);
+    @Query("SELECT DISTINCT l FROM ListingJpaEntity l LEFT JOIN FETCH l.revisions " +
+           "WHERE l.id IN :ids AND l.status = 'ACTIVE' AND l.publicRevisionId IS NOT NULL")
+    List<ListingJpaEntity> findAllPublicActiveByIdWithRevisions(@Param("ids") List<UUID> ids);
 
     @Query("SELECT DISTINCT l FROM ListingJpaEntity l " +
            "LEFT JOIN FETCH l.revisions r " +
@@ -55,7 +56,11 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, UU
            "AND (:maxArea IS NULL OR r.areaM2 <= :maxArea) " +
            "AND (:keyword = '' OR LOWER(r.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.addressSummary) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:minLat IS NULL OR (r.publicLatitude >= :minLat AND r.publicLatitude <= :maxLat AND r.publicLongitude >= :minLng AND r.publicLongitude <= :maxLng)) " +
-           "ORDER BY l.createdAt DESC")
+           "ORDER BY " +
+           "CASE WHEN :sortBy = 'PRICE_ASC' THEN r.priceVnd END ASC, " +
+           "CASE WHEN :sortBy = 'PRICE_DESC' THEN r.priceVnd END DESC, " +
+           "CASE WHEN :sortBy = 'AREA_DESC' THEN r.areaM2 END DESC, " +
+           "l.createdAt DESC, l.id DESC")
     List<UUID> searchPublicActiveListingIds(
             @Param("purpose") String purpose,
             @Param("propertyType") String propertyType,
@@ -68,5 +73,6 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, UU
             @Param("maxLat") Double maxLat,
             @Param("minLng") Double minLng,
             @Param("maxLng") Double maxLng,
+            @Param("sortBy") String sortBy,
             Pageable pageable);
 }

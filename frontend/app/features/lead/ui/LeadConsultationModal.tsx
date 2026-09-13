@@ -5,7 +5,7 @@ import { formatPriceVnd } from '@/entities/listing/model/types';
 
 interface Props {
   isOpen: boolean; onClose: () => void;
-  listing: { id: string; title: string; priceVnd: number; areaM2: number; address: string; imageUrl?: string; ownerName?: string; };
+  listing: { id: string; title: string; priceVnd: number; areaM2: number; address: string; imageUrl?: string; };
 }
 interface LeadResult { leadId: string; status: string; createdAt: string; }
 

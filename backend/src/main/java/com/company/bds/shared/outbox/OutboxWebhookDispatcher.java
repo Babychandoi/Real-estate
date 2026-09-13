@@ -6,12 +6,15 @@ import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
 import java.util.UUID;
+import java.net.http.HttpClient;
+import java.time.Duration;
 
 @Component
 @ConditionalOnProperty(name = "app.outbox.enabled", havingValue = "true")
@@ -26,7 +29,10 @@ public class OutboxWebhookDispatcher {
             @Value("${app.outbox.webhook-url}") String webhookUrl,
             @Value("${app.outbox.signing-key}") String signingKey) {
         this.leases = leases;
-        this.client = builder.build();
+        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(8));
+        this.client = builder.requestFactory(requestFactory).build();
         this.webhookUrl = webhookUrl;
         this.signingKey = signingKey.getBytes(StandardCharsets.UTF_8);
     }
@@ -55,8 +61,7 @@ public class OutboxWebhookDispatcher {
             mac.init(new SecretKeySpec(signingKey, "HmacSHA256"));
             return "sha256=" + HexFormat.of().formatHex(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception ex) {
-            throw new IllegalStateException("Cannot sign outbox webhook", ex);
+            throw new IllegalStateException("Không thể ký webhook outbox", ex);
         }
     }
 }
-

@@ -20,6 +20,7 @@ public record ListingSummaryResponse(
         Double publicLatitude,
         Double publicLongitude,
         boolean isVerified,
+        boolean isShowcase,
         String primaryImageUrl,
         Instant publishedAt
 ) {}

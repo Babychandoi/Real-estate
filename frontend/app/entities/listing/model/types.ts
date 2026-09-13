@@ -10,6 +10,7 @@ export interface Listing {
   publicLatitude?: number;
   publicLongitude?: number;
   isVerified: boolean;
+  isShowcase?: boolean;
   primaryImageUrl: string;
   publishedAt?: string;
 }

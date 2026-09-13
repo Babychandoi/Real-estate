@@ -78,6 +78,7 @@ export const ListingDetailPage: React.FC = () => {
               Đã xác thực người đăng
             </Badge>
           )}
+          {listing.isShowcase && <Badge variant="neutral">Tin mẫu trải nghiệm</Badge>}
         </div>
       </div>
 
@@ -144,7 +145,7 @@ export const ListingDetailPage: React.FC = () => {
 
             <div className="mt-4 flex flex-col gap-3">
                 <p className="text-sm text-on-surface-variant">Gửi một yêu cầu ngắn để hẹn thời gian xem nhà. Hệ thống chỉ ghi nhận thành công khi máy chủ trả về mã yêu cầu.</p>
-                <Button
+                {listing.isShowcase ? <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Tin này dùng để trải nghiệm tìm kiếm, không tiếp nhận tên hoặc số điện thoại thật.</p> : <Button
                   type="button"
                   variant="outline"
                   size="md"
@@ -153,7 +154,7 @@ export const ListingDetailPage: React.FC = () => {
                   className="w-full border-primary/30 text-primary hover:bg-primary/10 font-bold"
                 >
                   Hẹn xem & nhận tư vấn
-                </Button>
+                </Button>}
             </div>
 
             {/* Khối Giao dịch Đặt cọc Trực tuyến Bảo đảm Escrow (FR28, FR30, UC05) */}
@@ -174,7 +175,7 @@ export const ListingDetailPage: React.FC = () => {
       </div>
 
       {/* Modal Đăng Ký Tư Vấn & Xác Minh OTP Khách Hàng (FR18, FR20, UC04) */}
-      {listing && (
+      {listing && !listing.isShowcase && (
         <LeadConsultationModal
           isOpen={isConsultationModalOpen}
           onClose={() => setIsConsultationModalOpen(false)}
@@ -185,7 +186,6 @@ export const ListingDetailPage: React.FC = () => {
             areaM2: listing.areaM2,
             address: listing.addressSummary,
             imageUrl: listing.primaryImageUrl,
-            ownerName: 'Anh Hoàng (Chính chủ)',
           }}
         />
       )}

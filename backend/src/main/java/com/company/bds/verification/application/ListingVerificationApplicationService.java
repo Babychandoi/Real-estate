@@ -5,6 +5,7 @@ import com.company.bds.listing.domain.model.Listing;
 import com.company.bds.verification.domain.model.ListingVerification;
 import com.company.bds.verification.domain.model.VerificationStatus;
 import com.company.bds.verification.domain.model.VerificationType;
+import com.company.bds.verification.domain.model.KycStatus;
 import com.company.bds.verification.domain.port.ListingVerificationPersistencePort;
 import com.company.bds.verification.domain.port.UserKycPersistencePort;
 import org.springframework.stereotype.Service;
@@ -45,10 +46,18 @@ public class ListingVerificationApplicationService {
         Listing listing = listingPersistencePort.findById(listingId)
                 .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại ID: " + listingId));
 
+        if (!listing.getOwnerId().equals(userId)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Chỉ chủ tin đăng mới có thể nộp hồ sơ xác minh.");
+        }
+
         // Lấy hồ sơ eKYC của người dùng nếu có
-        UUID userKycId = kycPersistencePort.findByUserId(userId)
-                .map(k -> k.getId())
-                .orElse(null);
+        var kyc = kycPersistencePort.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("Tài khoản cần hoàn tất eKYC trước khi xác minh tin."));
+        if (kyc.getStatus() != KycStatus.VERIFIED) {
+            throw new IllegalStateException("Hồ sơ eKYC phải được duyệt trước khi xác minh tin.");
+        }
+        UUID userKycId = kyc.getId();
 
         ListingVerification verification = ListingVerification.create(
                 listingId,
@@ -70,6 +79,15 @@ public class ListingVerificationApplicationService {
     public ListingVerification approveVerification(UUID verificationId, String verifierNote) {
         ListingVerification verification = verificationPersistencePort.findById(verificationId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hồ sơ thẩm định ID: " + verificationId));
+
+        if (verification.getUserKycId() == null) {
+            throw new IllegalStateException("Hồ sơ xác minh tin không có eKYC đã liên kết.");
+        }
+        var kyc = kycPersistencePort.findById(verification.getUserKycId())
+                .orElseThrow(() -> new IllegalStateException("Hồ sơ eKYC liên kết không còn tồn tại."));
+        if (kyc.getStatus() != KycStatus.VERIFIED) {
+            throw new IllegalStateException("Không thể duyệt tin khi eKYC chưa được xác minh.");
+        }
 
         Instant now = Instant.now();
         verification.approve(verifierNote, now);

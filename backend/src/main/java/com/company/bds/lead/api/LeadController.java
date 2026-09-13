@@ -108,6 +108,14 @@ public class LeadController {
         return ResponseEntity.ok(LeadResponse.fromDomain(updated));
     }
 
+    @GetMapping("/leads/{id}/contact")
+    public ResponseEntity<Map<String, String>> revealLeadContact(
+            @PathVariable("id") UUID id, Authentication authentication) {
+        String phone = leadApplicationService.revealPhone(
+                id, CurrentUser.id(authentication), isPrivileged(authentication));
+        return ResponseEntity.ok(Map.of("phone", phone));
+    }
+
     private boolean isPrivileged(Authentication authentication) {
         return authentication.getAuthorities().stream().anyMatch(a ->
                 a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MODERATOR"));

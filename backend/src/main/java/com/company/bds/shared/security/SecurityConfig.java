@@ -54,7 +54,7 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, ex) -> problem(response, 403, "Bạn không có quyền thực hiện thao tác này")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/resend-verification").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/verify-email").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**", "/api/v1/listings/search", "/api/v1/listings/{id}").permitAll()
@@ -62,7 +62,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()
                         .requestMatchers("/api/v1/billing/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/moderation/**", "/api/v1/analytics/**").hasAnyRole("ADMIN", "MODERATOR")
-                        .requestMatchers("/api/v1/leads/**").hasAnyRole("ADMIN", "MODERATOR", "BROKER")
+                        .requestMatchers("/api/v1/leads/**").hasAnyRole("ADMIN", "MODERATOR", "BROKER", "USER")
                         .requestMatchers("/api/v1/broker/**").hasAnyRole("ADMIN", "BROKER")
                         .requestMatchers("/api/v1/media/**").authenticated()
                         .requestMatchers("/api/v1/reports/**").hasAnyRole("ADMIN", "MODERATOR")

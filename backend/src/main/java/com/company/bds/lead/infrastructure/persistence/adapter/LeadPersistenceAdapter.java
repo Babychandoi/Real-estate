@@ -55,8 +55,8 @@ public class LeadPersistenceAdapter implements LeadPersistencePort {
     }
 
     @Override
-    public long countByPhoneLookupHash(String phoneLookupHash) {
-        return leadJpaRepository.countByPhoneLookupHash(phoneLookupHash);
+    public long countByPhoneLookupHashSince(String phoneLookupHash, java.time.Instant since) {
+        return leadJpaRepository.countByPhoneLookupHashAndCreatedAtAfter(phoneLookupHash, since);
     }
 
     @Override public long countAll() { return leadJpaRepository.count(); }

@@ -5,6 +5,7 @@ import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.lead.domain.port.LeadPersistencePort;
 import com.company.bds.listing.application.port.out.ListingPersistencePort;
 import com.company.bds.listing.domain.model.Listing;
+import com.company.bds.listing.domain.model.ListingStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.company.bds.shared.security.PiiProtectionService;
@@ -25,18 +26,21 @@ public class LeadApplicationService {
     private final PiiProtectionService piiProtection;
     private final JdbcTemplate jdbc;
     private final ObjectProvider<OutboxEventWriter> outbox;
+    private final com.company.bds.shared.config.ShowcasePolicy showcasePolicy;
 
     public LeadApplicationService(
             LeadPersistencePort leadPersistencePort,
             ListingPersistencePort listingPersistencePort,
             PiiProtectionService piiProtection,
             JdbcTemplate jdbc,
-            ObjectProvider<OutboxEventWriter> outbox) {
+            ObjectProvider<OutboxEventWriter> outbox,
+            com.company.bds.shared.config.ShowcasePolicy showcasePolicy) {
         this.leadPersistencePort = leadPersistencePort;
         this.listingPersistencePort = listingPersistencePort;
         this.piiProtection = piiProtection;
         this.jdbc = jdbc;
         this.outbox = outbox;
+        this.showcasePolicy = showcasePolicy;
     }
 
     /**
@@ -52,12 +56,21 @@ public class LeadApplicationService {
             String idempotencyKey) {
 
         // 1. Kiểm tra tin đăng có tồn tại không
-        listingPersistencePort.findById(listingId)
+        Listing listing = listingPersistencePort.findById(listingId)
                 .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại ID: " + listingId));
+        if (listing.getStatus() != ListingStatus.ACTIVE || listing.getPublicRevisionId() == null) {
+            throw new IllegalStateException("Tin đăng không còn nhận yêu cầu liên hệ.");
+        }
+        if (showcasePolicy.isShowcaseOwner(listing.getOwnerId())) {
+            throw new IllegalStateException("Đây là tin mẫu trải nghiệm, không tiếp nhận thông tin liên hệ thật.");
+        }
+
+        Lead replay = findIdempotentReplay(listingId, fullName, rawPhone, note, consentPolicy, idempotencyKey);
+        if (replay != null) return replay;
 
         // 2. Chống spam: băm SĐT tra cứu tần suất gửi
         String lookupHash = piiProtection.blindIndex(rawPhone);
-        long existingCount = leadPersistencePort.countByPhoneLookupHash(lookupHash);
+        long existingCount = leadPersistencePort.countByPhoneLookupHashSince(lookupHash, Instant.now().minusSeconds(24 * 60 * 60));
         if (existingCount >= 10) {
             // Đánh dấu hoặc giới hạn tần suất nếu vượt ngưỡng (NFR12)
             throw new IllegalStateException("Số điện thoại này đã gửi quá nhiều yêu cầu trong thời gian ngắn.");
@@ -151,5 +164,38 @@ public class LeadApplicationService {
         }
         lead.updateStatus(newStatus);
         return leadPersistencePort.save(lead);
+    }
+
+    @Transactional(readOnly = true)
+    public String revealPhone(UUID leadId, UUID actorId, boolean privileged) {
+        Lead lead = leadPersistencePort.findById(leadId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lead."));
+        Listing listing = listingPersistencePort.findById(lead.getListingId())
+                .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại."));
+        if (!privileged && !listing.getOwnerId().equals(actorId)) {
+            throw new org.springframework.security.access.AccessDeniedException("Không có quyền xem liên hệ của lead này.");
+        }
+        if (!lead.isConsentPolicy()) throw new IllegalStateException("Khách chưa đồng ý chia sẻ thông tin liên hệ.");
+        return piiProtection.reveal(lead.getPhoneEncrypted());
+    }
+
+    private Lead findIdempotentReplay(UUID listingId, String fullName, String rawPhone, String note,
+            boolean consentPolicy, String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) return null;
+        if (!idempotencyKey.matches("[A-Za-z0-9._:-]{8,128}")) {
+            throw new IllegalArgumentException("Idempotency-Key không hợp lệ.");
+        }
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT request_hash,resource_id FROM api_idempotency_keys
+                WHERE scope='PUBLIC_LEAD' AND idempotency_key=?
+                """, idempotencyKey);
+        if (rows.isEmpty()) return null;
+        String requestHash = AuthService.sha256(listingId + "|" + fullName.trim() + "|" + rawPhone.trim()
+                + "|" + Objects.toString(note, "") + "|" + consentPolicy);
+        if (!requestHash.equals(rows.get(0).get("request_hash"))) {
+            throw new IllegalStateException("Idempotency-Key đã được dùng cho yêu cầu khác.");
+        }
+        return leadPersistencePort.findById((UUID) rows.get(0).get("resource_id"))
+                .orElseThrow(() -> new IllegalStateException("Yêu cầu đang được xử lý; vui lòng thử lại."));
     }
 }

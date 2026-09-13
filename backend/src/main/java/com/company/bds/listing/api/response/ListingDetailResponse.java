@@ -24,6 +24,7 @@ public record ListingDetailResponse(
         Double publicLatitude,
         Double publicLongitude,
         boolean isVerified,
+        boolean isShowcase,
         List<String> imageUrls,
         Instant createdAt,
         Instant updatedAt

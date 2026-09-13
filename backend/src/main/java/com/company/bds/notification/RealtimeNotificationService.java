@@ -3,6 +3,9 @@ package com.company.bds.notification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +35,13 @@ public class RealtimeNotificationService {
         jdbc.update("INSERT INTO user_notifications(id,user_id,type,title,message) VALUES (?,?,?,?,?)",
                 id, userId, type, title, message);
         var payload = java.util.Map.of("id", id, "type", type, "title", title, "message", message);
-        clients.getOrDefault(userId, new CopyOnWriteArrayList<>()).forEach(e -> send(e, "notification", payload));
+        Runnable publish = () -> clients.getOrDefault(userId, new CopyOnWriteArrayList<>())
+                .forEach(e -> send(e, "notification", payload));
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { publish.run(); }
+            });
+        } else publish.run();
     }
 
     public List<NotificationView> recent(UUID userId) {
@@ -45,8 +54,13 @@ public class RealtimeNotificationService {
         jdbc.update("UPDATE user_notifications SET read_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND read_at IS NULL", id, userId);
     }
 
+    @Scheduled(fixedDelayString = "${app.notifications.heartbeat-ms:25000}")
+    public void heartbeat() {
+        clients.forEach((userId, emitters) -> emitters.forEach(e -> send(e, "heartbeat", java.util.Map.of("ok", true))));
+    }
+
     private void send(SseEmitter emitter, String event, Object data) {
-        try { emitter.send(SseEmitter.event().name(event).data(data)); }
+        try { emitter.send(SseEmitter.event().id(UUID.randomUUID().toString()).name(event).data(data)); }
         catch (IOException ex) { emitter.complete(); }
     }
     private void remove(UUID userId, SseEmitter emitter) {

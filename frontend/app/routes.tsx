@@ -17,6 +17,8 @@ const ProductAnalyticsPage = lazy(() => import('./routes/_admin.analytics').then
 const ProjectCatalogPage = lazy(() => import('./routes/_admin.projects').then(m => ({ default: m.ProjectCatalogPage })));
 const CmsManagementPage = lazy(() => import('./routes/_admin.cms').then(m => ({ default: m.CmsManagementPage })));
 const BillingPage = lazy(() => import('./routes/_account.billing').then(m => ({ default: m.BillingPage })));
+const MyLeadsPage = lazy(() => import('./routes/_account.leads').then(m => ({ default: m.MyLeadsPage })));
+const KycPage = lazy(() => import('./routes/_account.kyc').then(m => ({ default: m.KycPage })));
 const VerifyEmailPage = lazy(() => import('./routes/_public.verify-email').then(m => ({ default: m.VerifyEmailPage })));
 
 const load = (node: ReactNode) => <Suspense fallback={<div className="max-w-6xl mx-auto p-8" role="status">Đang tải nội dung…</div>}>{node}</Suspense>;
@@ -38,6 +40,8 @@ export const router = createBrowserRouter([{ path: '/', element: <RootLayout />,
   { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
   { path: 'compare', element: load(<PropertyComparePage />) },
   { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER','USER']) },
+  { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN','MODERATOR','BROKER','USER']) },
+  { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
   { path: 'verify-email', element: load(<VerifyEmailPage />) },
   { path: '*', element: load(<HomePage />) },
 ]}]);

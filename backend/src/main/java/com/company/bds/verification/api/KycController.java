@@ -71,7 +71,7 @@ public class KycController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "50") int size) {
         List<UserKycProfile> list = kycApplicationService.getQueue(status, Math.max(0, page), Math.max(1, Math.min(100, size)));
-        return ResponseEntity.ok(list.stream().map(UserKycResponse::fromDomain).collect(Collectors.toList()));
+        return ResponseEntity.ok(list.stream().map(UserKycResponse::fromDomainForReviewer).collect(Collectors.toList()));
     }
 
     /**
@@ -80,7 +80,7 @@ public class KycController {
     @PostMapping("/{id}/approve")
     public ResponseEntity<UserKycResponse> approveKyc(@PathVariable("id") UUID id) {
         UserKycProfile profile = kycApplicationService.approveKyc(id);
-        return ResponseEntity.ok(UserKycResponse.fromDomain(profile));
+        return ResponseEntity.ok(UserKycResponse.fromDomainForReviewer(profile));
     }
 
     /**
@@ -91,6 +91,6 @@ public class KycController {
             @PathVariable("id") UUID id,
             @Valid @RequestBody RejectKycRequest request) {
         UserKycProfile profile = kycApplicationService.rejectKyc(id, request.reason());
-        return ResponseEntity.ok(UserKycResponse.fromDomain(profile));
+        return ResponseEntity.ok(UserKycResponse.fromDomainForReviewer(profile));
     }
 }

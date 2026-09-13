@@ -21,7 +21,7 @@ public class OutboxLeaseRepository {
                 UPDATE outbox_events SET locked_at=CURRENT_TIMESTAMP,locked_by=?,lease_token=?
                 WHERE id IN (
                     SELECT id FROM outbox_events
-                    WHERE processed_at IS NULL AND available_at<=CURRENT_TIMESTAMP
+                    WHERE processed_at IS NULL AND dead_lettered_at IS NULL AND available_at<=CURRENT_TIMESTAMP
                       AND (locked_at IS NULL OR locked_at<CURRENT_TIMESTAMP-INTERVAL '5 minutes')
                     ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT ?
                 )
@@ -43,6 +43,7 @@ public class OutboxLeaseRepository {
         jdbc.update("""
                 UPDATE outbox_events SET retry_count=retry_count+1,
                     available_at=CURRENT_TIMESTAMP + LEAST(INTERVAL '1 hour', INTERVAL '1 minute' * POWER(2, LEAST(retry_count, 6))),
+                    dead_lettered_at=CASE WHEN retry_count+1>=10 THEN CURRENT_TIMESTAMP ELSE dead_lettered_at END,
                     locked_at=NULL,locked_by=NULL,lease_token=NULL,last_error=?
                 WHERE id=? AND lease_token=? AND processed_at IS NULL
                 """, error.substring(0, Math.min(1000, error.length())), id, lease);
@@ -50,4 +51,3 @@ public class OutboxLeaseRepository {
 
     public record ClaimedEvent(UUID id, String eventType, String payload, UUID leaseToken) {}
 }
-

@@ -17,7 +17,8 @@ import {
   User as UserIcon,
   Menu,
   X,
-  Search
+  Search,
+  Users
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
@@ -104,6 +105,11 @@ const RootLayoutContent: React.FC = () => {
             {isAuthenticated && (
               <Link to="/billing" className="px-3 py-2 rounded-lg hover:text-primary hover:bg-surface-container transition-colors whitespace-nowrap">
                 Gói đăng tin
+              </Link>
+            )}
+            {isAuthenticated && (
+              <Link to="/my-leads" className="px-3 py-2 rounded-lg hover:text-primary hover:bg-surface-container transition-colors whitespace-nowrap">
+                Khách quan tâm
               </Link>
             )}
 
@@ -315,7 +321,7 @@ const RootLayoutContent: React.FC = () => {
               </Button>
             ) : (
               <div className="flex items-center gap-2 pl-2 border-l border-outline-variant/30">
-                <div className="flex items-center gap-2 cursor-default px-2 py-1 rounded-xl">
+                <Link to="/kyc" title="Xác minh eKYC" className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                     <UserIcon className="w-4 h-4" />
                   </div>
@@ -335,7 +341,7 @@ const RootLayoutContent: React.FC = () => {
                       {user?.roleLabel}
                     </span>
                   </div>
-                </div>
+                </Link>
 
                 <button
                   onClick={logout}
@@ -359,6 +365,8 @@ const RootLayoutContent: React.FC = () => {
               <Link to="/compare" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Layers className="w-5 h-5" />So sánh BĐS</Link>
               <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>
               {isAuthenticated && <Link to="/my-listings" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileText className="w-5 h-5" />Kho tin của tôi</Link>}
+              {isAuthenticated && <Link to="/my-leads" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Users className="w-5 h-5" />Khách quan tâm</Link>}
+              {isAuthenticated && <Link to="/kyc" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserCheck className="w-5 h-5" />Xác minh eKYC</Link>}
               {isBroker && <Link to="/broker/workspace" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Briefcase className="w-5 h-5" />Không gian môi giới</Link>}
               {isAdminOrModerator && <Link to="/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
             </nav>

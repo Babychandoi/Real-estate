@@ -1,5 +1,7 @@
 package com.company.bds.verification.application;
 import com.company.bds.shared.security.PiiProtectionService;
+import com.company.bds.media.MediaStorageService;
+import org.springframework.beans.factory.ObjectProvider;
 import com.company.bds.verification.domain.model.*;
 import com.company.bds.verification.domain.port.UserKycPersistencePort;
 import org.springframework.stereotype.Service;
@@ -7,10 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant; import java.util.*;
 @Service @Transactional
 public class KycApplicationService {
- private final UserKycPersistencePort persistence; private final PiiProtectionService pii;
- public KycApplicationService(UserKycPersistencePort p,PiiProtectionService pii){this.persistence=p;this.pii=pii;}
+ private final UserKycPersistencePort persistence; private final PiiProtectionService pii; private final ObjectProvider<MediaStorageService> media;
+ public KycApplicationService(UserKycPersistencePort p,PiiProtectionService pii,ObjectProvider<MediaStorageService> media){this.persistence=p;this.pii=pii;this.media=media;}
  public UserKycProfile submitKyc(UUID userId,String rawIdNumber,String fullName,String dob,String address,String front,String back,String selfie){
   if(front==null||back==null||selfie==null||!front.startsWith("/api/v1/media/kyc/")||!back.startsWith("/api/v1/media/kyc/")||!selfie.startsWith("/api/v1/media/kyc/"))throw new IllegalArgumentException("Cần đủ ảnh CCCD mặt trước, mặt sau và ảnh chân dung riêng tư.");
+  MediaStorageService storage=media.getIfAvailable();if(storage==null)throw new IllegalStateException("Kho tài liệu định danh chưa sẵn sàng.");storage.validateKycOwnership(userId,List.of(front,back,selfie));
   String hash=pii.blindIndex(rawIdNumber);Optional<UserKycProfile> existing=persistence.findByIdNumberLookupHash(hash);if(existing.isPresent()&&!existing.get().getUserId().equals(userId))throw new IllegalStateException("CCCD đã liên kết với tài khoản khác.");
   var protectedId=pii.protect(rawIdNumber);return persistence.save(new UserKycProfile(UUID.randomUUID(),userId,protectedId.encrypted(),protectedId.blindIndex(),fullName.trim(),dob,address,front,back,selfie,null,KycStatus.PENDING,null,Instant.now(),null));
  }

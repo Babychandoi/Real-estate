@@ -11,6 +11,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import com.company.bds.media.MediaStorageService;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -30,6 +32,9 @@ class BdsApplicationTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @MockBean
+    private MediaStorageService mediaStorageService;
 
     @Test
     void contextLoads() {
@@ -339,6 +344,19 @@ class BdsApplicationTests {
                 .andReturn();
         String listingId = objectMapper.readTree(res.getResponse().getContentAsString()).get("listingId").asText();
 
+        // Chỉ tin đã được duyệt và đang công khai mới được nhận lead.
+        mockMvc.perform(post("/api/v1/listings/" + listingId + "/submit"))
+                .andExpect(status().isOk());
+        MvcResult leadDiff = mockMvc.perform(get("/api/v1/moderation/listings/" + listingId + "/diff"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String leadRevisionId = objectMapper.readTree(leadDiff.getResponse().getContentAsString())
+                .get("currentRevisionId").asText();
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(String.format("{\"revisionId\":\"%s\"}", leadRevisionId)))
+                .andExpect(status().isOk());
+
         // 2. Khách hàng gửi lead tư vấn (POST /api/v1/public/leads)
         String leadJson = String.format("""
             {
@@ -546,7 +564,7 @@ class BdsApplicationTests {
 
     @Test
     void listingVerification_verifiedOwnerBadge_flow() throws Exception {
-        java.util.UUID ownerId = java.util.UUID.randomUUID();
+        java.util.UUID ownerId = java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
 
         // 1. Hoàn tất eKYC cho chủ nhà trước
         String kycJson = String.format("""

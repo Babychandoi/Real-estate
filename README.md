@@ -65,14 +65,21 @@ Dự án website bất động sản thương mại điện tử / nền tảng 
 Bản mặc định là **DEMO**: chỉ dùng dữ liệu giả, eKYC và giao dịch tiền thật bị khóa.
 
 ```powershell
-Copy-Item .env.example .env
-# Đổi POSTGRES_PASSWORD, REDIS_PASSWORD, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD và DEMO_ACCOUNT_PASSWORD trong .env
+Copy-Item .env.demo.example .env
 powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1
 docker compose up --build -d
 powershell -ExecutionPolicy Bypass -File scripts/smoke-test.ps1
 ```
 - **Giao diện người dùng (Frontend SPA):** `http://localhost:3000`
 - **Health Check qua frontend:** `http://localhost:3000/healthz`
+- **Hộp thư email demo (Mailpit):** `http://localhost:8025`
+
+Cloudflare Tunnel không chạy trong cấu hình demo mặc định. Khi triển khai domain, sao chép
+`.env.production.example` thành `.env`, điền secret thật rồi chạy:
+
+```powershell
+docker compose --profile edge up --build -d
+```
 - **Health Check backend qua gateway:** `http://localhost:3000/backend-health`
 - **MinIO Console (chỉ localhost):** `http://localhost:9001`; bucket mặc định `bds-listings`.
 

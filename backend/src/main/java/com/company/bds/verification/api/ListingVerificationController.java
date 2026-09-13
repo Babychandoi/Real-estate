@@ -73,7 +73,7 @@ public class ListingVerificationController {
                 status, Math.max(0, page), Math.max(1, Math.min(100, size)));
         List<ListingVerificationResponse> list = queue.stream().map(v -> {
             UserKycResponse kyc = v.getUserKycId() != null
-                    ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomain).orElse(null)
+                    ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomainForReviewer).orElse(null)
                     : null;
             return ListingVerificationResponse.fromDomain(v, kyc);
         }).collect(Collectors.toList());
@@ -88,7 +88,7 @@ public class ListingVerificationController {
     public ResponseEntity<ListingVerificationResponse> getVerificationDetail(@PathVariable("id") UUID id) {
         ListingVerification v = verificationApplicationService.getVerificationDetail(id);
         UserKycResponse kyc = v.getUserKycId() != null
-                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomain).orElse(null)
+                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomainForReviewer).orElse(null)
                 : null;
         return ResponseEntity.ok(ListingVerificationResponse.fromDomain(v, kyc));
     }
@@ -104,7 +104,7 @@ public class ListingVerificationController {
         String note = request != null ? request.verifierNote() : "Thông tin CCCD và Sổ đỏ trùng khớp 100%. Phê duyệt cấp nhãn Tin Chính Chủ.";
         ListingVerification v = verificationApplicationService.approveVerification(id, note);
         UserKycResponse kyc = v.getUserKycId() != null
-                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomain).orElse(null)
+                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomainForReviewer).orElse(null)
                 : null;
         return ResponseEntity.ok(ListingVerificationResponse.fromDomain(v, kyc));
     }
@@ -119,7 +119,7 @@ public class ListingVerificationController {
 
         ListingVerification v = verificationApplicationService.rejectVerification(id, request.reason());
         UserKycResponse kyc = v.getUserKycId() != null
-                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomain).orElse(null)
+                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomainForReviewer).orElse(null)
                 : null;
         return ResponseEntity.ok(ListingVerificationResponse.fromDomain(v, kyc));
     }
@@ -134,7 +134,7 @@ public class ListingVerificationController {
 
         ListingVerification v = verificationApplicationService.revokeVerification(id, request.reason());
         UserKycResponse kyc = v.getUserKycId() != null
-                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomain).orElse(null)
+                ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomainForReviewer).orElse(null)
                 : null;
         return ResponseEntity.ok(ListingVerificationResponse.fromDomain(v, kyc));
     }

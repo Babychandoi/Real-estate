@@ -26,7 +26,10 @@ public class AuditTrailFilter extends OncePerRequestFilter {
     public AuditTrailFilter(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
-        return List.of("GET", "HEAD", "OPTIONS").contains(request.getMethod()) || !request.getRequestURI().startsWith("/api/");
+        boolean sensitiveRead = request.getMethod().equals("GET")
+                && request.getRequestURI().matches("/api/v1/leads/[^/]+/contact");
+        return (!sensitiveRead && List.of("GET", "HEAD", "OPTIONS").contains(request.getMethod()))
+                || !request.getRequestURI().startsWith("/api/");
     }
 
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)

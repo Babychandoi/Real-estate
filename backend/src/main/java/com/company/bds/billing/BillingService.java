@@ -35,7 +35,7 @@ public class BillingService {
         Plan p=plans().stream().filter(x->x.code().equals(planCode) && x.priceVnd()>0).findFirst().orElseThrow(()->new IllegalArgumentException("Gói dịch vụ không hợp lệ."));
         BankSettings b=bank(); if(b==null) throw new IllegalStateException("Admin chưa cấu hình tài khoản nhận tiền.");
         UUID id=UUID.randomUUID(); String ref=("BDS"+id.toString().replace("-","").substring(0,12)).toUpperCase();
-        jdbc.update("INSERT INTO package_orders(id,user_id,plan_code,amount_vnd,transfer_reference,status) VALUES(?,?,?,?,?,'CREATED')",id,userId,p.code(),p.priceVnd(),ref);
+        jdbc.update("INSERT INTO package_orders(id,user_id,plan_code,amount_vnd,transfer_reference,status,plan_name_snapshot,quota_snapshot,duration_days_snapshot,bank_bin_snapshot,account_number_snapshot,account_name_snapshot) VALUES(?,?,?,?,?,'CREATED',?,?,?,?,?,?)",id,userId,p.code(),p.priceVnd(),ref,p.name(),p.quota(),p.durationDays(),b.bankBin(),b.accountNumber(),b.accountName());
         return load(id,userId,false);
     }
     @Transactional public Order report(UUID id, UUID userId) {
@@ -50,6 +50,17 @@ public class BillingService {
         jdbc.update("INSERT INTO invoices(id,invoice_number,order_id,user_id,amount_vnd) VALUES(?,?,?,?,?)",UUID.randomUUID(),"INV-"+java.time.LocalDate.now()+"-"+order.reference(),id,order.userId(),order.amountVnd());
         notifications.notify(order.userId(),"PLAN_UPGRADED","Nâng cấp thành công","Tài khoản đã được nâng lên gói "+p.name()+" và có thêm "+p.quota()+" lượt đăng tin.");
         return load(id,null,true);
+    }
+    @Transactional public Order reject(UUID id, UUID adminId, String reason) {
+        if(reason==null||reason.isBlank()) throw new IllegalArgumentException("Cần nhập lý do từ chối đối soát.");
+        Order order=load(id,null,true);
+        int changed=jdbc.update("UPDATE package_orders SET status='REJECTED',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note=?,version=version+1 WHERE id=? AND status='TRANSFER_REPORTED'",adminId,reason.trim(),id);
+        if(changed>0) notifications.notify(order.userId(),"PAYMENT_REJECTED","Thanh toán cần kiểm tra lại",reason.trim());
+        return load(id,null,true);
+    }
+    @Transactional public Order cancel(UUID id, UUID userId) {
+        jdbc.update("UPDATE package_orders SET status='CANCELLED',reviewed_at=CURRENT_TIMESTAMP,review_note='Người dùng đã hủy',version=version+1 WHERE id=? AND user_id=? AND status='CREATED'",id,userId);
+        return load(id,userId,false);
     }
     public List<Order> mine(UUID userId){return query("WHERE o.user_id=? ORDER BY o.created_at DESC",userId);}
     public List<Order> queue(){return query("WHERE o.status='TRANSFER_REPORTED' ORDER BY o.user_reported_at",new Object[0]);}

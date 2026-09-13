@@ -84,13 +84,14 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
                 criteria.maxLat(),
                 criteria.minLng(),
                 criteria.maxLng(),
+                criteria.sortBy(),
                 PageRequest.of(page, size)
         ));
     }
 
     private List<Listing> hydrateInOrder(List<UUID> ids) {
         if (ids.isEmpty()) return List.of();
-        Map<UUID, ListingJpaEntity> entities = listingRepository.findAllByIdWithRevisions(ids).stream()
+        Map<UUID, ListingJpaEntity> entities = listingRepository.findAllPublicActiveByIdWithRevisions(ids).stream()
                 .collect(Collectors.toMap(ListingJpaEntity::getId, entity -> entity));
         return ids.stream().map(entities::get).filter(java.util.Objects::nonNull)
                 .map(mapper::toDomain).collect(Collectors.toList());

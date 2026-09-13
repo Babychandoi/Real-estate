@@ -39,6 +39,23 @@ public class PiiProtectionService {
 
     public String blindIndex(String raw) { return hmac(normalize(raw)); }
 
+    public String reveal(String protectedValue) {
+        if (protectedValue == null || !protectedValue.startsWith("v1:")) {
+            throw new IllegalArgumentException("Dữ liệu bảo vệ có định dạng không được hỗ trợ");
+        }
+        String[] parts = protectedValue.split(":", 4);
+        if (parts.length != 4) throw new IllegalArgumentException("Dữ liệu bảo vệ không hợp lệ");
+        try {
+            byte[] nonce = Base64.getUrlDecoder().decode(parts[2]);
+            byte[] encrypted = Base64.getUrlDecoder().decode(parts[3]);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encryptionKey, "AES"), new GCMParameterSpec(128, nonce));
+            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Không thể giải mã dữ liệu cá nhân", ex);
+        }
+    }
+
     private String hmac(String normalized) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

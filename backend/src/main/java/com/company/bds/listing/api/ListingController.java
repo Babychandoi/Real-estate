@@ -47,6 +47,7 @@ public class ListingController {
     private final com.company.bds.listing.application.service.ListingApplicationService listingAppService;
     private final MediaUrlPolicy mediaUrlPolicy;
     private final ObjectProvider<MediaStorageService> mediaStorageProvider;
+    private final com.company.bds.shared.config.ShowcasePolicy showcasePolicy;
 
     public ListingController(
             CreateListingDraftUseCase createDraftUseCase,
@@ -56,7 +57,8 @@ public class ListingController {
             ListingPersistencePort persistencePort,
             com.company.bds.listing.application.service.ListingApplicationService listingAppService,
             MediaUrlPolicy mediaUrlPolicy,
-            ObjectProvider<MediaStorageService> mediaStorageProvider) {
+            ObjectProvider<MediaStorageService> mediaStorageProvider,
+            com.company.bds.shared.config.ShowcasePolicy showcasePolicy) {
         this.createDraftUseCase = createDraftUseCase;
         this.updateDraftUseCase = updateDraftUseCase;
         this.submitRevisionUseCase = submitRevisionUseCase;
@@ -65,6 +67,7 @@ public class ListingController {
         this.listingAppService = listingAppService;
         this.mediaUrlPolicy = mediaUrlPolicy;
         this.mediaStorageProvider = mediaStorageProvider;
+        this.showcasePolicy = showcasePolicy;
     }
 
     @PostMapping
@@ -216,6 +219,7 @@ public class ListingController {
                                 (rev != null && rev.getPublicLatitude() != null) ? rev.getPublicLatitude() : 21.0,
                                 (rev != null && rev.getPublicLongitude() != null) ? rev.getPublicLongitude() : 105.8,
                                 listing.isVerifiedOwner(),
+                                showcasePolicy.isShowcaseOwner(listing.getOwnerId()),
                                 imgUrl,
                                 listing.getCreatedAt()
                         );
@@ -256,6 +260,7 @@ public class ListingController {
                 (rev != null && rev.getPublicLatitude() != null) ? rev.getPublicLatitude() : 21.0,
                 (rev != null && rev.getPublicLongitude() != null) ? rev.getPublicLongitude() : 105.8,
                 rev != null && rev.getStatus().name().equals("APPROVED"),
+                showcasePolicy.isShowcaseOwner(listing.getOwnerId()),
                 images,
                 listing.getCreatedAt(),
                 listing.getUpdatedAt()

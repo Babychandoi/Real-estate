@@ -25,6 +25,12 @@ services:
       retries: 5
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    volumes: [redis-data:/data]
+    networks: [bds-network]
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    ports: ["127.0.0.1:8025:8025"]
     networks: [bds-network]
   minio:
     build:
@@ -117,6 +123,9 @@ services:
       SPRING_MAIL_WRITE_TIMEOUT_MS: ${SPRING_MAIL_WRITE_TIMEOUT_MS:-5000}
       APP_MAIL_FROM: ${APP_MAIL_FROM:-no-reply@bds.local}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:3000}
+      APP_GEOCODING_PROVIDER_URL: ${APP_GEOCODING_PROVIDER_URL:-https://photon.komoot.io}
+      APP_GEOCODING_CONTACT: ${APP_GEOCODING_CONTACT:-}
+      APP_SHOWCASE_OWNER_ID: ${APP_SHOWCASE_OWNER_ID:-70000000-0000-0000-0000-000000000001}
       DEMO_ACCOUNT_PASSWORD: ${DEMO_ACCOUNT_PASSWORD:?Set DEMO_ACCOUNT_PASSWORD in .env}
     depends_on:
       postgres: { condition: service_healthy }
@@ -143,16 +152,18 @@ services:
     networks: [bds-network]
   cloudflared:
     image: cloudflare/cloudflared:2026.9.1
+    profiles: ["edge"]
     restart: unless-stopped
-    command: ["--config", "/etc/cloudflared/config.yml", "tunnel", "--no-autoupdate", "run"]
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
     volumes:
       - ./infra/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
-      - ${USERPROFILE}/.cloudflared/046d1ad4-3b90-4fb8-9479-b3b13ecb75b1.json:/etc/cloudflared/credentials.json:ro
+      - ./infra/cloudflared/credentials.json:/etc/cloudflared/credentials.json:ro
     depends_on:
       frontend: { condition: service_healthy }
     networks: [bds-network]
 volumes:
   postgres-data:
+  redis-data:
   minio-data:
   clamav-data:
   elasticsearch-data:

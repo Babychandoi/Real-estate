@@ -28,8 +28,8 @@ if ($values['APP_MODE'] -eq 'production') {
     foreach ($required in @('PII_ENCRYPTION_KEY', 'PII_INDEX_KEY', 'APP_ADMIN_MFA_SECRET_BASE64')) {
         if ([string]::IsNullOrWhiteSpace($values[$required])) { throw "Production thiếu $required." }
     }
-    if ($values['APP_SECURITY_ALLOWED_ORIGINS'] -notmatch '^https://') {
-        throw 'Production chỉ chấp nhận APP_SECURITY_ALLOWED_ORIGINS dùng HTTPS.'
+    if ($values['APP_ALLOWED_ORIGINS'] -notmatch '^https://') {
+        throw 'Production chỉ chấp nhận APP_ALLOWED_ORIGINS dùng HTTPS.'
     }
 }
 

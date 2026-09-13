@@ -41,4 +41,13 @@ public record UserKycResponse(
                 domain.getVerifiedAt()
         );
     }
+
+    public static UserKycResponse fromDomainForReviewer(UserKycProfile domain) {
+        if (domain == null) return null;
+        return new UserKycResponse(
+                domain.getId(), domain.getUserId(), domain.getMaskedIdNumber(), domain.getFullName(),
+                domain.getDob(), domain.getAddress(), domain.getIdCardFrontUrl(), domain.getIdCardBackUrl(),
+                domain.getSelfieUrl(), domain.getFaceMatchScore(), domain.getStatus(),
+                domain.getRejectionReason(), domain.getCreatedAt(), domain.getVerifiedAt());
+    }
 }

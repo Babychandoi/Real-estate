@@ -137,3 +137,7 @@ app:
       timeout-ms: ${CLAMAV_TIMEOUT_MS:15000}
   demo:
     password: ${DEMO_ACCOUNT_PASSWORD:}
+    showcase-owner-id: ${APP_SHOWCASE_OWNER_ID:70000000-0000-0000-0000-000000000001}
+  geocoding:
+    provider-url: ${APP_GEOCODING_PROVIDER_URL:https://photon.komoot.io}
+    contact: ${APP_GEOCODING_CONTACT:}
