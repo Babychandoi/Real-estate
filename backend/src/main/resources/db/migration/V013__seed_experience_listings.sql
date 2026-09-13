@@ -1,0 +1,56 @@
+-- Dữ liệu trải nghiệm được lưu thật trong PostgreSQL, không phải fallback API.
+-- Chủ thể seed không thể đăng nhập (password_hash NULL) và không chứa PII người thật.
+INSERT INTO users(id, phone_lookup_hash, phone_encrypted, full_name, email, password_hash, status)
+VALUES (
+    '70000000-0000-0000-0000-000000000001',
+    '8f89a78d84d4f095f123f767654a7f21d635b50e06aab5861d4f43f36ec1a7ed',
+    'SYSTEM_SEED_NO_PII',
+    'Nhà Đất Chuẩn',
+    'showcase@nhadatchuan.online',
+    NULL,
+    'ACTIVE'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO user_roles(user_id, role)
+VALUES ('70000000-0000-0000-0000-000000000001', 'BROKER')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO listings(id, owner_id, status, is_verified_owner, version, created_at, updated_at)
+VALUES
+ ('71000000-0000-0000-0000-000000000001','70000000-0000-0000-0000-000000000001','ACTIVE',FALSE,0,CURRENT_TIMESTAMP-INTERVAL '6 days',CURRENT_TIMESTAMP-INTERVAL '6 days'),
+ ('71000000-0000-0000-0000-000000000002','70000000-0000-0000-0000-000000000001','ACTIVE',FALSE,0,CURRENT_TIMESTAMP-INTERVAL '5 days',CURRENT_TIMESTAMP-INTERVAL '5 days'),
+ ('71000000-0000-0000-0000-000000000003','70000000-0000-0000-0000-000000000001','ACTIVE',FALSE,0,CURRENT_TIMESTAMP-INTERVAL '4 days',CURRENT_TIMESTAMP-INTERVAL '4 days'),
+ ('71000000-0000-0000-0000-000000000004','70000000-0000-0000-0000-000000000001','ACTIVE',FALSE,0,CURRENT_TIMESTAMP-INTERVAL '3 days',CURRENT_TIMESTAMP-INTERVAL '3 days'),
+ ('71000000-0000-0000-0000-000000000005','70000000-0000-0000-0000-000000000001','ACTIVE',FALSE,0,CURRENT_TIMESTAMP-INTERVAL '2 days',CURRENT_TIMESTAMP-INTERVAL '2 days'),
+ ('71000000-0000-0000-0000-000000000006','70000000-0000-0000-0000-000000000001','ACTIVE',FALSE,0,CURRENT_TIMESTAMP-INTERVAL '1 day',CURRENT_TIMESTAMP-INTERVAL '1 day')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO listing_revisions(
+    id, listing_id, revision_number, status, title, purpose, property_type,
+    price_vnd, area_m2, description, province_code, district_code, ward_code,
+    address_summary, public_latitude, public_longitude, created_at, submitted_at,
+    moderated_at, moderation_note
+)
+VALUES
+ ('72000000-0000-0000-0000-000000000001','71000000-0000-0000-0000-000000000001',1,'APPROVED','Căn hộ 2 phòng ngủ tại Mễ Trì, nội thất cơ bản','SALE','APARTMENT',4850000000,70.00,'Căn hộ hai phòng ngủ, ban công thoáng, thông tin phục vụ trải nghiệm tìm kiếm và liên hệ.','01','019','00637','Mễ Trì, Nam Từ Liêm, Hà Nội',21.0062,105.7892,CURRENT_TIMESTAMP-INTERVAL '6 days',CURRENT_TIMESTAMP-INTERVAL '6 days',CURRENT_TIMESTAMP-INTERVAL '6 days','Đã kiểm duyệt nội dung mẫu trải nghiệm.'),
+ ('72000000-0000-0000-0000-000000000002','71000000-0000-0000-0000-000000000002',1,'APPROVED','Căn hộ 3 phòng ngủ gần công viên Cầu Giấy','SALE','APARTMENT',6200000000,96.00,'Căn hộ ba phòng ngủ, phù hợp gia đình; địa chỉ công khai đã được làm mờ.','01','005','00166','Cầu Giấy, Hà Nội',21.0314,105.7943,CURRENT_TIMESTAMP-INTERVAL '5 days',CURRENT_TIMESTAMP-INTERVAL '5 days',CURRENT_TIMESTAMP-INTERVAL '5 days','Đã kiểm duyệt nội dung mẫu trải nghiệm.'),
+ ('72000000-0000-0000-0000-000000000003','71000000-0000-0000-0000-000000000003',1,'APPROVED','Nhà riêng 4 tầng khu vực Đống Đa','SALE','HOUSE',7800000000,48.00,'Nhà riêng bốn tầng trong khu dân cư; người xem cần tự kiểm tra hiện trạng và hồ sơ pháp lý.','01','006','00229','Đống Đa, Hà Nội',21.0180,105.8291,CURRENT_TIMESTAMP-INTERVAL '4 days',CURRENT_TIMESTAMP-INTERVAL '4 days',CURRENT_TIMESTAMP-INTERVAL '4 days','Đã kiểm duyệt nội dung mẫu trải nghiệm.'),
+ ('72000000-0000-0000-0000-000000000004','71000000-0000-0000-0000-000000000004',1,'APPROVED','Căn hộ 2 phòng ngủ cho thuê tại Tây Mỗ','RENT','APARTMENT',14500000,62.00,'Căn hộ cho thuê dài hạn, hai phòng ngủ; giá thuê chưa bao gồm phí dịch vụ.','01','019','00640','Tây Mỗ, Nam Từ Liêm, Hà Nội',21.0025,105.7423,CURRENT_TIMESTAMP-INTERVAL '3 days',CURRENT_TIMESTAMP-INTERVAL '3 days',CURRENT_TIMESTAMP-INTERVAL '3 days','Đã kiểm duyệt nội dung mẫu trải nghiệm.'),
+ ('72000000-0000-0000-0000-000000000005','71000000-0000-0000-0000-000000000005',1,'APPROVED','Nhà phố cho thuê khu vực Hà Đông','RENT','HOUSE',22000000,75.00,'Nhà phố phù hợp ở kết hợp làm văn phòng nhỏ; liên hệ trực tiếp để xác minh điều kiện thuê.','01','268','09583','Hà Đông, Hà Nội',20.9712,105.7782,CURRENT_TIMESTAMP-INTERVAL '2 days',CURRENT_TIMESTAMP-INTERVAL '2 days',CURRENT_TIMESTAMP-INTERVAL '2 days','Đã kiểm duyệt nội dung mẫu trải nghiệm.'),
+ ('72000000-0000-0000-0000-000000000006','71000000-0000-0000-0000-000000000006',1,'APPROVED','Đất ở khu vực Đông Anh, đường ô tô','SALE','LAND',3950000000,82.00,'Lô đất phục vụ trải nghiệm bộ lọc; người quan tâm cần kiểm tra quy hoạch và giấy tờ tại cơ quan có thẩm quyền.','01','017','00493','Đông Anh, Hà Nội',21.1394,105.8497,CURRENT_TIMESTAMP-INTERVAL '1 day',CURRENT_TIMESTAMP-INTERVAL '1 day',CURRENT_TIMESTAMP-INTERVAL '1 day','Đã kiểm duyệt nội dung mẫu trải nghiệm.')
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE listings SET public_revision_id = CASE id
+ WHEN '71000000-0000-0000-0000-000000000001' THEN '72000000-0000-0000-0000-000000000001'::uuid
+ WHEN '71000000-0000-0000-0000-000000000002' THEN '72000000-0000-0000-0000-000000000002'::uuid
+ WHEN '71000000-0000-0000-0000-000000000003' THEN '72000000-0000-0000-0000-000000000003'::uuid
+ WHEN '71000000-0000-0000-0000-000000000004' THEN '72000000-0000-0000-0000-000000000004'::uuid
+ WHEN '71000000-0000-0000-0000-000000000005' THEN '72000000-0000-0000-0000-000000000005'::uuid
+ WHEN '71000000-0000-0000-0000-000000000006' THEN '72000000-0000-0000-0000-000000000006'::uuid
+ END
+WHERE id IN (
+ '71000000-0000-0000-0000-000000000001','71000000-0000-0000-0000-000000000002',
+ '71000000-0000-0000-0000-000000000003','71000000-0000-0000-0000-000000000004',
+ '71000000-0000-0000-0000-000000000005','71000000-0000-0000-0000-000000000006'
+);

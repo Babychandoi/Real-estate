@@ -124,6 +124,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ProblemDetails> handleBadRequest(IllegalArgumentException ex, HttpServletRequest request) {
+        return simple(ex, request, HttpStatus.BAD_REQUEST, "BAD_REQUEST", "Yêu cầu không hợp lệ");
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ProblemDetails> handleConflict(IllegalStateException ex, HttpServletRequest request) {
+        return simple(ex, request, HttpStatus.CONFLICT, "CONFLICT", "Không thể thực hiện thao tác");
+    }
+
+    @ExceptionHandler(UnsupportedOperationException.class)
+    public ResponseEntity<ProblemDetails> handleUnavailable(UnsupportedOperationException ex, HttpServletRequest request) {
+        return simple(ex, request, HttpStatus.SERVICE_UNAVAILABLE, "FEATURE_UNAVAILABLE", "Tính năng chưa được cấu hình");
+    }
+
+    private ResponseEntity<ProblemDetails> simple(Exception ex, HttpServletRequest request, HttpStatus status,
+                                                   String code, String title) {
+        ProblemDetails problem = new ProblemDetails(URI.create(BASE_PROBLEM_TYPE + code.toLowerCase()), title,
+                status.value(), ex.getMessage(), request.getRequestURI(), code, UUID.randomUUID().toString(), null);
+        return ResponseEntity.status(status).body(problem);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetails> handleGenericException(
             Exception ex, HttpServletRequest request) {

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import {
   Building2, Key, Home, Castle, MapPin,
   CheckCircle2, ArrowRight, ArrowLeft, Save, Send, Sparkles, AlertCircle,
-  ShieldCheck, Image as ImageIcon, Eye, TrendingUp, HelpCircle
+  ShieldCheck, Image as ImageIcon, Eye, TrendingUp, HelpCircle, Upload, X
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
@@ -41,20 +41,13 @@ export const CreateListingPage: React.FC = () => {
   );
 
   // Media
-  const [imageUrls, setImageUrls] = useState<string[]>([
-    'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80',
-    'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=800&q=80',
-  ]);
-  const [newImageUrl, setNewImageUrl] = useState('');
-
-  // Tích hợp thẩm định chính chủ eKYC & Sổ đỏ
-  const [requestVerification, setRequestVerification] = useState(true);
-  const [idNumber, setIdNumber] = useState('001096004567');
-  const [certificateNumber, setCertificateNumber] = useState('CT-2026-9988-HN');
-  const [plotNumber, setPlotNumber] = useState('Thửa số 18, Tờ bản đồ số 42');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [deletingImage, setDeletingImage] = useState<string | null>(null);
+  const requestVerification = false;
+  const idNumber = '';
+  const certificateNumber = '';
+  const plotNumber = '';
 
   // AI & Quality State
   const [qualityScore, setQualityScore] = useState<number>(95);
@@ -130,8 +123,7 @@ export const CreateListingPage: React.FC = () => {
       setAutosaveTime(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
     } catch (err: unknown) {
       console.error('Lỗi khi lưu nháp:', err);
-      // Giả lập lưu thành công trong dev sandbox
-      setAutosaveTime(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
+      setErrorMessage('Không thể lưu bản nháp lên máy chủ. Vui lòng giữ trang này và thử lại.');
     } finally {
       setIsSaving(false);
     }
@@ -184,41 +176,59 @@ export const CreateListingPage: React.FC = () => {
         method: 'POST',
       });
 
-      // Nếu yêu cầu thẩm định chính chủ, nộp luôn hồ sơ eKYC
-      if (requestVerification && currentId) {
-        try {
-          await apiClient(`/listings/${currentId}/verifications`, {
-            method: 'POST',
-            body: JSON.stringify({
-              verificationType: 'RED_BOOK',
-              certificateNumber,
-              plotNumber,
-              documentUrls: imageUrls.slice(0, 2),
-            }),
-          });
-        } catch {
-          // Bỏ qua lỗi phụ nếu đã nộp tin thành công
-        }
-      }
-
       setIsSuccessSubmitted(true);
     } catch (err: unknown) {
       console.error('Lỗi khi nộp duyệt tin:', err);
-      // Fallback sandbox
-      setIsSuccessSubmitted(true);
+      setErrorMessage('Chưa thể nộp tin. Bản nháp vẫn được giữ; vui lòng kiểm tra kết nối rồi thử lại.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleAddImage = () => {
-    if (!newImageUrl.trim()) return;
-    setImageUrls([...imageUrls, newImageUrl.trim()]);
-    setNewImageUrl('');
+  const handleImageUpload = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const selected = Array.from(files).slice(0, 20 - imageUrls.length);
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+    const invalid = selected.find((file) => !allowedTypes.has(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024);
+    if (invalid) {
+      setErrorMessage(`Ảnh “${invalid.name}” không hợp lệ. Chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.`);
+      return;
+    }
+    if (selected.length < files.length) {
+      setErrorMessage('Mỗi tin đăng chỉ được lưu tối đa 20 ảnh.');
+    } else {
+      setErrorMessage(null);
+    }
+    setIsUploadingImages(true);
+    try {
+      for (const file of selected) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const result = await apiClient<{ url: string }>('/media/images', { method: 'POST', body: formData });
+        setImageUrls((current) => [...current, result.url]);
+      }
+    } catch (err) {
+      console.error('Không thể tải ảnh lên MinIO:', err);
+      setErrorMessage('Một số ảnh chưa tải được lên kho lưu trữ. Các ảnh đã tải thành công vẫn được giữ lại; hãy thử lại phần còn thiếu.');
+    } finally {
+      setIsUploadingImages(false);
+    }
   };
 
-  const handleRemoveImage = (index: number) => {
-    setImageUrls(imageUrls.filter((_, i) => i !== index));
+  const handleRemoveImage = async (index: number) => {
+    const url = imageUrls[index];
+    const objectKey = url.split('/').pop();
+    if (!objectKey) return;
+    setImageUrls((current) => current.filter((item) => item !== url));
+    setDeletingImage(url);
+    setErrorMessage(null);
+    try {
+      await apiClient(`/media/images/${objectKey}`, { method: 'DELETE' });
+    } catch (err) {
+      console.info('Ảnh đã được gỡ khỏi bản chỉnh sửa; object đang thuộc lịch sử revision hoặc sẽ được dọn nền.', err);
+    } finally {
+      setDeletingImage(null);
+    }
   };
 
   if (isSuccessSubmitted) {
@@ -233,7 +243,7 @@ export const CreateListingPage: React.FC = () => {
               Nộp duyệt tin đăng thành công!
             </h2>
             <p className="text-slate-600 text-sm mb-6 leading-relaxed">
-              Tin đăng của bạn đã được chuyển vào Hàng đợi Kiểm duyệt (FR08). Đội ngũ kiểm định viên BDS WF 2026 sẽ đối soát nội dung và cấp nhãn <span className="font-semibold text-emerald-700">Sổ hồng chính chủ • eKYC</span> trong vòng tối đa 8 giờ làm việc (SLA BR03).
+              Tin đăng đã được tiếp nhận vào hàng đợi kiểm duyệt nội dung. Bạn sẽ nhận được thông báo khi quản trị viên hoàn tất xét duyệt.
             </p>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-left mb-6 text-xs space-y-2">
@@ -302,7 +312,7 @@ export const CreateListingPage: React.FC = () => {
               Soạn thảo & Đăng tin BĐS Chuẩn Minh Bạch
             </h1>
             <p className="text-sm text-slate-500 mt-1">
-              Wizard 4 bước chuyên sâu theo chuẩn Waterfall 0.9.1 • Hỗ trợ AI định giá & Xác thực chính chủ eKYC
+              Quy trình 4 bước có lưu nháp • Gợi ý giá theo quy tắc tham khảo
             </p>
           </div>
 
@@ -328,8 +338,8 @@ export const CreateListingPage: React.FC = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-8">
           {[
             { num: 1, label: 'Loại BĐS & Vị trí GIS', icon: MapPin },
-            { num: 2, label: 'Thông số & AI Định giá', icon: TrendingUp },
-            { num: 3, label: 'Hình ảnh & Sổ hồng eKYC', icon: ImageIcon },
+            { num: 2, label: 'Thông số & Gợi ý giá', icon: TrendingUp },
+            { num: 3, label: 'Hình ảnh & An toàn', icon: ImageIcon },
             { num: 4, label: 'Xem trước & Gửi duyệt', icon: Eye },
           ].map((s) => {
             const Icon = s.icon;
@@ -571,7 +581,7 @@ export const CreateListingPage: React.FC = () => {
               <Card className="p-6">
                 <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-emerald-600" />
-                  Bước 2: Thông số Chi tiết & Gợi ý Giá AI
+                  Bước 2: Thông số chi tiết & Gợi ý giá tham khảo
                 </h3>
 
                 {/* Giá & Diện tích */}
@@ -612,7 +622,7 @@ export const CreateListingPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-emerald-700" />
                       <span className="text-xs font-bold text-emerald-900 uppercase">
-                        AI Price Estimator (Khuyến nghị thị trường)
+                        Khoảng giá tham khảo theo quy tắc
                       </span>
                     </div>
                     <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full shadow-xs">
@@ -620,7 +630,7 @@ export const CreateListingPage: React.FC = () => {
                     </span>
                   </div>
                   <p className="text-xs text-emerald-800 leading-relaxed mb-3">
-                    Dựa trên dữ liệu 240+ giao dịch thành công tại {district}, đơn giá tham khảo trung bình là <span className="font-bold">{formatPriceVnd(aiUnitRate)}/m²</span>.
+                    Đơn giá tham khảo từ các tin đăng tại {district} là <span className="font-bold">{formatPriceVnd(aiUnitRate)}/m²</span>. Giá thực tế phụ thuộc vị trí, hiện trạng và pháp lý.
                   </p>
                   <div className="p-3 bg-white rounded-lg border border-emerald-200 flex items-center justify-between text-xs">
                     <div>
@@ -634,7 +644,7 @@ export const CreateListingPage: React.FC = () => {
                       onClick={() => setPriceVnd(Math.round((estimatedMinPrice + estimatedMaxPrice) / 2))}
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors"
                     >
-                      Áp dụng giá AI
+                      Dùng mức giá gợi ý
                     </button>
                   </div>
                 </div>
@@ -732,7 +742,7 @@ export const CreateListingPage: React.FC = () => {
               <Card className="p-6">
                 <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
                   <ImageIcon className="w-5 h-5 text-emerald-600" />
-                  Bước 3: Quản lý Media & Đăng ký Thẩm định Chính chủ eKYC
+                  Bước 3: Quản lý hình ảnh & an toàn dữ liệu
                 </h3>
 
                 {/* Quản lý ảnh (3-20 ảnh) */}
@@ -749,7 +759,7 @@ export const CreateListingPage: React.FC = () => {
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
                     {imageUrls.map((url, idx) => (
                       <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
-                        <img src={url} alt={`Ảnh ${idx + 1}`} className="w-full h-full object-cover" />
+                        <img src={url} alt={`Ảnh bất động sản ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
                         {idx === 0 && (
                           <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
                             Ảnh bìa
@@ -758,27 +768,39 @@ export const CreateListingPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleRemoveImage(idx)}
-                          className="absolute top-1 right-1 bg-black/60 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          disabled={deletingImage === url}
+                          aria-label={`Xóa ảnh ${idx + 1}`}
+                          className="absolute top-1 right-1 bg-black/70 text-white w-11 h-11 rounded-full flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
                         >
-                          ✕
+                          {deletingImage === url ? <span className="loading loading-spinner loading-xs" /> : <X className="w-4 h-4" />}
                         </button>
                       </div>
                     ))}
                   </div>
 
-                  {/* Nhập URL ảnh mới */}
-                  <div className="flex gap-2">
+                  <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-emerald-500 bg-emerald-50/50 px-5 py-6 text-center transition-colors hover:bg-emerald-50 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-2">
                     <input
-                      type="url"
-                      value={newImageUrl}
-                      onChange={(e) => setNewImageUrl(e.target.value)}
-                      placeholder="Dán link ảnh Unsplash hoặc CDN (https://...)"
-                      className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-xs"
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp,image/avif"
+                      disabled={isUploadingImages || imageUrls.length >= 20}
+                      className="sr-only"
+                      onChange={(event) => {
+                        void handleImageUpload(event.target.files);
+                        event.target.value = '';
+                      }}
                     />
-                    <Button onClick={handleAddImage} variant="outline" size="sm" className="text-xs font-bold">
-                      + Thêm ảnh
-                    </Button>
-                  </div>
+                    {isUploadingImages ? <span className="loading loading-spinner loading-md text-emerald-700" /> : <Upload className="h-7 w-7 text-emerald-700" />}
+                    <span className="text-sm font-bold text-emerald-950">
+                      {isUploadingImages ? 'Đang lưu ảnh vào MinIO…' : imageUrls.length >= 20 ? 'Đã đạt giới hạn 20 ảnh' : 'Chọn ảnh từ thiết bị'}
+                    </span>
+                    <span className="text-xs leading-relaxed text-emerald-800">
+                      JPEG, PNG, WebP hoặc AVIF · tối đa 10 MB/ảnh · còn {20 - imageUrls.length} vị trí
+                    </span>
+                  </label>
+                  <p className="mt-2 text-xs text-slate-500" aria-live="polite">
+                    Ảnh được lưu trong kho MinIO riêng của hệ thống. Không cần dán liên kết từ website khác.
+                  </p>
                 </div>
 
                 {/* TÍCH HỢP ĐĂNG KÝ THẨM ĐỊNH SỔ ĐỎ eKYC (FR22, NFR12) */}
@@ -790,10 +812,10 @@ export const CreateListingPage: React.FC = () => {
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-emerald-950">
-                          Đăng ký Cấp Huy hiệu Sổ Hồng Chính Chủ • eKYC
+                          Xác minh danh tính thủ công
                         </h4>
                         <p className="text-xs text-emerald-800 mt-0.5">
-                          Tăng 300% tỷ lệ liên hệ của khách mua nhờ nhãn kiểm duyệt minh bạch.
+                          Ảnh CCCD và ảnh chân dung được gửi riêng cho quản trị viên xét duyệt, không hiển thị công khai trên tin đăng.
                         </p>
                       </div>
                     </div>
@@ -802,7 +824,7 @@ export const CreateListingPage: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={requestVerification}
-                        onChange={(e) => setRequestVerification(e.target.checked)}
+                        disabled
                         className="sr-only peer"
                       />
                       <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
@@ -818,7 +840,7 @@ export const CreateListingPage: React.FC = () => {
                         <input
                           type="text"
                           value={idNumber}
-                          onChange={(e) => setIdNumber(e.target.value)}
+                          readOnly
                           placeholder="001096004567"
                           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono bg-white font-bold"
                         />
@@ -832,7 +854,7 @@ export const CreateListingPage: React.FC = () => {
                         <input
                           type="text"
                           value={certificateNumber}
-                          onChange={(e) => setCertificateNumber(e.target.value)}
+                          readOnly
                           placeholder="CT-2026-9988-HN"
                           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono bg-white font-bold"
                         />
@@ -846,7 +868,7 @@ export const CreateListingPage: React.FC = () => {
                         <input
                           type="text"
                           value={plotNumber}
-                          onChange={(e) => setPlotNumber(e.target.value)}
+                          readOnly
                           placeholder="Thửa số 18, Tờ số 42"
                           className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-medium"
                         />
@@ -883,7 +905,14 @@ export const CreateListingPage: React.FC = () => {
 
                   <div className="bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-md mx-auto">
                     <div className="relative aspect-video">
-                      <img src={imageUrls[0]} alt="Preview" className="w-full h-full object-cover" />
+                      {imageUrls[0] ? (
+                        <img src={imageUrls[0]} alt="Ảnh bìa xem trước" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-200 text-slate-600">
+                          <ImageIcon className="h-8 w-8" />
+                          <span className="text-sm font-medium">Chưa có ảnh để xem trước</span>
+                        </div>
+                      )}
                       <div className="absolute top-2 left-2 flex flex-col gap-1">
                         <span className="bg-slate-900/80 text-white text-[11px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
                           {purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
@@ -894,9 +923,11 @@ export const CreateListingPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
-                        1/{imageUrls.length} ảnh
-                      </span>
+                      {imageUrls.length > 0 && (
+                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
+                          1/{imageUrls.length} ảnh
+                        </span>
+                      )}
                     </div>
 
                     <div className="p-4">
@@ -983,7 +1014,7 @@ export const CreateListingPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Hồ sơ Sổ hồng eKYC</span>
+                  <span className="text-slate-700">Xác minh giấy tờ</span>
                   {requestVerification ? (
                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
                       Đã đính kèm

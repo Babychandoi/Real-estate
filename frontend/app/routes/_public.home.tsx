@@ -4,8 +4,10 @@ import { ListingCard } from '@/entities/listing/ui/ListingCard';
 import { type Listing } from '@/entities/listing/model/types';
 import { Button } from '@/shared/ui/Button';
 import { apiClient } from '@/shared/api/client';
+import { useNavigate } from 'react-router-dom';
 
 export const HomePage: React.FC = () => {
+  const navigate = useNavigate();
   const [purpose, setPurpose] = useState<'SALE' | 'RENT'>('SALE');
   const [keyword, setKeyword] = useState('');
   const [listings, setListings] = useState<Listing[]>([]);
@@ -30,6 +32,12 @@ export const HomePage: React.FC = () => {
     return () => { isMounted = false; };
   }, [purpose]);
 
+  const submitSearch = (searchKeyword = keyword) => {
+    const query = new URLSearchParams({ purpose });
+    if (searchKeyword.trim()) query.set('keyword', searchKeyword.trim());
+    navigate(`/search?${query.toString()}`);
+  };
+
   return (
     <div className="flex flex-col gap-8 pb-16">
       {/* Hero Banner & Thanh tìm kiếm chính */}
@@ -37,16 +45,16 @@ export const HomePage: React.FC = () => {
         <div className="max-w-4xl mx-auto flex flex-col items-center text-center gap-4">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant text-xs font-semibold text-primary">
             <Shield className="w-3.5 h-3.5 text-secondary" />
-            Nền tảng Bất động sản Kiểm duyệt & Xác thực Pháp lý
+            Tin đăng được kiểm duyệt nội dung
           </div>
 
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-on-surface">
-            Minh bạch từng căn nhà, <br className="hidden sm:inline" />
-            <span className="text-primary">An tâm từng giao dịch</span>
+            Minh bạch từng tin đăng, <br className="hidden sm:inline" />
+            <span className="text-primary">Dễ dàng tìm đúng nơi</span>
           </h1>
 
           <p className="text-sm md:text-base text-on-surface-variant max-w-xl">
-            100% tin đăng được kiểm duyệt hồ sơ pháp lý, cập nhật trạng thái còn/hết thực tế và bảo vệ dữ liệu khách hàng.
+            Tìm kiếm bất động sản mua bán, cho thuê và liên hệ trực tiếp với người đăng. Trạng thái kiểm duyệt phản ánh chất lượng nội dung, không thay thế thẩm định pháp lý.
           </p>
 
           {/* Toggle Mua bán / Cho thuê */}
@@ -78,7 +86,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           {/* Input Tìm kiếm thông minh */}
-          <div className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl p-2.5 shadow-[0_10px_25px_-5px_rgba(15,76,129,0.12)] border border-outline-variant/60 flex flex-col sm:flex-row gap-2 mt-2">
+          <form onSubmit={(event) => { event.preventDefault(); submitSearch(); }} className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl p-2.5 shadow-[0_10px_25px_-5px_rgba(15,76,129,0.12)] border border-outline-variant/60 flex flex-col sm:flex-row gap-2 mt-2">
             <div className="flex items-center gap-2 flex-1 px-3">
               <Search className="w-5 h-5 text-outline" />
               <input
@@ -89,23 +97,23 @@ export const HomePage: React.FC = () => {
                 className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline focus:outline-none py-1.5"
               />
             </div>
-            <Button variant="primary" size="md" className="rounded-xl px-6">
+            <Button type="submit" variant="primary" size="md" className="rounded-xl px-6">
               Tìm kiếm
             </Button>
-          </div>
+          </form>
 
           {/* Filter Chips gợi ý nhanh */}
           <div className="flex items-center gap-2 overflow-x-auto max-w-full py-1 text-xs no-scrollbar text-on-surface-variant">
             <span className="font-semibold text-outline flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-tertiary-container" /> Gợi ý:
             </span>
-            <button className="px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
+            <button type="button" onClick={() => submitSearch('Vinhomes Green Bay')} className="min-h-11 px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
               Vinhomes Green Bay
             </button>
-            <button className="px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
+            <button type="button" onClick={() => submitSearch('Cầu Giấy 2PN')} className="min-h-11 px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
               Cầu Giấy 2PN
             </button>
-            <button className="px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
+            <button type="button" onClick={() => submitSearch('Nhà phố Đống Đa')} className="min-h-11 px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
               Nhà phố Đống Đa
             </button>
           </div>
@@ -117,13 +125,13 @@ export const HomePage: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-on-surface">
-              Bất động sản nổi bật đã kiểm duyệt
+              Tin đăng nổi bật
             </h2>
             <p className="text-xs md:text-sm text-on-surface-variant mt-0.5">
-              Đầy đủ thông tin sổ hồng, diện tích thực và hình ảnh thực tế
+              Nội dung đã qua kiểm duyệt; hãy xác minh pháp lý và hiện trạng trước khi quyết định
             </p>
           </div>
-          <Button variant="outline" size="sm" leftIcon={<Filter className="w-4 h-4" />}>
+          <Button variant="outline" size="sm" leftIcon={<Filter className="w-4 h-4" />} onClick={() => submitSearch()}>
             Bộ lọc
           </Button>
         </div>

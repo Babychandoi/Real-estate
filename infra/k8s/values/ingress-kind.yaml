@@ -1,0 +1,10 @@
+controller:
+  hostPort:
+    enabled: false
+  service:
+    type: NodePort
+    nodePorts: { http: 30080, https: 30443 }
+  admissionWebhooks:
+    enabled: true
+  resources:
+    requests: { cpu: 50m, memory: 90Mi }

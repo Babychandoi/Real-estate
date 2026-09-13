@@ -5,12 +5,34 @@ export interface Listing {
   propertyType: string;
   priceVnd: number;
   areaM2: number;
+  description?: string;
   addressSummary: string;
   publicLatitude?: number;
   publicLongitude?: number;
   isVerified: boolean;
   primaryImageUrl: string;
   publishedAt?: string;
+}
+
+const PROPERTY_TYPE_LABELS: Record<string, string> = {
+  APARTMENT: 'Căn hộ',
+  HOUSE: 'Nhà riêng',
+  VILLA: 'Biệt thự',
+  TOWNHOUSE: 'Nhà phố',
+  LAND: 'Đất',
+};
+
+export function formatPropertyType(propertyType: string): string {
+  return PROPERTY_TYPE_LABELS[propertyType] ?? 'Bất động sản';
+}
+
+const LISTING_STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Bản nháp', PENDING_REVIEW: 'Chờ duyệt', ACTIVE: 'Đang hiển thị',
+  REJECTED: 'Bị từ chối', ARCHIVED: 'Đã lưu trữ', SUSPENDED: 'Tạm dừng',
+};
+
+export function formatListingStatus(status: string): string {
+  return LISTING_STATUS_LABELS[status] ?? 'Chưa xác định';
 }
 
 export interface ListingSearchParams {

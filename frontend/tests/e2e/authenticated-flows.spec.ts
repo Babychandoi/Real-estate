@@ -1,0 +1,2 @@
+import{test,expect}from'@playwright/test';import AxeBuilder from'@axe-core/playwright';
+test('authentication dialog is keyboard accessible',async({page})=>{await page.goto('/');await page.getByRole('button',{name:/đăng nhập/i}).first().click();await expect(page.getByRole('dialog')).toBeVisible();const results=await new AxeBuilder({page}).include('[role=dialog]').withTags(['wcag2a','wcag2aa']).analyze();expect(results.violations).toEqual([]);await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toBeHidden()});

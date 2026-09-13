@@ -5,6 +5,7 @@ import com.company.bds.catalog.infrastructure.persistence.entity.ProjectJpaEntit
 import com.company.bds.catalog.infrastructure.persistence.port.ProjectPersistencePort;
 import com.company.bds.catalog.infrastructure.persistence.repository.ProjectJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -38,18 +39,18 @@ public class ProjectPersistenceAdapter implements ProjectPersistencePort {
     }
 
     @Override
-    public List<Project> findAll() {
-        return repository.findAll().stream().map(this::toDomain).collect(Collectors.toList());
+    public List<Project> findPage(int page, int size) {
+        return repository.findAll(PageRequest.of(page, size)).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<Project> findByDistrict(String districtCode) {
-        return repository.findByDistrictCode(districtCode).stream().map(this::toDomain).collect(Collectors.toList());
+    public List<Project> findByDistrict(String districtCode, int page, int size) {
+        return repository.findByDistrictCode(districtCode, PageRequest.of(page, size)).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<Project> searchByName(String keyword) {
-        return repository.findByNameContainingIgnoreCase(keyword).stream().map(this::toDomain).collect(Collectors.toList());
+    public List<Project> searchByName(String keyword, int page, int size) {
+        return repository.findByNameContainingIgnoreCase(keyword, PageRequest.of(page, size)).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     private ProjectJpaEntity toEntity(Project domain) {

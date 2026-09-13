@@ -12,6 +12,14 @@ spring:
         dialect: org.hibernate.dialect.H2Dialect
   flyway:
     enabled: false
+
+app:
+  billing:
+    quota-enforced: false
+  mode: test
+  features:
+    real-kyc: true
+    real-transactions: true
   data:
     redis:
       host: localhost

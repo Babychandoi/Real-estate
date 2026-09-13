@@ -42,11 +42,11 @@ public class DepositContractResponse {
         res.listingId = domain.getListingId();
         res.buyerId = domain.getBuyerId();
         res.buyerName = domain.getBuyerName();
-        res.buyerPhone = domain.getBuyerPhone();
+        res.buyerPhone = maskPhone(domain.getBuyerPhone());
         res.buyerIdMasked = domain.getBuyerIdMasked();
         res.sellerId = domain.getSellerId();
         res.sellerName = domain.getSellerName();
-        res.sellerPhone = domain.getSellerPhone();
+        res.sellerPhone = maskPhone(domain.getSellerPhone());
         res.depositAmount = domain.getDepositAmount();
         res.listingPrice = domain.getListingPrice();
         res.status = domain.getStatus();
@@ -74,6 +74,11 @@ public class DepositContractResponse {
                     .collect(Collectors.toList());
         }
         return res;
+    }
+
+    private static String maskPhone(String value) {
+        if (value == null || value.length() < 7) return "Đã bảo vệ";
+        return value.substring(0, 3) + "****" + value.substring(value.length() - 3);
     }
 
     // Getters

@@ -19,9 +19,13 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import com.company.bds.shared.security.CurrentUser;
+import com.company.bds.shared.security.MediaUrlPolicy;
+import com.company.bds.media.MediaStorageService;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,15 +39,14 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/v1/listings")
 public class ListingController {
 
-    // Default mock user ID cho các thao tác khi chưa đăng nhập đầy đủ (giai đoạn dev)
-    public static final UUID DEFAULT_DEMO_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
-
     private final CreateListingDraftUseCase createDraftUseCase;
     private final UpdateListingDraftUseCase updateDraftUseCase;
     private final SubmitListingRevisionUseCase submitRevisionUseCase;
     private final GetListingDetailUseCase getListingDetailUseCase;
     private final ListingPersistencePort persistencePort;
     private final com.company.bds.listing.application.service.ListingApplicationService listingAppService;
+    private final MediaUrlPolicy mediaUrlPolicy;
+    private final ObjectProvider<MediaStorageService> mediaStorageProvider;
 
     public ListingController(
             CreateListingDraftUseCase createDraftUseCase,
@@ -51,19 +54,26 @@ public class ListingController {
             SubmitListingRevisionUseCase submitRevisionUseCase,
             GetListingDetailUseCase getListingDetailUseCase,
             ListingPersistencePort persistencePort,
-            com.company.bds.listing.application.service.ListingApplicationService listingAppService) {
+            com.company.bds.listing.application.service.ListingApplicationService listingAppService,
+            MediaUrlPolicy mediaUrlPolicy,
+            ObjectProvider<MediaStorageService> mediaStorageProvider) {
         this.createDraftUseCase = createDraftUseCase;
         this.updateDraftUseCase = updateDraftUseCase;
         this.submitRevisionUseCase = submitRevisionUseCase;
         this.getListingDetailUseCase = getListingDetailUseCase;
         this.persistencePort = persistencePort;
         this.listingAppService = listingAppService;
+        this.mediaUrlPolicy = mediaUrlPolicy;
+        this.mediaStorageProvider = mediaStorageProvider;
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createDraft(@Valid @RequestBody CreateListingDraftRequest request) {
+    public ResponseEntity<Map<String, Object>> createDraft(@Valid @RequestBody CreateListingDraftRequest request,
+                                                            Authentication authentication) {
+        UUID ownerId = CurrentUser.id(authentication);
+        validateMedia(ownerId, request.imageUrls());
         CreateListingDraftCommand command = new CreateListingDraftCommand(
-                DEFAULT_DEMO_USER_ID,
+                ownerId,
                 request.title(),
                 request.purpose(),
                 request.propertyType(),
@@ -91,11 +101,15 @@ public class ListingController {
     @PutMapping("/{id}/draft")
     public ResponseEntity<Map<String, Object>> updateDraft(
             @PathVariable UUID id,
-            @Valid @RequestBody UpdateListingDraftRequest request) {
+            @Valid @RequestBody UpdateListingDraftRequest request,
+            Authentication authentication) {
+
+        UUID ownerId = CurrentUser.id(authentication);
+        validateMedia(ownerId, request.imageUrls());
 
         UpdateListingDraftCommand command = new UpdateListingDraftCommand(
                 id,
-                DEFAULT_DEMO_USER_ID,
+                ownerId,
                 request.title(),
                 request.purpose(),
                 request.propertyType(),
@@ -120,9 +134,15 @@ public class ListingController {
         ));
     }
 
+    private void validateMedia(UUID ownerId, List<String> imageUrls) {
+        mediaUrlPolicy.validate(imageUrls);
+        MediaStorageService storage = mediaStorageProvider.getIfAvailable();
+        if (storage != null) storage.validateOwnership(ownerId, imageUrls);
+    }
+
     @PostMapping("/{id}/submit")
-    public ResponseEntity<Map<String, Object>> submitRevision(@PathVariable UUID id) {
-        SubmitListingRevisionCommand command = new SubmitListingRevisionCommand(id, DEFAULT_DEMO_USER_ID);
+    public ResponseEntity<Map<String, Object>> submitRevision(@PathVariable UUID id, Authentication authentication) {
+        SubmitListingRevisionCommand command = new SubmitListingRevisionCommand(id, CurrentUser.id(authentication));
         submitRevisionUseCase.submitRevision(command);
 
         return ResponseEntity.ok(Map.of(
@@ -133,41 +153,17 @@ public class ListingController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ListingDetailResponse> getListingById(@PathVariable UUID id) {
+    public ResponseEntity<ListingDetailResponse> getListingById(@PathVariable UUID id, Authentication authentication) {
         return getListingDetailUseCase.getListingById(id)
+                .filter(listing -> canView(listing, authentication))
                 .map(this::mapToDetailResponse)
                 .map(ResponseEntity::ok)
-                .orElseGet(() -> {
-                    // Fallback mock nếu chưa có trong DB (cho trang chi tiết demo ban đầu)
-                    return ResponseEntity.ok(new ListingDetailResponse(
-                            id,
-                            DEFAULT_DEMO_USER_ID,
-                            "ACTIVE",
-                            1,
-                            "APPROVED",
-                            "Căn hộ cao cấp Vinhomes Green Bay 2PN, view hồ thoáng đãng",
-                            "SALE",
-                            "APARTMENT",
-                            5250000000L,
-                            new BigDecimal("72.5"),
-                            "Căn hộ tầng trung view trực diện công viên và hồ điều hòa, ban công Đông Nam mát mẻ quanh năm.\n- Nội thất bàn giao full cao cấp.\n- Pháp lý minh bạch: Sổ hồng lâu dài.",
-                            "01",
-                            "019",
-                            "00600",
-                            "Mễ Trì, Nam Từ Liêm, Hà Nội",
-                            21.0062,
-                            105.7892,
-                            true,
-                            List.of("https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80"),
-                            Instant.now(),
-                            Instant.now()
-                    ));
-                });
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping("/my-listings")
-    public ResponseEntity<List<ListingDetailResponse>> getMyListings() {
-        List<Listing> myListings = getListingDetailUseCase.getMyListings(DEFAULT_DEMO_USER_ID);
+    public ResponseEntity<List<ListingDetailResponse>> getMyListings(Authentication authentication) {
+        List<Listing> myListings = getListingDetailUseCase.getMyListings(CurrentUser.id(authentication));
         List<ListingDetailResponse> responses = myListings.stream()
                 .map(this::mapToDetailResponse)
                 .collect(Collectors.toList());
@@ -197,13 +193,15 @@ public class ListingController {
                         keyword, minLat, maxLat, minLng, maxLng, sortBy
                 );
 
-        List<Listing> activeListings = persistencePort.searchListings(criteria, page, size);
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        List<Listing> activeListings = persistencePort.searchListings(criteria, safePage, safeSize);
 
         if (!activeListings.isEmpty()) {
             List<ListingSummaryResponse> results = activeListings.stream()
                     .map(listing -> {
                         ListingRevision rev = listing.getPublicRevision().or(listing::getLatestRevision).orElse(null);
-                        String imgUrl = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
+                        String imgUrl = "";
                         if (rev != null && !rev.getMediaList().isEmpty()) {
                             imgUrl = rev.getMediaList().get(0).mediaUrl();
                         }
@@ -217,7 +215,7 @@ public class ListingController {
                                 rev != null && rev.getAddressSummary() != null ? rev.getAddressSummary() : "",
                                 (rev != null && rev.getPublicLatitude() != null) ? rev.getPublicLatitude() : 21.0,
                                 (rev != null && rev.getPublicLongitude() != null) ? rev.getPublicLongitude() : 105.8,
-                                true,
+                                listing.isVerifiedOwner(),
                                 imgUrl,
                                 listing.getCreatedAt()
                         );
@@ -226,70 +224,7 @@ public class ListingController {
             return ResponseEntity.ok(results);
         }
 
-        // Nếu người dùng có áp dụng bộ lọc cụ thể (giá, tọa độ GIS) mà DB chưa có dữ liệu khớp -> trả về rỗng
-        if (minPrice != null || maxPrice != null || minLat != null || keyword != null) {
-            return ResponseEntity.ok(List.of());
-        }
-
-        // Fallback demo items phong phú tại Hà Nội (Pilot) cho trải nghiệm bản đồ
-        return ResponseEntity.ok(List.of(
-                new ListingSummaryResponse(
-                        UUID.fromString("11111111-1111-1111-1111-111111111111"),
-                        "Căn hộ cao cấp Vinhomes Green Bay 2PN, view hồ thoáng đãng",
-                        "SALE",
-                        "APARTMENT",
-                        4850000000L,
-                        new BigDecimal("70.0"),
-                        "Mễ Trì, Nam Từ Liêm, Hà Nội",
-                        21.0062,
-                        105.7892,
-                        true,
-                        "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
-                        Instant.now()
-                ),
-                new ListingSummaryResponse(
-                        UUID.fromString("22222222-2222-2222-2222-222222222222"),
-                        "Căn hộ 2PN The Matrix One Mễ Trì view công viên hồ điều hòa",
-                        "SALE",
-                        "APARTMENT",
-                        4200000000L,
-                        new BigDecimal("72.0"),
-                        "Mễ Trì, Nam Từ Liêm, Hà Nội",
-                        21.0118,
-                        105.7725,
-                        true,
-                        "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80",
-                        Instant.now()
-                ),
-                new ListingSummaryResponse(
-                        UUID.fromString("33333333-3333-3333-3333-333333333333"),
-                        "Căn hộ Masteri West Heights Tây Mỗ 2PN resort",
-                        "SALE",
-                        "APARTMENT",
-                        3200000000L,
-                        new BigDecimal("62.0"),
-                        "Tây Mỗ, Nam Từ Liêm, Hà Nội",
-                        21.0025,
-                        105.7423,
-                        true,
-                        "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80",
-                        Instant.now()
-                ),
-                new ListingSummaryResponse(
-                        UUID.fromString("44444444-4444-4444-4444-444444444444"),
-                        "Căn hộ Vinhomes Smart City Sapphire 2 full nội thất",
-                        "SALE",
-                        "APARTMENT",
-                        2800000000L,
-                        new BigDecimal("55.0"),
-                        "Tây Mỗ, Nam Từ Liêm, Hà Nội",
-                        20.9985,
-                        105.7390,
-                        true,
-                        "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80",
-                        Instant.now()
-                )
-        ));
+        return ResponseEntity.ok(List.of());
     }
 
     private ListingDetailResponse mapToDetailResponse(Listing listing) {
@@ -300,9 +235,6 @@ public class ListingController {
             for (ListingMedia m : rev.getMediaList()) {
                 images.add(m.mediaUrl());
             }
-        }
-        if (images.isEmpty()) {
-            images.add("https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80");
         }
 
         return new ListingDetailResponse(
@@ -328,6 +260,16 @@ public class ListingController {
                 listing.getCreatedAt(),
                 listing.getUpdatedAt()
         );
+    }
+
+    private boolean canView(Listing listing, Authentication authentication) {
+        if (listing.getStatus().name().equals("ACTIVE")) return true;
+        if (authentication == null || !authentication.isAuthenticated()) return false;
+        boolean privileged = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (privileged) return true;
+        try { return listing.getOwnerId().equals(CurrentUser.id(authentication)); }
+        catch (IllegalStateException ex) { return false; }
     }
 
     @PostMapping("/estimate-price")

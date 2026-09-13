@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/shared/api/client';
 import {
   FileText,
   PlusCircle,
@@ -45,6 +46,7 @@ interface ArticleItem {
   revisionsCount: number;
 }
 
+/* Historical visual fixture retained as design reference only; never loaded at runtime.
 const INITIAL_ARTICLES: ArticleItem[] = [
   {
     id: 'art-001',
@@ -60,7 +62,7 @@ const INITIAL_ARTICLES: ArticleItem[] = [
       title: 'Quy chuẩn bảo vệ dữ liệu cá nhân & Chống lừa đảo cọc BĐS 2026',
       summary: 'Hướng dẫn chi tiết bộ quy tắc bảo vệ dữ liệu và xác minh cọc theo Luật BV Dữ liệu 91/2025/QH15 và Luật Kinh doanh BĐS 2024.',
       contentHtml: '<p>Cơ chế ký số OTP hai bên cùng phong tỏa tiền cọc trong Escrow Vault loại trừ 100% rủi ro mất cọc...</p>',
-      coverImageUrl: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80',
+      coverImageUrl: '',
       authorName: 'Lê Mai Hương (BTV Pháp chế)',
       legalReference: 'Luật BV Dữ liệu 91/2025/QH15 & Luật KDBĐS 2024',
       metaDescription: 'Hướng dẫn chi tiết bộ quy tắc bảo vệ dữ liệu và xác minh cọc an toàn',
@@ -83,7 +85,7 @@ const INITIAL_ARTICLES: ArticleItem[] = [
       title: 'Cẩm nang 5 bước đối soát Sổ đỏ và Quyết định Quy hoạch 1/500 chính thống',
       summary: 'Quy trình kiểm tra tính pháp lý của dự án và thửa đất thông qua Cổng Dịch vụ công và Giấy phép xây dựng Sở Xây Dựng.',
       contentHtml: '<p>Tránh bẫy mua đất quy hoạch treo bằng cách kiểm tra bản đồ địa chính số hóa...</p>',
-      coverImageUrl: 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&w=800&q=80',
+      coverImageUrl: '',
       authorName: 'Trần Đình Trọng (Chuyên gia Quy hoạch)',
       legalReference: 'Luật Đất Đai 2024 số 31/2024/QH15',
       metaDescription: '5 bước đối soát sổ đỏ và bản đồ quy hoạch 1/500 an toàn tuyệt đối',
@@ -108,7 +110,7 @@ const INITIAL_ARTICLES: ArticleItem[] = [
       title: 'Báo cáo chỉ số giá và nguồn cung căn hộ khu Tây Hà Nội Quý 3/2026',
       summary: 'Phân tích dữ liệu thực tế từ 12.000 tin đăng đối soát: Mức giá trung bình Nam Từ Liêm đạt 65.5 triệu/m2.',
       contentHtml: '<p>Lượng tìm kiếm căn hộ 2 phòng ngủ chiếm 54% nhu cầu toàn thị trường...</p>',
-      coverImageUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80',
+      coverImageUrl: '',
       authorName: 'Nguyễn Văn Bình (Phân tích thị trường)',
       legalReference: 'Dữ liệu Index BDS WF 2026',
       metaDescription: 'Báo cáo chỉ số giá căn hộ Tây Hà Nội Q3/2026 minh bạch',
@@ -117,10 +119,10 @@ const INITIAL_ARTICLES: ArticleItem[] = [
       createdAt: 'Hôm qua, 17:30',
     },
   },
-];
+]; */
 
 export const CmsManagementPage: React.FC = () => {
-  const [articles, setArticles] = useState<ArticleItem[]>(INITIAL_ARTICLES);
+  const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedTab, setSelectedTab] = useState<string>('SUBMITTED');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -134,11 +136,11 @@ export const CmsManagementPage: React.FC = () => {
     title: '',
     slug: '',
     category: 'LEGAL_POLICY',
-    authorName: 'Lê Mai Hương',
-    legalReference: 'Luật KDBĐS 2024 & Luật Đất Đai 2024',
+    authorName: '',
+    legalReference: '',
     summary: '',
     contentHtml: '',
-    coverImageUrl: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80',
+    coverImageUrl: '',
   });
 
   const showToast = (msg: string) => {
@@ -148,7 +150,7 @@ export const CmsManagementPage: React.FC = () => {
 
   // Load from backend if available
   useEffect(() => {
-    fetch('/api/v1/cms/articles')
+    apiFetch('/cms/articles')
       .then((res) => {
         if (res.ok) return res.json();
         return null;
@@ -175,9 +177,7 @@ export const CmsManagementPage: React.FC = () => {
                   title: d.currentRevision.title,
                   summary: d.currentRevision.summary || '',
                   contentHtml: d.currentRevision.contentHtml,
-                  coverImageUrl:
-                    d.currentRevision.coverImageUrl ||
-                    'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80',
+                  coverImageUrl: d.currentRevision.coverImageUrl || '',
                   authorName: d.currentRevision.authorName,
                   legalReference: d.currentRevision.legalReference || '',
                   metaDescription: d.currentRevision.metaDescription || '',
@@ -187,9 +187,14 @@ export const CmsManagementPage: React.FC = () => {
                   reviewedAt: d.currentRevision.reviewedAt,
                   reviewedBy: d.currentRevision.reviewedBy,
                 }
-              : INITIAL_ARTICLES[0].currentRevision,
+              : {
+                  id: '', articleId: d.id, revisionNumber: 0, title: '(Chưa có phiên bản)',
+                  summary: '', contentHtml: '', coverImageUrl: '', authorName: '',
+                  legalReference: '', metaDescription: '', canonicalUrl: `/${d.slug}`,
+                  status: 'DRAFT', createdAt: '',
+                },
           }));
-          setArticles([...mapped, ...INITIAL_ARTICLES]);
+          setArticles(mapped);
         }
       })
       .catch(() => {});
@@ -216,7 +221,7 @@ export const CmsManagementPage: React.FC = () => {
         canonicalUrl: `/${formData.slug}`,
       };
 
-      const res = await fetch('/api/v1/cms/articles', {
+      const res = await apiFetch('/cms/articles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -259,45 +264,20 @@ export const CmsManagementPage: React.FC = () => {
         showToast('Lỗi máy chủ khi tạo bài viết');
       }
     } catch {
-      // Local fallback
-      const localItem: ArticleItem = {
-        id: `local-${Date.now()}`,
-        slug: formData.slug,
-        category: formData.category as any,
-        categoryLabel:
-          formData.category === 'LEGAL_POLICY'
-            ? 'Chính sách & Pháp lý (FR32)'
-            : 'Chuyên mục kiến thức',
-        status: 'DRAFT',
-        revisionsCount: 1,
-        currentRevision: {
-          id: `rev-${Date.now()}`,
-          articleId: `local-${Date.now()}`,
-          revisionNumber: 1,
-          title: formData.title,
-          summary: formData.summary,
-          contentHtml: formData.contentHtml,
-          coverImageUrl: formData.coverImageUrl,
-          authorName: formData.authorName,
-          legalReference: formData.legalReference,
-          metaDescription: formData.summary,
-          canonicalUrl: `/${formData.slug}`,
-          status: 'DRAFT',
-          createdAt: 'Vừa xong',
-        },
-      };
-      setArticles([localItem, ...articles]);
-      setIsCreateModalOpen(false);
-      showToast('Đã lưu bản nháp bài viết vào bộ nhớ');
+      showToast('Không thể tạo bài viết. Dữ liệu chưa được lưu; vui lòng thử lại.');
     }
   };
 
   const handleApprove = async (articleId: string, revisionId: string) => {
     try {
-      await fetch(`/api/v1/cms/articles/${articleId}/revisions/${revisionId}/approve?adminUsername=Admin_Chief`, {
+      const response = await apiFetch(`/cms/articles/${articleId}/revisions/${revisionId}/approve`, {
         method: 'POST',
       });
-    } catch {}
+      if (!response.ok) throw new Error('Máy chủ từ chối phê duyệt');
+    } catch {
+      showToast('Chưa thể phê duyệt. Vui lòng kiểm tra kết nối và thử lại.');
+      return;
+    }
 
     setArticles(
       articles.map((art) => {
@@ -325,18 +305,21 @@ export const CmsManagementPage: React.FC = () => {
     if (!targetArticle) return;
 
     try {
-      await fetch(
-        `/api/v1/cms/articles/${rejectingId}/revisions/${targetArticle.currentRevision.id}/reject`,
+      const response = await apiFetch(
+        `/cms/articles/${rejectingId}/revisions/${targetArticle.currentRevision.id}/reject`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             reason: rejectReason || 'Yêu cầu bổ sung đối chiếu thông tư hướng dẫn',
-            adminUsername: 'Admin_Chief',
           }),
         }
       );
-    } catch {}
+      if (!response.ok) throw new Error('Máy chủ từ chối thao tác');
+    } catch {
+      showToast('Chưa thể từ chối bài viết. Dữ liệu vẫn được giữ để thử lại.');
+      return;
+    }
 
     setArticles(
       articles.map((art) => {
@@ -572,16 +555,16 @@ export const CmsManagementPage: React.FC = () => {
                 <div
                   key={art.id}
                   className={`rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm overflow-hidden flex flex-col md:flex-row transition-all hover:shadow-md ${
-                    isPending ? 'border-l-4 border-l-amber-500 ring-1 ring-amber-500/20' : ''
+                    isPending ? 'ring-2 ring-amber-500/30' : ''
                   }`}
                 >
                   {/* Cover Image & Metadata Overlay */}
                   <div className="md:w-80 h-48 md:h-auto relative shrink-0 overflow-hidden bg-surface-dim">
-                    <img
+                    {rev.coverImageUrl ? <img
                       src={rev.coverImageUrl}
                       alt={rev.title}
                       className="w-full h-full object-cover"
-                    />
+                    /> : <div className="grid h-full place-items-center text-slate-500"><FileText className="h-10 w-10"/><span className="sr-only">Bài viết chưa có ảnh bìa</span></div>}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"></div>
 
                     {/* Status badge */}

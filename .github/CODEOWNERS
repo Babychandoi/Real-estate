@@ -1,0 +1,5 @@
+* @repository-admins
+/backend/src/main/java/com/company/bds/shared/security/ @security-reviewers
+/backend/src/main/resources/db/migration/ @database-reviewers
+/.github/ @platform-reviewers
+

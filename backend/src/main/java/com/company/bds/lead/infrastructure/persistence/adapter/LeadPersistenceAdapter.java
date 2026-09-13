@@ -5,6 +5,7 @@ import com.company.bds.lead.domain.port.LeadPersistencePort;
 import com.company.bds.lead.infrastructure.persistence.entity.LeadJpaEntity;
 import com.company.bds.lead.infrastructure.persistence.repository.LeadJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -33,29 +34,36 @@ public class LeadPersistenceAdapter implements LeadPersistencePort {
     }
 
     @Override
-    public List<Lead> findByListingId(UUID listingId) {
-        return leadJpaRepository.findByListingIdOrderByCreatedAtDesc(listingId)
+    public List<Lead> findByListingId(UUID listingId, int page, int size) {
+        return leadJpaRepository.findByListingIdOrderByCreatedAtDesc(listingId, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<Lead> findByListingIds(List<UUID> listingIds) {
+    public List<Lead> findByListingIds(List<UUID> listingIds, int page, int size) {
         if (listingIds == null || listingIds.isEmpty()) {
             return List.of();
         }
-        return leadJpaRepository.findByListingIdInOrderByCreatedAtDesc(listingIds)
+        return leadJpaRepository.findByListingIdInOrderByCreatedAtDesc(listingIds, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<Lead> findAll() {
-        return leadJpaRepository.findAllByOrderByCreatedAtDesc()
+    public List<Lead> findPage(int page, int size) {
+        return leadJpaRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
     public long countByPhoneLookupHash(String phoneLookupHash) {
         return leadJpaRepository.countByPhoneLookupHash(phoneLookupHash);
+    }
+
+    @Override public long countAll() { return leadJpaRepository.count(); }
+
+    @Override
+    public long countByStatuses(List<com.company.bds.lead.domain.model.LeadStatus> statuses) {
+        return statuses.isEmpty() ? 0 : leadJpaRepository.countByStatusIn(statuses);
     }
 
     private LeadJpaEntity toEntity(Lead domain) {

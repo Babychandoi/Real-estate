@@ -1,93 +1,160 @@
 name: bds-enterprise-stack
-
 services:
-  # CSDL PostgreSQL tích hợp phần mở rộng PostGIS cho dữ liệu địa không gian GIS (FR05, FR06)
   postgres:
     image: postgis/postgis:16-3.4
-    container_name: bds-postgres
     restart: unless-stopped
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bds}
       POSTGRES_USER: ${POSTGRES_USER:-bds}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes: [postgres-data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bds} -d ${POSTGRES_DB:-bds}"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
-    networks:
-      - bds-network
-
-  # Redis Cache cho Quota Rate Limiting, OTP Cache và Phễu chuyển đổi (FR12, FR29)
+    networks: [bds-network]
   redis:
     image: redis:7-alpine
-    container_name: bds-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 5s
-    networks:
-      - bds-network
-
-  # Backend Spring Boot 3 Modular Monolith (32 FR & 8 UC, OpenAPI 3.0 UI)
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: bds-backend
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
     environment:
-      APP_ENV: ${APP_ENV:-production}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    networks: [bds-network]
+  minio:
+    build:
+      context: ./infra/minio
+      args: { MINIO_VERSION: RELEASE.2025-10-15T17-29-55Z }
+    image: bds-minio:RELEASE.2025-10-15T17-29-55Z
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+    volumes: [minio-data:/data]
+    ports: ["127.0.0.1:9001:9001"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [bds-network]
+  clamav:
+    image: clamav/clamav:1.4_base
+    restart: unless-stopped
+    volumes: [clamav-data:/var/lib/clamav]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 90s
+    networks: [bds-network]
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.5
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes: [elasticsearch-data:/usr/share/elasticsearch/data]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    networks: [bds-network]
+  backend:
+    build: { context: ./backend, dockerfile: Dockerfile }
+    restart: unless-stopped
+    environment:
+      APP_MODE: ${APP_MODE:-demo}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SERVER_PORT: 8080
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      SPRINGDOC_API_DOCS_ENABLED: ${SPRINGDOC_API_DOCS_ENABLED:-false}
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-bds}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-bds}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-http://localhost:3000}
+      APP_SECURITY_PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-}
+      APP_SECURITY_PII_INDEX_KEY: ${PII_INDEX_KEY:-}
+      APP_ADMIN_MFA_SECRET_BASE64: ${APP_ADMIN_MFA_SECRET_BASE64:-}
+      OUTBOX_ENABLED: ${OUTBOX_ENABLED:-false}
+      OUTBOX_WEBHOOK_URL: ${OUTBOX_WEBHOOK_URL:-}
+      OUTBOX_SIGNING_KEY: ${OUTBOX_SIGNING_KEY:-}
+      OUTBOX_POLL_DELAY_MS: ${OUTBOX_POLL_DELAY_MS:-1000}
+      FEATURE_REAL_KYC: ${FEATURE_REAL_KYC:-false}
+      FEATURE_REAL_TRANSACTIONS: ${FEATURE_REAL_TRANSACTIONS:-false}
+      APP_MEDIA_ALLOWED_HOSTS: ${APP_MEDIA_ALLOWED_HOSTS:-nhadatchuan.online,www.nhadatchuan.online}
+      APP_MEDIA_STORAGE_ENABLED: ${APP_MEDIA_STORAGE_ENABLED:-true}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-bds-listings}
+      CLAMAV_ENABLED: "true"
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_TIMEOUT_MS: ${CLAMAV_TIMEOUT_MS:-15000}
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-mailpit}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-1025}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SPRING_MAIL_SMTP_AUTH: ${SPRING_MAIL_SMTP_AUTH:-false}
+      SPRING_MAIL_STARTTLS_ENABLE: ${SPRING_MAIL_STARTTLS_ENABLE:-false}
+      SPRING_MAIL_STARTTLS_REQUIRED: ${SPRING_MAIL_STARTTLS_REQUIRED:-false}
+      SPRING_MAIL_TEST_CONNECTION: ${SPRING_MAIL_TEST_CONNECTION:-false}
+      SPRING_MAIL_CONNECTION_TIMEOUT_MS: ${SPRING_MAIL_CONNECTION_TIMEOUT_MS:-5000}
+      SPRING_MAIL_TIMEOUT_MS: ${SPRING_MAIL_TIMEOUT_MS:-5000}
+      SPRING_MAIL_WRITE_TIMEOUT_MS: ${SPRING_MAIL_WRITE_TIMEOUT_MS:-5000}
+      APP_MAIL_FROM: ${APP_MAIL_FROM:-no-reply@bds.local}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:3000}
+      DEMO_ACCOUNT_PASSWORD: ${DEMO_ACCOUNT_PASSWORD:?Set DEMO_ACCOUNT_PASSWORD in .env}
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - bds-network
-
-  # Frontend React 18 SPA phục vụ qua Nginx Reverse Proxy
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_healthy }
+      clamav: { condition: service_healthy }
+      elasticsearch: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [bds-network]
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: bds-frontend
+      args: { VITE_PUBLIC_API_BASE_URL: /api/v1 }
     restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      NODE_ENV: production
-      API_INTERNAL_URL: http://backend:8080
-      VITE_PUBLIC_API_BASE_URL: /api
+    ports: ["3000:3000"]
     depends_on:
-      - backend
-    networks:
-      - bds-network
-
+      backend: { condition: service_healthy }
+    networks: [bds-network]
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.1
+    restart: unless-stopped
+    command: ["--config", "/etc/cloudflared/config.yml", "tunnel", "--no-autoupdate", "run"]
+    volumes:
+      - ./infra/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - ${USERPROFILE}/.cloudflared/046d1ad4-3b90-4fb8-9479-b3b13ecb75b1.json:/etc/cloudflared/credentials.json:ro
+    depends_on:
+      frontend: { condition: service_healthy }
+    networks: [bds-network]
 volumes:
   postgres-data:
-    driver: local
-
+  minio-data:
+  clamav-data:
+  elasticsearch-data:
 networks:
   bds-network:
-    driver: bridge

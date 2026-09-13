@@ -102,13 +102,13 @@ public class CmsArticleApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<Article> getAllArticles() {
-        return persistencePort.findAllArticles();
+    public List<Article> getAllArticles(int page, int size) {
+        return persistencePort.findArticlePage(page, size);
     }
 
     @Transactional(readOnly = true)
-    public List<Article> getArticlesByCategory(ArticleCategory category) {
-        return persistencePort.findArticlesByCategory(category);
+    public List<Article> getArticlesByCategory(ArticleCategory category, int page, int size) {
+        return persistencePort.findArticlesByCategory(category, page, size);
     }
 
     @Transactional(readOnly = true)
@@ -118,19 +118,19 @@ public class CmsArticleApplicationService {
 
     @Transactional(readOnly = true)
     public List<ArticleRevision> getRevisions(UUID articleId) {
-        return persistencePort.findRevisionsByArticleId(articleId);
+        return persistencePort.findRevisionsByArticleId(articleId, 0, 100);
     }
 
     @Transactional(readOnly = true)
     public Optional<ArticleRevision> getLatestRevision(UUID articleId) {
-        List<ArticleRevision> list = persistencePort.findRevisionsByArticleId(articleId);
+        List<ArticleRevision> list = persistencePort.findRevisionsByArticleId(articleId, 0, 1);
         if (list.isEmpty()) return Optional.empty();
         return Optional.of(list.get(0));
     }
 
     @Transactional(readOnly = true)
-    public List<Article> getPublicArticles() {
-        return persistencePort.findArticlesByStatus(ArticleStatus.PUBLISHED);
+    public List<Article> getPublicArticles(int page, int size) {
+        return persistencePort.findArticlesByStatus(ArticleStatus.PUBLISHED, page, size);
     }
 
     @Transactional(readOnly = true)

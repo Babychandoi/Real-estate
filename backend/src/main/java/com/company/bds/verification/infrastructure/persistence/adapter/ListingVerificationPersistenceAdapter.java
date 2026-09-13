@@ -6,6 +6,7 @@ import com.company.bds.verification.domain.port.ListingVerificationPersistencePo
 import com.company.bds.verification.infrastructure.persistence.entity.ListingVerificationJpaEntity;
 import com.company.bds.verification.infrastructure.persistence.repository.ListingVerificationJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,14 +35,14 @@ public class ListingVerificationPersistenceAdapter implements ListingVerificatio
     }
 
     @Override
-    public List<ListingVerification> findByListingId(UUID listingId) {
-        return verificationJpaRepository.findByListingIdOrderByCreatedAtDesc(listingId)
+    public List<ListingVerification> findByListingId(UUID listingId, int page, int size) {
+        return verificationJpaRepository.findByListingIdOrderByCreatedAtDesc(listingId, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<ListingVerification> findByStatus(VerificationStatus status) {
-        return verificationJpaRepository.findByStatusOrderByCreatedAtDesc(status)
+    public List<ListingVerification> findByStatus(VerificationStatus status, int page, int size) {
+        return verificationJpaRepository.findByStatusOrderByCreatedAtDesc(status, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
@@ -52,8 +53,8 @@ public class ListingVerificationPersistenceAdapter implements ListingVerificatio
     }
 
     @Override
-    public List<ListingVerification> findAll() {
-        return verificationJpaRepository.findAll()
+    public List<ListingVerification> findPage(int page, int size) {
+        return verificationJpaRepository.findAll(PageRequest.of(page, size)).getContent()
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 

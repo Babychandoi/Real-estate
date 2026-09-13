@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import {
   Building2,
@@ -14,7 +14,10 @@ import {
   Briefcase,
   LogOut,
   LogIn,
-  User as UserIcon
+  User as UserIcon,
+  Menu,
+  X,
+  Search
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
@@ -22,10 +25,31 @@ import { LoginModal } from '@/shared/auth/LoginModal';
 
 const RootLayoutContent: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobilePanelRef = useRef<HTMLDivElement>(null);
   const { user, isAuthenticated, isAdminOrModerator, isBroker, setIsLoginModalOpen, logout } = useAuth();
+
+  useEffect(() => {
+    if (!isMobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const first = mobilePanelRef.current?.querySelector<HTMLElement>('button,a'); first?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileOpen(false);
+      if (event.key !== 'Tab' || !mobilePanelRef.current) return;
+      const items = Array.from(mobilePanelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),a[href]'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', onKey); menuButtonRef.current?.focus(); };
+  }, [isMobileOpen]);
 
   return (
     <div className="min-h-screen flex flex-col bg-surface text-on-surface">
+      <a href="#main-content" className="skip-link">Bỏ qua điều hướng</a>
       {/* Header điều hướng */}
       <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -36,9 +60,9 @@ const RootLayoutContent: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-base tracking-tight text-primary leading-none">
-                BDS WF
+                NHÀ ĐẤT CHUẨN
               </span>
-              <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider mt-0.5">
+              <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider mt-0.5">
                 Minh bạch 2026
               </span>
             </div>
@@ -77,6 +101,11 @@ const RootLayoutContent: React.FC = () => {
                 Kho tin của tôi
               </Link>
             )}
+            {isAuthenticated && (
+              <Link to="/billing" className="px-3 py-2 rounded-lg hover:text-primary hover:bg-surface-container transition-colors whitespace-nowrap">
+                Gói đăng tin
+              </Link>
+            )}
 
             {/* Chỉ hiển thị cho vai trò Môi giới Pro hoặc Admin */}
             {isBroker && (
@@ -109,7 +138,7 @@ const RootLayoutContent: React.FC = () => {
                 {isAdminOpen && (
                   <div className="absolute left-0 mt-1 w-80 bg-surface rounded-2xl shadow-2xl border border-outline-variant/40 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 backdrop-blur-xl">
                     <div className="px-3 py-2 border-b border-outline-variant/20 mb-1 flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-outline">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
                         Phân Hệ Quản Trị
                       </span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
@@ -249,13 +278,14 @@ const RootLayoutContent: React.FC = () => {
 
           {/* Hành động người dùng & Đăng nhập */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <button ref={menuButtonRef} type="button" aria-label="Mở menu chính" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)} className="lg:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Menu className="w-5 h-5" /></button>
             {isAuthenticated ? (
               <Link to="/listings/new">
                 <Button
                   variant="outline"
                   size="sm"
                   leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}
-                  className="whitespace-nowrap"
+                  className="hidden sm:inline-flex whitespace-nowrap"
                 >
                   Đăng tin
                 </Button>
@@ -265,7 +295,7 @@ const RootLayoutContent: React.FC = () => {
                 variant="outline"
                 size="sm"
                 leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}
-                className="whitespace-nowrap"
+                className="hidden sm:inline-flex whitespace-nowrap"
                 onClick={() => setIsLoginModalOpen(true)}
               >
                 Đăng tin
@@ -276,11 +306,12 @@ const RootLayoutContent: React.FC = () => {
               <Button
                 variant="primary"
                 size="sm"
-                className="whitespace-nowrap shadow-sm"
+                className="whitespace-nowrap shadow-sm max-sm:px-2"
+                aria-label="Đăng nhập"
                 leftIcon={<LogIn className="w-4 h-4" />}
                 onClick={() => setIsLoginModalOpen(true)}
               >
-                Đăng nhập
+                <span className="hidden sm:inline">Đăng nhập</span>
               </Button>
             ) : (
               <div className="flex items-center gap-2 pl-2 border-l border-outline-variant/30">
@@ -319,8 +350,27 @@ const RootLayoutContent: React.FC = () => {
         </div>
       </header>
 
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsMobileOpen(false); }}>
+          <div ref={mobilePanelRef} role="dialog" aria-modal="true" aria-label="Menu chính" className="ml-auto h-full w-[min(22rem,88vw)] bg-surface p-5 shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-outline-variant"><strong className="text-lg">Điều hướng</strong><button type="button" aria-label="Đóng menu" onClick={() => setIsMobileOpen(false)} className="min-w-11 min-h-11 rounded-lg grid place-items-center hover:bg-surface-container"><X className="w-5 h-5" /></button></div>
+            <nav className="py-5 flex flex-col gap-2 text-base" onClick={() => setIsMobileOpen(false)}>
+              <Link to="/search" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Search className="w-5 h-5" />Tìm kiếm</Link>
+              <Link to="/compare" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Layers className="w-5 h-5" />So sánh BĐS</Link>
+              <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>
+              {isAuthenticated && <Link to="/my-listings" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileText className="w-5 h-5" />Kho tin của tôi</Link>}
+              {isBroker && <Link to="/broker/workspace" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Briefcase className="w-5 h-5" />Không gian môi giới</Link>}
+              {isAdminOrModerator && <Link to="/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
+            </nav>
+            <div className="mt-auto pt-4 border-t border-outline-variant">
+              {isAuthenticated ? <button type="button" onClick={() => { logout(); setIsMobileOpen(false); }} className="w-full min-h-11 rounded-lg bg-surface-container font-semibold">Đăng xuất</button> : <button type="button" onClick={() => { setIsMobileOpen(false); setIsLoginModalOpen(true); }} className="w-full min-h-11 rounded-lg bg-primary text-white font-semibold">Đăng nhập / Đăng ký</button>}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1">
         <Outlet />
       </main>
 
@@ -331,10 +381,10 @@ const RootLayoutContent: React.FC = () => {
       <footer className="bg-surface-container border-t border-outline-variant/40 pt-10 pb-8 text-xs text-on-surface-variant">
         <div className="max-w-6xl mx-auto px-4 md:px-8 flex flex-col md:flex-row justify-between gap-6">
           <div className="flex flex-col gap-2 max-w-sm">
-            <span className="font-bold text-base text-primary">BDS WF 2026</span>
+            <span className="font-bold text-base text-primary">Nhà Đất Chuẩn</span>
             <p>
-              Hệ thống website bất động sản thương mại điện tử chuẩn hóa theo quy trình Waterfall,
-              bảo đảm tính xác thực pháp lý, bảo mật dữ liệu PII và công khai minh bạch.
+              Nền tảng đăng và tìm kiếm bất động sản có kiểm duyệt nội dung. Người dùng chủ động liên hệ,
+              xác minh thông tin và trao đổi trực tiếp với nhau; chúng tôi không làm trung gian giao dịch.
             </p>
           </div>
           <div className="flex gap-8">
@@ -351,8 +401,8 @@ const RootLayoutContent: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto px-4 md:px-8 mt-8 pt-4 border-t border-outline-variant/20 text-center text-[11px] text-outline">
-          © 2026 BDS WF. Bản quyền thuộc về Đội dự án BDS Waterfall 0.9.1.
+        <div className="max-w-6xl mx-auto px-4 md:px-8 mt-8 pt-4 border-t border-outline-variant/20 text-center text-[11px] text-slate-700">
+          © 2026 Nhà Đất Chuẩn. Bảo lưu mọi quyền.
         </div>
       </footer>
     </div>

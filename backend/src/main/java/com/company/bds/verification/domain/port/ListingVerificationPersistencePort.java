@@ -10,9 +10,9 @@ import java.util.UUID;
 public interface ListingVerificationPersistencePort {
     ListingVerification save(ListingVerification verification);
     Optional<ListingVerification> findById(UUID id);
-    List<ListingVerification> findByListingId(UUID listingId);
-    List<ListingVerification> findByStatus(VerificationStatus status);
+    List<ListingVerification> findByListingId(UUID listingId, int page, int size);
+    List<ListingVerification> findByStatus(VerificationStatus status, int page, int size);
     Optional<ListingVerification> findActiveVerifiedOwner(UUID listingId);
-    List<ListingVerification> findAll();
+    List<ListingVerification> findPage(int page, int size);
     long countByStatus(VerificationStatus status);
 }

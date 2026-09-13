@@ -54,9 +54,12 @@ public class ViolationReportController {
     @GetMapping("/reports")
     public ResponseEntity<List<ListingReportResponse>> getReports(
             @RequestParam(name = "status", required = false) ReportStatus status,
-            @RequestParam(name = "severity", required = false) ReportSeverity severity) {
+            @RequestParam(name = "severity", required = false) ReportSeverity severity,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "50") int size) {
 
-        List<ListingReport> reports = reportApplicationService.getReports(status, severity);
+        List<ListingReport> reports = reportApplicationService.getReports(
+                status, severity, Math.max(0, page), Math.max(1, Math.min(100, size)));
         List<ListingReportResponse> response = reports.stream()
                 .map(ListingReportResponse::fromDomain)
                 .collect(Collectors.toList());

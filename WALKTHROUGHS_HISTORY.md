@@ -340,3 +340,170 @@ npm run build
 - **TypeScript strict check** (`tsc -b --noEmit`): **0 errors** ✅
 - **Vite production build** (`npm run build`): **Build thành công trong ~3.3s, 0 errors** ✅
 
+---
+
+## Nghiệm thu Đợt 11 — Khắc phục 5 báo cáo review
+
+- Backend: `mvn test` thành công, **15 tests**, 0 failures/errors; gồm unauthenticated 401, USER bị chặn admin 403, bearer token tạo tin và logout thu hồi token.
+- Frontend: `npm run build` thành công với TypeScript strict và Vite 8; main chunk **292.25 kB** (**92.23 kB gzip**), các route được tách chunk.
+- Supply chain: `npm audit` báo **0 vulnerabilities**; `docker compose config --quiet` và `docker compose build` đều thành công với secret kiểm thử; hai image backend/frontend được tạo.
+- UI source audit: Impeccable detector chỉ ra 7 cảnh báo accent-border; đã thay bằng ring/subtle state và bỏ rounded-tab conflict. Không có phiên in-app browser để nghiệm thu ảnh desktop/mobile, nên chưa ghi nhận visual pass.
+- Luồng chính: khách tìm kiếm bằng URL và gửi lead có mã; USER/BROKER đăng ký/đăng nhập qua backend; các route tạo tin/hợp đồng/admin được bảo vệ; eKYC và giao dịch trả capability unavailable khi chưa có provider.
+- Hồ sơ vận hành: `REVIEW_REMEDIATION_STATUS.md`, `RUNBOOK.md`, `SLO.md`, `SECURITY.md`, `SUPPORT.md`, CI, k6, Prometheus và Kubernetes baseline.
+
+---
+
+## Nghiệm thu Đợt 12 — Runtime PostgreSQL/Docker và phân quyền tài nguyên
+
+- `mvn test`: **17 tests**, 0 failures/errors; gồm IDOR broker đối với lead/eKYC, readiness public, metrics vẫn yêu cầu xác thực, auth/logout và các vòng đời nghiệp vụ.
+- `npm run build`: thành công; main chunk **292.88 kB** (**92.36 kB gzip**). `npm audit --audit-level=high`: **0 vulnerabilities**.
+- Docker image backend/frontend build thành công; build backend chạy lại toàn bộ 17 test trong container.
+- Cụm kiểm thử riêng `bds-validation` khởi động khỏe trên PostgreSQL 16/PostGIS và Redis; Flyway xác thực và áp dụng đủ **10 migrations**, từ V001 đến V010.
+- Smoke test qua gateway đạt cả readiness backend, health frontend và public listing search. Lỗi readiness 401 và lỗi PostgreSQL `lower(bytea)` phát hiện trong lượt đầu đã được sửa và kiểm tra lại.
+- Cụm/volume kiểm thử tạm đã được dọn sau nghiệm thu; không thay đổi các container dữ liệu sẵn có.
+
+---
+
+## Nghiệm thu Đợt 13 — Upload ảnh MinIO end-to-end
+
+- Docker build backend chạy **19 tests**, 0 failures/errors; frontend production build và npm audit đều đạt.
+- Flyway trên PostgreSQL 16 xác nhận **11 migrations**, V011 tạo metadata cho object MinIO.
+- Runtime đã upload JPEG 1.60 MB qua API xác thực, đọc lại đúng magic bytes qua Nginx gateway và lưu URL nội bộ vào `listing_media`.
+- Kiểm tra âm đạt: upload chưa đăng nhập trả 401, file văn bản giả `image/jpeg` trả 400, tài khoản khác gắn object không thuộc sở hữu trả 400.
+- MinIO dùng bucket riêng tư `bds-listings`, volume bền vững; cổng S3 không public và console chỉ bind `127.0.0.1:9001`.
+- Image chạy thật được build từ source bản vá `RELEASE.2025-10-15T17-29-55Z` (commit `9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`); kiểm tra restart xác nhận object cũ vẫn đọc được và object mới upload thành công.
+- Stack chính `bds-enterprise-stack` đã triển khai đủ 5 container healthy. Stack validation cùng volume tạm đã dọn; ba container đã dừng thuộc Compose `bds` cũ được xóa nhưng giữ nguyên volume cũ.
+# 2026-09-12 - Manual eKYC, VietQR packages, live workspace, map/search and antivirus
+
+- `docker compose build backend`: PASS; Maven verify executed in the image with Java 17, 19 tests passed, 0 failed.
+- `npm run build` in `frontend`: PASS; TypeScript and Vite production build completed. MapLibre search chunk emits a non-blocking size warning.
+- `docker compose config --quiet`: PASS.
+- `docker compose up -d --build`: PASS; PostgreSQL, Redis, MinIO, backend, frontend, ClamAV, Elasticsearch and Mailpit all reached healthy state.
+- Flyway: V012 `packages notifications and sla` applied successfully without modifying older migrations.
+- Runtime smoke: register -> FREE plan/quota -> create STANDARD order -> generated VietQR URL -> report transfer -> `TRANSFER_REPORTED`; admin SMTP message arrived in Mailpit. Exact smoke user/order/bank/message were removed afterwards.
+- Elasticsearch runtime: `bds-listings` index exists and cluster is yellow as expected for a one-node replica configuration.
+- Impeccable detector: completed on changed frontend targets; it reported gray-on-color warnings caused by multiple JSX regions sharing single physical lines. Manual contrast review retained dark-on-light and light-on-dark pairs.
+
+# 2026-09-12 - Visual/accessibility automation and production-readiness evidence
+
+- Playwright visual regression plus axe WCAG automation: PASS, 28/28 tests across Chromium 320/768/1440, Pixel 7 emulation, iPhone 15 Pro WebKit emulation, desktop WebKit and Firefox. Twenty-one approved page baselines are versioned. Emulation is not evidence of testing on physical iOS/Android devices.
+- Accessibility fixes found by automation: password visibility control and icon-only search gained accessible names; search sorting gained a form name; low-contrast labels/actions were darkened; the 320 px header no longer overflows.
+- Frontend production build: PASS. `npm audit --audit-level=high`: PASS with 0 vulnerabilities after upgrading Playwright to 1.55.1. Production Compose plus PgBouncer/TLS overlay syntax: PASS.
+- Local k6 smoke: PASS, 73 requests, 0% failures, 100% checks, p95 156.32 ms. Load and soak profiles are implemented but have not been executed against a target environment.
+- PostgreSQL restore drill: PASS. A logical backup was restored to an isolated temporary database; 28/28 public tables matched, observed restore time 3.32 seconds and snapshot data loss was zero. This does not establish scheduled/off-site production RPO.
+- Added production templates for PgBouncer, Caddy TLS ingress, CloudNativePG three-instance PostgreSQL and External Secrets. Real Redis/MinIO HA, CDN/DNS, secret-store connection and target deployment remain environment/provider work and are not claimed as running.
+- Added a physical-device and five-participant usability protocol. No participant/device evidence has been fabricated; those two acceptance gates remain open until sessions are actually conducted.
+
+# 2026-09-12 - Kubernetes HA runtime deployment
+
+- Created live kind context `kind-bds-production-local` with one control-plane and two workers; existing Compose volumes were not removed.
+- Redis HA: three Redis/Sentinel pods Ready with quorum 2. Forced deletion of the active master triggered automatic promotion from node 0 to node 2; the deleted member then returned Ready.
+- MinIO HA: Operator Tenant `bds-minio` reached green with four distributed server pods and four independent 1 GiB PVCs. Cluster health remained successful while one server was deleted/restarted, then the member returned Ready.
+- Vault: three Ready servers formed integrated-storage Raft with one leader and two voting followers. Bootstrap keys are Git-ignored and DPAPI-protected locally.
+- External Secrets Operator: all three controller pods Ready; namespace SecretStore `bds-vault` Valid and ExternalSecret `bds-runtime-from-vault` reported `SecretSynced=True` using a limited Vault policy/token.
+- Edge: ingress-nginx, cert-manager local CA, DNS host `bds.127.0.0.1.nip.io`, TLS certificate Ready and two frontend replicas deployed. HTTPS `/healthz` through host port 8443 returned 200.
+- External production CDN/authoritative DNS remains provider-bound because no domain/account/API token was supplied. Local ingress/DNS is deployed evidence, not a claim that a public CDN exists.
+
+# 2026-09-12 - Environment configuration normalization
+
+- Rebuilt `.env.example` as a complete, non-secret template covering Compose, Spring, PostgreSQL, Redis, MinIO, ClamAV, Elasticsearch, mail, PII/MFA/outbox security, production overlay and Kubernetes metadata.
+- Normalized the Git-ignored `.env` without changing existing database, Redis, MinIO or demo credentials. Added independent cryptographically random PII encryption/index, MFA and outbox signing keys; synchronized Spring password aliases with their canonical service passwords.
+- Validation: no duplicate/missing required keys, no placeholders, AES/HMAC keys decode to distinct 32-byte values, Compose config PASS, production overlay config PASS and Kubernetes context/namespace resolution PASS.
+
+# 2026-09-12 - Cloudflare Tunnel for nhadatchuan.online
+
+- Installed and authenticated `cloudflared` 2026.9.1, then created the named tunnel `nhadatchuan-online` with ID `046d1ad4-3b90-4fb8-9479-b3b13ecb75b1`.
+- Cloudflare DNS routes for `nhadatchuan.online` and `www.nhadatchuan.online` point to the tunnel; no inbound router port or public-IP A record is required.
+- The temporary workstation origin is the complete Docker gateway at `http://localhost:3000`. The Kubernetes ingress remains configured for both hostnames and can become the origin after the backend is migrated into Kubernetes.
+- Public smoke checks passed for apex and `www`: `/healthz` returned HTTP 200 and `/api/v1/listings/search?page=0&size=1` returned HTTP 200 JSON.
+- `cloudflared tunnel ingress validate` passed and the connector reached Cloudflare edge locations in Singapore.
+- A Windows scheduled task named `BDS-Cloudflare-Tunnel` starts the connector at user logon and restarts it after failures. Installing a machine service was not possible from the non-elevated terminal; boot-before-login requires running `cloudflared service install` from an Administrator terminal.
+- Tunnel credentials remain only under the user's `.cloudflared` directory. The repository contains a credential-free example configuration.
+- Replaced the user-logon scheduled task with a single Compose `cloudflared` container using `restart: unless-stopped`; the old task was stopped and disabled so only the Docker connector remains. The connector mounts its credential read-only from the user profile and reaches the gateway over the private Compose network as `http://frontend:3000`.
+
+# 2026-09-12 - Temporary production environment activation
+
+- Changed the live Compose runtime from `demo/local` to `production/production`; disabled public SpringDoc, restricted CORS to the two HTTPS production hosts and restricted trusted media hosts to project-controlled domains.
+- Rotated PostgreSQL, Redis, MinIO and unused demo-bootstrap passwords. The PostgreSQL role was changed before container recreation; persistent volumes were retained.
+- Passed previously omitted production settings from Compose into the backend, including server/log/SpringDoc, feature flags, outbox interval, ClamAV timeout and mail endpoint.
+- Production safety validation passed at backend startup. PostgreSQL, Redis, MinIO, backend, frontend and Cloudflare connector were recreated without deleting data and returned healthy/running.
+- Added `docs/operations/PRODUCTION_ENV.md` describing safe-to-change values, coordinated secret rotation and intentionally disabled integrations. External authenticated SMTP remains a known production gap; current mail delivery terminates at the internal Mailpit service.
+
+# 2026-09-12 - Gmail production SMTP
+
+- Replaced the raw unauthenticated SMTP socket in billing with Spring `JavaMailSender`, SMTP AUTH, required STARTTLS and bounded connection/read/write timeouts.
+- Configured the Git-ignored production `.env` for Gmail SMTP on port 587 and kept only placeholders in `.env.example`; the Mailpit container was removed from the live Compose stack.
+- Docker Java 17 build passed all 19 backend tests. Runtime startup passed Gmail's authenticated connection check and a real test message was accepted for delivery to the configured mailbox.
+
+# 2026-09-12 - Remove demo language from production UI
+
+- Removed the global DEMO banner, demo-account disclosure and all remaining user-facing demo/sample-data wording from the production frontend.
+- Rewrote the home, listing, posting and safety copy around the real product boundary: Nhà Đất Chuẩn moderates listing content while users contact, verify and transact directly with each other.
+- Removed unsupported transaction-volume wording and renamed the analytics export from a demo filename.
+- Frontend TypeScript/Vite production build passed, the Impeccable detector returned no findings on the changed surfaces, and the rebuilt frontend/Cloudflare containers served the new hashed assets publicly.
+
+# 2026-09-12 - Database-backed experience listings
+
+- Confirmed the previous home cards were backend fallback objects: PostgreSQL contained zero public listings while `ListingController` returned four fixed UUIDs, Unsplash images and `isVerified=true`.
+- Removed the fallback objects and external fallback image URLs. Search now returns an empty array when PostgreSQL has no matching public records; real listings use `listing.isVerifiedOwner()` instead of a forced verified flag.
+- Added Flyway V013 with six stable PostgreSQL experience records (four sale, two rent), complete listing/revision/publication relationships and a non-login seed owner containing no real-person PII. All six owner-verification flags are false.
+- Frontend cards and map results now show a neutral no-image state when a database record has no uploaded media instead of substituting a property photo.
+- Docker builds passed all 19 backend tests and the frontend production build. Flyway V013 succeeded; public API returned 4 sale and 2 rent records, zero legacy fallback IDs and zero falsely verified records.
+
+# 2026-09-13 - MinIO experience media and API-backed comparison
+
+- Uploaded six experience photos through the authenticated media endpoint, so every object passed the ClamAV scan and was persisted in the private MinIO bucket with a corresponding `media_objects` record.
+- Linked one primary MinIO object to each V013 listing revision. The public listing API now returns an internal `/api/v1/public/media/...` URL for all six records; all six URLs were verified as HTTP 200 `image/jpeg` through `nhadatchuan.online`.
+- Replaced the `/compare` page's three fixed `lst-101`–`lst-103` objects and invented legal, eKYC, escrow, bank and nearby-amenity claims with live public listing API data.
+- Comparison now shows only fields supported by the public API: purpose, property type, price, area, unit price, address and owner-verification state. It supports up to three IDs through `?ids=...`, prevents mixed sale/rent comparisons and has loading, failure and insufficient-data states.
+- Frontend production build and Docker builds passed; backend tests passed 19/19. The rebuilt stack is healthy, `/compare` returns HTTP 200 and source verification found no legacy compare IDs, escrow fields or Unsplash URLs in the route.
+
+# 2026-09-13 - Real map data and mandatory email verification
+
+- Removed the simulated map photograph, fixed cluster badges, synthetic pin coordinates, duplicate zoom controls and illustrative viewport status from the search page. The only rendered map is now MapLibre with OpenStreetMap tiles, API-sourced GeoJSON markers, native clustering and bounds-based search.
+- Added Flyway V014 with privacy-offset public coordinates for all six database-backed experience revisions. Existing accounts were marked email-verified during migration to avoid lockout.
+- Added one-time SHA-256-hashed email verification tokens with 24-hour expiry. New registrations remain `PENDING_EMAIL_VERIFICATION`, receive no session, and cannot log in until the verification link is consumed. Resend uses a non-enumerating accepted response.
+- Added the public `/verify-email` completion screen and updated registration/login UI for verification instructions and resend.
+- Replaced hardcoded analytics, lead/report and verification admin displays with their real API datasets and empty/error states; removed runtime external-image defaults from project and CMS mapping.
+- Production verification: V014 succeeded, all six public listings expose coordinates, `/search` and `/verify-email` return HTTP 200, unknown-email resend returns HTTP 202, Docker backend tests pass 19/19 and the rebuilt services are healthy.
+
+# 2026-09-13 - Production CSP for map, fonts and analytics
+
+- Replaced the frontend's same-origin-only CSP with narrow host allowlists for OpenStreetMap tiles, Google Fonts and Cloudflare Insights; added the `font-src` and `worker-src blob:` directives required by the current MapLibre/font runtime.
+- Kept scripts restricted to the application origin plus the exact Cloudflare Insights host, with no wildcard source and no `unsafe-eval` or `unsafe-inline` script permission.
+- Rebuilt and recreated the frontend and Cloudflare tunnel containers. The public `/search` response returns the new CSP, both containers are running (frontend healthy), Google Fonts and Cloudflare Insights return HTTP 200, and an OpenStreetMap tile returns HTTP 200.
+
+# 2026-09-13 - Resilient production basemap endpoint
+
+- Replaced the OpenStreetMap standard tile hostname after the workstation/browser DNS resolver returned `ERR_NAME_NOT_RESOLVED` for it and its `a`, `b` and `c` subdomains.
+- The MapLibre base layer now uses CARTO raster tiles backed by OpenStreetMap data with both required attributions. Database-backed listing markers, native clustering and bounds search are unchanged.
+- Updated the production CSP to the exact CARTO tile hostname and removed the unreachable tile hostname. Also removed the stale UI wording that called the now-live map illustrative.
+- Frontend TypeScript/Vite build passed, the Impeccable detector returned no findings, the rebuilt frontend is healthy, Cloudflare Tunnel is running, the public CSP is current and a representative CARTO tile returns HTTP 200.
+
+# 2026-09-13 - API-key-free vector basemap
+
+- Removed CARTO after live rendering exposed an `API KEY REQUIRED` watermark that was not visible in the HTTP-only tile check.
+- Switched MapLibre to OpenFreeMap's hosted Positron vector style. The provider requires no account or API key and supplies OpenStreetMap/OpenMapTiles attribution through the style.
+- Restricted CSP to the exact `tiles.openfreemap.org` host and removed CARTO. Frontend build and Impeccable detection passed; production serves the new bundle and CSP, both style and tile metadata return HTTP 200, frontend is healthy and Cloudflare Tunnel is running.
+
+# 2026-09-13 - MapLibre production worker packaging
+
+- Browser-level diagnostics found that the map style and attribution loaded while MapLibre's default `/assets/maplibre-gl-worker.mjs` request failed, leaving the WebGL canvas blank.
+- Configured Vite to bundle MapLibre's worker and assign its hashed production URL explicitly. The emitted self-contained worker replaces the missing runtime module and its unresolved shared import.
+- Fixed the listing-source initialization race by seeding the GeoJSON source from the latest API listings when the map style finishes loading, while retaining subsequent reactive updates.
+- Production browser verification loaded the style, sprite, vector tiles and fonts successfully and captured the rendered Hanoi basemap with database-backed listing cluster/point markers. The visual test now waits for dynamic vector-map rendering without relying on a never-idle network.
+
+# 2026-09-13 - Listing localization, navigation and media delivery
+
+- Added one shared Vietnamese property-type formatter for apartment, house, villa, townhouse and land values; search, comparison and moderation no longer expose backend enum codes.
+- Made the search result detail action an isolated, elevated navigation target and added a browser regression test. Production verification clicked the first result, reached its UUID detail route and rendered the listing heading.
+- Removed unsupported fixed bedroom, bathroom, direction and broker claims from search/detail. Detail descriptions now come from the API/database, with only a neutral missing-description state.
+- Search images now decode asynchronously, lazy-load below the first result and prioritize the first visible image. Public objects remain private in MinIO and are authorized once through the public backend endpoint; Cloudflare serves the immutable one-year response from edge cache (`cf-cache-status: HIT`), while eKYC objects remain inaccessible through that route.
+- Frontend production build and Impeccable detection passed; the rebuilt frontend is healthy and Cloudflare Tunnel is running.
+
+# 2026-09-13 - Broker workspace loading recovery
+
+- Production logs identified the workspace 500 as invalid PostgreSQL aggregate syntax: `FILTER` was attached to `ROUND` instead of `AVG`. Corrected the query and verified it against the production PostgreSQL schema, returning lead counts and a zero default without error.
+- Rebuilt the workspace state handling so rejected requests stop loading, show a Vietnamese recovery message and provide a retry action; saving the response target now reports its own recoverable error.
+- Replaced the remaining workspace-facing English `WORKSPACE`, raw listing status codes and `SLA` control wording with Vietnamese labels and added a real empty-listing state.
+- Docker Java 17 verification passed all 19 backend tests; frontend TypeScript/Vite build passed. Backend and frontend containers are healthy and Cloudflare Tunnel is running.

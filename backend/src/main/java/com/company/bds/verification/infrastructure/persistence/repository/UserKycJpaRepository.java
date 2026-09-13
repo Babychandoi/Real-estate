@@ -4,6 +4,7 @@ import com.company.bds.verification.domain.model.KycStatus;
 import com.company.bds.verification.infrastructure.persistence.entity.UserKycJpaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,7 +17,7 @@ public interface UserKycJpaRepository extends JpaRepository<UserKycJpaEntity, UU
 
     Optional<UserKycJpaEntity> findByIdNumberLookupHash(String lookupHash);
 
-    List<UserKycJpaEntity> findByStatusOrderByCreatedAtDesc(KycStatus status);
+    List<UserKycJpaEntity> findByStatusOrderByCreatedAtDesc(KycStatus status, Pageable pageable);
 
     long countByStatus(KycStatus status);
 }

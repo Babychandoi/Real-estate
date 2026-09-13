@@ -9,7 +9,7 @@ public interface ProjectPersistencePort {
     Project save(Project project);
     Optional<Project> findById(UUID id);
     Optional<Project> findBySlug(String slug);
-    List<Project> findAll();
-    List<Project> findByDistrict(String districtCode);
-    List<Project> searchByName(String keyword);
+    List<Project> findPage(int page, int size);
+    List<Project> findByDistrict(String districtCode, int page, int size);
+    List<Project> searchByName(String keyword, int page, int size);
 }

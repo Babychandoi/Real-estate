@@ -119,11 +119,11 @@ public class ListingVerificationApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<ListingVerification> getQueue(VerificationStatus status) {
+    public List<ListingVerification> getQueue(VerificationStatus status, int page, int size) {
         if (status != null) {
-            return verificationPersistencePort.findByStatus(status);
+            return verificationPersistencePort.findByStatus(status, page, size);
         }
-        return verificationPersistencePort.findAll();
+        return verificationPersistencePort.findPage(page, size);
     }
 
     @Transactional(readOnly = true)
@@ -134,6 +134,6 @@ public class ListingVerificationApplicationService {
 
     @Transactional(readOnly = true)
     public List<ListingVerification> getVerificationsByListing(UUID listingId) {
-        return verificationPersistencePort.findByListingId(listingId);
+        return verificationPersistencePort.findByListingId(listingId, 0, 100);
     }
 }

@@ -41,31 +41,6 @@ public class Lead {
         this.createdAt = createdAt != null ? createdAt : Instant.now();
     }
 
-    public static Lead create(
-            UUID listingId,
-            String fullName,
-            String rawPhone,
-            String note,
-            boolean consentPolicy,
-            Instant now) {
-        // Mô phỏng mã hóa số điện thoại theo NFR12
-        String encrypted = "ENC:" + rawPhone;
-        // Băm số điện thoại dùng cho đối soát tra cứu chống spam
-        String lookupHash = Integer.toHexString(rawPhone.hashCode());
-
-        return new Lead(
-                UUID.randomUUID(),
-                listingId,
-                fullName,
-                encrypted,
-                lookupHash,
-                note,
-                consentPolicy,
-                LeadStatus.NEW,
-                now
-        );
-    }
-
     public void updateStatus(LeadStatus newStatus) {
         this.status = Objects.requireNonNull(newStatus, "Trạng thái Lead không được null");
     }
@@ -85,10 +60,7 @@ public class Lead {
      * Giải mã an toàn số điện thoại cho môi giới phụ trách xem.
      */
     public String getMaskedPhone() {
-        String raw = phoneEncrypted.startsWith("ENC:") ? phoneEncrypted.substring(4) : phoneEncrypted;
-        if (raw.length() >= 7) {
-            return raw.substring(0, 3) + "****" + raw.substring(raw.length() - 3);
-        }
-        return raw;
+        if (phoneEncrypted.startsWith("v1:")) return phoneEncrypted.split(":", 4)[1];
+        return "***";
     }
 }

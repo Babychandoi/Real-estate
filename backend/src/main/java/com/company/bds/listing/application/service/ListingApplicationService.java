@@ -14,6 +14,8 @@ import com.company.bds.listing.domain.model.ListingMedia;
 import com.company.bds.listing.domain.model.ListingRevision;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -35,10 +37,15 @@ public class ListingApplicationService implements
 
     private final ListingPersistencePort persistencePort;
     private final Clock clock;
+    private final JdbcTemplate jdbc;
+    private final boolean quotaEnforced;
 
-    public ListingApplicationService(ListingPersistencePort persistencePort, Clock clock) {
+    public ListingApplicationService(ListingPersistencePort persistencePort, Clock clock, JdbcTemplate jdbc,
+                                     @Value("${app.billing.quota-enforced:true}") boolean quotaEnforced) {
         this.persistencePort = persistencePort;
         this.clock = clock;
+        this.jdbc = jdbc;
+        this.quotaEnforced = quotaEnforced;
     }
 
     @Override
@@ -116,6 +123,11 @@ public class ListingApplicationService implements
 
         if (command.requesterId() != null && !listing.getOwnerId().equals(command.requesterId())) {
             throw new ListingDomainException("FORBIDDEN", "Bạn không có quyền nộp duyệt tin đăng này.");
+        }
+
+        if (quotaEnforced) {
+            int quota = jdbc.update("UPDATE users SET listing_quota_remaining=listing_quota_remaining-1,updated_at=CURRENT_TIMESTAMP WHERE id=? AND listing_quota_remaining>0 AND (plan_expires_at IS NULL OR plan_expires_at>CURRENT_TIMESTAMP)", listing.getOwnerId());
+            if (quota == 0) throw new ListingDomainException("LISTING_QUOTA_EXHAUSTED", "Bạn đã hết lượt đăng tin. Vui lòng mua thêm gói dịch vụ.");
         }
 
         listing.submitLatestDraft(now);

@@ -60,8 +60,8 @@ public class ProjectCatalogService {
     }
 
     @Transactional(readOnly = true)
-    public List<Project> getAllProjects() {
-        return persistencePort.findAll();
+    public List<Project> getAllProjects(int page, int size) {
+        return persistencePort.findPage(page, size);
     }
 
     @Transactional(readOnly = true)
@@ -75,11 +75,11 @@ public class ProjectCatalogService {
     }
 
     @Transactional(readOnly = true)
-    public List<Project> searchProjects(String keyword) {
+    public List<Project> searchProjects(String keyword, int page, int size) {
         if (keyword == null || keyword.isBlank()) {
-            return persistencePort.findAll();
+            return persistencePort.findPage(page, size);
         }
-        return persistencePort.searchByName(keyword.trim());
+        return persistencePort.searchByName(keyword.trim(), page, size);
     }
 
     private static final Pattern NONLATIN = Pattern.compile("[^\\w-]");

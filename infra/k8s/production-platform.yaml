@@ -1,0 +1,42 @@
+# Requires CloudNativePG, Redis, MinIO and External Secrets operators installed by the platform team.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata: { name: bds-postgres }
+spec:
+  instances: 3
+  storage: { size: 100Gi }
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://bds-backups/postgres
+      endpointURL: https://s3.example.invalid
+      s3Credentials:
+        accessKeyId: { name: bds-backup-s3, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: bds-backup-s3, key: SECRET_ACCESS_KEY }
+    retentionPolicy: 30d
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata: { name: bds-runtime-secrets }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { name: production-vault, kind: ClusterSecretStore }
+  target: { name: bds-runtime-secrets }
+  dataFrom: [{ extract: { key: bds/production/runtime } }]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bds
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+spec:
+  ingressClassName: nginx
+  tls: [{ hosts: [bds.example.invalid], secretName: bds-tls }]
+  rules:
+    - host: bds.example.invalid
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: bds-frontend, port: { number: 3000 } } }

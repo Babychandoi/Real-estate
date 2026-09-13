@@ -1,122 +1,43 @@
+import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { RootLayout } from './root';
-import { HomePage } from './routes/_public.home';
-import { ListingDetailPage } from './routes/_public.listings.$listingId';
-import { CreateListingPage } from './routes/_public.listings.new';
-import { MyListingsPage } from './routes/_account.listings';
-import ModerationWorkspacePage from './routes/_admin.moderation';
-import { SearchAndMapPage } from './routes/_public.search';
-import LeadsAndReportsPage from './routes/_admin.leads-and-reports';
-import VerificationDeskPage from './routes/_admin.verification';
-import { DepositContractPage } from './routes/_account.contracts';
-import { BrokerWorkspacePage } from './routes/_account.broker-workspace';
-import { PropertyComparePage } from './routes/_public.compare';
-import { ProductAnalyticsPage } from './routes/_admin.analytics';
-import { ProjectCatalogPage } from './routes/_admin.projects';
-import { CmsManagementPage } from './routes/_admin.cms';
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
 
-export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <RootLayout />,
-    children: [
-      {
-        index: true,
-        element: <HomePage />,
-      },
-      {
-        path: 'search',
-        element: <SearchAndMapPage />,
-      },
-      {
-        path: 'listings/new',
-        element: <CreateListingPage />,
-      },
-      {
-        path: 'listings/:listingId',
-        element: <ListingDetailPage />,
-      },
-      {
-        path: 'my-listings',
-        element: (
-          <ProtectedRoute moduleName="Kho Tin Của Tôi" allowedRoles={['ADMIN', 'BROKER', 'USER']}>
-            <MyListingsPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'admin/moderation',
-        element: (
-          <ProtectedRoute moduleName="Bàn Kiểm Duyệt Tin Đăng" allowedRoles={['ADMIN', 'MODERATOR']}>
-            <ModerationWorkspacePage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'admin/leads-and-reports',
-        element: (
-          <ProtectedRoute moduleName="Bàn Lead CRM & Báo Xấu" allowedRoles={['ADMIN', 'MODERATOR']}>
-            <LeadsAndReportsPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'admin/verification',
-        element: (
-          <ProtectedRoute moduleName="Bàn Thẩm Định eKYC Chính Chủ" allowedRoles={['ADMIN', 'MODERATOR']}>
-            <VerificationDeskPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'admin/analytics',
-        element: (
-          <ProtectedRoute moduleName="Báo Cáo Phễu Chuyển Đổi FR29" allowedRoles={['ADMIN', 'MODERATOR']}>
-            <ProductAnalyticsPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'admin/projects',
-        element: (
-          <ProtectedRoute moduleName="Quản Lý Danh Mục Dự Án Master" allowedRoles={['ADMIN', 'MODERATOR']}>
-            <ProjectCatalogPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'admin/cms',
-        element: (
-          <ProtectedRoute moduleName="Quản Trị Xuất Bản CMS Bài Viết" allowedRoles={['ADMIN', 'MODERATOR']}>
-            <CmsManagementPage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'contracts/:contractId',
-        element: <DepositContractPage />,
-      },
-      {
-        path: 'contracts',
-        element: <DepositContractPage />,
-      },
-      {
-        path: 'broker/workspace',
-        element: (
-          <ProtectedRoute moduleName="Không Gian Môi Giới BĐS Pro" allowedRoles={['ADMIN', 'BROKER']}>
-            <BrokerWorkspacePage />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: 'compare',
-        element: <PropertyComparePage />,
-      },
-      {
-        path: '*',
-        element: <HomePage />,
-      },
-    ],
-  },
-]);
+const HomePage = lazy(() => import('./routes/_public.home').then(m => ({ default: m.HomePage })));
+const SearchAndMapPage = lazy(() => import('./routes/_public.search').then(m => ({ default: m.SearchAndMapPage })));
+const ListingDetailPage = lazy(() => import('./routes/_public.listings.$listingId').then(m => ({ default: m.ListingDetailPage })));
+const CreateListingPage = lazy(() => import('./routes/_public.listings.new').then(m => ({ default: m.CreateListingPage })));
+const MyListingsPage = lazy(() => import('./routes/_account.listings').then(m => ({ default: m.MyListingsPage })));
+const ModerationWorkspacePage = lazy(() => import('./routes/_admin.moderation'));
+const LeadsAndReportsPage = lazy(() => import('./routes/_admin.leads-and-reports'));
+const VerificationDeskPage = lazy(() => import('./routes/_admin.verification'));
+const BrokerWorkspacePage = lazy(() => import('./routes/_account.broker-workspace').then(m => ({ default: m.BrokerWorkspacePage })));
+const PropertyComparePage = lazy(() => import('./routes/_public.compare').then(m => ({ default: m.PropertyComparePage })));
+const ProductAnalyticsPage = lazy(() => import('./routes/_admin.analytics').then(m => ({ default: m.ProductAnalyticsPage })));
+const ProjectCatalogPage = lazy(() => import('./routes/_admin.projects').then(m => ({ default: m.ProjectCatalogPage })));
+const CmsManagementPage = lazy(() => import('./routes/_admin.cms').then(m => ({ default: m.CmsManagementPage })));
+const BillingPage = lazy(() => import('./routes/_account.billing').then(m => ({ default: m.BillingPage })));
+const VerifyEmailPage = lazy(() => import('./routes/_public.verify-email').then(m => ({ default: m.VerifyEmailPage })));
+
+const load = (node: ReactNode) => <Suspense fallback={<div className="max-w-6xl mx-auto p-8" role="status">Đang tải nội dung…</div>}>{node}</Suspense>;
+const protect = (node: ReactNode, moduleName: string, allowedRoles: Array<'ADMIN'|'MODERATOR'|'BROKER'|'USER'>) =>
+  load(<ProtectedRoute moduleName={moduleName} allowedRoles={allowedRoles}>{node}</ProtectedRoute>);
+
+export const router = createBrowserRouter([{ path: '/', element: <RootLayout />, children: [
+  { index: true, element: load(<HomePage />) },
+  { path: 'search', element: load(<SearchAndMapPage />) },
+  { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN','BROKER','USER']) },
+  { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
+  { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN','BROKER','USER']) },
+  { path: 'admin/moderation', element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN','MODERATOR']) },
+  { path: 'admin/leads-and-reports', element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ['ADMIN','MODERATOR']) },
+  { path: 'admin/verification', element: protect(<VerificationDeskPage />, 'Thẩm định', ['ADMIN','MODERATOR']) },
+  { path: 'admin/analytics', element: protect(<ProductAnalyticsPage />, 'Phân tích', ['ADMIN','MODERATOR']) },
+  { path: 'admin/projects', element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ['ADMIN','MODERATOR']) },
+  { path: 'admin/cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ['ADMIN','MODERATOR']) },
+  { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
+  { path: 'compare', element: load(<PropertyComparePage />) },
+  { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER','USER']) },
+  { path: 'verify-email', element: load(<VerifyEmailPage />) },
+  { path: '*', element: load(<HomePage />) },
+]}]);

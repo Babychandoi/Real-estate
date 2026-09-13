@@ -10,6 +10,7 @@ Dự án website bất động sản thương mại điện tử / nền tảng 
 - **Frontend**: React 18/19, TypeScript (strict mode), React Router Framework Mode, Vite, Tailwind CSS & daisyUI.
 - **Cơ sở dữ liệu**: PostgreSQL 16+ với extension **PostGIS** hỗ trợ truy vấn địa lý không gian; quản lý migration bằng **Flyway**.
 - **Bộ nhớ đệm & Giới hạn tần suất**: Redis.
+- **Lưu trữ ảnh**: MinIO bucket riêng tư; ảnh chỉ được tải lên qua API đã xác thực và đọc qua URL cùng origin.
 - **Hàng đợi nghiệp vụ**: Bền vững hóa qua mẫu thiết kế **Durable Transactional Outbox** và Java Worker.
 - **Hợp đồng API**: REST JSON, OpenAPI 3.1, xử lý lỗi chuẩn RFC 9457 Problem Details.
 - **Container**: Docker multi-stage build, non-root runtime container, Docker Compose.
@@ -53,20 +54,33 @@ Dự án website bất động sản thương mại điện tử / nền tảng 
 ├── SECURITY_AND_PII_AUDIT_REPORT.md  # Báo cáo an toàn thông tin, bảo vệ PII & SLA Escrow
 ├── IMPLEMENTATION_PLANS_HISTORY.md   # Lịch sử toàn bộ kế hoạch triển khai (9 giai đoạn)
 ├── WALKTHROUGHS_HISTORY.md           # Lịch sử báo cáo nghiệm thu & video demo E2E tour
-├── docker-compose.yml                # Đóng gói Production cụm 4 dịch vụ độc lập
+├── docker-compose.yml                # Cụm 5 dịch vụ: PostGIS, Redis, MinIO, Backend, Frontend
 └── .env.example                      # Biến môi trường mẫu
 ```
 
 ---
 
-## 3. Khởi động nhanh toàn bộ hệ thống bằng 1 lệnh duy nhất (Docker Compose)
-Chạy toàn bộ cụm dịch vụ (PostgreSQL 16 PostGIS, Redis Cache, Spring Boot Backend JAR & Frontend React Nginx):
-```bash
-docker compose up -d
+## 3. Khởi động bản demo an toàn
+
+Bản mặc định là **DEMO**: chỉ dùng dữ liệu giả, eKYC và giao dịch tiền thật bị khóa.
+
+```powershell
+Copy-Item .env.example .env
+# Đổi POSTGRES_PASSWORD, REDIS_PASSWORD, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD và DEMO_ACCOUNT_PASSWORD trong .env
+powershell -ExecutionPolicy Bypass -File scripts/preflight.ps1
+docker compose up --build -d
+powershell -ExecutionPolicy Bypass -File scripts/smoke-test.ps1
 ```
 - **Giao diện người dùng (Frontend SPA):** `http://localhost:3000`
-- **Tài liệu API tương tác (OpenAPI / Swagger 3.0):** `http://localhost:8080/swagger-ui.html`
-- **Health Check hệ thống:** `http://localhost:8080/actuator/health`
+- **Health Check qua frontend:** `http://localhost:3000/healthz`
+- **Health Check backend qua gateway:** `http://localhost:3000/backend-health`
+- **MinIO Console (chỉ localhost):** `http://localhost:9001`; bucket mặc định `bds-listings`.
+
+Ảnh tin đăng được kiểm tra magic bytes (JPEG/PNG/WebP/AVIF), giới hạn 10 MB/ảnh và 20 ảnh/tin. Object nằm trong volume `minio-data`; PostgreSQL chỉ lưu metadata và URL `/api/v1/public/media/{objectKey}`. Không mở cổng S3 `9000` ra host. Image MinIO được build từ source release vá bảo mật `RELEASE.2025-10-15T17-29-55Z` vì registry community không phát hành binary cho release này.
+
+Reset toàn bộ dữ liệu demo bằng `powershell -ExecutionPolicy Bypass -File scripts/reset-demo.ps1 -ConfirmReset`. Script từ chối chạy khi `APP_MODE=production`.
+
+Tài khoản demo được seed ở backend: `demo.user@bds.local`, `demo.broker@bds.local`, `demo.moderator@bds.local`, `demo.admin@bds.local`; mật khẩu lấy từ `DEMO_ACCOUNT_PASSWORD`. Không dùng dữ liệu thật. Production phải đặt `APP_MODE=production`, cấp hai khóa PII Base64 32 byte từ secret manager, tắt Swagger và không bật provider flag nếu chưa tích hợp nhà cung cấp được cấp phép.
 
 ---
 
@@ -80,21 +94,21 @@ docker compose up -d
 
 ### Khởi động hạ tầng nền tảng (Postgres + PostGIS & Redis)
 ```bash
-docker compose up -d postgres redis
+docker compose -f infra/compose.yaml -f infra/compose.dev.yaml up -d postgres redis
 ```
 
 ### Khởi chạy Backend (Spring Boot)
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'; $env:PATH = "C:\Program Files\Java\jdk-17\bin;C:\Program Files\Java\apache-maven-3.9.14\bin;$env:PATH"
 cd backend
-mvn test                                # Chạy kiểm thử tự động (14/14 tests pass)
+mvn test                                # Chạy kiểm thử tự động (19/19 tests pass)
 java -jar target/bds-backend-0.0.1-SNAPSHOT.jar # Chạy server trên cổng 8080
 ```
 
 ### Khởi chạy Frontend (React Vite)
 ```bash
 cd frontend
-npm install
+npm ci
 npm run build                           # Kiểm tra TypeScript strict & đóng gói
 npm run dev                             # Chạy dev server tại http://localhost:3000
 ```

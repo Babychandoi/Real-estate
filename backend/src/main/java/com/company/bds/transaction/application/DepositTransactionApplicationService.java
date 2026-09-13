@@ -6,6 +6,7 @@ import com.company.bds.transaction.domain.model.DepositContract;
 import com.company.bds.transaction.infrastructure.persistence.port.DepositContractPersistencePort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -17,13 +18,16 @@ public class DepositTransactionApplicationService {
 
     private final DepositContractPersistencePort depositContractPort;
     private final ListingPersistencePort listingPersistencePort;
+    private final boolean realTransactionsEnabled;
 
     public DepositTransactionApplicationService(
             DepositContractPersistencePort depositContractPort,
-            ListingPersistencePort listingPersistencePort
+            ListingPersistencePort listingPersistencePort,
+            @Value("${app.features.real-transactions:false}") boolean realTransactionsEnabled
     ) {
         this.depositContractPort = depositContractPort;
         this.listingPersistencePort = listingPersistencePort;
+        this.realTransactionsEnabled = realTransactionsEnabled;
     }
 
     public DepositContract createContract(
@@ -35,6 +39,7 @@ public class DepositTransactionApplicationService {
             BigDecimal depositAmount,
             String termsConditions
     ) {
+        requireProvider();
         Listing listing = listingPersistencePort.findById(listingId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tin đăng BĐS với mã: " + listingId));
 
@@ -69,6 +74,7 @@ public class DepositTransactionApplicationService {
     }
 
     public DepositContract signByBuyer(UUID contractId, String otpCode) {
+        requireProvider();
         DepositContract contract = depositContractPort.findById(contractId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hợp đồng đặt cọc: " + contractId));
 
@@ -79,6 +85,7 @@ public class DepositTransactionApplicationService {
     }
 
     public DepositContract signBySeller(UUID contractId, String otpCode) {
+        requireProvider();
         DepositContract contract = depositContractPort.findById(contractId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hợp đồng đặt cọc: " + contractId));
 
@@ -88,6 +95,7 @@ public class DepositTransactionApplicationService {
     }
 
     public DepositContract releaseEscrow(UUID contractId, UUID operatorId) {
+        requireProvider();
         DepositContract contract = depositContractPort.findById(contractId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hợp đồng đặt cọc: " + contractId));
 
@@ -96,6 +104,7 @@ public class DepositTransactionApplicationService {
     }
 
     public DepositContract refundEscrow(UUID contractId, UUID operatorId, String reason) {
+        requireProvider();
         DepositContract contract = depositContractPort.findById(contractId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hợp đồng đặt cọc: " + contractId));
 
@@ -104,6 +113,7 @@ public class DepositTransactionApplicationService {
     }
 
     public DepositContract disputeEscrow(UUID contractId, UUID operatorId, String reason) {
+        requireProvider();
         DepositContract contract = depositContractPort.findById(contractId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hợp đồng đặt cọc: " + contractId));
 
@@ -118,8 +128,8 @@ public class DepositTransactionApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public List<DepositContract> getContractsByListing(UUID listingId) {
-        return depositContractPort.findByListingId(listingId);
+    public List<DepositContract> getContractsByListing(UUID listingId, int page, int size) {
+        return depositContractPort.findByListingId(listingId, page, size);
     }
 
     @Transactional(readOnly = true)
@@ -129,9 +139,15 @@ public class DepositTransactionApplicationService {
 
     private String maskIdNumber(String idNumber) {
         if (idNumber == null || idNumber.length() < 6) {
-            return "001****4567";
+            return "***";
         }
         int len = idNumber.length();
         return idNumber.substring(0, 3) + "****" + idNumber.substring(len - 4);
+    }
+
+    private void requireProvider() {
+        if (!realTransactionsEnabled) {
+            throw new UnsupportedOperationException("Giao dịch tiền và ký số đang tắt: chưa cấu hình nhà cung cấp được cấp phép.");
+        }
     }
 }

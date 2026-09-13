@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.security.core.Authentication;
+import com.company.bds.shared.security.CurrentUser;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -39,11 +41,12 @@ public class ListingVerificationController {
     @PostMapping("/listings/{listingId}/verifications")
     public ResponseEntity<ListingVerificationResponse> submitVerification(
             @PathVariable("listingId") UUID listingId,
-            @Valid @RequestBody SubmitVerificationRequest request) {
+            @Valid @RequestBody SubmitVerificationRequest request,
+            Authentication authentication) {
 
         ListingVerification verification = verificationApplicationService.submitVerification(
                 listingId,
-                request.userId(),
+                CurrentUser.id(authentication),
                 request.verificationType(),
                 request.certificateNumber(),
                 request.documentUrls(),
@@ -62,9 +65,12 @@ public class ListingVerificationController {
      */
     @GetMapping("/verifications")
     public ResponseEntity<List<ListingVerificationResponse>> getQueue(
-            @RequestParam(name = "status", required = false) VerificationStatus status) {
+            @RequestParam(name = "status", required = false) VerificationStatus status,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "50") int size) {
 
-        List<ListingVerification> queue = verificationApplicationService.getQueue(status);
+        List<ListingVerification> queue = verificationApplicationService.getQueue(
+                status, Math.max(0, page), Math.max(1, Math.min(100, size)));
         List<ListingVerificationResponse> list = queue.stream().map(v -> {
             UserKycResponse kyc = v.getUserKycId() != null
                     ? userKycPersistencePort.findById(v.getUserKycId()).map(UserKycResponse::fromDomain).orElse(null)

@@ -2,12 +2,14 @@
 .env
 .env.*
 !.env.example
+infra/cloudflared/config.yml
 
 # Build Artifacts
 **/target/
 **/build/
 **/dist/
 **/node_modules/
+**/*.tsbuildinfo
 .gradle/
 *.jar
 *.war
@@ -33,6 +35,7 @@ Thumbs.db
 **/coverage/
 **/playwright-report/
 **/test-results/
+.artifacts/
 .nyc_output/
 
 # Agent / Antigravity

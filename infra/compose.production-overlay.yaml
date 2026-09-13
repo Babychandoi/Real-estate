@@ -1,0 +1,31 @@
+services:
+  pgbouncer:
+    image: edoburu/pgbouncer:1.23.1-p0
+    restart: unless-stopped
+    volumes:
+      - ./production/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ${PGBOUNCER_USERLIST_FILE:?Set PGBOUNCER_USERLIST_FILE}:/run/secrets/pgbouncer_userlist:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [bds-network]
+  backend:
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pgbouncer:6432/${POSTGRES_DB:-bds}
+    depends_on:
+      pgbouncer: { condition: service_started }
+  ingress:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?Set PUBLIC_HOST}
+    ports: ['80:80', '443:443']
+    volumes:
+      - ./production/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend: { condition: service_healthy }
+    networks: [bds-network]
+volumes:
+  caddy-data:
+  caddy-config:

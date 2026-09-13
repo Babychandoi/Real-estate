@@ -41,8 +41,11 @@ public class ProjectController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProjectResponse>> getProjects(@RequestParam(required = false) String keyword) {
-        List<Project> list = projectService.searchProjects(keyword);
+    public ResponseEntity<List<ProjectResponse>> getProjects(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        List<Project> list = projectService.searchProjects(keyword, Math.max(0, page), Math.max(1, Math.min(100, size)));
         return ResponseEntity.ok(list.stream().map(ProjectResponse::fromDomain).collect(Collectors.toList()));
     }
 

@@ -277,3 +277,58 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Kiểm thử trực quan: Login Modal không còn hiển thị 4 nút chọn vai trò.
 - ProtectedRoute hiện thông báo phù hợp, không lộ thông tin RBAC.
 
+---
+
+## Đợt 11 — Khắc phục tổng thể 5 báo cáo review (SEC, UX, Packaging, Scalability)
+
+- Căn cứ: `01_USER_USABILITY_SETUP_REVIEW.md` đến `05_UI_UX_DESIGN_REVIEW.md` và thiết kế Modern Trust Real Estate.
+- Backend: migration V008 cho session/audit/outbox; xác thực opaque token + BCrypt; RBAC deny-by-default; ownership/participant guard; AES-GCM/HMAC PII; rate limit; feature gate eKYC/giao dịch; metrics/probes.
+- Frontend: auth API thật, lead contract thật, bỏ false-success/mock runtime, protected routes, search URL, mobile navigation, accessibility dialog/focus, copy minh bạch, route-level lazy loading.
+- Vận hành: Docker hardened, secret bắt buộc, CI/audit/Trivy/Dependabot, Prometheus, k6, Kubernetes HPA/PDB, runbook/SLO/security/support.
+- Ràng buộc: eKYC/escrow/payment không được bật nếu chưa có provider và nghiệm thu; production phải fail-fast khi secret/PII key không đạt yêu cầu.
+- Kế hoạch kiểm thử: Maven/JUnit/MockMvc, TypeScript + Vite build, npm audit, Compose config, Impeccable detector và browser visual khi phiên trình duyệt khả dụng.
+
+---
+
+## Đợt 12 — Chốt tính đúng, chống phát lại và nghiệm thu Docker thật
+
+- Bổ sung MFA TOTP cho ADMIN/MODERATOR ở production; production fail-fast khi thiếu MFA, secret Redis/DB, HTTPS CORS, CDN riêng hoặc cấu hình outbox không an toàn.
+- Thêm idempotency cho public lead, outbox với lease token/fenced finalize, pagination và giới hạn kích thước trang trên các danh sách quản trị.
+- Chặn IDOR lead/eKYC/CMS/verification/transaction theo actor hiện tại; không nhận `userId` hay danh tính người duyệt từ payload.
+- Chính sách media chỉ cho URL HTTPS thuộc allowlist, giới hạn số ảnh và chặn host minh họa khi production.
+- Thêm preflight, reset demo có khóa chống chạy production, readiness backend qua gateway và smoke test chạy trên cùng cổng public.
+- Kế hoạch xác minh: 17 test Spring/MockMvc, Vite build, npm audit, Docker build, Flyway PostgreSQL 16 và smoke readiness/frontend/search.
+
+---
+
+## Đợt 13 — Lưu ảnh tin đăng trên MinIO
+
+- Thêm MinIO vào hai Compose, bucket riêng tư có volume bền vững, console chỉ bind localhost và backend đợi storage healthy.
+- Thêm migration V011 lưu metadata object; API upload/read/delete, giới hạn 10 MB, kiểm tra magic bytes JPEG/PNG/WebP/AVIF và tác vụ dọn object mồ côi sau 24 giờ.
+- Giao diện tạo tin upload multipart trực tiếp, hiển thị tiến trình/xóa/preview và chỉ đưa URL nội bộ đã upload vào revision.
+- Chặn IDOR bằng cách xác minh object thuộc chính actor khi tạo/cập nhật tin; object đã gắn lịch sử revision không bị xóa vật lý.
+- Production fail-fast nếu storage hoặc credential/bucket không hợp lệ; preflight và CI được bổ sung biến MinIO.
+- Kế hoạch xác minh: 19 test backend, frontend build/audit, Compose config, Docker runtime PostgreSQL 16 + MinIO, upload/read/listing/ownership/security smoke.
+# 2026-09-12 - Manual trust, package payment and search hardening
+
+- Replace provider-gated eKYC with an explicitly manual CCCD front/back/selfie review flow backed by private MinIO objects and admin decisions.
+- Add listing packages, quota ledger, VietQR manual payment intents, admin bank configuration, idempotent reconciliation, invoices, durable notifications, SSE account refresh and admin email delivery.
+- Replace broker demo-state widgets with persisted listing/lead metrics, notifications and configurable SLA data; remove escrow/buying entry points because the product only connects parties.
+- Add MapLibre map clustering, geocoding with caching/rate limits, and bounding-box “search this area”.
+- Add Elasticsearch-backed public listing search with PostgreSQL fallback and synchronization after moderation.
+- Add fail-closed ClamAV INSTREAM scanning before any object reaches MinIO.
+- Verify backend tests, frontend type/build, Compose configuration and live Docker health/smoke; record exact results in WALKTHROUGHS_HISTORY.md.
+# 2026-09-12 - Release assurance and production infrastructure readiness
+
+- Add Playwright screenshot regression, axe WCAG checks, and responsive/device projects spanning 320-1440 px with Chromium, Firefox and WebKit.
+- Add a repeatable real-device/usability protocol; do not substitute emulation for signed human/device evidence.
+- Add non-destructive production overlays for PgBouncer, TLS ingress and Docker secrets, plus HA deployment manifests/runbooks for PostgreSQL, Redis and MinIO.
+- Add k6 smoke/load/soak profiles with thresholds and machine-readable summaries.
+- Add PostgreSQL/MinIO/Redis backup and isolated restore-drill automation that measures achieved RPO/RTO without touching live volumes.
+
+# 2026-09-12 - Local Kubernetes HA deployment
+
+- Create a three-node kind cluster without removing the current Docker volumes.
+- Deploy Redis primary/replicas with Sentinel quorum, four-node distributed MinIO, Vault HA Raft, ingress/TLS and local DNS endpoint.
+- Build/load application images, deploy the BDS workloads, then verify readiness, failover topology and external HTTPS routing.
+- Keep public CDN and authoritative DNS provider activation explicit because it requires a domain/provider account; provide deployable integration configuration without claiming an external service exists.

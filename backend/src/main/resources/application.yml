@@ -1,5 +1,6 @@
 server:
   port: ${SERVER_PORT:8080}
+  shutdown: graceful
   servlet:
     context-path: /
 
@@ -19,7 +20,7 @@ spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/bds}
     username: ${SPRING_DATASOURCE_USERNAME:bds}
-    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
+    password: ${SPRING_DATASOURCE_PASSWORD:local-demo-password-do-not-deploy}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 15
@@ -48,21 +49,49 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
       timeout: 2000ms
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+  elasticsearch:
+    uris: ${SPRING_ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: 2s
+    socket-timeout: 3s
+  mail:
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    test-connection: ${SPRING_MAIL_TEST_CONNECTION:false}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${SPRING_MAIL_STARTTLS_ENABLE:false}
+            required: ${SPRING_MAIL_STARTTLS_REQUIRED:false}
+          connectiontimeout: ${SPRING_MAIL_CONNECTION_TIMEOUT_MS:5000}
+          timeout: ${SPRING_MAIL_TIMEOUT_MS:5000}
+          writetimeout: ${SPRING_MAIL_WRITE_TIMEOUT_MS:5000}
 
 # Giám sát & Health check
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when_authorized
+      probes:
+        enabled: true
 
 # OpenAPI / Swagger UI (Đặc tả 32 FR & 8 UC)
 springdoc:
   api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
@@ -73,7 +102,38 @@ springdoc:
 # Cấu hình logging bảo mật (không log PII / secret)
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    console: "{\"timestamp\":\"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}\",\"level\":\"%level\",\"logger\":\"%logger{36}\",\"message\":\"%replace(%msg){'\"','\\\"'}\"}%n"
   level:
     root: INFO
-    com.company.bds: DEBUG
+    com.company.bds: ${APP_LOG_LEVEL:INFO}
+
+app:
+  mode: ${APP_MODE:demo}
+  public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
+  mail:
+    from: ${APP_MAIL_FROM:no-reply@bds.local}
+  security:
+    admin-mfa-secret-base64: ${APP_ADMIN_MFA_SECRET_BASE64:}
+    allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+  features:
+    real-kyc: ${FEATURE_REAL_KYC:false}
+    real-transactions: ${FEATURE_REAL_TRANSACTIONS:false}
+  outbox:
+    enabled: ${OUTBOX_ENABLED:false}
+    webhook-url: ${OUTBOX_WEBHOOK_URL:}
+    signing-key: ${OUTBOX_SIGNING_KEY:}
+    poll-delay-ms: ${OUTBOX_POLL_DELAY_MS:1000}
+  media:
+    allowed-hosts: ${APP_MEDIA_ALLOWED_HOSTS:images.unsplash.com,lh3.googleusercontent.com}
+    storage-enabled: ${APP_MEDIA_STORAGE_ENABLED:false}
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ROOT_USER:}
+    secret-key: ${MINIO_ROOT_PASSWORD:}
+    bucket: ${MINIO_BUCKET:bds-listings}
+    antivirus:
+      enabled: ${CLAMAV_ENABLED:false}
+      host: ${CLAMAV_HOST:localhost}
+      port: ${CLAMAV_PORT:3310}
+      timeout-ms: ${CLAMAV_TIMEOUT_MS:15000}
+  demo:
+    password: ${DEMO_ACCOUNT_PASSWORD:}

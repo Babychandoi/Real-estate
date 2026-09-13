@@ -61,7 +61,7 @@ public class ListingReport {
             String evidenceUrls,
             String reporterPhone,
             Instant now) {
-        String caseNum = "CASE-" + (1000 + (int)(Math.random() * 9000));
+        String caseNum = "CASE-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         return new ListingReport(
                 UUID.randomUUID(),
                 listingId,

@@ -12,7 +12,7 @@ public interface UserKycPersistencePort {
     Optional<UserKycProfile> findById(UUID id);
     Optional<UserKycProfile> findByUserId(UUID userId);
     Optional<UserKycProfile> findByIdNumberLookupHash(String lookupHash);
-    List<UserKycProfile> findByStatus(KycStatus status);
-    List<UserKycProfile> findAll();
+    List<UserKycProfile> findByStatus(KycStatus status, int page, int size);
+    List<UserKycProfile> findPage(int page, int size);
     long countByStatus(KycStatus status);
 }

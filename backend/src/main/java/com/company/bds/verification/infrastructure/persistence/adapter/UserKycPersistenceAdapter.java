@@ -6,6 +6,7 @@ import com.company.bds.verification.domain.port.UserKycPersistencePort;
 import com.company.bds.verification.infrastructure.persistence.entity.UserKycJpaEntity;
 import com.company.bds.verification.infrastructure.persistence.repository.UserKycJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,14 +45,14 @@ public class UserKycPersistenceAdapter implements UserKycPersistencePort {
     }
 
     @Override
-    public List<UserKycProfile> findByStatus(KycStatus status) {
-        return kycJpaRepository.findByStatusOrderByCreatedAtDesc(status)
+    public List<UserKycProfile> findByStatus(KycStatus status, int page, int size) {
+        return kycJpaRepository.findByStatusOrderByCreatedAtDesc(status, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<UserKycProfile> findAll() {
-        return kycJpaRepository.findAll()
+    public List<UserKycProfile> findPage(int page, int size) {
+        return kycJpaRepository.findAll(PageRequest.of(page, size)).getContent()
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 

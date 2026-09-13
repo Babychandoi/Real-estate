@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.security.core.Authentication;
+import com.company.bds.shared.security.CurrentUser;
+import org.springframework.security.access.AccessDeniedException;
 
 @RestController
 @RequestMapping("/api/v1/kyc")
@@ -29,9 +32,10 @@ public class KycController {
      * Nộp hồ sơ định danh cá nhân eKYC công dân mức 2 (FR01, NFR12).
      */
     @PostMapping("/submit")
-    public ResponseEntity<UserKycResponse> submitKyc(@Valid @RequestBody SubmitKycRequest request) {
+    public ResponseEntity<UserKycResponse> submitKyc(@Valid @RequestBody SubmitKycRequest request,
+                                                      Authentication authentication) {
         UserKycProfile profile = kycApplicationService.submitKyc(
-                request.userId(),
+                CurrentUser.id(authentication),
                 request.idNumber(),
                 request.fullName(),
                 request.dob(),
@@ -47,7 +51,12 @@ public class KycController {
      * Tra cứu hồ sơ eKYC của người dùng theo userId.
      */
     @GetMapping("/user/{userId}")
-    public ResponseEntity<UserKycResponse> getKycByUserId(@PathVariable("userId") UUID userId) {
+    public ResponseEntity<UserKycResponse> getKycByUserId(@PathVariable("userId") UUID userId, Authentication authentication) {
+        boolean privileged = authentication.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MODERATOR"));
+        if (!privileged && !CurrentUser.id(authentication).equals(userId)) {
+            throw new AccessDeniedException("Không có quyền xem hồ sơ định danh này.");
+        }
         return kycApplicationService.getKycByUserId(userId)
                 .map(p -> ResponseEntity.ok(UserKycResponse.fromDomain(p)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
@@ -58,8 +67,10 @@ public class KycController {
      */
     @GetMapping("/queue")
     public ResponseEntity<List<UserKycResponse>> getQueue(
-            @RequestParam(name = "status", required = false) KycStatus status) {
-        List<UserKycProfile> list = kycApplicationService.getQueue(status);
+            @RequestParam(name = "status", required = false) KycStatus status,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "50") int size) {
+        List<UserKycProfile> list = kycApplicationService.getQueue(status, Math.max(0, page), Math.max(1, Math.min(100, size)));
         return ResponseEntity.ok(list.stream().map(UserKycResponse::fromDomain).collect(Collectors.toList()));
     }
 

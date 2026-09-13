@@ -29,11 +29,13 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, UU
            "ORDER BY l.createdAt DESC")
     List<ListingJpaEntity> findByOwnerIdWithRevisions(@Param("ownerId") UUID ownerId);
 
-    @Query("SELECT DISTINCT l FROM ListingJpaEntity l " +
-           "LEFT JOIN FETCH l.revisions r " +
+    @Query("SELECT l.id FROM ListingJpaEntity l " +
            "WHERE l.status = 'ACTIVE' " +
            "ORDER BY l.createdAt DESC")
-    List<ListingJpaEntity> findPublicActiveListings(Pageable pageable);
+    List<UUID> findPublicActiveListingIds(Pageable pageable);
+
+    @Query("SELECT DISTINCT l FROM ListingJpaEntity l LEFT JOIN FETCH l.revisions WHERE l.id IN :ids")
+    List<ListingJpaEntity> findAllByIdWithRevisions(@Param("ids") List<UUID> ids);
 
     @Query("SELECT DISTINCT l FROM ListingJpaEntity l " +
            "LEFT JOIN FETCH l.revisions r " +
@@ -41,19 +43,20 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, UU
            "ORDER BY l.updatedAt ASC")
     List<ListingJpaEntity> findPendingReviewListings();
 
-    @Query("SELECT DISTINCT l FROM ListingJpaEntity l " +
-           "LEFT JOIN FETCH l.revisions r " +
+    @Query("SELECT l.id FROM ListingJpaEntity l " +
+           "JOIN l.revisions r " +
            "WHERE l.status = 'ACTIVE' " +
+           "AND r.id = l.publicRevisionId " +
            "AND (:purpose IS NULL OR r.purpose = :purpose) " +
            "AND (:propertyType IS NULL OR r.propertyType = :propertyType) " +
            "AND (:minPrice IS NULL OR r.priceVnd >= :minPrice) " +
            "AND (:maxPrice IS NULL OR r.priceVnd <= :maxPrice) " +
            "AND (:minArea IS NULL OR r.areaM2 >= :minArea) " +
            "AND (:maxArea IS NULL OR r.areaM2 <= :maxArea) " +
-           "AND (:keyword IS NULL OR LOWER(r.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.addressSummary) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:keyword = '' OR LOWER(r.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(r.addressSummary) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:minLat IS NULL OR (r.publicLatitude >= :minLat AND r.publicLatitude <= :maxLat AND r.publicLongitude >= :minLng AND r.publicLongitude <= :maxLng)) " +
            "ORDER BY l.createdAt DESC")
-    List<ListingJpaEntity> searchPublicActiveListings(
+    List<UUID> searchPublicActiveListingIds(
             @Param("purpose") String purpose,
             @Param("propertyType") String propertyType,
             @Param("minPrice") Long minPrice,

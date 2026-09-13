@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import {
   X,
@@ -20,15 +20,17 @@ type ModalTab = 'login' | 'register';
 type AccountType = 'BROKER' | 'USER';
 
 export const LoginModal: React.FC = () => {
-  const { isLoginModalOpen, setIsLoginModalOpen, login, register } = useAuth();
+  const { isLoginModalOpen, setIsLoginModalOpen, login, register, resendVerification } = useAuth();
   const [activeTab, setActiveTab] = useState<ModalTab>('login');
 
   // Login form states
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [loginMfaCode, setLoginMfaCode] = useState('');
   const [showLoginPw, setShowLoginPw] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [resendMessage, setResendMessage] = useState('');
 
   // Register form states
   const [regName, setRegName] = useState('');
@@ -39,18 +41,39 @@ export const LoginModal: React.FC = () => {
   const [regAccountType, setRegAccountType] = useState<AccountType>('USER');
   const [regLoading, setRegLoading] = useState(false);
   const [regError, setRegError] = useState('');
+  const [verificationSentTo, setVerificationSentTo] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
-  if (!isLoginModalOpen) return null;
+  useEffect(() => {
+    if (!isLoginModalOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden'; closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsLoginModalOpen(false);
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),summary'));
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; previous?.focus(); };
+  }, [isLoginModalOpen, setIsLoginModalOpen]);
 
   const resetForms = () => {
     setLoginEmail('');
     setLoginPassword('');
+    setLoginMfaCode('');
     setLoginError('');
+    setResendMessage('');
     setRegName('');
     setRegEmail('');
     setRegPassword('');
     setRegPasswordConfirm('');
     setRegError('');
+    setVerificationSentTo('');
   };
 
   const handleClose = () => {
@@ -62,6 +85,7 @@ export const LoginModal: React.FC = () => {
     setActiveTab(tab);
     setLoginError('');
     setRegError('');
+    setVerificationSentTo('');
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -69,7 +93,7 @@ export const LoginModal: React.FC = () => {
     setLoginError('');
     setLoginLoading(true);
     try {
-      const result = await login(loginEmail, loginPassword);
+      const result = await login(loginEmail, loginPassword, loginMfaCode || undefined);
       if (!result.success) {
         setLoginError(result.error || 'Đăng nhập thất bại.');
       }
@@ -82,8 +106,8 @@ export const LoginModal: React.FC = () => {
     e.preventDefault();
     setRegError('');
 
-    if (regPassword.length < 6) {
-      setRegError('Mật khẩu cần tối thiểu 6 ký tự.');
+    if (regPassword.length < 10) {
+      setRegError('Mật khẩu cần tối thiểu 10 ký tự.');
       return;
     }
     if (regPassword !== regPasswordConfirm) {
@@ -96,15 +120,19 @@ export const LoginModal: React.FC = () => {
       const result = await register(regEmail, regPassword, regName, regAccountType);
       if (!result.success) {
         setRegError(result.error || 'Đăng ký thất bại.');
+      } else {
+        setVerificationSentTo(result.email || regEmail);
       }
     } finally {
       setRegLoading(false);
     }
   };
 
+  if (!isLoginModalOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl border border-outline-variant/40 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) handleClose(); }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto">
         {/* Header */}
         <div className="px-6 py-4 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container/50">
           <div className="flex items-center gap-2.5">
@@ -112,17 +140,19 @@ export const LoginModal: React.FC = () => {
               <KeyRound className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-base text-on-surface">
+              <h3 id="auth-dialog-title" className="font-bold text-base text-on-surface">
                 {activeTab === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
               </h3>
               <p className="text-[11px] text-on-surface-variant">
-                BDS WF 2026 • Nền tảng BĐS minh bạch
+                Nhà Đất Chuẩn • Nền tảng đăng tin có kiểm duyệt
               </p>
             </div>
           </div>
           <button
+            ref={closeRef}
             onClick={handleClose}
-            className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-colors"
+            aria-label="Đóng hộp thoại đăng nhập"
+            className="min-w-11 min-h-11 rounded-lg hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -133,7 +163,7 @@ export const LoginModal: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabSwitch('login')}
-            className={`flex-1 py-2.5 text-sm font-semibold rounded-t-xl transition-all border-b-2 ${
+            className={`flex-1 py-2.5 text-sm font-semibold transition-all border-b-2 ${
               activeTab === 'login'
                 ? 'border-primary text-primary bg-surface'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -144,7 +174,7 @@ export const LoginModal: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabSwitch('register')}
-            className={`flex-1 py-2.5 text-sm font-semibold rounded-t-xl transition-all border-b-2 ${
+            className={`flex-1 py-2.5 text-sm font-semibold transition-all border-b-2 ${
               activeTab === 'register'
                 ? 'border-primary text-primary bg-surface'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -159,11 +189,12 @@ export const LoginModal: React.FC = () => {
           <form onSubmit={handleLogin} className="p-6 flex flex-col gap-4">
             {/* Error alert */}
             {loginError && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{loginError}</span>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+                <div className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" /><span>{loginError}</span></div>
+                {loginError.toLowerCase().includes('xác minh email') && <button type="button" className="mt-2 font-bold underline" onClick={async()=>{const result=await resendVerification(loginEmail);setResendMessage(result.success?'Đã gửi lại email xác minh.':result.error||'Không thể gửi lại email.')}}>Gửi lại email xác minh</button>}
               </div>
             )}
+            {resendMessage && <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800" role="status">{resendMessage}</p>}
 
             {/* Email */}
             <div>
@@ -198,6 +229,7 @@ export const LoginModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowLoginPw(!showLoginPw)}
+                  aria-label={showLoginPw ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
                 >
                   {showLoginPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -205,11 +237,22 @@ export const LoginModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Quên mật khẩu */}
-            <div className="flex justify-end">
-              <button type="button" className="text-xs text-primary hover:underline font-medium">
-                Quên mật khẩu?
-              </button>
+            <div>
+              <label className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Mã MFA <span className="font-normal text-on-surface-variant">(chỉ tài khoản quản trị)</span>
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+                <input
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={loginMfaCode}
+                  onChange={(event) => setLoginMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
+                  placeholder="6 chữ số"
+                  pattern="\d{6}"
+                />
+              </div>
             </div>
 
             {/* Submit */}
@@ -245,7 +288,15 @@ export const LoginModal: React.FC = () => {
         )}
 
         {/* ═══ TAB: ĐĂNG KÝ ═══ */}
-        {activeTab === 'register' && (
+        {activeTab === 'register' && verificationSentTo && (
+          <div className="p-6 text-center" role="status">
+            <CheckCircle2 className="mx-auto h-11 w-11 text-emerald-600" />
+            <h4 className="mt-3 text-lg font-bold text-on-surface">Kiểm tra hộp thư của bạn</h4>
+            <p className="mt-2 text-sm text-on-surface-variant">Liên kết xác minh đã được gửi đến <strong>{verificationSentTo}</strong> và có hiệu lực trong 24 giờ.</p>
+            <Button className="mt-5 w-full" onClick={() => handleTabSwitch('login')}>Đến đăng nhập</Button>
+          </div>
+        )}
+        {activeTab === 'register' && !verificationSentTo && (
           <form onSubmit={handleRegister} className="p-6 flex flex-col gap-4">
             {/* Error alert */}
             {regError && (
@@ -417,20 +468,6 @@ export const LoginModal: React.FC = () => {
           </form>
         )}
 
-        {/* Quick hint (dev mode) — nhỏ, ẩn trong footer */}
-        <div className="px-6 pb-4">
-          <details className="text-[10px] text-on-surface-variant/60">
-            <summary className="cursor-pointer hover:text-on-surface-variant">
-              Tài khoản demo (chỉ hiển thị ở chế độ phát triển)
-            </summary>
-            <div className="mt-1 p-2 rounded-lg bg-surface-container/40 border border-outline-variant/20 grid grid-cols-2 gap-1 text-[10px]">
-              <span>admin@bdswf.vn / admin2026</span>
-              <span>moderator@bdswf.vn / mod2026</span>
-              <span>broker@bdswf.vn / broker2026</span>
-              <span>user@bdswf.vn / user2026</span>
-            </div>
-          </details>
-        </div>
       </div>
     </div>
   );

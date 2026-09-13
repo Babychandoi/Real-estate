@@ -1,0 +1,42 @@
+server:
+  replicas: 3
+  # Local kind has two schedulable workers. Prefer separate nodes, but allow the
+  # third Raft member to co-locate; production clusters should use hard anti-affinity.
+  affinity: |
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: vault
+                app.kubernetes.io/instance: vault
+                component: server
+            topologyKey: kubernetes.io/hostname
+  dataStorage:
+    enabled: true
+    size: 1Gi
+  auditStorage:
+    enabled: true
+    size: 1Gi
+  ha:
+    enabled: true
+    raft:
+      enabled: true
+      setNodeId: true
+      config: |
+        ui = true
+        listener "tcp" {
+          tls_disable = 1
+          address = "[::]:8200"
+          cluster_address = "[::]:8201"
+        }
+        storage "raft" { path = "/vault/data" }
+        service_registration "kubernetes" {}
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 384Mi }
+ui:
+  enabled: true
+injector:
+  enabled: true

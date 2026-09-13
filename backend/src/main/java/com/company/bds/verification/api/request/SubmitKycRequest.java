@@ -19,7 +19,7 @@ public record SubmitKycRequest(
 
         String dob,
         String address,
-        String idCardFrontUrl,
-        String idCardBackUrl,
-        String selfieUrl
+        @NotBlank String idCardFrontUrl,
+        @NotBlank String idCardBackUrl,
+        @NotBlank String selfieUrl
 ) {}

@@ -4,12 +4,7 @@ import com.company.bds.verification.domain.model.VerificationType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-import java.util.UUID;
-
 public record SubmitVerificationRequest(
-        @NotNull(message = "userId không được để trống")
-        UUID userId,
-
         @NotNull(message = "Loại tài liệu pháp lý không được để trống")
         VerificationType verificationType,
 

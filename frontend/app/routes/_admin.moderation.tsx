@@ -6,7 +6,7 @@ import type {
   ModerationQueueItem,
   StandardReason,
 } from '../entities/moderation/model/types';
-import { formatPriceVnd } from '../entities/listing/model/types';
+import { formatPriceVnd, formatPropertyType } from '../entities/listing/model/types';
 
 export default function ModerationWorkspacePage() {
   const [queue, setQueue] = useState<ModerationQueueItem[]>([]);
@@ -316,7 +316,7 @@ export default function ModerationWorkspacePage() {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-xs font-mono text-slate-400">Mã: {selectedItem.listingId.substring(0, 8)}...</span>
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800">
-                      Loại: {selectedItem.propertyType} • {selectedItem.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
+                      Loại: {formatPropertyType(selectedItem.propertyType)} • {selectedItem.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
                     </span>
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800">
                       Revision: #{selectedItem.revisionNumber}
@@ -365,7 +365,7 @@ export default function ModerationWorkspacePage() {
                     <h3 className="font-bold text-white text-base">Đối Chiếu Thay Đổi Hai Cột (Side-by-Side Diff)</h3>
                     {diff && (
                       <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                        diff.changedCount > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-slate-300'
+                        diff.changedCount > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-white'
                       }`}>
                         {diff.isFirstSubmission ? 'Nộp duyệt lần đầu' : `Phát hiện ${diff.changedCount} trường thay đổi`}
                       </span>

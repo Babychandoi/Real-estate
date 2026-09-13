@@ -58,40 +58,6 @@ public class UserKycProfile {
         this.verifiedAt = verifiedAt;
     }
 
-    public static UserKycProfile create(
-            UUID userId,
-            String rawIdNumber,
-            String fullName,
-            String dob,
-            String address,
-            String idCardFrontUrl,
-            String idCardBackUrl,
-            String selfieUrl,
-            Double faceMatchScore,
-            Instant now) {
-
-        String encrypted = "ENC_ID:" + rawIdNumber;
-        String lookupHash = Integer.toHexString(rawIdNumber.hashCode());
-
-        return new UserKycProfile(
-                UUID.randomUUID(),
-                userId,
-                encrypted,
-                lookupHash,
-                fullName.trim(),
-                dob,
-                address,
-                idCardFrontUrl,
-                idCardBackUrl,
-                selfieUrl,
-                faceMatchScore,
-                KycStatus.PENDING,
-                null,
-                now,
-                null
-        );
-    }
-
     public void approve(Instant now) {
         this.status = KycStatus.VERIFIED;
         this.verifiedAt = now;
@@ -109,11 +75,8 @@ public class UserKycProfile {
      * Ví dụ: 001201014567 -> 001****4567
      */
     public String getMaskedIdNumber() {
-        String raw = idNumberEncrypted.startsWith("ENC_ID:") ? idNumberEncrypted.substring(7) : idNumberEncrypted;
-        if (raw.length() >= 8) {
-            return raw.substring(0, 3) + "****" + raw.substring(raw.length() - 4);
-        }
-        return raw;
+        if (idNumberEncrypted.startsWith("v1:")) return idNumberEncrypted.split(":", 4)[1];
+        return "***";
     }
 
     // Getters

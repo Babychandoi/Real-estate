@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -23,10 +24,12 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
 
     private final ListingJpaRepository listingRepository;
     private final ListingEntityMapper mapper;
+    private final com.company.bds.search.ElasticsearchListingIndex searchIndex;
 
-    public ListingPersistenceAdapter(ListingJpaRepository listingRepository, ListingEntityMapper mapper) {
+    public ListingPersistenceAdapter(ListingJpaRepository listingRepository, ListingEntityMapper mapper, com.company.bds.search.ElasticsearchListingIndex searchIndex) {
         this.listingRepository = listingRepository;
         this.mapper = mapper;
+        this.searchIndex = searchIndex;
     }
 
     @Override
@@ -52,9 +55,7 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
 
     @Override
     public List<Listing> findPublicActiveListings(String purpose, int page, int size) {
-        return listingRepository.findPublicActiveListings(PageRequest.of(page, size)).stream()
-                .map(mapper::toDomain)
-                .collect(Collectors.toList());
+        return hydrateInOrder(listingRepository.findPublicActiveListingIds(PageRequest.of(page, size)));
     }
 
     @Override
@@ -66,24 +67,32 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
 
     @Override
     public List<Listing> searchListings(com.company.bds.listing.domain.model.ListingSearchCriteria criteria, int page, int size) {
+        var elasticIds = searchIndex.search(criteria, page, size);
+        if (elasticIds.isPresent()) return hydrateInOrder(elasticIds.get());
         String purpose = criteria.purpose() != null ? criteria.purpose().name() : null;
         String propertyType = criteria.propertyType() != null ? criteria.propertyType().name() : null;
 
-        return listingRepository.searchPublicActiveListings(
+        return hydrateInOrder(listingRepository.searchPublicActiveListingIds(
                 purpose,
                 propertyType,
                 criteria.minPriceVnd(),
                 criteria.maxPriceVnd(),
                 criteria.minAreaM2(),
                 criteria.maxAreaM2(),
-                criteria.keyword(),
+                criteria.keyword() == null ? "" : criteria.keyword(),
                 criteria.minLat(),
                 criteria.maxLat(),
                 criteria.minLng(),
                 criteria.maxLng(),
                 PageRequest.of(page, size)
-        ).stream()
-        .map(mapper::toDomain)
-        .collect(Collectors.toList());
+        ));
+    }
+
+    private List<Listing> hydrateInOrder(List<UUID> ids) {
+        if (ids.isEmpty()) return List.of();
+        Map<UUID, ListingJpaEntity> entities = listingRepository.findAllByIdWithRevisions(ids).stream()
+                .collect(Collectors.toMap(ListingJpaEntity::getId, entity -> entity));
+        return ids.stream().map(entities::get).filter(java.util.Objects::nonNull)
+                .map(mapper::toDomain).collect(Collectors.toList());
     }
 }

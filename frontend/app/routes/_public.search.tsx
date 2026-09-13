@@ -1,25 +1,12 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listingApi } from '../entities/listing/api/listingApi';
 import type { Listing, ListingSearchParams } from '../entities/listing/model/types';
-import { formatPriceVnd, calculateUnitPrice } from '../entities/listing/model/types';
-
-interface MapPin {
-  id: string;
-  listingId: string;
-  title: string;
-  priceLabel: string;
-  priceVnd: number;
-  latitude: number;
-  longitude: number;
-  topPercent: number;
-  leftPercent: number;
-  propertyType: string;
-  isVerified: boolean;
-}
+import { formatPriceVnd, calculateUnitPrice, formatPropertyType } from '../entities/listing/model/types';
+import { ListingMap, type MapBounds } from '@/shared/map/ListingMap';
 
 export function SearchAndMapPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -35,15 +22,13 @@ export function SearchAndMapPage() {
   const [sortBy, setSortBy] = useState<'LATEST' | 'PRICE_ASC' | 'PRICE_DESC' | 'AREA_DESC'>('LATEST');
   const [onlyVerified, setOnlyVerified] = useState(false);
   const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
-  const [searchAsMoveMap, setSearchAsMoveMap] = useState(true);
-  const [mapZoom, setMapZoom] = useState(1);
 
   // Load listings from API
   useEffect(() => {
     fetchListings();
   }, [purpose, propertyType, priceRange, sortBy]);
 
-  const fetchListings = async () => {
+  const fetchListings = async (bounds?: MapBounds) => {
     setLoading(true);
     try {
       const params: ListingSearchParams = {
@@ -52,6 +37,7 @@ export function SearchAndMapPage() {
       };
       if (propertyType) params.propertyType = propertyType;
       if (keyword.trim()) params.keyword = keyword.trim();
+      if (bounds) Object.assign(params, bounds);
 
       if (priceRange === '<3B') {
         params.maxPrice = 3_000_000_000;
@@ -76,50 +62,20 @@ export function SearchAndMapPage() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const next = new URLSearchParams({ purpose, sortBy });
+    if (keyword.trim()) next.set('keyword', keyword.trim());
+    if (propertyType) next.set('propertyType', propertyType);
+    if (priceRange !== 'ALL') next.set('priceRange', priceRange);
+    setSearchParams(next);
     fetchListings();
   };
-
-  // Convert listings coordinates to map pin percentages
-  // Hanoi Pilot Area Center: Lat ~21.01, Lng ~105.77 (Bounds: 20.98 - 21.05 Lat, 105.72 - 105.82 Lng)
-  const mapPins: MapPin[] = useMemo(() => {
-    const minLat = 20.98;
-    const maxLat = 21.06;
-    const minLng = 105.72;
-    const maxLng = 105.82;
-
-    return listings.map((item, index) => {
-      const lat = item.publicLatitude || (21.00 + (index % 4) * 0.015);
-      const lng = item.publicLongitude || (105.74 + (index % 3) * 0.025);
-
-      // Normalize to 10% - 90% space
-      const top = Math.max(12, Math.min(88, 100 - ((lat - minLat) / (maxLat - minLat)) * 100));
-      const left = Math.max(12, Math.min(88, ((lng - minLng) / (maxLng - minLng)) * 100));
-
-      return {
-        id: item.id,
-        listingId: item.id,
-        title: item.title,
-        priceLabel: formatPriceVnd(item.priceVnd),
-        priceVnd: item.priceVnd,
-        latitude: lat,
-        longitude: lng,
-        topPercent: top,
-        leftPercent: left,
-        propertyType: item.propertyType,
-        isVerified: item.isVerified,
-      };
-    });
-  }, [listings]);
-
-  const activeListing = listings.find((l) => l.id === (hoveredId || selectedId)) || listings[0];
-  const activePin = mapPins.find((p) => p.id === (hoveredId || selectedId));
 
   return (
     <div className="w-full flex flex-col xl:flex-row h-[calc(100vh-4rem)] overflow-hidden bg-surface text-on-surface">
       {/* ========================================================= */}
       {/* LEFT PANEL: Filter Toolbar & Scrollable Listing Feed (45%) */}
       {/* ========================================================= */}
-      <section className="w-full xl:w-[46%] flex flex-col h-full bg-surface z-10 shadow-[4px_0_24px_rgba(11,28,48,0.06)] relative border-r border-outline-variant/30">
+      <section className="w-full flex flex-col h-full bg-surface z-10 relative">
         {/* Top Query & Smart Filters */}
         <div className="p-4 bg-surface-container-lowest flex flex-col gap-3 shadow-sm border-b border-outline-variant/20 flex-shrink-0">
           {/* Search Input Bar */}
@@ -154,6 +110,7 @@ export function SearchAndMapPage() {
 
             <button
               type="submit"
+              aria-label="Tìm kiếm"
               className="h-11 px-4 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold text-sm flex items-center gap-1.5 shadow-sm transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,7 +225,7 @@ export function SearchAndMapPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
                 <p className="text-on-surface-variant leading-tight">
-                  <strong className="text-on-surface font-semibold">Bảo mật chuẩn BDS WF:</strong> Tọa độ ghim được làm mờ bán kính ~200m bảo vệ quyền riêng tư người bán (FR13).
+                  <strong className="text-on-surface font-semibold">Bảo vệ vị trí riêng tư:</strong> Tọa độ ghim công khai được làm mờ trong bán kính khoảng 200 m.
                 </p>
               </div>
               <button
@@ -292,6 +249,7 @@ export function SearchAndMapPage() {
           <div className="flex items-center gap-1.5">
             <span className="text-on-surface-variant">Sắp xếp:</span>
             <select
+              aria-label="Sắp xếp kết quả"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               className="bg-surface-container-lowest font-semibold text-primary px-2 py-1 rounded-lg border border-outline-variant/30 focus:outline-none"
@@ -322,7 +280,7 @@ export function SearchAndMapPage() {
               </button>
             </div>
           ) : (
-            (onlyVerified ? listings.filter(l => l.isVerified) : listings).map((item) => {
+            (onlyVerified ? listings.filter(l => l.isVerified) : listings).map((item, index) => {
               const isSelected = item.id === (hoveredId || selectedId);
               const unitPrice = calculateUnitPrice(item.priceVnd, item.areaM2);
 
@@ -342,17 +300,22 @@ export function SearchAndMapPage() {
                   {isSelected && (
                     <div className="absolute -top-2.5 left-4 px-2.5 py-0.5 bg-primary text-white text-[10px] font-bold rounded-full shadow-sm flex items-center gap-1 z-20">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                      Đang hiển thị trên tâm bản đồ
+                      Đang hiển thị trên bản đồ
                     </div>
                   )}
 
                   {/* Thumbnail Image */}
                   <div className="relative w-full sm:w-48 h-40 sm:h-36 rounded-xl overflow-hidden shrink-0 bg-surface-container">
-                    <img
-                      src={item.primaryImageUrl || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'}
+                    {item.primaryImageUrl ? <img
+                      src={item.primaryImageUrl}
                       alt={item.title}
+                      loading={index === 0 ? 'eager' : 'lazy'}
+                      decoding="async"
+                      fetchPriority={index === 0 ? 'high' : 'auto'}
                       className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                    />
+                    /> : <div className="grid h-full place-items-center bg-surface-container-high text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
+                      <span className="material-symbols-outlined text-5xl" aria-hidden="true">apartment</span>
+                    </div>}
                     <div className="absolute top-2 left-2 flex flex-col gap-1">
                       <span className="px-2 py-0.5 rounded-md bg-primary/90 text-white font-bold text-[10px] backdrop-blur-sm">
                         {item.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
@@ -360,7 +323,7 @@ export function SearchAndMapPage() {
                       {item.isVerified && (
                         <span className="px-2 py-0.5 rounded-md bg-emerald-700/95 text-white font-bold text-[10px] flex items-center gap-1 shadow-sm border border-emerald-400/40">
                           <span className="material-symbols-outlined text-[12px]">verified</span>
-                          Sổ hồng chính chủ • eKYC
+                          Trạng thái kiểm duyệt nội bộ
                         </span>
                       )}
                     </div>
@@ -382,7 +345,7 @@ export function SearchAndMapPage() {
                           )}
                         </div>
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-surface-container text-on-surface-variant uppercase">
-                          {item.propertyType}
+                          {formatPropertyType(item.propertyType)}
                         </span>
                       </div>
 
@@ -400,27 +363,19 @@ export function SearchAndMapPage() {
                       </p>
 
                       {/* Specs */}
-                      <div className="flex items-center gap-3 py-1.5 px-2 mt-2 bg-surface-container-low rounded-lg text-xs font-semibold text-on-surface">
-                        <span>📐 {item.areaM2} m²</span>
-                        <span className="w-1 h-1 rounded-full bg-outline-variant"></span>
-                        <span>🛏️ 2 PN</span>
-                        <span className="w-1 h-1 rounded-full bg-outline-variant"></span>
-                        <span>🚿 2 WC</span>
+                      <div className="flex items-center py-1.5 px-2 mt-2 bg-surface-container-low rounded-lg text-xs font-semibold text-on-surface">
+                        <span>Diện tích: {item.areaM2} m²</span>
                       </div>
                     </div>
 
                     {/* Action Bar */}
                     <div className="flex items-center justify-between pt-2 mt-1 border-t border-outline-variant/20">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-6 h-6 rounded-full bg-primary/20 text-primary font-bold text-[10px] flex items-center justify-center">
-                          WF
-                        </div>
-                        <span className="text-[11px] font-semibold text-on-surface-variant">Môi giới WF Pro</span>
-                      </div>
+                      <span className="text-[11px] font-semibold text-on-surface-variant">Thông tin đã qua kiểm duyệt</span>
 
                       <Link
                         to={`/listings/${item.id}`}
-                        className="px-3 py-1 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition flex items-center gap-1"
+                        onClick={(event) => event.stopPropagation()}
+                        className="relative z-20 min-h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition inline-flex items-center gap-1"
                       >
                         Chi tiết
                         <span>→</span>
@@ -437,156 +392,8 @@ export function SearchAndMapPage() {
       {/* ========================================================= */}
       {/* RIGHT PANEL: Full-Height Interactive GIS Map Studio (54%) */}
       {/* ========================================================= */}
-      <section className="hidden xl:flex xl:w-[54%] relative h-full bg-slate-900 overflow-hidden select-none">
-        {/* Map Grid / Satellite Background Simulation */}
-        <div
-          className="absolute inset-0 w-full h-full bg-cover bg-center opacity-90 transition-transform duration-300"
-          style={{
-            backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuA4PLQ772cbzQkyaewfX451p7muH9GeujoDu8znVg-E30WZy2A8BAjM1ExFML0Yf3hvktFnoSXPgVxof2yxoEupgxBzlozAfjMZINPoBieF7sqnQcy9Vcc020TOCkTbg4eGEhK56HITGc4b0gfU0BPPjJMVNfbnzzE3j4E_Rym6OMqmbJcerLGHjbOuyoa36sD9QHPG63psWj55wwh01tva2pkwuhQxnHSYT5mnzzgMAuv71t6DL4c')`,
-            transform: `scale(${mapZoom})`,
-          }}
-        />
-
-        {/* GIS Map Grid Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/30 pointer-events-none" />
-
-        {/* FR13 Privacy Halo around Active Pin */}
-        {activePin && (
-          <div
-            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/20 backdrop-blur-[1px] pointer-events-none border border-sky-400/40 flex items-center justify-center animate-pulse transition-all duration-300"
-            style={{
-              top: `${activePin.topPercent}%`,
-              left: `${activePin.leftPercent}%`,
-              width: '180px',
-              height: '180px',
-            }}
-          >
-            <span className="text-[9px] font-bold tracking-widest uppercase bg-slate-950/80 text-sky-300 px-2 py-0.5 rounded shadow-sm border border-sky-500/30">
-              Vùng bảo mật ~200m
-            </span>
-          </div>
-        )}
-
-        {/* GIS MAP PINS LAYER */}
-        {mapPins.map((pin) => {
-          const isActive = pin.id === (hoveredId || selectedId);
-          return (
-            <div
-              key={pin.id}
-              onClick={() => setSelectedId(pin.id)}
-              onMouseEnter={() => setHoveredId(pin.id)}
-              onMouseLeave={() => setHoveredId(null)}
-              className="absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer z-30 transition-transform duration-200 hover:scale-110"
-              style={{
-                top: `${pin.topPercent}%`,
-                left: `${pin.leftPercent}%`,
-              }}
-            >
-              <div
-                className={`px-3 py-1.5 rounded-full font-bold text-xs shadow-xl flex items-center gap-1.5 transition-all border ${
-                  isActive
-                    ? 'bg-primary text-white border-white ring-4 ring-primary/40 scale-110'
-                    : 'bg-white text-slate-900 border-slate-300 hover:bg-primary hover:text-white'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-400 animate-ping' : 'bg-secondary'}`}></span>
-                <span>{pin.priceLabel}</span>
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Cluster Badges Simulation (Cầu Giấy & Hà Đông) */}
-        <div className="absolute top-[22%] left-[28%] -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
-          <div className="w-12 h-12 rounded-full bg-primary/90 text-white flex flex-col items-center justify-center shadow-lg ring-4 ring-primary-fixed/40">
-            <span className="text-xs font-extrabold leading-none">24</span>
-            <span className="text-[8px] uppercase tracking-tighter text-sky-200">Cầu Giấy</span>
-          </div>
-        </div>
-
-        <div className="absolute bottom-[28%] left-[32%] -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none">
-          <div className="w-12 h-12 rounded-full bg-secondary/90 text-white flex flex-col items-center justify-center shadow-lg ring-4 ring-secondary-container/50">
-            <span className="text-xs font-extrabold leading-none">12</span>
-            <span className="text-[8px] uppercase tracking-tighter text-emerald-200">Hà Đông</span>
-          </div>
-        </div>
-
-        {/* Floating Mini Card for Active Listing */}
-        {activeListing && (
-          <div className="absolute bottom-6 left-6 z-40 bg-slate-950/95 border border-slate-800 rounded-2xl p-3 shadow-2xl backdrop-blur-md max-w-sm flex gap-3 text-white">
-            <img
-              src={activeListing.primaryImageUrl || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80'}
-              alt={activeListing.title}
-              className="w-20 h-20 rounded-xl object-cover shrink-0"
-            />
-            <div className="flex flex-col justify-between min-w-0">
-              <div>
-                <span className="text-xs font-extrabold text-emerald-400">
-                  {formatPriceVnd(activeListing.priceVnd)}
-                </span>
-                <h4 className="text-xs font-bold text-slate-100 line-clamp-1 mt-0.5">
-                  {activeListing.title}
-                </h4>
-                <p className="text-[11px] text-slate-400 truncate mt-0.5">
-                  {activeListing.addressSummary}
-                </p>
-              </div>
-              <Link
-                to={`/listings/${activeListing.id}`}
-                className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1 mt-1"
-              >
-                Xem chi tiết bất động sản ➔
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* Map Floating Controls */}
-        <div className="absolute top-6 right-6 z-40 flex flex-col gap-2">
-          {/* Zoom controls */}
-          <div className="flex flex-col rounded-xl bg-slate-950/90 border border-slate-800 shadow-xl overflow-hidden backdrop-blur">
-            <button
-              onClick={() => setMapZoom((z) => Math.min(1.4, z + 0.1))}
-              className="w-9 h-9 flex items-center justify-center text-slate-200 hover:bg-slate-800 font-bold text-base transition border-b border-slate-800"
-              title="Phóng to"
-            >
-              +
-            </button>
-            <button
-              onClick={() => setMapZoom((z) => Math.max(0.8, z - 0.1))}
-              className="w-9 h-9 flex items-center justify-center text-slate-200 hover:bg-slate-800 font-bold text-base transition"
-              title="Thu nhỏ"
-            >
-              −
-            </button>
-          </div>
-
-          {/* Re-center button */}
-          <button
-            onClick={() => setMapZoom(1)}
-            className="w-9 h-9 rounded-xl bg-slate-950/90 border border-slate-800 text-slate-200 hover:bg-slate-800 flex items-center justify-center shadow-xl backdrop-blur transition"
-            title="Định vị tâm Hà Nội"
-          >
-            <svg className="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Bottom Map Status Bar */}
-        <div className="absolute bottom-6 right-6 z-40 bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 shadow-xl backdrop-blur flex items-center gap-3">
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={searchAsMoveMap}
-              onChange={(e) => setSearchAsMoveMap(e.target.checked)}
-              className="rounded bg-slate-800 border-slate-700 text-sky-500 focus:ring-0 w-3.5 h-3.5"
-            />
-            <span>Tìm kiếm khi di chuyển bản đồ</span>
-          </label>
-          <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-          <span className="text-slate-400 text-[11px]">Hà Nội WGS84 • PostGIS Ready</span>
-        </div>
+      <section className="hidden xl:block w-[54%] h-full relative bg-slate-900 overflow-hidden border-l border-outline-variant/30">
+        <ListingMap listings={listings} onSearchArea={(bounds) => fetchListings(bounds)} />
       </section>
     </div>
   );

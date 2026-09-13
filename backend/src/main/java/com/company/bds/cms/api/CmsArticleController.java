@@ -12,6 +12,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import com.company.bds.shared.security.CurrentUser;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,10 +39,14 @@ public class CmsArticleController {
     }
 
     @GetMapping("/api/v1/cms/articles")
-    public ResponseEntity<List<ArticleResponse>> getAdminArticles(@RequestParam(required = false) ArticleCategory category) {
+    public ResponseEntity<List<ArticleResponse>> getAdminArticles(
+            @RequestParam(required = false) ArticleCategory category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        page = Math.max(0, page); size = Math.max(1, Math.min(100, size));
         List<Article> articles = category != null
-                ? articleService.getArticlesByCategory(category)
-                : articleService.getAllArticles();
+                ? articleService.getArticlesByCategory(category, page, size)
+                : articleService.getAllArticles(page, size);
 
         List<ArticleResponse> responseList = articles.stream().map(a -> {
             List<ArticleRevision> revs = articleService.getRevisions(a.getId());
@@ -74,8 +80,8 @@ public class CmsArticleController {
     public ResponseEntity<ArticleRevisionResponse> approveRevision(
             @PathVariable UUID articleId,
             @PathVariable UUID revisionId,
-            @RequestParam(required = false, defaultValue = "admin") String adminUsername) {
-        ArticleRevision revision = articleService.approveRevision(articleId, revisionId, adminUsername);
+            Authentication authentication) {
+        ArticleRevision revision = articleService.approveRevision(articleId, revisionId, CurrentUser.id(authentication).toString());
         return ResponseEntity.ok(ArticleRevisionResponse.fromDomain(revision));
     }
 
@@ -83,16 +89,20 @@ public class CmsArticleController {
     public ResponseEntity<ArticleRevisionResponse> rejectRevision(
             @PathVariable UUID articleId,
             @PathVariable UUID revisionId,
-            @Valid @RequestBody RejectRevisionRequest request) {
-        ArticleRevision revision = articleService.rejectRevision(articleId, revisionId, request.getReason(), request.getAdminUsername());
+            @Valid @RequestBody RejectRevisionRequest request,
+            Authentication authentication) {
+        ArticleRevision revision = articleService.rejectRevision(
+                articleId, revisionId, request.getReason(), CurrentUser.id(authentication).toString());
         return ResponseEntity.ok(ArticleRevisionResponse.fromDomain(revision));
     }
 
     // ================== PUBLIC ENDPOINTS ==================
 
     @GetMapping("/api/v1/public/articles")
-    public ResponseEntity<List<ArticleResponse>> getPublicArticles() {
-        List<Article> articles = articleService.getPublicArticles();
+    public ResponseEntity<List<ArticleResponse>> getPublicArticles(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        List<Article> articles = articleService.getPublicArticles(Math.max(0, page), Math.max(1, Math.min(100, size)));
         List<ArticleResponse> responseList = articles.stream().map(a -> {
             List<ArticleRevision> revs = articleService.getRevisions(a.getId());
             ArticleRevision latest = revs.isEmpty() ? null : revs.get(0);

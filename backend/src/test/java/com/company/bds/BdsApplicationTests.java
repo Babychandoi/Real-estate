@@ -10,16 +10,19 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@WithMockUser(username = "00000000-0000-0000-0000-000000000001", roles = {"ADMIN", "MODERATOR", "BROKER", "USER"})
 class BdsApplicationTests {
 
     @Autowired
@@ -348,6 +351,7 @@ class BdsApplicationTests {
             """, listingId);
 
         MvcResult leadSubmitRes = mockMvc.perform(post("/api/v1/public/leads")
+                        .header("Idempotency-Key", "lead-flow-idempotency-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(leadJson))
                 .andExpect(status().isCreated())
@@ -356,6 +360,13 @@ class BdsApplicationTests {
                 .andReturn();
 
         String leadId = objectMapper.readTree(leadSubmitRes.getResponse().getContentAsString()).get("leadId").asText();
+
+        mockMvc.perform(post("/api/v1/public/leads")
+                        .header("Idempotency-Key", "lead-flow-idempotency-001")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(leadJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.leadId").value(leadId));
 
         // 3. Tra cứu danh sách Lead của tin đăng: SĐT phải được che dấu an toàn NFR12
         mockMvc.perform(get("/api/v1/leads?listingId=" + listingId))
@@ -491,8 +502,9 @@ class BdsApplicationTests {
     }
 
     @Test
+    @WithMockUser(username = "00000000-0000-0000-0000-000000000099", roles = {"ADMIN", "MODERATOR"})
     void kycSubmissionAndApproval_flow() throws Exception {
-        java.util.UUID userId = java.util.UUID.randomUUID();
+        java.util.UUID userId = java.util.UUID.fromString("00000000-0000-0000-0000-000000000099");
 
         // 1. Nộp hồ sơ eKYC cá nhân (POST /api/v1/kyc/submit)
         String kycJson = String.format("""
@@ -502,9 +514,9 @@ class BdsApplicationTests {
                 "fullName": "Trần Văn Bình",
                 "dob": "15/08/1985",
                 "address": "Số 25 ngõ 102 Khuất Duy Tiến, Thanh Xuân, Hà Nội",
-                "idCardFrontUrl": "https://cdn.example.com/cccd_front.jpg",
-                "idCardBackUrl": "https://cdn.example.com/cccd_back.jpg",
-                "selfieUrl": "https://cdn.example.com/selfie_face.jpg"
+                "idCardFrontUrl": "/api/v1/media/kyc/00000000-0000-0000-0000-000000000001.jpg",
+                "idCardBackUrl": "/api/v1/media/kyc/00000000-0000-0000-0000-000000000002.jpg",
+                "selfieUrl": "/api/v1/media/kyc/00000000-0000-0000-0000-000000000003.jpg"
             }
             """, userId);
 
@@ -515,7 +527,7 @@ class BdsApplicationTests {
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.maskedIdNumber").value("001****4567"))
-                .andExpect(jsonPath("$.faceMatchScore").isNumber())
+                .andExpect(jsonPath("$.faceMatchScore").doesNotExist())
                 .andReturn();
 
         String kycId = objectMapper.readTree(res.getResponse().getContentAsString()).get("id").asText();
@@ -544,8 +556,9 @@ class BdsApplicationTests {
                 "fullName": "Lê Hoàng Yến",
                 "dob": "20/11/1992",
                 "address": "Phường Mễ Trì, Nam Từ Liêm, Hà Nội",
-                "idCardFrontUrl": "https://cdn.example.com/cccd_front_yen.jpg",
-                "idCardBackUrl": "https://cdn.example.com/cccd_back_yen.jpg"
+                "idCardFrontUrl": "/api/v1/media/kyc/00000000-0000-0000-0000-000000000004.jpg",
+                "idCardBackUrl": "/api/v1/media/kyc/00000000-0000-0000-0000-000000000005.jpg",
+                "selfieUrl": "/api/v1/media/kyc/00000000-0000-0000-0000-000000000006.jpg"
             }
             """, ownerId);
 
@@ -765,8 +778,10 @@ class BdsApplicationTests {
                 .andExpect(jsonPath("$.totalContactClicks").isNumber())
                 .andExpect(jsonPath("$.totalLeadsSubmitted").isNumber())
                 .andExpect(jsonPath("$.totalEscrowDeposited").isNumber())
-                .andExpect(jsonPath("$.avgModerationHours").value(4.2))
-                .andExpect(jsonPath("$.verifiedOwnerRatioPercent").value(42.5));
+                .andExpect(jsonPath("$.avgModerationHours").value(0.0))
+                .andExpect(jsonPath("$.verifiedOwnerRatioPercent").value(0.0))
+                .andExpect(jsonPath("$.sourceBreakdownPercent").isEmpty())
+                .andExpect(jsonPath("$.districtBreakdown").isEmpty());
     }
 
     @Test
@@ -816,6 +831,37 @@ class BdsApplicationTests {
     }
 
     @Test
+    void brokerCannotReadAnotherOwnersLeadsOrKyc() throws Exception {
+        String listingJson = """
+            {
+                "purpose": "SALE",
+                "propertyType": "APARTMENT",
+                "title": "Tin kiểm thử phân quyền môi giới độc lập",
+                "priceVnd": 2400000000,
+                "areaM2": 68.0,
+                "description": "Dữ liệu kiểm thử để xác nhận môi giới không thể đọc tài nguyên của chủ tin khác.",
+                "addressSummary": "Nam Từ Liêm, Hà Nội",
+                "imageUrls": ["https://images.unsplash.com/photo-1545324418-cc1a3fa10c00"]
+            }
+            """;
+
+        MvcResult createResult = mockMvc.perform(post("/api/v1/listings")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(listingJson))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String listingId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("listingId").asText();
+
+        mockMvc.perform(get("/api/v1/leads").param("listingId", listingId)
+                        .with(user("00000000-0000-0000-0000-000000000002").roles("BROKER")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/api/v1/kyc/user/00000000-0000-0000-0000-000000000001")
+                        .with(user("00000000-0000-0000-0000-000000000002").roles("BROKER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void cmsArticle_revisionLifecycle_and_approval_flow() throws Exception {
         // 1. Biên tập viên tạo bài viết nháp (DRAFT Revision 1)
         String createArticleJson = """
@@ -855,11 +901,10 @@ class BdsApplicationTests {
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
 
         // 3. Admin phê duyệt và xuất bản bài viết (PUBLISHED)
-        mockMvc.perform(post("/api/v1/cms/articles/" + articleId + "/revisions/" + revisionId + "/approve")
-                        .param("adminUsername", "admin_chief"))
+        mockMvc.perform(post("/api/v1/cms/articles/" + articleId + "/revisions/" + revisionId + "/approve"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PUBLISHED"))
-                .andExpect(jsonPath("$.reviewedBy").value("admin_chief"))
+                .andExpect(jsonPath("$.reviewedBy").value("00000000-0000-0000-0000-000000000001"))
                 .andExpect(jsonPath("$.reviewedAt").exists());
 
         // 4. Tra cứu danh sách công khai (Public Articles)
@@ -876,4 +921,3 @@ class BdsApplicationTests {
                 .andExpect(jsonPath("$.currentRevision.authorName").value("Lê Mai Hương"));
     }
 }
-

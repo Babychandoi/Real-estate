@@ -9,7 +9,7 @@ import java.util.UUID;
 public interface DepositContractPersistencePort {
     DepositContract save(DepositContract contract);
     Optional<DepositContract> findById(UUID id);
-    List<DepositContract> findByListingId(UUID listingId);
+    List<DepositContract> findByListingId(UUID listingId, int page, int size);
     List<DepositContract> findByBuyerId(UUID buyerId);
     List<DepositContract> findBySellerId(UUID sellerId);
 }

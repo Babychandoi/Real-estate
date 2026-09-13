@@ -13,7 +13,28 @@
     color: #0b1c30;
     min-height: 100vh;
   }
+
+  :focus-visible {
+    outline: 3px solid #0f4c81;
+    outline-offset: 3px;
+  }
+
+  ::selection { background: #b9ddff; color: #061c2d; }
 }
+
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-180%);
+  border-radius: .5rem;
+  background: #0f4c81;
+  color: white;
+  padding: .75rem 1rem;
+  font-weight: 700;
+}
+.skip-link:focus { transform: translateY(0); }
 
 /* Tiện ích an toàn cho thiết bị di động (tai thỏ / thanh home) */
 .pb-safe {

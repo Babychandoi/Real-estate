@@ -7,6 +7,7 @@ import com.company.bds.lead.domain.port.ListingReportPersistencePort;
 import com.company.bds.lead.infrastructure.persistence.entity.ListingReportJpaEntity;
 import com.company.bds.lead.infrastructure.persistence.repository.ListingReportJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,26 +41,26 @@ public class ListingReportPersistenceAdapter implements ListingReportPersistence
     }
 
     @Override
-    public List<ListingReport> findAll() {
-        return reportJpaRepository.findAllByOrderByCreatedAtDesc()
+    public List<ListingReport> findPage(int page, int size) {
+        return reportJpaRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<ListingReport> findByStatus(ReportStatus status) {
-        return reportJpaRepository.findByStatusOrderByCreatedAtDesc(status)
+    public List<ListingReport> findByStatus(ReportStatus status, int page, int size) {
+        return reportJpaRepository.findByStatusOrderByCreatedAtDesc(status, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<ListingReport> findBySeverity(ReportSeverity severity) {
-        return reportJpaRepository.findBySeverityOrderByCreatedAtDesc(severity)
+    public List<ListingReport> findBySeverity(ReportSeverity severity, int page, int size) {
+        return reportJpaRepository.findBySeverityOrderByCreatedAtDesc(severity, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<ListingReport> findByListingId(UUID listingId) {
-        return reportJpaRepository.findByListingIdOrderByCreatedAtDesc(listingId)
+    public List<ListingReport> findByListingId(UUID listingId, int page, int size) {
+        return reportJpaRepository.findByListingIdOrderByCreatedAtDesc(listingId, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 

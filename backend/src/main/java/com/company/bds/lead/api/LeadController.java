@@ -11,6 +11,8 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
+import com.company.bds.shared.security.CurrentUser;
 
 import java.util.List;
 import java.util.Map;
@@ -36,13 +38,16 @@ public class LeadController {
      * Khách hàng gửi liên hệ tư vấn BĐS (Public endpoint).
      */
     @PostMapping("/public/leads")
-    public ResponseEntity<Map<String, Object>> submitLead(@Valid @RequestBody CreateLeadRequest request) {
+    public ResponseEntity<Map<String, Object>> submitLead(
+            @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody CreateLeadRequest request) {
         Lead lead = leadApplicationService.submitLead(
                 request.listingId(),
                 request.fullName(),
                 request.phone(),
                 request.note(),
-                request.consentPolicy()
+                request.consentPolicy(),
+                idempotencyKey
         );
 
         String msg = messageSource.getMessage("lead.received", null, "Đã tiếp nhận yêu cầu tư vấn thành công.", LocaleContextHolder.getLocale());
@@ -61,15 +66,25 @@ public class LeadController {
     @GetMapping("/leads")
     public ResponseEntity<List<LeadResponse>> getLeads(
             @RequestParam(name = "brokerId", required = false) UUID brokerId,
-            @RequestParam(name = "listingId", required = false) UUID listingId) {
+            @RequestParam(name = "listingId", required = false) UUID listingId,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "50") int size,
+            Authentication authentication) {
+
+        page = Math.max(0, page);
+        size = Math.max(1, Math.min(100, size));
 
         List<Lead> leads;
+        boolean privileged = isPrivileged(authentication);
+        UUID actorId = CurrentUser.id(authentication);
         if (listingId != null) {
-            leads = leadApplicationService.getLeadsByListing(listingId);
-        } else if (brokerId != null) {
-            leads = leadApplicationService.getLeadsForBroker(brokerId);
+            leads = leadApplicationService.getLeadsByListing(listingId, actorId, privileged, page, size);
+        } else if (brokerId != null && privileged) {
+            leads = leadApplicationService.getLeadsForBroker(brokerId, page, size);
+        } else if (!privileged) {
+            leads = leadApplicationService.getLeadsForBroker(actorId, page, size);
         } else {
-            leads = leadApplicationService.getAllLeads();
+            leads = leadApplicationService.getAllLeads(page, size);
         }
 
         List<LeadResponse> response = leads.stream()
@@ -85,9 +100,16 @@ public class LeadController {
     @PatchMapping("/leads/{id}/status")
     public ResponseEntity<LeadResponse> updateLeadStatus(
             @PathVariable("id") UUID id,
-            @Valid @RequestBody UpdateLeadStatusRequest request) {
+            @Valid @RequestBody UpdateLeadStatusRequest request,
+            Authentication authentication) {
 
-        Lead updated = leadApplicationService.updateLeadStatus(id, request.status());
+        Lead updated = leadApplicationService.updateLeadStatus(
+                id, request.status(), CurrentUser.id(authentication), isPrivileged(authentication));
         return ResponseEntity.ok(LeadResponse.fromDomain(updated));
+    }
+
+    private boolean isPrivileged(Authentication authentication) {
+        return authentication.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MODERATOR"));
     }
 }

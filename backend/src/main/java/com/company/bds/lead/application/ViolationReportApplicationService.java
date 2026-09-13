@@ -142,14 +142,14 @@ public class ViolationReportApplicationService {
      * Danh sách tất cả các vụ việc báo xấu phục vụ bàn xử lý.
      */
     @Transactional(readOnly = true)
-    public List<ListingReport> getReports(ReportStatus status, ReportSeverity severity) {
+    public List<ListingReport> getReports(ReportStatus status, ReportSeverity severity, int page, int size) {
         if (status != null) {
-            return reportPersistencePort.findByStatus(status);
+            return reportPersistencePort.findByStatus(status, page, size);
         }
         if (severity != null) {
-            return reportPersistencePort.findBySeverity(severity);
+            return reportPersistencePort.findBySeverity(severity, page, size);
         }
-        return reportPersistencePort.findAll();
+        return reportPersistencePort.findPage(page, size);
     }
 
     @Transactional(readOnly = true)

@@ -1,0 +1,11 @@
+tunnel: replace-with-tunnel-uuid
+credentials-file: C:\Users\YOUR_USER\.cloudflared\replace-with-tunnel-uuid.json
+
+ingress:
+  - hostname: nhadatchuan.online
+    service: http://frontend:3000
+    originRequest: { httpHostHeader: nhadatchuan.online }
+  - hostname: www.nhadatchuan.online
+    service: http://frontend:3000
+    originRequest: { httpHostHeader: www.nhadatchuan.online }
+  - service: http_status:404

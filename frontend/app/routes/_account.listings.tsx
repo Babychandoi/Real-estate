@@ -139,11 +139,13 @@ export const MyListingsPage: React.FC = () => {
             <Card key={item.id} className="p-4 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
               <div className="flex gap-4 items-center">
                 <div className="w-24 h-20 rounded-lg overflow-hidden bg-surface-container flex-shrink-0 relative">
-                  <img
-                    src={item.imageUrls[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'}
+                  {item.imageUrls[0] ? <img
+                    src={item.imageUrls[0]}
                     alt={item.title}
                     className="w-full h-full object-cover"
-                  />
+                  /> : <div className="grid h-full place-items-center text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
+                    <Building2 className="h-7 w-7" aria-hidden="true" />
+                  </div>}
                   <div className="absolute bottom-1 right-1 px-1.5 py-0.2 rounded bg-surface-container-lowest/90 text-[10px] font-bold">
                     v{item.revisionNumber}
                   </div>

@@ -2,7 +2,7 @@ import React from 'react';
 import { type Listing, formatPriceVnd, calculateUnitPrice } from '../model/types';
 import { Card } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
-import { MapPin, ShieldCheck, Maximize2 } from 'lucide-react';
+import { Building2, MapPin, ShieldCheck, Maximize2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface ListingCardProps {
@@ -14,12 +14,19 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
     <Card hoverable className="p-0 overflow-hidden flex flex-col h-full group">
       {/* Khung ảnh đại diện với tỉ lệ 16:9 */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-surface-container">
-        <img
-          src={listing.primaryImageUrl}
-          alt={listing.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-        />
+        {listing.primaryImageUrl ? (
+          <img
+            src={listing.primaryImageUrl}
+            alt={listing.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div className="grid h-full place-items-center bg-surface-container-high text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
+            <Building2 className="h-12 w-12" aria-hidden="true" />
+          </div>
+        )}
         <div className="absolute top-3 left-3 flex gap-2">
           {listing.isVerified && (
             <Badge variant="verified" icon={<ShieldCheck className="w-3.5 h-3.5 text-secondary" />}>

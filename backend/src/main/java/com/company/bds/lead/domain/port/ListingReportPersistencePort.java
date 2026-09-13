@@ -12,9 +12,9 @@ public interface ListingReportPersistencePort {
     ListingReport save(ListingReport report);
     Optional<ListingReport> findById(UUID id);
     Optional<ListingReport> findByCaseNumber(String caseNumber);
-    List<ListingReport> findAll();
-    List<ListingReport> findByStatus(ReportStatus status);
-    List<ListingReport> findBySeverity(ReportSeverity severity);
-    List<ListingReport> findByListingId(UUID listingId);
+    List<ListingReport> findPage(int page, int size);
+    List<ListingReport> findByStatus(ReportStatus status, int page, int size);
+    List<ListingReport> findBySeverity(ReportSeverity severity, int page, int size);
+    List<ListingReport> findByListingId(UUID listingId, int page, int size);
     long countByStatus(ReportStatus status);
 }

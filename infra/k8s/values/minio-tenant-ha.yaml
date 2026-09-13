@@ -1,0 +1,29 @@
+tenant:
+  name: bds-minio
+  configSecret:
+    name: bds-minio-env
+    existingSecret: true
+  pools:
+    - name: pool-0
+      servers: 4
+      volumesPerServer: 1
+      size: 1Gi
+      storageClassName: standard
+      resources:
+        requests: { cpu: 50m, memory: 128Mi }
+        limits: { cpu: 500m, memory: 512Mi }
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsNonRoot: true
+  buckets:
+    - name: bds-listings
+      objectLock: false
+      region: us-east-1
+  certificate:
+    requestAutoCert: false
+  exposeServices:
+    minio: false
+    console: false

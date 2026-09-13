@@ -9,6 +9,7 @@ import com.company.bds.cms.infrastructure.persistence.entity.ArticleRevisionJpaE
 import com.company.bds.cms.infrastructure.persistence.repository.ArticleJpaRepository;
 import com.company.bds.cms.infrastructure.persistence.repository.ArticleRevisionJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
@@ -59,18 +60,18 @@ public class ArticlePersistenceAdapter implements ArticlePersistencePort {
     }
 
     @Override
-    public List<Article> findAllArticles() {
-        return articleRepo.findAll().stream().map(this::toDomain).collect(Collectors.toList());
+    public List<Article> findArticlePage(int page, int size) {
+        return articleRepo.findAll(PageRequest.of(page, size)).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<Article> findArticlesByCategory(ArticleCategory category) {
-        return articleRepo.findByCategory(category).stream().map(this::toDomain).collect(Collectors.toList());
+    public List<Article> findArticlesByCategory(ArticleCategory category, int page, int size) {
+        return articleRepo.findByCategory(category, PageRequest.of(page, size)).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
-    public List<Article> findArticlesByStatus(ArticleStatus status) {
-        return articleRepo.findByStatus(status).stream().map(this::toDomain).collect(Collectors.toList());
+    public List<Article> findArticlesByStatus(ArticleStatus status, int page, int size) {
+        return articleRepo.findByStatus(status, PageRequest.of(page, size)).stream().map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
@@ -111,15 +112,15 @@ public class ArticlePersistenceAdapter implements ArticlePersistencePort {
     }
 
     @Override
-    public List<ArticleRevision> findRevisionsByArticleId(UUID articleId) {
-        return revisionRepo.findByArticleIdOrderByRevisionNumberDesc(articleId).stream()
+    public List<ArticleRevision> findRevisionsByArticleId(UUID articleId, int page, int size) {
+        return revisionRepo.findByArticleIdOrderByRevisionNumberDesc(articleId, PageRequest.of(page, size)).stream()
                 .map(this::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<ArticleRevision> findRevisionsByStatus(ArticleStatus status) {
-        return revisionRepo.findByStatus(status).stream()
+    public List<ArticleRevision> findRevisionsByStatus(ArticleStatus status, int page, int size) {
+        return revisionRepo.findByStatus(status, PageRequest.of(page, size)).stream()
                 .map(this::toDomain)
                 .collect(Collectors.toList());
     }

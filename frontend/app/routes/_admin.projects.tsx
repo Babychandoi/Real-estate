@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetch } from '@/shared/api/client';
 import {
   Building2,
   PlusCircle,
@@ -44,6 +45,7 @@ interface ProjectItem {
   };
 }
 
+/* Historical visual fixture retained as design reference only; never loaded at runtime.
 const INITIAL_PROJECTS: ProjectItem[] = [
   {
     id: 'da-hn-0082',
@@ -62,7 +64,7 @@ const INITIAL_PROJECTS: ProjectItem[] = [
     buildingPermitNo: 'GPXD-928/SXD-HN',
     masterPlan1500Decision: 'QĐ-2849/QĐ-UBND QH 1/500',
     appraisedAuthority: 'Sở Xây Dựng Hà Nội',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBFG6ZF2TWA0-j55WHUN1nem73CxAOfnJZkphX0rfPMvyWksfeVREdrYcpjlnm4HXvPkxyq8qEwTAvMakq_eW2F1OHr76e_HHtIIE7Ci3QkyMdJosft2XEv7tjdD5TLW-W9ywPezaut_g_b_NF-TaUqJTNXZh1pRX3ZitzYU2gIQcM9ZV0dkG3trm2KTg9cTsVxV1W7S18XIJEgBPmlfq6uc0m2RFBijaYl3mMGmvdoLC7tZYvKFikp',
+    imageUrl: '',
     linkedListingsCount: 142,
     updatedAt: '05/09/2026',
   },
@@ -83,7 +85,7 @@ const INITIAL_PROJECTS: ProjectItem[] = [
     buildingPermitNo: 'GPXD-214/SXD',
     masterPlan1500Decision: 'QĐ-1420/UBND QH 1/500 Phê duyệt 2022',
     appraisedAuthority: 'Sở Xây Dựng Hà Nội',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBgutO5nISc1z5ujlLMFG-HYmGhmXaU6Rp2TkEqoLne7vVHRwXuz63niVj92JS4-EvMTac_lHF0qkgh1LKw65bBF2Qc49i1q4noVO7MQ7U7eb3orQK6GxyfKep0wUPDWMOhDawlVrKZzIoATs3Ymf4nAKTd5NCbU-0aXEZvSasQ7tNQvAvBjDPNzOiY6Zn57OQnlR623C9LM-_h_22Qko3hDRSGk4mt_BCAEpxEmjwjcSTmeHzQ1SJw',
+    imageUrl: '',
     linkedListingsCount: 38,
     updatedAt: '12/08/2026',
   },
@@ -104,7 +106,7 @@ const INITIAL_PROJECTS: ProjectItem[] = [
     buildingPermitNo: 'GPXD-48/QĐ-BXD',
     masterPlan1500Decision: 'QĐ-883/QĐ-UBND Điều chỉnh Quy hoạch 1/500',
     appraisedAuthority: 'Bộ Xây Dựng & Sở Xây Dựng HN',
-    imageUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA_mI2JXy1VuuxLt0lWL1RfrXmqYWLk6TwmIq9vjzyjRsXAjBJ0Ue6vwUkiWMko5qEf_KBxapEIOQb6OPPTYpZsarjAdPdliA-EpbsAbETWqgRw1SLXd-FiEGlnb-APmSQqpXTbB6OEvZJ9vy9UR4wIIS5F4I3hjNveOT4YK7yVyORk8TrY-uig0gV6m6q8rplq9vV7z541pEFKc1-phRZoAKT7HvB8d66g_uRBdH0QQz4D4I55h_Wl',
+    imageUrl: '',
     linkedListingsCount: 95,
     updatedAt: 'Hôm nay, 10:45',
     pendingRevision: {
@@ -114,10 +116,10 @@ const INITIAL_PROJECTS: ProjectItem[] = [
       revisionNo: 2,
     },
   },
-];
+]; */
 
 export const ProjectCatalogPage: React.FC = () => {
-  const [projects, setProjects] = useState<ProjectItem[]>(INITIAL_PROJECTS);
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedDistrict, setSelectedDistrict] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -150,7 +152,7 @@ export const ProjectCatalogPage: React.FC = () => {
 
   // Fetch backend projects if available
   useEffect(() => {
-    fetch('/api/v1/catalog/projects')
+    apiFetch('/catalog/projects')
       .then((res) => {
         if (res.ok) return res.json();
         return null;
@@ -173,25 +175,21 @@ export const ProjectCatalogPage: React.FC = () => {
                 : d.status === 'UPCOMING'
                 ? 'Sắp mở bán'
                 : 'Đã bàn giao',
-            scaleHa: d.scaleHa || 5,
-            totalTowers: d.totalTowers || 2,
-            totalUnits: d.totalUnits || 800,
-            subdivisions: 'Khu A, Khu B',
+            scaleHa: d.scaleHa ?? 0,
+            totalTowers: d.totalTowers ?? 0,
+            totalUnits: d.totalUnits ?? 0,
+            subdivisions: d.subdivisions ?? '',
             buildingPermitNo: d.buildingPermitNo,
             masterPlan1500Decision: d.masterPlan1500Decision,
-            appraisedAuthority: d.appraisedAuthority || 'Sở Xây Dựng',
-            imageUrl:
-              'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
-            linkedListingsCount: d.linkedListingsCount || 0,
-            updatedAt: 'Mới cập nhật',
+            appraisedAuthority: d.appraisedAuthority ?? '',
+            imageUrl: d.imageUrl ?? '',
+            linkedListingsCount: d.linkedListingsCount ?? 0,
+            updatedAt: d.updatedAt ?? '',
           }));
-          // Merge with initial rich mockups
-          setProjects([...mapped, ...INITIAL_PROJECTS]);
+          setProjects(mapped);
         }
       })
-      .catch(() => {
-        // use initial fallback
-      });
+      .catch(() => showToast('Không tải được dữ liệu dự án từ máy chủ.'));
   }, []);
 
   const handleCreateProject = async (e: React.FormEvent) => {
@@ -220,7 +218,7 @@ export const ProjectCatalogPage: React.FC = () => {
         appraisedAuthority: formData.appraisedAuthority,
       };
 
-      const res = await fetch('/api/v1/catalog/projects', {
+      const res = await apiFetch('/catalog/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -246,14 +244,13 @@ export const ProjectCatalogPage: React.FC = () => {
           scaleHa: created.scaleHa,
           totalTowers: created.totalTowers,
           totalUnits: created.totalUnits,
-          subdivisions: 'Khu biệt lập',
+          subdivisions: created.subdivisions || '',
           buildingPermitNo: created.buildingPermitNo,
           masterPlan1500Decision: created.masterPlan1500Decision,
           appraisedAuthority: created.appraisedAuthority,
-          imageUrl:
-            'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
+          imageUrl: created.imageUrl || '',
           linkedListingsCount: 0,
-          updatedAt: 'Hôm nay',
+          updatedAt: created.updatedAt || '',
         };
         setProjects([newItem, ...projects]);
         setIsModalOpen(false);
@@ -262,37 +259,7 @@ export const ProjectCatalogPage: React.FC = () => {
         showToast('Lỗi máy chủ khi tạo dự án');
       }
     } catch {
-      // Local fallback creation
-      const localItem: ProjectItem = {
-        id: `local-${Date.now()}`,
-        name: formData.name,
-        code: formData.code,
-        investorName: formData.investorName,
-        location: `${formData.address}, ${formData.district}, ${formData.provinceCity}`,
-        district: formData.district,
-        provinceCity: formData.provinceCity,
-        status: formData.status as any,
-        statusLabel:
-          formData.status === 'SELLING'
-            ? 'Đang mở bán'
-            : formData.status === 'UPCOMING'
-            ? 'Sắp mở bán'
-            : 'Đã bàn giao',
-        scaleHa: Number(formData.scaleHa),
-        totalTowers: Number(formData.totalTowers),
-        totalUnits: Number(formData.totalUnits),
-        subdivisions: 'Khu biệt lập',
-        buildingPermitNo: formData.buildingPermitNo,
-        masterPlan1500Decision: formData.masterPlan1500Decision,
-        appraisedAuthority: formData.appraisedAuthority,
-        imageUrl:
-          'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
-        linkedListingsCount: 0,
-        updatedAt: 'Hôm nay',
-      };
-      setProjects([localItem, ...projects]);
-      setIsModalOpen(false);
-      showToast(`Đã lưu dự án ${formData.name} vào bộ nhớ cục bộ`);
+      showToast('Không thể tạo dự án. Dữ liệu chưa được lưu; vui lòng thử lại.');
     }
   };
 
@@ -557,16 +524,16 @@ export const ProjectCatalogPage: React.FC = () => {
               <div
                 key={project.id}
                 className={`rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm overflow-hidden flex flex-col md:flex-row transition-all hover:shadow-md ${
-                  project.status === 'PENDING_APPROVAL' ? 'border-l-4 border-l-amber-500' : ''
+                  project.status === 'PENDING_APPROVAL' ? 'ring-2 ring-amber-500/30' : ''
                 }`}
               >
                 {/* Image Section */}
                 <div className="md:w-72 h-48 md:h-auto relative shrink-0 overflow-hidden bg-surface-dim">
-                  <img
+                  {project.imageUrl ? <img
                     src={project.imageUrl}
                     alt={project.name}
                     className="w-full h-full object-cover"
-                  />
+                  /> : <div className="grid h-full place-items-center text-slate-500"><Building2 className="h-10 w-10"/><span className="sr-only">Dự án chưa có ảnh</span></div>}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
                   {/* Status Badges */}
                   <div className="absolute top-3 left-3 right-3 flex items-center justify-between">

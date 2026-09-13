@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: bds-frontend, namespace: bds }
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: bds-frontend } }
+  template:
+    metadata: { labels: { app: bds-frontend } }
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: { matchLabels: { app: bds-frontend } }
+      containers:
+        - name: frontend
+          image: bds-enterprise-stack-frontend:latest
+          imagePullPolicy: Never
+          ports: [{ name: http, containerPort: 3000 }]
+          readinessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 2, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, initialDelaySeconds: 10, periodSeconds: 10 }
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 250m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: bds-frontend, namespace: bds }
+spec:
+  selector: { app: bds-frontend }
+  ports: [{ name: http, port: 3000, targetPort: http }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: backend, namespace: bds }
+spec:
+  # DNS placeholder lets the frontend start before the backend deployment is migrated.
+  ports: [{ name: http, port: 8080, targetPort: 8080 }]
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: { name: bds-local-tls, namespace: bds }
+spec:
+  secretName: bds-local-tls
+  dnsNames: [nhadatchuan.online, www.nhadatchuan.online]
+  issuerRef: { name: bds-local-ca, kind: ClusterIssuer }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bds-edge
+  namespace: bds
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/proxy-body-size: 12m
+spec:
+  ingressClassName: nginx
+  tls: [{ hosts: [nhadatchuan.online, www.nhadatchuan.online], secretName: bds-local-tls }]
+  rules:
+    - host: nhadatchuan.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: bds-frontend, port: { number: 3000 } } }
+    - host: www.nhadatchuan.online
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: bds-frontend, port: { number: 3000 } } }

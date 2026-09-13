@@ -13,12 +13,12 @@ public interface ArticlePersistencePort {
     Article saveArticle(Article article);
     Optional<Article> findArticleById(UUID id);
     Optional<Article> findArticleBySlug(String slug);
-    List<Article> findAllArticles();
-    List<Article> findArticlesByCategory(ArticleCategory category);
-    List<Article> findArticlesByStatus(ArticleStatus status);
+    List<Article> findArticlePage(int page, int size);
+    List<Article> findArticlesByCategory(ArticleCategory category, int page, int size);
+    List<Article> findArticlesByStatus(ArticleStatus status, int page, int size);
 
     ArticleRevision saveRevision(ArticleRevision revision);
     Optional<ArticleRevision> findRevisionById(UUID revisionId);
-    List<ArticleRevision> findRevisionsByArticleId(UUID articleId);
-    List<ArticleRevision> findRevisionsByStatus(ArticleStatus status);
+    List<ArticleRevision> findRevisionsByArticleId(UUID articleId, int page, int size);
+    List<ArticleRevision> findRevisionsByStatus(ArticleStatus status, int page, int size);
 }

@@ -9,8 +9,10 @@ import java.util.UUID;
 public interface LeadPersistencePort {
     Lead save(Lead lead);
     Optional<Lead> findById(UUID id);
-    List<Lead> findByListingId(UUID listingId);
-    List<Lead> findByListingIds(List<UUID> listingIds);
-    List<Lead> findAll();
+    List<Lead> findByListingId(UUID listingId, int page, int size);
+    List<Lead> findByListingIds(List<UUID> listingIds, int page, int size);
+    List<Lead> findPage(int page, int size);
     long countByPhoneLookupHash(String phoneLookupHash);
+    long countAll();
+    long countByStatuses(List<com.company.bds.lead.domain.model.LeadStatus> statuses);
 }

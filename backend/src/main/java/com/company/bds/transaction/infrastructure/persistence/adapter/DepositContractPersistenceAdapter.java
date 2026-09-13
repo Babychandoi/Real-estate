@@ -7,6 +7,7 @@ import com.company.bds.transaction.infrastructure.persistence.entity.EscrowTrans
 import com.company.bds.transaction.infrastructure.persistence.port.DepositContractPersistencePort;
 import com.company.bds.transaction.infrastructure.persistence.repository.DepositContractJpaRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +37,8 @@ public class DepositContractPersistenceAdapter implements DepositContractPersist
     }
 
     @Override
-    public List<DepositContract> findByListingId(UUID listingId) {
-        return repository.findByListingIdOrderByCreatedAtDesc(listingId)
+    public List<DepositContract> findByListingId(UUID listingId, int page, int size) {
+        return repository.findByListingIdOrderByCreatedAtDesc(listingId, PageRequest.of(page, size))
                 .stream().map(this::toDomain).collect(Collectors.toList());
     }
 
