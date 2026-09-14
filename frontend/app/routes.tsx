@@ -21,6 +21,8 @@ const MyLeadsPage = lazy(() => import('./routes/_account.leads').then(m => ({ de
 const KycPage = lazy(() => import('./routes/_account.kyc').then(m => ({ default: m.KycPage })));
 const AccountProfilePage = lazy(() => import('./routes/_account.profile').then(m => ({ default: m.AccountProfilePage })));
 const VerifyEmailPage = lazy(() => import('./routes/_public.verify-email').then(m => ({ default: m.VerifyEmailPage })));
+const ForgotPasswordPage = lazy(() => import('./routes/_public.forgot-password').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('./routes/_public.reset-password').then(m => ({ default: m.ResetPasswordPage })));
 const InformationPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.InformationPage })));
 const NotFoundPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.NotFoundPage })));
 
@@ -47,6 +49,8 @@ export const router = createBrowserRouter([{ path: '/', element: <RootLayout />,
   { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
   { path: 'account', element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ['ADMIN','MODERATOR','BROKER','USER']) },
   { path: 'verify-email', element: load(<VerifyEmailPage />) },
+  { path: 'forgot-password', element: load(<ForgotPasswordPage />) },
+  { path: 'reset-password', element: load(<ResetPasswordPage />) },
   { path: 'about', element: load(<InformationPage />) },
   { path: 'terms', element: load(<InformationPage />) },
   { path: 'privacy', element: load(<InformationPage />) },

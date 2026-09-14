@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import {
   X,
@@ -235,6 +236,10 @@ export const LoginModal: React.FC = () => {
                   {showLoginPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            <div className="-mt-2 flex justify-end">
+              <Link to="/forgot-password" onClick={handleClose} className="text-xs font-semibold text-primary hover:underline">Quên mật khẩu?</Link>
             </div>
 
             <div>

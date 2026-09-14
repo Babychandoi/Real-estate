@@ -121,6 +121,45 @@ public class AuthService {
         if (!users.isEmpty()) sendNewVerificationToken(users.get(0), normalizeEmail(email));
     }
 
+    @Transactional
+    public void requestPasswordReset(String email) {
+        List<UUID> users = jdbc.query("""
+                SELECT id FROM users WHERE LOWER(email)=? AND status='ACTIVE' AND password_hash IS NOT NULL
+                """, (rs, row) -> rs.getObject(1, UUID.class), normalizeEmail(email));
+        if (users.isEmpty()) return;
+        UUID userId = users.get(0);
+        jdbc.update("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
+        byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        jdbc.update("INSERT INTO password_reset_tokens(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
+                UUID.randomUUID(), userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofMinutes(30))));
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() {
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setFrom(mailFrom); message.setTo(normalizeEmail(email));
+                message.setSubject("Đặt lại mật khẩu Nhà Đất Chuẩn");
+                message.setText("Chào bạn,\n\nNhấn vào liên kết sau để đặt lại mật khẩu: " + publicBaseUrl
+                        + "/reset-password?token=" + token + "\n\nLiên kết có hiệu lực trong 30 phút và chỉ dùng một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này.");
+                mailSender.send(message);
+            }
+        });
+    }
+
+    @Transactional
+    public void resetPassword(String rawToken, String password) {
+        List<UUID> users = jdbc.query("""
+                SELECT user_id FROM password_reset_tokens
+                WHERE token_hash=? AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP
+                FOR UPDATE
+                """, (rs, row) -> rs.getObject(1, UUID.class), sha256(rawToken));
+        if (users.isEmpty()) throw new IllegalArgumentException("Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
+        UUID userId = users.get(0);
+        jdbc.update("UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='ACTIVE'",
+                passwordEncoder.encode(password), userId);
+        jdbc.update("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
+        jdbc.update("UPDATE auth_sessions SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND revoked_at IS NULL", userId);
+    }
+
     private void sendNewVerificationToken(UUID userId, String email) {
         jdbc.update("UPDATE email_verification_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);

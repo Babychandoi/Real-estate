@@ -38,6 +38,18 @@ public class AuthController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request.email());
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.password());
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/login")
     public AuthService.AuthResult login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request.email(), request.password(), request.mfaCode());
@@ -71,6 +83,9 @@ public class AuthController {
                                   @NotBlank @Size(min=2, max=150) String name,
                                   @Pattern(regexp="USER|BROKER") String accountType) {}
     public record ResendVerificationRequest(@NotBlank @Email String email) {}
+    public record ForgotPasswordRequest(@NotBlank @Email String email) {}
+    public record ResetPasswordRequest(@NotBlank @Size(min=32, max=128) String token,
+                                       @NotBlank @Size(min=10, max=72) String password) {}
     public record UpdateProfileRequest(@NotBlank @Size(min=2, max=150) String name,
                                        @NotBlank @Pattern(regexp="^(0|\\+84)[35789][0-9]{8}$") String phone,
                                        @Size(max=1000) String avatarMediaUrl) {}
