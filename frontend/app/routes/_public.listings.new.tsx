@@ -653,7 +653,7 @@ export const CreateListingPage: React.FC = () => {
                     placeholder="Mô tả các ưu điểm về thiết kế, nội thất bàn giao, tầng cao, view, tiện ích..."
                     className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                   />
-                  <span className="text-[11px] text-slate-400">Đã nhập {description.length} ký tự (Khuyến nghị $\ge 80$ ký tự để đạt điểm chất lượng tối đa)</span>
+                  <span className="text-[11px] text-slate-400">Đã nhập {description.length} ký tự (khuyến nghị từ 80 ký tự để nội dung đầy đủ)</span>
                 </div>
 
                 <div className="mt-6 flex justify-between">
@@ -828,7 +828,7 @@ export const CreateListingPage: React.FC = () => {
               </h4>
               <div className="space-y-2.5 text-xs">
                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Tiêu đề chuẩn SEO ($\ge 15$ ký tự)</span>
+                  <span className="text-slate-700">Tiêu đề từ 15 ký tự</span>
                   {title.length >= 15 ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   ) : (
@@ -837,7 +837,7 @@ export const CreateListingPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Mô tả đầy đủ ($\ge 80$ ký tự)</span>
+                  <span className="text-slate-700">Mô tả từ 80 ký tự</span>
                   {description.length >= 80 ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   ) : (
@@ -846,7 +846,7 @@ export const CreateListingPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Hình ảnh thực tế ($\ge 5$ ảnh)</span>
+                  <span className="text-slate-700">Ít nhất 5 ảnh thực tế</span>
                   {imageUrls.length >= 5 ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   ) : (
