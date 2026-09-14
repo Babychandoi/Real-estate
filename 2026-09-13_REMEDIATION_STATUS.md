@@ -36,6 +36,7 @@
 - Sau remediation hardcode: Docker backend/frontend build thành công; backend 21/21 test pass; toàn bộ container gồm Cloudflare tunnel healthy; `/`, `/search`, `/about` và `/api/v1/listings/search` trên domain trả HTTP 200.
 - Sau Flyway V017: migration thành công, sáu tin thuộc tài khoản broker `phong`; POST lead công khai vào tin khởi tạo trả HTTP 201 và tạo lead trạng thái `NEW` trong PostgreSQL.
 - Sau Flyway V018: migration thành công; POST lead không có token qua domain trả HTTP 401; bộ test khóa thêm trường hợp tài khoản chưa eKYC bị từ chối và response thành công có mã `YC-XXXXXXXX`.
+- SEO kỹ thuật: liên kết tin dùng slug tiêu đề kèm UUID ổn định; URL UUID cũ được chuẩn hóa về canonical; trang chi tiết cập nhật title, description, Open Graph, Twitter Card và JSON-LD từ dữ liệu API; `robots.txt` và sitemap động chỉ xuất các tin `ACTIVE` từ PostgreSQL đã được kiểm tra HTTP 200 trên domain.
 
 ## Chưa thể tuyên bố hoàn tất từ một máy
 

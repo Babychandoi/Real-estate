@@ -9,9 +9,11 @@ import { type ListingDetail, formatPriceVnd, calculateUnitPrice, formatPropertyT
 import { LeadConsultationModal } from '@/features/lead/ui/LeadConsultationModal';
 import { useAuth } from '@/shared/auth/AuthContext';
 import type { UserKycProfile } from '@/entities/verification/model/types';
+import { listingIdFromRoute, listingPath } from '@/entities/listing/model/seo';
 
 export const ListingDetailPage: React.FC = () => {
-  const { listingId } = useParams<{ listingId: string }>();
+  const { listingId: listingRoute } = useParams<{ listingId: string }>();
+  const listingId = listingIdFromRoute(listingRoute);
   const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
   const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE'>('NONE');
   const [listing, setListing] = useState<ListingDetail | null>(null);
@@ -59,6 +61,46 @@ export const ListingDetailPage: React.FC = () => {
       loadListing();
     }
   }, [listingId]);
+
+  useEffect(() => {
+    if (!listing) return;
+    const canonicalPath = listingPath(listing);
+    const canonicalUrl = `${window.location.origin}${canonicalPath}`;
+    if (window.location.pathname !== canonicalPath) window.history.replaceState(null, '', canonicalPath);
+
+    document.title = `${listing.title} | Nhà Đất Chuẩn`;
+    const description = `${formatPropertyType(listing.propertyType)} ${listing.purpose === 'SALE' ? 'cần bán' : 'cho thuê'} tại ${listing.addressSummary}, diện tích ${listing.areaM2} m², giá ${formatPriceVnd(listing.priceVnd)}.`;
+    const upsertMeta = (selector: string, attributes: Record<string, string>) => {
+      let element = document.head.querySelector<HTMLMetaElement>(selector);
+      if (!element) { element = document.createElement('meta'); document.head.appendChild(element); }
+      Object.entries(attributes).forEach(([key, value]) => element!.setAttribute(key, value));
+    };
+    upsertMeta('meta[name="description"]', { name: 'description', content: description });
+    upsertMeta('meta[property="og:title"]', { property: 'og:title', content: listing.title });
+    upsertMeta('meta[property="og:description"]', { property: 'og:description', content: description });
+    upsertMeta('meta[property="og:type"]', { property: 'og:type', content: 'product' });
+    upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonicalUrl });
+    if (listing.imageUrls[0]) upsertMeta('meta[property="og:image"]', { property: 'og:image', content: listing.imageUrls[0] });
+    upsertMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary_large_image' });
+
+    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+    if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
+    canonical.href = canonicalUrl;
+
+    document.getElementById('listing-structured-data')?.remove();
+    const schema = document.createElement('script');
+    schema.id = 'listing-structured-data';
+    schema.type = 'application/ld+json';
+    schema.text = JSON.stringify({
+      '@context': 'https://schema.org', '@type': 'Product', name: listing.title, category: 'Bất động sản',
+      description: listing.description, url: canonicalUrl, image: listing.imageUrls,
+      datePosted: listing.createdAt,
+      address: { '@type': 'PostalAddress', streetAddress: listing.addressSummary, addressCountry: 'VN' },
+      offers: { '@type': 'Offer', price: listing.priceVnd, priceCurrency: 'VND', availability: 'https://schema.org/InStock' },
+    });
+    document.head.appendChild(schema);
+    return () => { document.getElementById('listing-structured-data')?.remove(); };
+  }, [listing]);
 
   if (isLoading) {
     return (

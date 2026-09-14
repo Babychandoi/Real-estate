@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /my-listings
+Disallow: /my-leads
+Disallow: /kyc
+Disallow: /billing
+Sitemap: https://nhadatchuan.online/sitemap.xml

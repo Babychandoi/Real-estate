@@ -4,6 +4,7 @@ import { Card } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
 import { Building2, MapPin, ShieldCheck, Maximize2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { listingPath } from '../model/seo';
 
 interface ListingCardProps {
   listing: Listing;
@@ -51,7 +52,7 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
             </span>
           </div>
 
-          <Link to={`/listings/${listing.id}`}>
+          <Link to={listingPath(listing)}>
             <h3 className="text-base font-semibold text-on-surface mt-1 line-clamp-2 hover:text-primary transition-colors">
               {listing.title}
             </h3>

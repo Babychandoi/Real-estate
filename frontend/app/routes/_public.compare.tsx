@@ -9,6 +9,7 @@ import {
   type Listing,
 } from '@/entities/listing/model/types';
 import { Button } from '@/shared/ui/Button';
+import { listingPath } from '@/entities/listing/model/seo';
 
 function fieldDiffers(items: Listing[], value: (item: Listing) => unknown) {
   if (items.length < 2) return false;
@@ -139,7 +140,7 @@ export const PropertyComparePage: React.FC = () => {
                     {item.isVerified && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-800"><ShieldCheck className="h-3.5 w-3.5" /> Đã xác thực người đăng</span>}
                   </div>
                   <p className="text-xl font-black text-emerald-800">{formatPriceVnd(item.priceVnd)}</p>
-                  <Link to={`/listings/${item.id}`} className="mt-1 line-clamp-2 block text-sm font-bold text-slate-900 hover:text-emerald-700">{item.title}</Link>
+                  <Link to={listingPath(item)} className="mt-1 line-clamp-2 block text-sm font-bold text-slate-900 hover:text-emerald-700">{item.title}</Link>
                   <p className="mt-2 flex items-start gap-1 text-xs text-slate-500"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {item.addressSummary}</p>
                 </article>
               ))}

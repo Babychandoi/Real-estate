@@ -4,6 +4,7 @@ import { listingApi } from '../entities/listing/api/listingApi';
 import type { Listing, ListingSearchParams } from '../entities/listing/model/types';
 import { formatPriceVnd, calculateUnitPrice, formatPropertyType } from '../entities/listing/model/types';
 import { ListingMap, type MapBounds } from '@/shared/map/ListingMap';
+import { listingPath } from '@/entities/listing/model/seo';
 
 export function SearchAndMapPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -381,7 +382,7 @@ export function SearchAndMapPage() {
                       <span className="text-[11px] font-semibold text-on-surface-variant">Thông tin đã qua kiểm duyệt</span>
 
                       <Link
-                        to={`/listings/${item.id}`}
+                        to={listingPath(item)}
                         onClick={(event) => event.stopPropagation()}
                         className="relative z-20 min-h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition inline-flex items-center gap-1"
                       >
