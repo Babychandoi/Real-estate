@@ -33,7 +33,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
               Đã xác thực
             </Badge>
           )}
-          {listing.isShowcase && <Badge variant="neutral">Tin mẫu</Badge>}
           <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-container-lowest/90 text-primary backdrop-blur-sm shadow-sm">
             {listing.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
           </span>

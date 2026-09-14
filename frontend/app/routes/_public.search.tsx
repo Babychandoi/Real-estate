@@ -334,7 +334,6 @@ export function SearchAndMapPage() {
                           Trạng thái kiểm duyệt nội bộ
                         </span>
                       )}
-                      {item.isShowcase && <span className="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-900">Tin mẫu</span>}
                     </div>
                   </div>
 

@@ -47,7 +47,6 @@ public class ListingController {
     private final ListingPersistencePort persistencePort;
     private final MediaUrlPolicy mediaUrlPolicy;
     private final ObjectProvider<MediaStorageService> mediaStorageProvider;
-    private final com.company.bds.shared.config.ShowcasePolicy showcasePolicy;
 
     public ListingController(
             CreateListingDraftUseCase createDraftUseCase,
@@ -56,8 +55,7 @@ public class ListingController {
             GetListingDetailUseCase getListingDetailUseCase,
             ListingPersistencePort persistencePort,
             MediaUrlPolicy mediaUrlPolicy,
-            ObjectProvider<MediaStorageService> mediaStorageProvider,
-            com.company.bds.shared.config.ShowcasePolicy showcasePolicy) {
+            ObjectProvider<MediaStorageService> mediaStorageProvider) {
         this.createDraftUseCase = createDraftUseCase;
         this.updateDraftUseCase = updateDraftUseCase;
         this.submitRevisionUseCase = submitRevisionUseCase;
@@ -65,7 +63,6 @@ public class ListingController {
         this.persistencePort = persistencePort;
         this.mediaUrlPolicy = mediaUrlPolicy;
         this.mediaStorageProvider = mediaStorageProvider;
-        this.showcasePolicy = showcasePolicy;
     }
 
     @PostMapping
@@ -218,7 +215,7 @@ public class ListingController {
                                 rev.getPublicLatitude(),
                                 rev.getPublicLongitude(),
                                 listing.isVerifiedOwner(),
-                                showcasePolicy.isShowcaseOwner(listing.getOwnerId()),
+                                false,
                                 imgUrl,
                                 listing.getCreatedAt()
                         );
@@ -258,7 +255,7 @@ public class ListingController {
                 rev.getPublicLatitude(),
                 rev.getPublicLongitude(),
                 listing.isVerifiedOwner(),
-                showcasePolicy.isShowcaseOwner(listing.getOwnerId()),
+                false,
                 images,
                 listing.getCreatedAt(),
                 listing.getUpdatedAt()

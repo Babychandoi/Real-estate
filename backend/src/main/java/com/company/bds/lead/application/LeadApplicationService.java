@@ -26,21 +26,18 @@ public class LeadApplicationService {
     private final PiiProtectionService piiProtection;
     private final JdbcTemplate jdbc;
     private final ObjectProvider<OutboxEventWriter> outbox;
-    private final com.company.bds.shared.config.ShowcasePolicy showcasePolicy;
 
     public LeadApplicationService(
             LeadPersistencePort leadPersistencePort,
             ListingPersistencePort listingPersistencePort,
             PiiProtectionService piiProtection,
             JdbcTemplate jdbc,
-            ObjectProvider<OutboxEventWriter> outbox,
-            com.company.bds.shared.config.ShowcasePolicy showcasePolicy) {
+            ObjectProvider<OutboxEventWriter> outbox) {
         this.leadPersistencePort = leadPersistencePort;
         this.listingPersistencePort = listingPersistencePort;
         this.piiProtection = piiProtection;
         this.jdbc = jdbc;
         this.outbox = outbox;
-        this.showcasePolicy = showcasePolicy;
     }
 
     /**
@@ -61,10 +58,6 @@ public class LeadApplicationService {
         if (listing.getStatus() != ListingStatus.ACTIVE || listing.getPublicRevisionId() == null) {
             throw new IllegalStateException("Tin đăng không còn nhận yêu cầu liên hệ.");
         }
-        if (showcasePolicy.isShowcaseOwner(listing.getOwnerId())) {
-            throw new IllegalStateException("Đây là tin mẫu trải nghiệm, không tiếp nhận thông tin liên hệ thật.");
-        }
-
         Lead replay = findIdempotentReplay(listingId, fullName, rawPhone, note, consentPolicy, idempotencyKey);
         if (replay != null) return replay;
 

@@ -22,6 +22,7 @@
 - Duyệt tin/CMS bắt buộc ghi lý do hoặc ghi chú; bỏ các nhãn pháp lý, SLA, chuẩn hóa, kích thước ảnh và thao tác toast-only không có bằng chứng backend. Quản lý dự án được thay bằng luồng list/search/create API thật.
 - Bàn lead/báo xấu đã nối đủ thao tác tạm ẩn, giải quyết và bác bỏ với ghi chú bắt buộc; lỗi API được hiển thị và không giả cập nhật thành công.
 - Bỏ nút sửa tin dẫn sai sang tạo tin mới cho tới khi có contract revision riêng tư; bỏ toggle eKYC vô hiệu hóa và cam kết SLA 8 giờ khỏi form đăng tin, dẫn người dùng sang hồ sơ eKYC thật.
+- Bộ sáu tin khởi tạo không còn bị xử lý như showcase/demo: đã bỏ nhãn và cảnh báo ở UI, bỏ chặn nhận lead ở backend, làm sạch nội dung trải nghiệm và gán tin cho tài khoản broker vận hành để kiểm thử đầy đủ luồng nhận/reveal/chăm sóc lead.
 
 ## Bằng chứng đã chạy
 
@@ -31,6 +32,7 @@
 - PostgreSQL production đã áp dụng Flyway V015 và V016 thành công.
 - Live smoke `nhadatchuan.online`: search trả 6 tin; `PRICE_ASC` đúng thứ tự; cả 6 tin mẫu có nhãn showcase; gửi lead vào showcase trả 409; 8 media object còn nguyên.
 - Sau remediation hardcode: Docker backend/frontend build thành công; backend 21/21 test pass; toàn bộ container gồm Cloudflare tunnel healthy; `/`, `/search`, `/about` và `/api/v1/listings/search` trên domain trả HTTP 200.
+- Sau Flyway V017: migration thành công, sáu tin thuộc tài khoản broker `phong`; POST lead công khai vào tin khởi tạo trả HTTP 201 và tạo lead trạng thái `NEW` trong PostgreSQL.
 
 ## Chưa thể tuyên bố hoàn tất từ một máy
 
