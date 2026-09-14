@@ -20,6 +20,8 @@
 - Chi tiết tin dùng `imageUrls` thật từ API/MinIO, quay lại `/search` và gửi báo cáo vi phạm qua API thật. Các trang giới thiệu, điều khoản, quyền riêng tư, liên hệ và 404 đã có route riêng.
 - Form đăng tin không còn dữ liệu mẫu, không công bố định giá/điểm AI-GIS giả, lưu đủ các trường backend hỗ trợ và lưu revision mới nhất trước khi submit. Hai API giả lập còn giữ contract nhưng trả RFC Problem Details HTTP 501.
 - Duyệt tin/CMS bắt buộc ghi lý do hoặc ghi chú; bỏ các nhãn pháp lý, SLA, chuẩn hóa, kích thước ảnh và thao tác toast-only không có bằng chứng backend. Quản lý dự án được thay bằng luồng list/search/create API thật.
+- Bàn lead/báo xấu đã nối đủ thao tác tạm ẩn, giải quyết và bác bỏ với ghi chú bắt buộc; lỗi API được hiển thị và không giả cập nhật thành công.
+- Bỏ nút sửa tin dẫn sai sang tạo tin mới cho tới khi có contract revision riêng tư; bỏ toggle eKYC vô hiệu hóa và cam kết SLA 8 giờ khỏi form đăng tin, dẫn người dùng sang hồ sơ eKYC thật.
 
 ## Bằng chứng đã chạy
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Clock, Eye, Edit3, Send, Building2 } from 'lucide-react';
+import { PlusCircle, Clock, Eye, Send, Building2 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
@@ -190,13 +190,7 @@ export const MyListingsPage: React.FC = () => {
                   </Button>
                 )}
 
-                {item.status === 'ACTIVE' && (
-                  <Link to={`/listings/new`}>
-                    <Button variant="outline" size="sm" leftIcon={<Edit3 className="w-4 h-4" />}>
-                      Sửa tin (Tạo v{item.revisionNumber + 1})
-                    </Button>
-                  </Link>
-                )}
+                {item.status === 'ACTIVE' && <span className="text-xs text-on-surface-variant">Tin đang hiển thị · chức năng sửa revision chưa được mở</span>}
               </div>
             </Card>
           ))}

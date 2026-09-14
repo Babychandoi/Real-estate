@@ -35,10 +35,6 @@ export const CreateListingPage: React.FC = () => {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [isUploadingImages, setIsUploadingImages] = useState(false);
   const [deletingImage, setDeletingImage] = useState<string | null>(null);
-  const requestVerification = false;
-  const idNumber = '';
-  const certificateNumber = '';
-  const plotNumber = '';
 
   // AI & Quality State
   const [qualityScore, setQualityScore] = useState<number>(0);
@@ -58,9 +54,8 @@ export const CreateListingPage: React.FC = () => {
     if (imageUrls.length >= 5) score += 25;
     else if (imageUrls.length >= 3) score += 15;
     if (latitude && longitude) score += 15;
-    if (requestVerification && certificateNumber) score += 20;
     setQualityScore(Math.min(score, 100));
-  }, [title, description, imageUrls, latitude, longitude, requestVerification, certificateNumber]);
+  }, [title, description, imageUrls, latitude, longitude]);
 
   // Tự động lưu nháp
   const handleSaveDraft = async () => {
@@ -695,79 +690,8 @@ export const CreateListingPage: React.FC = () => {
                   </p>
                 </div>
 
-                {/* TÍCH HỢP ĐĂNG KÝ THẨM ĐỊNH SỔ ĐỎ eKYC (FR22, NFR12) */}
-                <div className="p-5 rounded-2xl bg-emerald-50/60 border-2 border-emerald-500/40 mb-6">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <ShieldCheck className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-emerald-950">
-                          Xác minh danh tính thủ công
-                        </h4>
-                        <p className="text-xs text-emerald-800 mt-0.5">
-                          Ảnh CCCD và ảnh chân dung được gửi riêng cho quản trị viên xét duyệt, không hiển thị công khai trên tin đăng.
-                        </p>
-                      </div>
-                    </div>
-
-                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
-                      <input
-                        type="checkbox"
-                        checked={requestVerification}
-                        disabled
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                    </label>
-                  </div>
-
-                  {requestVerification && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3 border-t border-emerald-200/80">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Số CCCD Định danh (eKYC) *
-                        </label>
-                        <input
-                          type="text"
-                          value={idNumber}
-                          readOnly
-                          placeholder="001096004567"
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono bg-white font-bold"
-                        />
-                        <span className="text-[10px] text-slate-500">Mã hóa an toàn PII NFR12</span>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Số hiệu Sổ đỏ / Giấy chứng nhận *
-                        </label>
-                        <input
-                          type="text"
-                          value={certificateNumber}
-                          readOnly
-                          placeholder="CT-2026-9988-HN"
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-mono bg-white font-bold"
-                        />
-                        <span className="text-[10px] text-slate-500">Đối soát phòng đăng ký đất đai</span>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Số thửa đất / Tờ bản đồ *
-                        </label>
-                        <input
-                          type="text"
-                          value={plotNumber}
-                          readOnly
-                          placeholder="Thửa số 18, Tờ số 42"
-                          className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs bg-white font-medium"
-                        />
-                        <span className="text-[10px] text-slate-500">Khớp dữ liệu GIS PostGIS</span>
-                      </div>
-                    </div>
-                  )}
+                <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                  <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700"/><div><h4 className="font-bold text-emerald-950">Xác minh danh tính được thực hiện riêng</h4><p className="mt-1 text-sm text-emerald-900">Sau khi lưu tin, vào mục eKYC để gửi mặt trước, mặt sau CCCD và ảnh chân dung cho quản trị viên duyệt thủ công. Tin này không tự nhận nhãn xác minh.</p><Link to="/kyc" className="mt-3 inline-flex min-h-11 items-center font-bold text-emerald-800 underline underline-offset-4">Mở hồ sơ eKYC</Link></div></div>
                 </div>
 
                 <div className="mt-6 flex justify-between">
@@ -809,11 +733,6 @@ export const CreateListingPage: React.FC = () => {
                         <span className="bg-slate-900/80 text-white text-[11px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
                           {purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
                         </span>
-                        {requestVerification && (
-                          <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                            Sổ hồng chính chủ • eKYC
-                          </span>
-                        )}
                       </div>
                       {imageUrls.length > 0 && (
                         <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
@@ -907,13 +826,7 @@ export const CreateListingPage: React.FC = () => {
 
                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
                   <span className="text-slate-700">Xác minh giấy tờ</span>
-                  {requestVerification ? (
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                      Đã đính kèm
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-400">Chưa nộp</span>
-                  )}
+                  <span className="text-[10px] text-slate-500">Kiểm tra tại hồ sơ eKYC riêng</span>
                 </div>
               </div>
             </Card>
@@ -927,7 +840,7 @@ export const CreateListingPage: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Mỗi tin đăng sau khi gửi sẽ được kiểm định viên rà soát trong 8 giờ. Nếu cần chỉnh sửa nội dung, thông báo sẽ gửi trực tiếp về Hộp thư cá nhân.
+                Mỗi tin đăng sau khi gửi sẽ vào hàng đợi kiểm duyệt. Nếu cần bổ sung nội dung, trạng thái tin sẽ được cập nhật trong Kho tin của tôi.
               </p>
             </div>
           </div>
