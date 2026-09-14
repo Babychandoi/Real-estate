@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -24,6 +24,11 @@ export const ListingDetailPage: React.FC = () => {
   const [reportDescription, setReportDescription] = useState('');
   const [reportFeedback, setReportFeedback] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+
+  // Không giữ vị trí cuộn của trang danh sách khi người dùng mở một tin mới.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [listingRoute]);
 
   useEffect(() => {
     if (!user) { setKycStatus('NONE'); return; }
