@@ -3,7 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Building2, Key, Home, Castle, MapPin,
   CheckCircle2, ArrowRight, ArrowLeft, Save, Send, Sparkles, AlertCircle,
-  ShieldCheck, Image as ImageIcon, Eye, TrendingUp, HelpCircle, Upload, X
+  ShieldCheck, Image as ImageIcon, Eye, TrendingUp, HelpCircle, Upload, X, ChevronDown
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
@@ -482,8 +482,18 @@ export const CreateListingPage: React.FC = () => {
                     <label className="text-sm font-medium text-slate-700">Số tầng<input type="number" min="0" value={floors ?? ''} onChange={(e) => setFloors(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
                     <label className="text-sm font-medium text-slate-700">Mặt tiền (m)<input type="number" min="0" step="0.1" value={frontageM ?? ''} onChange={(e) => setFrontageM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
                     <label className="text-sm font-medium text-slate-700">Đường vào (m)<input type="number" min="0" step="0.1" value={roadWidthM ?? ''} onChange={(e) => setRoadWidthM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Hướng nhà<select value={direction} onChange={(e) => setDirection(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"><option value="">Chưa cập nhật</option><option>Đông</option><option>Tây</option><option>Nam</option><option>Bắc</option><option>Đông Bắc</option><option>Đông Nam</option><option>Tây Bắc</option><option>Tây Nam</option></select></label>
-                    <label className="text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3">Pháp lý<select value={legalStatus} onChange={(e) => setLegalStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"><option value="">Chưa cập nhật</option><option>Sổ đỏ / Sổ hồng</option><option>Hợp đồng mua bán</option><option>Đang chờ hoàn thiện hồ sơ</option><option>Giấy tờ khác</option></select></label>
+                    <label className="text-sm font-medium text-slate-700">Hướng nhà
+                      <span className="relative mt-1 block">
+                        <select value={direction} onChange={(e) => setDirection(e.target.value)} className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"><option value="">Chưa cập nhật</option><option>Đông</option><option>Tây</option><option>Nam</option><option>Bắc</option><option>Đông Bắc</option><option>Đông Nam</option><option>Tây Bắc</option><option>Tây Nam</option></select>
+                        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={2} />
+                      </span>
+                    </label>
+                    <label className="text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3">Pháp lý
+                      <span className="relative mt-1 block">
+                        <select value={legalStatus} onChange={(e) => setLegalStatus(e.target.value)} className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"><option value="">Chưa cập nhật</option><option>Sổ đỏ / Sổ hồng</option><option>Hợp đồng mua bán</option><option>Đang chờ hoàn thiện hồ sơ</option><option>Giấy tờ khác</option></select>
+                        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={2} />
+                      </span>
+                    </label>
                   </div>
                 </fieldset>
 
