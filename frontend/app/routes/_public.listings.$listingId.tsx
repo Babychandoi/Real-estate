@@ -25,6 +25,14 @@ export const ListingDetailPage: React.FC = () => {
   const [reportDescription, setReportDescription] = useState('');
   const [reportFeedback, setReportFeedback] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+  const sellerInitials = seller?.displayName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part[0])
+    .join('')
+    .toLocaleUpperCase('vi-VN');
 
   // Không giữ vị trí cuộn của trang danh sách khi người dùng mở một tin mới.
   useLayoutEffect(() => {
@@ -246,7 +254,7 @@ export const ListingDetailPage: React.FC = () => {
           <section className="border-t border-outline-variant/40 pt-6">
             <h2 className="text-lg font-bold text-on-surface">Thông tin người đăng</h2>
             {seller ? <div className="mt-3 flex items-start gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-4">
-              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/10 font-bold text-primary"><UserRound className="h-5 w-5" /></div>
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/10 font-bold text-primary" aria-label={`Ảnh đại diện của ${seller.displayName}`}>{sellerInitials}</div>
               <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-on-surface">{seller.displayName}</h3>{seller.identityVerified && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-4 w-4" />Đã xác minh danh tính</span>}</div><p className="mt-1 text-sm text-on-surface-variant">Đang có {seller.activeListingCount} tin hiển thị · Tham gia từ {new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(new Date(seller.memberSince))}</p><p className="mt-2 text-xs text-on-surface-variant">Thông tin liên hệ chỉ mở cho tài khoản đã xác minh eKYC khi gửi yêu cầu liên hệ.</p></div>
             </div> : <p className="mt-3 text-sm text-on-surface-variant">Thông tin người đăng đang được cập nhật.</p>}
           </section>
@@ -256,8 +264,8 @@ export const ListingDetailPage: React.FC = () => {
         <div className="lg:col-span-1 sticky top-6">
           <Card className="p-5 border border-primary/20 shadow-lg shadow-primary/5">
             <div className="flex items-center gap-2 pb-4 border-b border-outline-variant/40">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                BDS
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary" aria-label={seller ? `Ảnh đại diện của ${seller.displayName}` : 'Đang tải ảnh đại diện người đăng'}>
+                {sellerInitials || <UserRound className="h-5 w-5" aria-hidden="true" />}
               </div>
               <div>
                 <h3 className="font-bold text-sm text-on-surface">Liên hệ người đăng</h3>
