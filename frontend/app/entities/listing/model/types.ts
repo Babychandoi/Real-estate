@@ -26,6 +26,13 @@ export interface ListingDetail extends Omit<Listing, 'primaryImageUrl' | 'publis
   updatedAt: string;
 }
 
+export interface PublicSellerProfile {
+  displayName: string;
+  identityVerified: boolean;
+  activeListingCount: number;
+  memberSince: string;
+}
+
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   APARTMENT: 'Căn hộ',
   HOUSE: 'Nhà riêng',

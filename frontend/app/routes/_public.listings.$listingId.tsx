@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag } from 'lucide-react';
+import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, UserRound } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Badge } from '@/shared/ui/Badge';
 import { Card } from '@/shared/ui/Card';
 import { apiClient } from '@/shared/api/client';
-import { type ListingDetail, formatPriceVnd, calculateUnitPrice, formatPropertyType } from '@/entities/listing/model/types';
+import { type ListingDetail, type PublicSellerProfile, formatPriceVnd, calculateUnitPrice, formatPropertyType } from '@/entities/listing/model/types';
 import { LeadConsultationModal } from '@/features/lead/ui/LeadConsultationModal';
 import { useAuth } from '@/shared/auth/AuthContext';
 import type { UserKycProfile } from '@/entities/verification/model/types';
@@ -17,6 +17,7 @@ export const ListingDetailPage: React.FC = () => {
   const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
   const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE'>('NONE');
   const [listing, setListing] = useState<ListingDetail | null>(null);
+  const [seller, setSeller] = useState<PublicSellerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -67,6 +68,11 @@ export const ListingDetailPage: React.FC = () => {
       loadListing();
     }
   }, [legacyListingId, listingRoute]);
+
+  useEffect(() => {
+    if (!listing?.ownerId) return;
+    apiClient<PublicSellerProfile>(`/public/profiles/${listing.ownerId}`).then(setSeller).catch(() => setSeller(null));
+  }, [listing?.ownerId]);
 
   useEffect(() => {
     if (!listing) return;
@@ -214,6 +220,14 @@ export const ListingDetailPage: React.FC = () => {
               {listing.description?.trim() || 'Người đăng chưa cung cấp mô tả chi tiết.'}
             </div>
           </div>
+
+          <section className="border-t border-outline-variant/40 pt-6">
+            <h2 className="text-lg font-bold text-on-surface">Thông tin người đăng</h2>
+            {seller ? <div className="mt-3 flex items-start gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-4">
+              <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary/10 font-bold text-primary"><UserRound className="h-5 w-5" /></div>
+              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-on-surface">{seller.displayName}</h3>{seller.identityVerified && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-4 w-4" />Đã xác minh danh tính</span>}</div><p className="mt-1 text-sm text-on-surface-variant">Đang có {seller.activeListingCount} tin hiển thị · Tham gia từ {new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(new Date(seller.memberSince))}</p><p className="mt-2 text-xs text-on-surface-variant">Thông tin liên hệ chỉ mở cho tài khoản đã xác minh eKYC khi gửi yêu cầu liên hệ.</p></div>
+            </div> : <p className="mt-3 text-sm text-on-surface-variant">Thông tin người đăng đang được cập nhật.</p>}
+          </section>
         </div>
 
         {/* Cột phải: Form gửi yêu cầu tư vấn Lead */}
