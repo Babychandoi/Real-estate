@@ -212,7 +212,7 @@ const RootLayoutContent: React.FC = () => {
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs font-semibold text-purple-900 group-hover:text-purple-700 whitespace-nowrap">
-                            Báo cáo Phễu chuyển đổi FR29
+                            Báo cáo phễu chuyển đổi
                           </span>
                           <span className="text-[10px] text-purple-700/80">
                             Analytics 5 tầng & Hiệu suất Môi giới

@@ -12,6 +12,8 @@ import com.company.bds.listing.domain.exception.ListingDomainException;
 import com.company.bds.listing.domain.model.Listing;
 import com.company.bds.listing.domain.model.ListingMedia;
 import com.company.bds.listing.domain.model.ListingRevision;
+import com.company.bds.verification.domain.model.KycStatus;
+import com.company.bds.verification.domain.port.UserKycPersistencePort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -41,18 +43,25 @@ public class ListingApplicationService implements
     private final Clock clock;
     private final JdbcTemplate jdbc;
     private final boolean quotaEnforced;
+    private final boolean verifiedKycRequired;
+    private final UserKycPersistencePort userKycPersistencePort;
 
     public ListingApplicationService(ListingPersistencePort persistencePort, Clock clock, JdbcTemplate jdbc,
-                                     @Value("${app.billing.quota-enforced:true}") boolean quotaEnforced) {
+                                     @Value("${app.billing.quota-enforced:true}") boolean quotaEnforced,
+                                     @Value("${app.listing.require-verified-kyc:true}") boolean verifiedKycRequired,
+                                     UserKycPersistencePort userKycPersistencePort) {
         this.persistencePort = persistencePort;
         this.clock = clock;
         this.jdbc = jdbc;
         this.quotaEnforced = quotaEnforced;
+        this.verifiedKycRequired = verifiedKycRequired;
+        this.userKycPersistencePort = userKycPersistencePort;
     }
 
     @Override
     @Transactional
     public UUID createDraft(CreateListingDraftCommand command) {
+        requireVerifiedKyc(command.ownerId());
         Instant now = Instant.now(clock);
 
         List<ListingMedia> mediaList = buildMediaList(command.imageUrls());
@@ -94,6 +103,7 @@ public class ListingApplicationService implements
     @Override
     @Transactional
     public UUID updateDraft(UpdateListingDraftCommand command) {
+        requireVerifiedKyc(command.requesterId());
         Instant now = Instant.now(clock);
 
         Listing listing = persistencePort.findById(command.listingId())
@@ -130,6 +140,7 @@ public class ListingApplicationService implements
     @Override
     @Transactional
     public void submitRevision(SubmitListingRevisionCommand command) {
+        requireVerifiedKyc(command.requesterId());
         Instant now = Instant.now(clock);
 
         Listing listing = persistencePort.findById(command.listingId())
@@ -173,6 +184,15 @@ public class ListingApplicationService implements
             }
         }
         return list;
+    }
+
+    private void requireVerifiedKyc(UUID userId) {
+        if (!verifiedKycRequired) return;
+        if (userId != null && userKycPersistencePort.findByUserId(userId)
+                .map(profile -> profile.getStatus() == KycStatus.VERIFIED)
+                .orElse(false)) return;
+        throw new ListingDomainException("KYC_REQUIRED",
+                "Bạn cần hoàn tất xác minh danh tính eKYC trước khi đăng tin.");
     }
 
 }

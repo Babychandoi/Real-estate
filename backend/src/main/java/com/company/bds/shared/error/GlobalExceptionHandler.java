@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.server.ResponseStatusException;
+import com.company.bds.listing.domain.exception.ListingDomainException;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -133,6 +134,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ProblemDetails> handleConflict(IllegalStateException ex, HttpServletRequest request) {
         return simple(ex, request, HttpStatus.CONFLICT, "CONFLICT", "Không thể thực hiện thao tác");
+    }
+
+    @ExceptionHandler(ListingDomainException.class)
+    public ResponseEntity<ProblemDetails> handleListingDomainException(
+            ListingDomainException ex, HttpServletRequest request) {
+        return simple(ex, request, HttpStatus.CONFLICT, ex.getErrorCode(), "Không thể thực hiện thao tác");
     }
 
     @ExceptionHandler(UnsupportedOperationException.class)

@@ -218,7 +218,7 @@ export function SearchAndMapPage() {
               Trên 5 tỷ
             </button>
 
-            {/* Filter Chính chủ eKYC (FR01/FR03) */}
+            {/* Filter Chính chủ eKYC */}
             <button
               onClick={() => setOnlyVerified(!onlyVerified)}
               className={`px-3 py-1.5 rounded-full border transition flex items-center gap-1.5 shrink-0 ${
@@ -236,7 +236,7 @@ export function SearchAndMapPage() {
               className="px-3 py-1.5 rounded-full border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 font-bold transition flex items-center gap-1.5 shrink-0 text-xs shadow-xs"
             >
               <span>⚖️</span>
-              So sánh Đối chiếu (FR17)
+              So sánh bất động sản
             </Link>
           </div>
 

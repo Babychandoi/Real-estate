@@ -11,6 +11,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -61,13 +63,13 @@ public class LeadPersistenceAdapter implements LeadPersistencePort {
     public LeadPage search(List<UUID> listingIds, LeadStatus status, String keyword, int page, int size) {
         if (listingIds == null || listingIds.isEmpty()) return LeadPage.empty(page, size);
         Page<LeadJpaEntity> result = leadJpaRepository.searchByListingIds(listingIds, status, keyword, PageRequest.of(page, size));
-        return new LeadPage(result.getContent().stream().map(this::toDomain).toList(), result.getTotalElements(), page, size);
+        return toLeadPage(result, page, size, leadJpaRepository.countByListingIdsGroupedByStatus(listingIds, keyword));
     }
 
     @Override
     public LeadPage searchAll(LeadStatus status, String keyword, int page, int size) {
         Page<LeadJpaEntity> result = leadJpaRepository.searchAll(status, keyword, PageRequest.of(page, size));
-        return new LeadPage(result.getContent().stream().map(this::toDomain).toList(), result.getTotalElements(), page, size);
+        return toLeadPage(result, page, size, leadJpaRepository.countAllGroupedByStatus(keyword));
     }
 
     @Override
@@ -80,6 +82,15 @@ public class LeadPersistenceAdapter implements LeadPersistencePort {
     @Override
     public long countByStatuses(List<com.company.bds.lead.domain.model.LeadStatus> statuses) {
         return statuses.isEmpty() ? 0 : leadJpaRepository.countByStatusIn(statuses);
+    }
+
+    private LeadPage toLeadPage(Page<LeadJpaEntity> result, int page, int size,
+            List<com.company.bds.lead.infrastructure.persistence.repository.LeadStatusTotal> totals) {
+        Map<LeadStatus, Long> statusCounts = new EnumMap<>(LeadStatus.class);
+        for (LeadStatus status : LeadStatus.values()) statusCounts.put(status, 0L);
+        totals.forEach(total -> statusCounts.put(total.getStatus(), total.getTotal()));
+        return new LeadPage(result.getContent().stream().map(this::toDomain).toList(),
+                result.getTotalElements(), page, size, statusCounts);
     }
 
     private LeadJpaEntity toEntity(Lead domain) {

@@ -43,6 +43,24 @@ public interface LeadJpaRepository extends JpaRepository<LeadJpaEntity, UUID> {
     Page<LeadJpaEntity> searchAll(@Param("status") LeadStatus status,
             @Param("keyword") String keyword, Pageable pageable);
 
+    @Query("""
+            SELECT l.status AS status, COUNT(l) AS total FROM LeadJpaEntity l
+            WHERE l.listingId IN :listingIds
+              AND (:keyword = '' OR LOWER(l.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                   OR LOWER(COALESCE(l.note, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            GROUP BY l.status
+            """)
+    List<LeadStatusTotal> countByListingIdsGroupedByStatus(@Param("listingIds") List<UUID> listingIds,
+            @Param("keyword") String keyword);
+
+    @Query("""
+            SELECT l.status AS status, COUNT(l) AS total FROM LeadJpaEntity l
+            WHERE (:keyword = '' OR LOWER(l.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                 OR LOWER(COALESCE(l.note, '')) LIKE LOWER(CONCAT('%', :keyword, '%')))
+            GROUP BY l.status
+            """)
+    List<LeadStatusTotal> countAllGroupedByStatus(@Param("keyword") String keyword);
+
     long countByPhoneLookupHashAndCreatedAtAfter(String phoneLookupHash, java.time.Instant since);
     long countByStatusIn(List<LeadStatus> statuses);
 }

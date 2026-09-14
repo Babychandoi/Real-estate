@@ -9,9 +9,12 @@ import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { apiClient } from '@/shared/api/client';
 import { formatPriceVnd, calculateUnitPrice } from '@/entities/listing/model/types';
+import { useAuth } from '@/shared/auth/AuthContext';
+import type { UserKycProfile } from '@/entities/verification/model/types';
 
 export const CreateListingPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Trạng thái Wizard 4 bước
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -45,6 +48,16 @@ export const CreateListingPage: React.FC = () => {
   const [autosaveTime, setAutosaveTime] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSuccessSubmitted, setIsSuccessSubmitted] = useState(false);
+  const [kycProfile, setKycProfile] = useState<UserKycProfile | null>(null);
+  const [isCheckingKyc, setIsCheckingKyc] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
+      .then(setKycProfile)
+      .catch(() => setKycProfile(null))
+      .finally(() => setIsCheckingKyc(false));
+  }, [user]);
 
   // Tính lại điểm chất lượng khi các trường thay đổi
   useEffect(() => {
@@ -224,6 +237,22 @@ export const CreateListingPage: React.FC = () => {
       setDeletingImage(null);
     }
   };
+
+  if (isCheckingKyc) {
+    return <main className="mx-auto max-w-5xl px-4 py-10" role="status">Đang kiểm tra điều kiện đăng tin…</main>;
+  }
+
+  if (kycProfile?.status !== 'VERIFIED') {
+    const pending = kycProfile?.status === 'PENDING';
+    return <main className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
+        <ShieldCheck className="h-9 w-9 text-slate-900" />
+        <h1 className="mt-4 text-2xl font-bold text-slate-950">Xác minh danh tính trước khi đăng tin</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Để bảo vệ người đăng và người liên hệ, chỉ tài khoản đã được duyệt eKYC mới có thể tạo hoặc gửi tin đăng.</p>
+        {pending ? <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">Hồ sơ eKYC của bạn đang chờ duyệt thủ công. Bạn sẽ có thể đăng tin ngay khi hồ sơ được xác nhận.</p> : <Link to="/kyc" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-bold text-white hover:bg-slate-800">Đi tới xác minh eKYC</Link>}
+      </section>
+    </main>;
+  }
 
   if (isSuccessSubmitted) {
     return (
@@ -522,7 +551,7 @@ export const CreateListingPage: React.FC = () => {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-emerald-600" />
-                      <span className="text-xs font-bold text-slate-800 uppercase">Tọa độ Bản đồ PostGIS (FR13)</span>
+                      <span className="text-xs font-bold text-slate-800 uppercase">Tọa độ hiển thị trên bản đồ</span>
                     </div>
                     <span className="text-xs text-amber-700">Chỉ nhập tọa độ bạn đồng ý công khai.</span>
                   </div>
@@ -624,7 +653,7 @@ export const CreateListingPage: React.FC = () => {
               </Card>
             )}
 
-            {/* BƯỚC 3: HÌNH ẢNH & TÍCH HỢP THẨM ĐỊNH SỔ ĐỎ eKYC */}
+            {/* BƯỚC 3: HÌNH ẢNH */}
             {step === 3 && (
               <Card className="p-6">
                 <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
@@ -688,10 +717,6 @@ export const CreateListingPage: React.FC = () => {
                   <p className="mt-2 text-xs text-slate-500" aria-live="polite">
                     Ảnh được lưu trong kho MinIO riêng của hệ thống. Không cần dán liên kết từ website khác.
                   </p>
-                </div>
-
-                <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                  <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-emerald-700"/><div><h4 className="font-bold text-emerald-950">Xác minh danh tính được thực hiện riêng</h4><p className="mt-1 text-sm text-emerald-900">Sau khi lưu tin, vào mục eKYC để gửi mặt trước, mặt sau CCCD và ảnh chân dung cho quản trị viên duyệt thủ công. Tin này không tự nhận nhãn xác minh.</p><Link to="/kyc" className="mt-3 inline-flex min-h-11 items-center font-bold text-emerald-800 underline underline-offset-4">Mở hồ sơ eKYC</Link></div></div>
                 </div>
 
                 <div className="mt-6 flex justify-between">
@@ -759,7 +784,7 @@ export const CreateListingPage: React.FC = () => {
 
                 {/* Bản cam kết kiểm duyệt */}
                 <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed mb-6">
-                  <p className="font-bold mb-1">Cam kết của người đăng tin (FR05/FR07):</p>
+                  <p className="font-bold mb-1">Cam kết của người đăng tin:</p>
                   Tôi cam đoan thông tin mô tả, mức giá và hồ sơ pháp lý cung cấp là hoàn toàn chính xác. Tôi đồng ý để ban quản trị đối soát, áp dụng bộ lọc trùng lặp và tạm gỡ tin nếu phát hiện hành vi gian lận hoặc đăng khống.
                 </div>
 
@@ -773,7 +798,7 @@ export const CreateListingPage: React.FC = () => {
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 shadow-md flex items-center gap-2"
                   >
                     <Send className="w-4 h-4" />
-                    {isSubmitting ? 'Đang gửi duyệt...' : 'Gửi Phê duyệt Tin Đăng (FR07)'}
+                    {isSubmitting ? 'Đang gửi duyệt...' : 'Gửi duyệt tin đăng'}
                   </Button>
                 </div>
               </Card>
@@ -785,7 +810,7 @@ export const CreateListingPage: React.FC = () => {
             {/* Checklist Tiêu chuẩn chất lượng */}
             <Card className="p-5">
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                Tiêu chuẩn kiểm duyệt tin (FR07 / BR03)
+                Kiểm tra trước khi gửi duyệt
               </h4>
               <div className="space-y-2.5 text-xs">
                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
@@ -824,10 +849,6 @@ export const CreateListingPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Xác minh giấy tờ</span>
-                  <span className="text-[10px] text-slate-500">Kiểm tra tại hồ sơ eKYC riêng</span>
-                </div>
               </div>
             </Card>
 

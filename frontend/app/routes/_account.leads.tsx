@@ -5,14 +5,14 @@ import { apiClient } from '@/shared/api/client';
 type LeadStatus = 'NEW' | 'CONTACTED' | 'APPOINTED' | 'CLOSED' | 'SPAM';
 type Lead = { id: string; listingId: string; fullName: string; maskedPhone: string; note?: string; consentPolicy: boolean; status: LeadStatus; createdAt: string };
 type LeadFilter = 'ALL' | LeadStatus;
-type LeadPage = { items: Lead[]; totalElements: number; page: number; size: number; totalPages: number };
+type LeadPage = { items: Lead[]; totalElements: number; page: number; size: number; totalPages: number; statusCounts: Partial<Record<LeadStatus, number>> };
 
 const STATUS_LABELS: Record<LeadStatus, string> = { NEW: 'Mới nhận', CONTACTED: 'Đã liên hệ', APPOINTED: 'Đã hẹn xem', CLOSED: 'Đã hoàn tất', SPAM: 'Không hợp lệ' };
 const formatDateTime = (value: string) => new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 const initials = (name: string) => name.trim().split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase() || 'K';
 
 export function MyLeadsPage() {
-  const [result, setResult] = useState<LeadPage>({ items: [], totalElements: 0, page: 0, size: 20, totalPages: 0 });
+  const [result, setResult] = useState<LeadPage>({ items: [], totalElements: 0, page: 0, size: 20, totalPages: 0, statusCounts: {} });
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
@@ -46,12 +46,13 @@ export function MyLeadsPage() {
   const updateStatus = async (leadId: string, status: LeadStatus) => {
     setBusyId(leadId); setStatusMenuId(''); setError('');
     try {
-      const updated = await apiClient<Lead>(`/leads/${leadId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
-      setResult((current) => ({ ...current, items: current.items.map((lead) => lead.id === leadId ? updated : lead) }));
+      await apiClient<Lead>(`/leads/${leadId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      await load(result.page);
     } catch { setError('Không thể cập nhật trạng thái chăm sóc. Vui lòng thử lại.'); }
     finally { setBusyId(''); }
   };
 
+  const countFor = (status?: LeadStatus) => status ? result.statusCounts[status] ?? 0 : Object.values(result.statusCounts).reduce((total, count) => total + (count ?? 0), 0);
   const filters: { value: LeadFilter; label: string }[] = [{ value: 'ALL', label: 'Tất cả' }, { value: 'NEW', label: 'Mới nhận' }, { value: 'CONTACTED', label: 'Đã liên hệ' }, { value: 'APPOINTED', label: 'Đã hẹn xem' }, { value: 'CLOSED', label: 'Hoàn tất' }];
   const pageStart = result.totalElements === 0 ? 0 : result.page * result.size + 1;
   const pageEnd = Math.min((result.page + 1) * result.size, result.totalElements);
@@ -69,12 +70,12 @@ export function MyLeadsPage() {
 
       <section className="mt-7 border-y border-slate-200 py-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Lọc lead theo trạng thái">{filters.map((item) => <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`min-h-10 shrink-0 rounded-lg border px-4 text-sm font-semibold ${filter === item.value ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{item.label}</button>)}</div>
+          <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Lọc lead theo trạng thái">{filters.map((item) => <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`min-h-10 shrink-0 rounded-lg border px-4 text-sm font-semibold ${filter === item.value ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{item.label} <span className="ml-1 tabular-nums">{countFor(item.value === 'ALL' ? undefined : item.value)}</span></button>)}</div>
           <label className="relative block w-full lg:w-80"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="min-h-11 w-full rounded-lg border border-slate-300 bg-white py-2 pl-10 pr-4 text-sm text-slate-950 outline-none placeholder:text-slate-400 focus:border-slate-950" placeholder="Tìm tên hoặc nội dung liên hệ" /></label>
         </div>
       </section>
 
-      <div className="mt-5 flex items-center justify-between gap-4"><p className="text-sm font-semibold text-slate-900"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-slate-900" />{result.totalElements} khách quan tâm</p><p className="hidden text-xs text-slate-500 sm:block">Số điện thoại chỉ hiện sau khi bạn bấm “Xem số liên hệ”.</p></div>
+      <div className="mt-5 flex items-center justify-between gap-4"><p className="text-sm font-semibold text-slate-900"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-slate-900" />{countFor()} khách quan tâm</p><p className="hidden text-xs text-slate-500 sm:block">Số điện thoại chỉ hiện sau khi bạn bấm “Xem số liên hệ”.</p></div>
 
       {loading ? <div className="mt-5 grid gap-4">{Array.from({ length: 3 }, (_, index) => <div key={index} className="h-44 animate-pulse rounded-xl border border-slate-200 bg-white" />)}</div> : result.items.length === 0 ? <section className="mt-5 grid min-h-72 place-items-center rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center"><div><Users className="mx-auto h-11 w-11 text-slate-400" /><h2 className="mt-4 text-lg font-bold text-slate-950">Không tìm thấy khách quan tâm</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-600">Thử thay đổi bộ lọc hoặc từ khóa. Lead mới sẽ hiển thị tại đây.</p>{(filter !== 'ALL' || query) && <button type="button" onClick={() => { setFilter('ALL'); setQuery(''); }} className="mt-5 min-h-11 rounded-lg border border-slate-950 px-4 text-sm font-bold text-slate-950">Xóa bộ lọc</button>}</div></section> : <div className="mt-5 grid gap-3">
         {result.items.map((lead) => <article key={lead.id} className="rounded-xl border border-slate-200 bg-white p-5 md:p-6">

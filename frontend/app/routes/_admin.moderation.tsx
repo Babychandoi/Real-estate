@@ -342,7 +342,7 @@ export default function ModerationWorkspacePage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                    Từ Chối (FR10)
+                    Từ chối
                   </button>
 
                   <button
@@ -488,7 +488,7 @@ export default function ModerationWorkspacePage() {
         </div>
       </div>
 
-      {/* Modal Từ Chối Kiểm Duyệt (FR10) */}
+      {/* Modal từ chối kiểm duyệt */}
       {isRejectModalOpen && selectedItem && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5">
@@ -508,7 +508,7 @@ export default function ModerationWorkspacePage() {
             {/* Select Reason */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Chọn Lý Do Chuẩn Hóa (FR10):
+                Chọn lý do:
               </label>
               <select
                 value={selectedReasonCode}

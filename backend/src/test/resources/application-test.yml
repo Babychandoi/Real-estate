@@ -16,6 +16,8 @@ spring:
 app:
   billing:
     quota-enforced: false
+  listing:
+    require-verified-kyc: false
   mode: test
   features:
     real-kyc: true
