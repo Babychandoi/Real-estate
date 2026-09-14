@@ -15,6 +15,16 @@ export interface Listing {
   publishedAt?: string;
 }
 
+export interface ListingDetail extends Omit<Listing, 'primaryImageUrl' | 'publishedAt'> {
+  ownerId: string;
+  status: string;
+  revisionNumber: number;
+  revisionStatus: string;
+  imageUrls: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
   APARTMENT: 'Căn hộ',
   HOUSE: 'Nhà riêng',

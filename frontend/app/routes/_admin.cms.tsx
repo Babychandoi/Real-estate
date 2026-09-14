@@ -10,11 +10,8 @@ import {
   CheckCircle2,
   Clock,
   RotateCcw,
-  History,
-  Layers,
   Search,
   X,
-  ExternalLink
 } from 'lucide-react';
 
 interface ArticleRevisionItem {
@@ -183,7 +180,9 @@ export const CmsManagementPage: React.FC = () => {
                   metaDescription: d.currentRevision.metaDescription || '',
                   canonicalUrl: d.currentRevision.canonicalUrl || `/${d.slug}`,
                   status: d.currentRevision.status,
-                  createdAt: 'Hôm nay',
+                  createdAt: d.currentRevision.createdAt
+                    ? new Date(d.currentRevision.createdAt).toLocaleString('vi-VN')
+                    : 'Chưa có thời gian',
                   reviewedAt: d.currentRevision.reviewedAt,
                   reviewedBy: d.currentRevision.reviewedBy,
                 }
@@ -254,7 +253,9 @@ export const CmsManagementPage: React.FC = () => {
             metaDescription: created.currentRevision.metaDescription,
             canonicalUrl: created.currentRevision.canonicalUrl,
             status: 'DRAFT',
-            createdAt: 'Vừa xong',
+            createdAt: created.currentRevision.createdAt
+              ? new Date(created.currentRevision.createdAt).toLocaleString('vi-VN')
+              : 'Chưa có thời gian',
           },
         };
         setArticles([newItem, ...articles]);
@@ -274,33 +275,31 @@ export const CmsManagementPage: React.FC = () => {
         method: 'POST',
       });
       if (!response.ok) throw new Error('Máy chủ từ chối phê duyệt');
+      const approved = await response.json();
+      setArticles((current) => current.map((art) => art.id === articleId ? {
+        ...art,
+        status: 'PUBLISHED',
+        currentRevision: {
+          ...art.currentRevision,
+          status: approved.status,
+          reviewedBy: approved.reviewedBy,
+          reviewedAt: approved.reviewedAt ? new Date(approved.reviewedAt).toLocaleString('vi-VN') : undefined,
+        },
+      } : art));
     } catch {
       showToast('Chưa thể phê duyệt. Vui lòng kiểm tra kết nối và thử lại.');
       return;
     }
 
-    setArticles(
-      articles.map((art) => {
-        if (art.id === articleId) {
-          return {
-            ...art,
-            status: 'PUBLISHED',
-            currentRevision: {
-              ...art.currentRevision,
-              status: 'PUBLISHED',
-              reviewedBy: 'Admin Tổng biên tập',
-              reviewedAt: 'Vừa xong',
-            },
-          };
-        }
-        return art;
-      })
-    );
     showToast('Đã phê duyệt và xuất bản bài viết công khai thành công (FR24/FR32)');
   };
 
   const handleReject = async () => {
     if (!rejectingId) return;
+    if (!rejectReason.trim()) {
+      showToast('Vui lòng nhập lý do trả bài trước khi xác nhận.');
+      return;
+    }
     const targetArticle = articles.find((a) => a.id === rejectingId);
     if (!targetArticle) return;
 
@@ -311,7 +310,7 @@ export const CmsManagementPage: React.FC = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            reason: rejectReason || 'Yêu cầu bổ sung đối chiếu thông tư hướng dẫn',
+            reason: rejectReason.trim(),
           }),
         }
       );
@@ -330,7 +329,7 @@ export const CmsManagementPage: React.FC = () => {
             currentRevision: {
               ...art.currentRevision,
               status: 'REJECTED',
-              rejectionReason: rejectReason || 'Yêu cầu bổ sung đối chiếu thông tư hướng dẫn',
+              rejectionReason: rejectReason.trim(),
             },
           };
         }
@@ -595,14 +594,6 @@ export const CmsManagementPage: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="absolute bottom-3 left-3 right-3 text-white text-xs flex items-center justify-between">
-                      <span className="bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded text-[11px]">
-                        1200 x 630px
-                      </span>
-                      <span className="bg-emerald-800/80 px-2 py-0.5 rounded text-[10px] font-semibold">
-                        Clean HTML Anti-XSS ✓
-                      </span>
-                    </div>
                   </div>
 
                   {/* Body Content */}
@@ -647,7 +638,7 @@ export const CmsManagementPage: React.FC = () => {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-outline">Canonical:</span>
-                          <span className="text-secondary font-medium">Self-referencing ✓</span>
+                          <span className="text-secondary font-medium">{rev.canonicalUrl || 'Chưa cấu hình'}</span>
                         </div>
                       </div>
 
@@ -677,38 +668,10 @@ export const CmsManagementPage: React.FC = () => {
                             <RotateCcw className="w-3.5 h-3.5" />
                             Trả về sửa (Lý do)
                           </button>
-                          <button
-                            onClick={() =>
-                              showToast(`So sánh đối chiếu Diff giữa Revision 1 và Revision 2`)
-                            }
-                            className="h-9 px-3 rounded-lg bg-surface-container text-primary text-xs font-medium hover:bg-surface-container-high transition-colors flex items-center gap-1"
-                          >
-                            <History className="w-3.5 h-3.5" />
-                            Đối chiếu Diff
-                          </button>
                         </>
                       ) : (
                         <>
-                          <button
-                            onClick={() =>
-                              showToast(`Xem bài viết thực tế đã xuất bản tại /${art.slug}`)
-                            }
-                            className="h-9 px-3 rounded-lg bg-surface-container text-primary text-xs font-medium hover:bg-surface-container-high transition-colors flex items-center gap-1"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            Xem trang công khai
-                          </button>
-                          <button
-                            onClick={() =>
-                              showToast(
-                                `Khởi tạo Revision #${art.revisionsCount + 1} để biên tập cập nhật (ED04)`
-                              )
-                            }
-                            className="h-9 px-3 rounded-lg bg-surface-container text-on-surface-variant text-xs font-medium hover:bg-surface-container-high transition-colors flex items-center gap-1"
-                          >
-                            <Layers className="w-3.5 h-3.5" />
-                            Tạo Revision mới
-                          </button>
+                          <span className="text-xs text-slate-500">Chưa có thao tác chỉnh sửa phiên bản đã xuất bản.</span>
                         </>
                       )}
                     </div>

@@ -755,10 +755,8 @@ class BdsApplicationTests {
         mockMvc.perform(post("/api/v1/listings/estimate-price")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(priceEstJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.minPriceVnd").exists())
-                .andExpect(jsonPath("$.maxPriceVnd").exists())
-                .andExpect(jsonPath("$.confidenceScorePercent").value(94));
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.code").value("FEATURE_NOT_IMPLEMENTED"));
 
         // 2. Kiểm tra API Quality Score Engine
         String qualityJson = """
@@ -780,10 +778,8 @@ class BdsApplicationTests {
         mockMvc.perform(post("/api/v1/listings/quality-score")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(qualityJson))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.score").value(100))
-                .andExpect(jsonPath("$.rating").value("EXCELLENT"))
-                .andExpect(jsonPath("$.passedCriteria.length()").value(5));
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.code").value("FEATURE_NOT_IMPLEMENTED"));
     }
 
     @Test

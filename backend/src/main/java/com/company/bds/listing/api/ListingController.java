@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.core.Authentication;
 import com.company.bds.shared.security.CurrentUser;
 import com.company.bds.shared.security.MediaUrlPolicy;
@@ -44,7 +45,6 @@ public class ListingController {
     private final SubmitListingRevisionUseCase submitRevisionUseCase;
     private final GetListingDetailUseCase getListingDetailUseCase;
     private final ListingPersistencePort persistencePort;
-    private final com.company.bds.listing.application.service.ListingApplicationService listingAppService;
     private final MediaUrlPolicy mediaUrlPolicy;
     private final ObjectProvider<MediaStorageService> mediaStorageProvider;
     private final com.company.bds.shared.config.ShowcasePolicy showcasePolicy;
@@ -55,7 +55,6 @@ public class ListingController {
             SubmitListingRevisionUseCase submitRevisionUseCase,
             GetListingDetailUseCase getListingDetailUseCase,
             ListingPersistencePort persistencePort,
-            com.company.bds.listing.application.service.ListingApplicationService listingAppService,
             MediaUrlPolicy mediaUrlPolicy,
             ObjectProvider<MediaStorageService> mediaStorageProvider,
             com.company.bds.shared.config.ShowcasePolicy showcasePolicy) {
@@ -64,7 +63,6 @@ public class ListingController {
         this.submitRevisionUseCase = submitRevisionUseCase;
         this.getListingDetailUseCase = getListingDetailUseCase;
         this.persistencePort = persistencePort;
-        this.listingAppService = listingAppService;
         this.mediaUrlPolicy = mediaUrlPolicy;
         this.mediaStorageProvider = mediaStorageProvider;
         this.showcasePolicy = showcasePolicy;
@@ -203,21 +201,22 @@ public class ListingController {
         if (!activeListings.isEmpty()) {
             List<ListingSummaryResponse> results = activeListings.stream()
                     .map(listing -> {
-                        ListingRevision rev = listing.getPublicRevision().or(listing::getLatestRevision).orElse(null);
+                        ListingRevision rev = listing.getPublicRevision().orElseThrow(() ->
+                                new IllegalStateException("ACTIVE listing has no approved public revision: " + listing.getId()));
                         String imgUrl = "";
                         if (rev != null && !rev.getMediaList().isEmpty()) {
                             imgUrl = rev.getMediaList().get(0).mediaUrl();
                         }
                         return new ListingSummaryResponse(
                                 listing.getId(),
-                                rev != null ? rev.getTitle() : "Tin đăng BĐS",
-                                rev != null ? rev.getPurpose().name() : (purpose != null ? purpose : "SALE"),
-                                rev != null ? rev.getPropertyType().name() : "APARTMENT",
-                                rev != null ? rev.getPriceVnd() : 0L,
-                                rev != null && rev.getAreaM2() != null ? rev.getAreaM2() : BigDecimal.ZERO,
-                                rev != null && rev.getAddressSummary() != null ? rev.getAddressSummary() : "",
-                                (rev != null && rev.getPublicLatitude() != null) ? rev.getPublicLatitude() : 21.0,
-                                (rev != null && rev.getPublicLongitude() != null) ? rev.getPublicLongitude() : 105.8,
+                                rev.getTitle(),
+                                rev.getPurpose().name(),
+                                rev.getPropertyType().name(),
+                                rev.getPriceVnd(),
+                                rev.getAreaM2(),
+                                rev.getAddressSummary(),
+                                rev.getPublicLatitude(),
+                                rev.getPublicLongitude(),
                                 listing.isVerifiedOwner(),
                                 showcasePolicy.isShowcaseOwner(listing.getOwnerId()),
                                 imgUrl,
@@ -232,34 +231,33 @@ public class ListingController {
     }
 
     private ListingDetailResponse mapToDetailResponse(Listing listing) {
-        ListingRevision rev = listing.getPublicRevision().or(listing::getLatestRevision).orElse(null);
+        ListingRevision rev = listing.getPublicRevision().or(listing::getLatestRevision).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Tin đăng chưa có phiên bản dữ liệu."));
 
         List<String> images = new ArrayList<>();
-        if (rev != null) {
-            for (ListingMedia m : rev.getMediaList()) {
-                images.add(m.mediaUrl());
-            }
+        for (ListingMedia m : rev.getMediaList()) {
+            images.add(m.mediaUrl());
         }
 
         return new ListingDetailResponse(
                 listing.getId(),
                 listing.getOwnerId(),
                 listing.getStatus().name(),
-                rev != null ? rev.getRevisionNumber() : 1,
-                rev != null ? rev.getStatus().name() : "DRAFT",
-                rev != null ? rev.getTitle() : "",
-                rev != null ? rev.getPurpose().name() : "SALE",
-                rev != null ? rev.getPropertyType().name() : "APARTMENT",
-                rev != null ? rev.getPriceVnd() : 0L,
-                rev != null ? rev.getAreaM2() : BigDecimal.ZERO,
-                rev != null ? rev.getDescription() : "",
-                rev != null ? rev.getProvinceCode() : "",
-                rev != null ? rev.getDistrictCode() : "",
-                rev != null ? rev.getWardCode() : "",
-                rev != null ? rev.getAddressSummary() : "",
-                (rev != null && rev.getPublicLatitude() != null) ? rev.getPublicLatitude() : 21.0,
-                (rev != null && rev.getPublicLongitude() != null) ? rev.getPublicLongitude() : 105.8,
-                rev != null && rev.getStatus().name().equals("APPROVED"),
+                rev.getRevisionNumber(),
+                rev.getStatus().name(),
+                rev.getTitle(),
+                rev.getPurpose().name(),
+                rev.getPropertyType().name(),
+                rev.getPriceVnd(),
+                rev.getAreaM2(),
+                rev.getDescription(),
+                rev.getProvinceCode(),
+                rev.getDistrictCode(),
+                rev.getWardCode(),
+                rev.getAddressSummary(),
+                rev.getPublicLatitude(),
+                rev.getPublicLongitude(),
+                listing.isVerifiedOwner(),
                 showcasePolicy.isShowcaseOwner(listing.getOwnerId()),
                 images,
                 listing.getCreatedAt(),
@@ -280,12 +278,14 @@ public class ListingController {
     @PostMapping("/estimate-price")
     public ResponseEntity<com.company.bds.listing.api.response.EstimatePriceResponse> estimatePrice(
             @Valid @RequestBody com.company.bds.listing.api.request.EstimatePriceRequest request) {
-        return ResponseEntity.ok(listingAppService.estimatePrice(request));
+        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                "Chưa có nguồn dữ liệu định giá được kiểm chứng.");
     }
 
     @PostMapping("/quality-score")
     public ResponseEntity<com.company.bds.listing.api.response.QualityScoreResponse> calculateQualityScore(
             @RequestBody com.company.bds.listing.api.request.QualityScoreRequest request) {
-        return ResponseEntity.ok(listingAppService.calculateQualityScore(request));
+        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED,
+                "Chưa có tiêu chí chấm điểm phía máy chủ được phê duyệt.");
     }
 }

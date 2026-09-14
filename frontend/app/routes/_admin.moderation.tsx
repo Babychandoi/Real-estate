@@ -76,13 +76,17 @@ export default function ModerationWorkspacePage() {
 
   const handleApprove = async () => {
     if (!selectedItem) return;
+    if (!approvalNote.trim()) {
+      setFeedback({ type: 'error', message: 'Vui lòng nhập ghi chú duyệt nội dung. Duyệt tin không đồng nghĩa xác minh pháp lý.' });
+      return;
+    }
     if (!window.confirm(`Xác nhận PHÊ DUYỆT tin đăng "${selectedItem.title}"?`)) return;
 
     setActionLoading(true);
     try {
       await moderationApi.approve(selectedItem.listingId, {
         revisionId: selectedItem.revisionId,
-        note: approvalNote || 'Hồ sơ pháp lý đầy đủ, duyệt công khai.',
+        note: approvalNote.trim(),
       });
       setFeedback({ type: 'success', message: `Đã phê duyệt thành công tin đăng #${selectedItem.listingId.substring(0, 8)}!` });
       setApprovalNote('');
@@ -141,7 +145,7 @@ export default function ModerationWorkspacePage() {
                 <h1 className="text-xl font-bold tracking-tight text-white">Bàn Làm Việc Kiểm Duyệt & Thẩm Định Tin</h1>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-emerald-500/30">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  SLA ≤ 8h (BR04)
+                  Hàng đợi kiểm duyệt nội dung
                 </span>
                 <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
                   Phân hệ Moderation Monolith
@@ -185,12 +189,12 @@ export default function ModerationWorkspacePage() {
             </div>
           </div>
           <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Tiêu chuẩn đối chiếu</span>
-            <div className="text-lg font-bold text-emerald-400">Diff 8 trường</div>
+            <span className="text-xs text-slate-400">Thay đổi đang hiển thị</span>
+            <div className="text-lg font-bold text-emerald-400">{diff?.diffs.length ?? 0} trường</div>
           </div>
           <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Trạng thái hệ thống</span>
-            <div className="text-lg font-bold text-purple-400">Chuẩn hóa 100%</div>
+            <span className="text-xs text-slate-400">Phạm vi duyệt</span>
+            <div className="text-lg font-bold text-purple-400">Nội dung tin</div>
           </div>
         </div>
       </header>
@@ -436,25 +440,25 @@ export default function ModerationWorkspacePage() {
                     <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Hồ Sơ Pháp Lý & Thẩm Tra Bản Đồ GIS
+                    Chứng cứ và kiểm tra bổ sung
                   </h3>
-                  <span className="text-xs px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-medium">
-                    Sổ đỏ / Sổ hồng chứng thực
+                  <span className="text-xs px-2.5 py-1 rounded bg-amber-950 text-amber-300 border border-amber-800 font-medium">
+                    Chưa có kết quả xác minh pháp lý
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-xs text-slate-400">Tình trạng giấy tờ</span>
-                    <div className="font-semibold text-slate-200 mt-1">Đã có sổ hồng chính chủ</div>
+                    <div className="font-semibold text-amber-300 mt-1">Chưa được đối chiếu tại màn hình này</div>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-xs text-slate-400">Kiểm tra watermark / SĐT ảo</span>
-                    <div className="font-semibold text-emerald-400 mt-1">Ảnh chuẩn • 0 vi phạm</div>
+                    <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-xs text-slate-400">Kiểm tra trùng lặp ranh đất</span>
-                    <div className="font-semibold text-sky-400 mt-1">Không trùng tọa độ</div>
+                    <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
                   </div>
                 </div>
 
@@ -467,7 +471,7 @@ export default function ModerationWorkspacePage() {
                     type="text"
                     value={approvalNote}
                     onChange={(e) => setApprovalNote(e.target.value)}
-                    placeholder="VD: Đã đối chiếu thông tin quy hoạch phân khu, giấy tờ hợp lệ..."
+                    placeholder="Ghi rõ căn cứ duyệt nội dung; không kết luận pháp lý nếu chưa có chứng cứ"
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
@@ -538,7 +542,7 @@ export default function ModerationWorkspacePage() {
               <button
                 type="button"
                 onClick={() => setIsRejectModalOpen(false)}
-                disabled={actionLoading}
+                    disabled={actionLoading || !approvalNote.trim()}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition"
               >
                 Hủy bỏ

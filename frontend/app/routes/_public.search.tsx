@@ -9,6 +9,7 @@ export function SearchAndMapPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -21,22 +22,24 @@ export function SearchAndMapPage() {
   const [priceRange, setPriceRange] = useState<string>('ALL'); // ALL, <3B, 3-5B, >5B
   const [sortBy, setSortBy] = useState<'LATEST' | 'PRICE_ASC' | 'PRICE_DESC' | 'AREA_DESC'>('LATEST');
   const [onlyVerified, setOnlyVerified] = useState(false);
-  const [showPrivacyBanner, setShowPrivacyBanner] = useState(true);
 
   // Load listings from API
   useEffect(() => {
     fetchListings();
   }, [purpose, propertyType, priceRange, sortBy]);
 
-  const fetchListings = async (bounds?: MapBounds) => {
+  const fetchListings = async (bounds?: MapBounds, overrides?: Partial<ListingSearchParams>) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params: ListingSearchParams = {
         purpose,
         sortBy,
       };
-      if (propertyType) params.propertyType = propertyType;
-      if (keyword.trim()) params.keyword = keyword.trim();
+      const effectivePropertyType = overrides && 'propertyType' in overrides ? overrides.propertyType : propertyType;
+      const effectiveKeyword = overrides && 'keyword' in overrides ? overrides.keyword : keyword;
+      if (effectivePropertyType) params.propertyType = effectivePropertyType;
+      if (effectiveKeyword?.trim()) params.keyword = effectiveKeyword.trim();
       if (bounds) Object.assign(params, bounds);
 
       if (priceRange === '<3B') {
@@ -55,9 +58,31 @@ export function SearchAndMapPage() {
       }
     } catch (err) {
       console.error('Lỗi tải danh sách tìm kiếm:', err);
+      setListings([]);
+      setSelectedId(null);
+      setLoadError('Không thể tải dữ liệu tìm kiếm. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const visibleListings = onlyVerified ? listings.filter((listing) => listing.isVerified) : listings;
+
+  const clearKeyword = () => {
+    setKeyword('');
+    const next = new URLSearchParams({ purpose, sortBy });
+    if (propertyType) next.set('propertyType', propertyType);
+    setSearchParams(next);
+    void fetchListings(undefined, { keyword: undefined });
+  };
+
+  const resetFilters = () => {
+    setKeyword('');
+    setPropertyType('');
+    setPriceRange('ALL');
+    setOnlyVerified(false);
+    setSearchParams({ purpose, sortBy });
+    void fetchListings(undefined, { keyword: undefined, propertyType: undefined });
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -100,7 +125,7 @@ export function SearchAndMapPage() {
               {keyword && (
                 <button
                   type="button"
-                  onClick={() => { setKeyword(''); fetchListings(); }}
+                  onClick={clearKeyword}
                   className="text-outline hover:text-on-surface ml-1 text-xs"
                 >
                   ✕
@@ -217,32 +242,13 @@ export function SearchAndMapPage() {
             </Link>
           </div>
 
-          {/* Privacy Protocol Banner (FR13 / Privacy Law 91/2025) */}
-          {showPrivacyBanner && (
-            <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-surface-container-low text-xs border border-outline-variant/30">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <p className="text-on-surface-variant leading-tight">
-                  <strong className="text-on-surface font-semibold">Bảo vệ vị trí riêng tư:</strong> Tọa độ ghim công khai được làm mờ trong bán kính khoảng 200 m.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowPrivacyBanner(false)}
-                className="text-outline hover:text-on-surface text-xs shrink-0 p-1"
-              >
-                ✕
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Feed Summary & Sorting Toolbar */}
         <div className="px-4 py-2.5 flex items-center justify-between bg-surface-container-low/50 border-b border-outline-variant/20 flex-shrink-0 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-bold text-primary text-sm">{listings.length}</span>
+            <span className="font-bold text-primary text-sm">{visibleListings.length}</span>
             <span className="text-on-surface-variant font-medium">bất động sản trong vùng quét</span>
           </div>
 
@@ -269,18 +275,20 @@ export function SearchAndMapPage() {
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
               Đang tải danh sách bất động sản và quét toạ độ GIS...
             </div>
-          ) : listings.length === 0 ? (
+          ) : loadError ? (
+            <div className="py-16 text-center" role="alert"><p className="text-rose-700">{loadError}</p><button type="button" onClick={() => void fetchListings()} className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white">Thử lại</button></div>
+          ) : visibleListings.length === 0 ? (
             <div className="text-center py-16 text-on-surface-variant text-sm">
               <p>Không tìm thấy bất động sản nào khớp với bộ lọc hiện tại.</p>
               <button
-                onClick={() => { setKeyword(''); setPropertyType(''); setPriceRange('ALL'); }}
+                onClick={resetFilters}
                 className="mt-3 px-4 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold"
               >
                 Xóa bộ lọc
               </button>
             </div>
           ) : (
-            (onlyVerified ? listings.filter(l => l.isVerified) : listings).map((item, index) => {
+            visibleListings.map((item, index) => {
               const isSelected = item.id === (hoveredId || selectedId);
               const unitPrice = calculateUnitPrice(item.priceVnd, item.areaM2);
 
@@ -394,7 +402,7 @@ export function SearchAndMapPage() {
       {/* RIGHT PANEL: Full-Height Interactive GIS Map Studio (54%) */}
       {/* ========================================================= */}
       <section className="hidden xl:block w-[54%] h-full relative bg-slate-900 overflow-hidden border-l border-outline-variant/30">
-        <ListingMap listings={listings} onSearchArea={(bounds) => fetchListings(bounds)} />
+        <ListingMap listings={visibleListings} selectedId={hoveredId || selectedId} onSearchArea={(bounds) => fetchListings(bounds)} />
       </section>
     </div>
   );

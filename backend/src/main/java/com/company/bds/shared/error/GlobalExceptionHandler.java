@@ -14,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.net.URI;
 import java.util.ArrayList;
@@ -137,6 +138,26 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnsupportedOperationException.class)
     public ResponseEntity<ProblemDetails> handleUnavailable(UnsupportedOperationException ex, HttpServletRequest request) {
         return simple(ex, request, HttpStatus.SERVICE_UNAVAILABLE, "FEATURE_UNAVAILABLE", "Tính năng chưa được cấu hình");
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ProblemDetails> handleResponseStatusException(
+            ResponseStatusException ex, HttpServletRequest request) {
+        int status = ex.getStatusCode().value();
+        String code = status == HttpStatus.NOT_IMPLEMENTED.value()
+                ? "FEATURE_NOT_IMPLEMENTED"
+                : "HTTP_" + status;
+        ProblemDetails problem = new ProblemDetails(
+                URI.create(BASE_PROBLEM_TYPE + code.toLowerCase().replace('_', '-')),
+                status == HttpStatus.NOT_IMPLEMENTED.value() ? "Tính năng chưa được triển khai" : "Yêu cầu không thể xử lý",
+                status,
+                ex.getReason(),
+                request.getRequestURI(),
+                code,
+                UUID.randomUUID().toString(),
+                null
+        );
+        return ResponseEntity.status(ex.getStatusCode()).body(problem);
     }
 
     private ResponseEntity<ProblemDetails> simple(Exception ex, HttpServletRequest request, HttpStatus status,

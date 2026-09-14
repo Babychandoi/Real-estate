@@ -15,6 +15,11 @@
 - Outbox webhook có connect/read timeout, backoff và dead-letter sau 10 lần lỗi.
 - Tách mẫu env demo/production, thêm Mailpit, Redis volume, tunnel Cloudflare là profile tùy chọn/token-based; sửa preflight, giới hạn upload Nginx 12 MB và metrics nội bộ.
 - CI dùng Maven wrapper qua `sh`, Trivy pin SHA, static type check thật, dựng integration stack trước Playwright và dọn stack sau chạy.
+- Audit hardcode/action: trang chủ, tìm kiếm, chi tiết, đăng tin, moderation, CMS và quản lý dự án không còn dựng dữ liệu nghiệp vụ giả khi API rỗng/lỗi; mọi trạng thái có loading, empty hoặc error riêng.
+- Tìm kiếm và bản đồ dùng cùng tập kết quả PostgreSQL/Elasticsearch đã lọc; marker được đồng bộ theo tin đang chọn, reset bộ lọc cập nhật URL một lần và lỗi API không giữ lại kết quả cũ.
+- Chi tiết tin dùng `imageUrls` thật từ API/MinIO, quay lại `/search` và gửi báo cáo vi phạm qua API thật. Các trang giới thiệu, điều khoản, quyền riêng tư, liên hệ và 404 đã có route riêng.
+- Form đăng tin không còn dữ liệu mẫu, không công bố định giá/điểm AI-GIS giả, lưu đủ các trường backend hỗ trợ và lưu revision mới nhất trước khi submit. Hai API giả lập còn giữ contract nhưng trả RFC Problem Details HTTP 501.
+- Duyệt tin/CMS bắt buộc ghi lý do hoặc ghi chú; bỏ các nhãn pháp lý, SLA, chuẩn hóa, kích thước ảnh và thao tác toast-only không có bằng chứng backend. Quản lý dự án được thay bằng luồng list/search/create API thật.
 
 ## Bằng chứng đã chạy
 
@@ -23,6 +28,7 @@
 - Playwright live: navigation + dialog authentication 2/2 pass; visual regression, axe và overflow tại Chromium 320/768/1440, Android Chrome, iOS Safari, WebKit desktop và Firefox desktop: 20 pass trong lượt chính, WebKit search lỗi chụp ảnh tạm thời và pass khi retry riêng.
 - PostgreSQL production đã áp dụng Flyway V015 và V016 thành công.
 - Live smoke `nhadatchuan.online`: search trả 6 tin; `PRICE_ASC` đúng thứ tự; cả 6 tin mẫu có nhãn showcase; gửi lead vào showcase trả 409; 8 media object còn nguyên.
+- Sau remediation hardcode: Docker backend/frontend build thành công; backend 21/21 test pass; toàn bộ container gồm Cloudflare tunnel healthy; `/`, `/search`, `/about` và `/api/v1/listings/search` trên domain trả HTTP 200.
 
 ## Chưa thể tuyên bố hoàn tất từ một máy
 

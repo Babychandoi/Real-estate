@@ -21,24 +21,15 @@ export const CreateListingPage: React.FC = () => {
   const [purpose, setPurpose] = useState<'SALE' | 'RENT'>('SALE');
   const [propertyType, setPropertyType] = useState<string>('APARTMENT');
   const [title, setTitle] = useState('');
-  const [priceVnd, setPriceVnd] = useState<number>(3850000000);
-  const [areaM2, setAreaM2] = useState<number>(72.5);
-  const [bedrooms, setBedrooms] = useState<number>(2);
-  const [bathrooms, setBathrooms] = useState<number>(2);
-  const [direction, setDirection] = useState<string>('Đông Nam');
-  const [legalDoc, setLegalDoc] = useState<string>('Sổ hồng chính chủ lâu dài');
-  const [province, setProvince] = useState('Thành phố Hà Nội');
-  const [district, setDistrict] = useState('Quận Nam Từ Liêm');
-  const [ward, setWard] = useState('Phường Mễ Trì');
-  const [addressSummary, setAddressSummary] = useState('Chung cư The Matrix One, Lê Quang Đạo, Mễ Trì, Nam Từ Liêm, Hà Nội');
-  const [obfuscateLocation, setObfuscateLocation] = useState(true);
-  const [latitude, setLatitude] = useState(21.0118);
-  const [longitude, setLongitude] = useState(105.7725);
-  const [description, setDescription] = useState(
-    'Căn hộ cao cấp tầng trung view thoáng mát công viên hồ điều hòa Mễ Trì.\n' +
-    'Thiết kế 2 phòng ngủ 2 WC tối ưu ánh sáng tự nhiên. Nội thất bàn giao full cao cấp từ chủ đầu tư.\n' +
-    'Đã có sổ hồng chính chủ, hỗ trợ vay ngân hàng 70% lãi suất ưu đãi. Giao dịch ngay trong tuần.'
-  );
+  const [priceVnd, setPriceVnd] = useState<number>(0);
+  const [areaM2, setAreaM2] = useState<number>(0);
+  const [province, setProvince] = useState('');
+  const [district, setDistrict] = useState('');
+  const [ward, setWard] = useState('');
+  const [addressSummary, setAddressSummary] = useState('');
+  const [latitude, setLatitude] = useState(0);
+  const [longitude, setLongitude] = useState(0);
+  const [description, setDescription] = useState('');
 
   // Media
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -50,10 +41,7 @@ export const CreateListingPage: React.FC = () => {
   const plotNumber = '';
 
   // AI & Quality State
-  const [qualityScore, setQualityScore] = useState<number>(95);
-  const [estimatedMinPrice, setEstimatedMinPrice] = useState<number>(3600000000);
-  const [estimatedMaxPrice, setEstimatedMaxPrice] = useState<number>(4100000000);
-  const [aiUnitRate, setAiUnitRate] = useState<number>(53000000);
+  const [qualityScore, setQualityScore] = useState<number>(0);
 
   // UI state
   const [isSaving, setIsSaving] = useState(false);
@@ -74,15 +62,6 @@ export const CreateListingPage: React.FC = () => {
     setQualityScore(Math.min(score, 100));
   }, [title, description, imageUrls, latitude, longitude, requestVerification, certificateNumber]);
 
-  // AI Estimate Price
-  useEffect(() => {
-    const baseRate = propertyType === 'VILLA' ? 180000000 : (propertyType === 'HOUSE' ? 125000000 : 53000000);
-    setAiUnitRate(baseRate);
-    const est = areaM2 * baseRate;
-    setEstimatedMinPrice(est * 0.92);
-    setEstimatedMaxPrice(est * 1.12);
-  }, [propertyType, areaM2]);
-
   // Tự động lưu nháp
   const handleSaveDraft = async () => {
     setIsSaving(true);
@@ -94,10 +73,13 @@ export const CreateListingPage: React.FC = () => {
           body: JSON.stringify({
             purpose,
             propertyType,
-            title: title || 'Bản nháp tin đăng BĐS mới',
+            title,
             priceVnd,
             areaM2,
             description,
+            provinceCode: province || null,
+            districtCode: district || null,
+            wardCode: ward || null,
             addressSummary,
             publicLatitude: latitude,
             publicLongitude: longitude,
@@ -111,11 +93,16 @@ export const CreateListingPage: React.FC = () => {
           body: JSON.stringify({
             purpose,
             propertyType,
-            title: title || 'Bản nháp tin đăng BĐS mới',
+            title,
             priceVnd,
             areaM2,
             description,
+            provinceCode: province || null,
+            districtCode: district || null,
+            wardCode: ward || null,
             addressSummary,
+            publicLatitude: latitude || null,
+            publicLongitude: longitude || null,
             imageUrls,
           }),
         });
@@ -170,6 +157,18 @@ export const CreateListingPage: React.FC = () => {
         });
         currentId = draftRes.listingId;
         setListingId(currentId);
+      } else {
+        await apiClient(`/listings/${currentId}/draft`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            purpose, propertyType, title, priceVnd, areaM2, description,
+            provinceCode: province || null, districtCode: district || null, wardCode: ward || null,
+            addressSummary,
+            publicLatitude: latitude || null,
+            publicLongitude: longitude || null,
+            imageUrls,
+          }),
+        });
       }
 
       await apiClient(`/listings/${currentId}/submit`, {
@@ -249,15 +248,11 @@ export const CreateListingPage: React.FC = () => {
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-left mb-6 text-xs space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-500">Mã tin đăng:</span>
-                <span className="font-mono font-bold text-slate-800">{listingId || 'LST-WF-2026-NEW'}</span>
+                <span className="font-mono font-bold text-slate-800">{listingId}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Điểm chất lượng tin:</span>
-                <span className="font-bold text-emerald-700">{qualityScore}/100 (Tuyệt vời)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Hồ sơ pháp lý:</span>
-                <span className="font-semibold text-slate-800">Đã gửi thẩm định Sổ hồng</span>
+                <span className="font-bold text-emerald-700">{qualityScore}/100 (mức độ hoàn thiện biểu mẫu)</span>
               </div>
             </div>
 
@@ -527,22 +522,14 @@ export const CreateListingPage: React.FC = () => {
                   />
                 </div>
 
-                {/* Định vị PostGIS & Làm mờ vị trí công khai */}
+                {/* Tọa độ hiển thị công khai trên bản đồ */}
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-emerald-600" />
                       <span className="text-xs font-bold text-slate-800 uppercase">Tọa độ Bản đồ PostGIS (FR13)</span>
                     </div>
-                    <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={obfuscateLocation}
-                        onChange={(e) => setObfuscateLocation(e.target.checked)}
-                        className="rounded text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <span>Làm mờ bán kính 100m bảo vệ riêng tư</span>
-                    </label>
+                    <span className="text-xs text-amber-700">Chỉ nhập tọa độ bạn đồng ý công khai.</span>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-xs font-mono">
                     <div>
@@ -613,101 +600,6 @@ export const CreateListingPage: React.FC = () => {
                       onChange={(e) => setAreaM2(Number(e.target.value))}
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
-                  </div>
-                </div>
-
-                {/* AI Price Estimator Widget */}
-                <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200 mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-emerald-700" />
-                      <span className="text-xs font-bold text-emerald-900 uppercase">
-                        Khoảng giá tham khảo theo quy tắc
-                      </span>
-                    </div>
-                    <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full shadow-xs">
-                      Độ tin cậy 94%
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-800 leading-relaxed mb-3">
-                    Đơn giá tham khảo từ các tin đăng tại {district} là <span className="font-bold">{formatPriceVnd(aiUnitRate)}/m²</span>. Giá thực tế phụ thuộc vị trí, hiện trạng và pháp lý.
-                  </p>
-                  <div className="p-3 bg-white rounded-lg border border-emerald-200 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="text-slate-400 block">Biên độ giá hợp lý:</span>
-                      <span className="font-bold text-emerald-800 text-sm">
-                        {formatPriceVnd(estimatedMinPrice)} - {formatPriceVnd(estimatedMaxPrice)}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setPriceVnd(Math.round((estimatedMinPrice + estimatedMaxPrice) / 2))}
-                      className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors"
-                    >
-                      Dùng mức giá gợi ý
-                    </button>
-                  </div>
-                </div>
-
-                {/* Phòng ngủ, phòng tắm, hướng */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Số phòng ngủ</label>
-                    <select
-                      value={bedrooms}
-                      onChange={(e) => setBedrooms(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                    >
-                      <option value={1}>1 PN</option>
-                      <option value={2}>2 PN</option>
-                      <option value={3}>3 PN</option>
-                      <option value={4}>4+ PN</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Số phòng tắm/WC</label>
-                    <select
-                      value={bathrooms}
-                      onChange={(e) => setBathrooms(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                    >
-                      <option value={1}>1 WC</option>
-                      <option value={2}>2 WC</option>
-                      <option value={3}>3 WC</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Hướng ban công</label>
-                    <select
-                      value={direction}
-                      onChange={(e) => setDirection(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                    >
-                      <option value="Đông Nam">Đông Nam</option>
-                      <option value="Đông">Đông</option>
-                      <option value="Nam">Nam</option>
-                      <option value="Tây Nam">Tây Nam</option>
-                      <option value="Tây">Tây</option>
-                      <option value="Tây Bắc">Tây Bắc</option>
-                      <option value="Bắc">Bắc</option>
-                      <option value="Đông Bắc">Đông Bắc</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Tình trạng pháp lý</label>
-                    <select
-                      value={legalDoc}
-                      onChange={(e) => setLegalDoc(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm"
-                    >
-                      <option value="Sổ hồng chính chủ lâu dài">Sổ hồng chính chủ</option>
-                      <option value="Sổ đỏ lâu dài">Sổ đỏ lâu dài</option>
-                      <option value="Hợp đồng mua bán CĐT">Hợp đồng mua bán</option>
-                      <option value="Đang chờ cấp sổ">Đang chờ cấp sổ</option>
-                    </select>
                   </div>
                 </div>
 

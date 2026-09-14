@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Building2, Key, Shield, Sparkles, Filter } from 'lucide-react';
+import { Search, Building2, Key, Shield, Filter } from 'lucide-react';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
 import { type Listing } from '@/entities/listing/model/types';
 import { Button } from '@/shared/ui/Button';
@@ -12,11 +12,13 @@ export const HomePage: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
     async function loadData() {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const data = await apiClient<Listing[]>(`/listings/search?purpose=${purpose}`);
         if (isMounted) {
@@ -24,6 +26,10 @@ export const HomePage: React.FC = () => {
         }
       } catch (err) {
         console.error('Không thể tải danh sách tin đăng từ API backend:', err);
+        if (isMounted) {
+          setListings([]);
+          setLoadError('Không thể tải dữ liệu tin đăng. Vui lòng thử lại.');
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -102,21 +108,6 @@ export const HomePage: React.FC = () => {
             </Button>
           </form>
 
-          {/* Filter Chips gợi ý nhanh */}
-          <div className="flex items-center gap-2 overflow-x-auto max-w-full py-1 text-xs no-scrollbar text-on-surface-variant">
-            <span className="font-semibold text-outline flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-tertiary-container" /> Gợi ý:
-            </span>
-            <button type="button" onClick={() => submitSearch('Vinhomes Green Bay')} className="min-h-11 px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
-              Vinhomes Green Bay
-            </button>
-            <button type="button" onClick={() => submitSearch('Cầu Giấy 2PN')} className="min-h-11 px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
-              Cầu Giấy 2PN
-            </button>
-            <button type="button" onClick={() => submitSearch('Nhà phố Đống Đa')} className="min-h-11 px-3 py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors whitespace-nowrap">
-              Nhà phố Đống Đa
-            </button>
-          </div>
         </div>
       </section>
 
@@ -125,7 +116,7 @@ export const HomePage: React.FC = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl md:text-2xl font-bold text-on-surface">
-              Tin đăng nổi bật
+              Tin đăng mới nhất
             </h2>
             <p className="text-xs md:text-sm text-on-surface-variant mt-0.5">
               Nội dung đã qua kiểm duyệt; hãy xác minh pháp lý và hiện trạng trước khi quyết định
@@ -142,6 +133,8 @@ export const HomePage: React.FC = () => {
               <div key={n} className="h-80 bg-surface-container-high rounded-xl animate-pulse"></div>
             ))}
           </div>
+        ) : loadError ? (
+          <div className="rounded-xl bg-rose-50 py-10 text-center" role="alert"><p className="text-rose-800">{loadError}</p><button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white">Thử lại</button></div>
         ) : listings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map((item) => (
