@@ -68,6 +68,19 @@ export function MyLeadsPage() {
 
       {error && <div role="alert" className="mt-6 flex items-start gap-3 rounded-lg border border-rose-200 bg-white px-4 py-3 text-rose-800"><X className="mt-0.5 h-4 w-4 shrink-0" /><p className="text-sm font-medium">{error}</p></div>}
 
+      <section className="mt-7 grid overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-2 lg:grid-cols-4" aria-label="Tổng hợp khách quan tâm">
+        {[
+          { label: 'Tổng khách quan tâm', value: countFor(), help: 'Theo từ khóa đang tìm' },
+          { label: 'Cần phản hồi', value: countFor('NEW'), help: 'Yêu cầu mới chưa xử lý' },
+          { label: 'Đã hẹn xem', value: countFor('APPOINTED'), help: 'Đang chờ buổi hẹn' },
+          { label: 'Đã hoàn tất', value: countFor('CLOSED'), help: 'Đã đóng quy trình chăm sóc' },
+        ].map((metric) => <div key={metric.label} className="border-b border-slate-200 p-5 last:border-b-0 lg:border-b-0 lg:border-l first:border-l-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-600">{metric.label}</p>
+          <p className="mt-2 text-3xl font-bold tabular-nums text-slate-950">{metric.value}</p>
+          <p className="mt-2 text-xs text-slate-500">{metric.help}</p>
+        </div>)}
+      </section>
+
       <section className="mt-7 border-y border-slate-200 py-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Lọc lead theo trạng thái">{filters.map((item) => <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`min-h-10 shrink-0 rounded-lg border px-4 text-sm font-semibold ${filter === item.value ? 'border-slate-950 bg-slate-950 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>{item.label} <span className="ml-1 tabular-nums">{countFor(item.value === 'ALL' ? undefined : item.value)}</span></button>)}</div>
