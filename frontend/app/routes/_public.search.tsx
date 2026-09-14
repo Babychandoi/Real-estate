@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listingApi } from '../entities/listing/api/listingApi';
 import type { Listing, ListingSearchParams } from '../entities/listing/model/types';
-import { formatPriceVnd, calculateUnitPrice, formatPropertyType } from '../entities/listing/model/types';
 import { ListingMap, type MapBounds } from '@/shared/map/ListingMap';
-import { listingPath } from '@/entities/listing/model/seo';
+import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { LayoutGrid, Map as MapIcon } from 'lucide-react';
 
 export function SearchAndMapPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -12,7 +12,7 @@ export function SearchAndMapPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // Filters state
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
@@ -97,11 +97,8 @@ export function SearchAndMapPage() {
   };
 
   return (
-    <div className="w-full flex flex-col xl:flex-row h-[calc(100vh-4rem)] overflow-hidden bg-surface text-on-surface">
-      {/* ========================================================= */}
-      {/* LEFT PANEL: Filter Toolbar & Scrollable Listing Feed (45%) */}
-      {/* ========================================================= */}
-      <section className="w-full flex flex-col h-full bg-surface z-10 relative">
+    <div className="min-h-[calc(100vh-4rem)] bg-surface text-on-surface">
+      <section className="w-full bg-surface relative">
         {/* Top Query & Smart Filters */}
         <div className="p-4 bg-surface-container-lowest flex flex-col gap-3 shadow-sm border-b border-outline-variant/20 flex-shrink-0">
           {/* Search Input Bar */}
@@ -253,7 +250,11 @@ export function SearchAndMapPage() {
             <span className="text-on-surface-variant font-medium">bất động sản trong vùng quét</span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg bg-surface-container-low p-0.5 border border-outline-variant/30" role="group" aria-label="Chế độ hiển thị kết quả">
+              <button type="button" onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}><LayoutGrid className="w-4 h-4" /><span className="hidden sm:inline">Danh sách</span></button>
+              <button type="button" onClick={() => setViewMode('map')} aria-pressed={viewMode === 'map'} className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'map' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}><MapIcon className="w-4 h-4" /><span className="hidden sm:inline">Bản đồ</span></button>
+            </div>
             <span className="text-on-surface-variant">Sắp xếp:</span>
             <select
               aria-label="Sắp xếp kết quả"
@@ -269,8 +270,7 @@ export function SearchAndMapPage() {
           </div>
         </div>
 
-        {/* Scrollable Listing Cards Feed */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className={viewMode === 'map' ? 'h-[calc(100vh-12.5rem)] min-h-[34rem] relative bg-slate-900' : 'max-w-7xl mx-auto p-4 md:p-6'}>
           {loading ? (
             <div className="text-center py-16 text-on-surface-variant text-sm">
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
@@ -289,120 +289,15 @@ export function SearchAndMapPage() {
               </button>
             </div>
           ) : (
-            visibleListings.map((item, index) => {
-              const isSelected = item.id === (hoveredId || selectedId);
-              const unitPrice = calculateUnitPrice(item.priceVnd, item.areaM2);
-
-              return (
-                <article
-                  key={item.id}
-                  onMouseEnter={() => setHoveredId(item.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  onClick={() => setSelectedId(item.id)}
-                  className={`bg-surface-container-lowest rounded-2xl p-3.5 border transition-all cursor-pointer flex flex-col sm:flex-row gap-3.5 relative ${
-                    isSelected
-                      ? 'border-primary shadow-lg ring-2 ring-primary/30'
-                      : 'border-outline-variant/40 hover:border-outline shadow-sm'
-                  }`}
-                >
-                  {/* Indicator if active */}
-                  {isSelected && (
-                    <div className="absolute -top-2.5 left-4 px-2.5 py-0.5 bg-primary text-white text-[10px] font-bold rounded-full shadow-sm flex items-center gap-1 z-20">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                      Đang hiển thị trên bản đồ
-                    </div>
-                  )}
-
-                  {/* Thumbnail Image */}
-                  <div className="relative w-full sm:w-48 h-40 sm:h-36 rounded-xl overflow-hidden shrink-0 bg-surface-container">
-                    {item.primaryImageUrl ? <img
-                      src={item.primaryImageUrl}
-                      alt={item.title}
-                      loading={index === 0 ? 'eager' : 'lazy'}
-                      decoding="async"
-                      fetchPriority={index === 0 ? 'high' : 'auto'}
-                      className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                    /> : <div className="grid h-full place-items-center bg-surface-container-high text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
-                      <span className="material-symbols-outlined text-5xl" aria-hidden="true">apartment</span>
-                    </div>}
-                    <div className="absolute top-2 left-2 flex flex-col gap-1">
-                      <span className="px-2 py-0.5 rounded-md bg-primary/90 text-white font-bold text-[10px] backdrop-blur-sm">
-                        {item.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
-                      </span>
-                      {item.isVerified && (
-                        <span className="px-2 py-0.5 rounded-md bg-emerald-700/95 text-white font-bold text-[10px] flex items-center gap-1 shadow-sm border border-emerald-400/40">
-                          <span className="material-symbols-outlined text-[12px]">verified</span>
-                          Trạng thái kiểm duyệt nội bộ
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Card Content */}
-                  <div className="flex-1 flex flex-col justify-between min-w-0">
-                    <div>
-                      {/* Price & Unit Price */}
-                      <div className="flex items-baseline justify-between gap-1">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-lg font-extrabold text-primary">
-                            {formatPriceVnd(item.priceVnd)}
-                          </span>
-                          {unitPrice && (
-                            <span className="text-xs text-on-surface-variant font-medium">
-                              {unitPrice}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-surface-container text-on-surface-variant uppercase">
-                          {formatPropertyType(item.propertyType)}
-                        </span>
-                      </div>
-
-                      {/* Title */}
-                      <h3 className="font-bold text-sm text-on-surface line-clamp-2 mt-1 leading-snug hover:text-primary transition-colors">
-                        {item.title}
-                      </h3>
-
-                      {/* Address */}
-                      <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-1 truncate">
-                        <svg className="w-3.5 h-3.5 text-secondary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        </svg>
-                        <span className="truncate">{item.addressSummary}</span>
-                      </p>
-
-                      {/* Specs */}
-                      <div className="flex items-center py-1.5 px-2 mt-2 bg-surface-container-low rounded-lg text-xs font-semibold text-on-surface">
-                        <span>Diện tích: {item.areaM2} m²</span>
-                      </div>
-                    </div>
-
-                    {/* Action Bar */}
-                    <div className="flex items-center justify-between pt-2 mt-1 border-t border-outline-variant/20">
-                      <span className="text-[11px] font-semibold text-on-surface-variant">Thông tin đã qua kiểm duyệt</span>
-
-                      <Link
-                        to={listingPath(item)}
-                        onClick={(event) => event.stopPropagation()}
-                        className="relative z-20 min-h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition inline-flex items-center gap-1"
-                      >
-                        Chi tiết
-                        <span>→</span>
-                      </Link>
-                    </div>
-                  </div>
-                </article>
-              );
-            })
+            viewMode === 'list' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
+                {visibleListings.map((item) => <ListingCard key={item.id} listing={item} />)}
+              </div>
+            ) : (
+              <ListingMap listings={visibleListings} selectedId={selectedId} onSearchArea={(bounds) => fetchListings(bounds)} />
+            )
           )}
         </div>
-      </section>
-
-      {/* ========================================================= */}
-      {/* RIGHT PANEL: Full-Height Interactive GIS Map Studio (54%) */}
-      {/* ========================================================= */}
-      <section className="hidden xl:block w-[54%] h-full relative bg-slate-900 overflow-hidden border-l border-outline-variant/30">
-        <ListingMap listings={visibleListings} selectedId={hoveredId || selectedId} onSearchArea={(bounds) => fetchListings(bounds)} />
       </section>
     </div>
   );
