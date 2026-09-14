@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Building2, Key, Home, Castle, MapPin,
   CheckCircle2, ArrowRight, ArrowLeft, Save, Send, Sparkles, AlertCircle,
@@ -14,6 +14,7 @@ import type { UserKycProfile } from '@/entities/verification/model/types';
 
 export const CreateListingPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
   // Trạng thái Wizard 4 bước
@@ -50,6 +51,7 @@ export const CreateListingPage: React.FC = () => {
   const [isSuccessSubmitted, setIsSuccessSubmitted] = useState(false);
   const [kycProfile, setKycProfile] = useState<UserKycProfile | null>(null);
   const [isCheckingKyc, setIsCheckingKyc] = useState(true);
+  const editingListingId = searchParams.get('edit');
 
   useEffect(() => {
     if (!user) return;
@@ -58,6 +60,18 @@ export const CreateListingPage: React.FC = () => {
       .catch(() => setKycProfile(null))
       .finally(() => setIsCheckingKyc(false));
   }, [user]);
+
+  useEffect(() => {
+    if (!editingListingId) return;
+    apiClient<{ id: string; purpose: 'SALE' | 'RENT'; propertyType: string; title: string; priceVnd: number; areaM2: number; description: string; provinceCode?: string; districtCode?: string; wardCode?: string; addressSummary: string; publicLatitude?: number; publicLongitude?: number; imageUrls: string[] }>(`/listings/${editingListingId}`)
+      .then((listing) => {
+        setListingId(listing.id); setPurpose(listing.purpose); setPropertyType(listing.propertyType); setTitle(listing.title);
+        setPriceVnd(listing.priceVnd); setAreaM2(listing.areaM2); setDescription(listing.description); setProvince(listing.provinceCode || '');
+        setDistrict(listing.districtCode || ''); setWard(listing.wardCode || ''); setAddressSummary(listing.addressSummary);
+        setLatitude(listing.publicLatitude || 0); setLongitude(listing.publicLongitude || 0); setImageUrls(listing.imageUrls || []);
+      })
+      .catch(() => setErrorMessage('Không thể tải dữ liệu tin để chỉnh sửa. Vui lòng quay lại kho tin và thử lại.'));
+  }, [editingListingId]);
 
   // Tính lại điểm chất lượng khi các trường thay đổi
   useEffect(() => {
