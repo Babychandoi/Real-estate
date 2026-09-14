@@ -136,10 +136,10 @@ export const MyListingsPage: React.FC = () => {
           ))}
         </div>
       ) : filteredListings.length > 0 ? (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid auto-rows-[400px] gap-5 md:grid-cols-2 xl:grid-cols-3">
           {filteredListings.map((item) => (
-            <Card key={item.id} className="flex min-w-0 flex-col overflow-hidden p-0">
-              <div className="relative aspect-[16/9] bg-surface-container">
+            <Card key={item.id} className="flex h-full min-w-0 flex-col overflow-hidden p-0">
+              <div className="relative h-48 shrink-0 bg-surface-container">
                   {item.imageUrls[0] ? <img
                     src={item.imageUrls[0]}
                     alt={item.title}
@@ -166,7 +166,7 @@ export const MyListingsPage: React.FC = () => {
                     <Link to={listingPath(item)}>{item.title || 'Tin đăng chưa đặt tiêu đề'}</Link>
                   </h3>
                   <p className="mt-1 text-xs text-on-surface-variant line-clamp-1">{item.addressSummary}</p>
-                <div className="mt-4 flex items-center gap-2 border-t border-outline-variant/30 pt-3">
+                <div className="mt-auto flex items-center gap-2 border-t border-outline-variant/30 pt-3">
                   <Link to={listingPath(item)}><Button variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>Xem</Button></Link>
                   {item.status !== 'PENDING_REVIEW' && <Link to={`/listings/new?edit=${item.id}`}><Button variant="outline" size="sm" leftIcon={<Pencil className="w-4 h-4" />}>Chỉnh sửa</Button></Link>}
                   {item.status === 'DRAFT' && <Button variant="primary" size="sm" onClick={() => handleQuickSubmit(item.id)} leftIcon={<Send className="w-4 h-4" />}>Nộp duyệt</Button>}
