@@ -317,8 +317,8 @@ const RootLayoutContent: React.FC = () => {
             ) : (
               <div ref={userMenuRef} className="relative pl-2 border-l border-outline-variant/30">
                 <button type="button" aria-label="Mở menu tài khoản" aria-expanded={isUserMenuOpen} onClick={() => setIsUserMenuOpen((open) => !open)} className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                    <UserIcon className="w-4 h-4" />
+                  <div className="w-8 h-8 overflow-hidden rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                    {user?.avatarMediaUrl ? <img src={user.avatarMediaUrl} alt="" className="h-full w-full object-cover" /> : <UserIcon className="w-4 h-4" />}
                   </div>
                   <div className="hidden md:flex flex-col items-start text-left">
                     <span className="text-xs font-bold text-on-surface leading-tight whitespace-nowrap">
@@ -340,10 +340,11 @@ const RootLayoutContent: React.FC = () => {
                 </button>
                 {isUserMenuOpen && (
                   <div className="absolute right-0 top-[calc(100%+0.5rem)] w-64 rounded-xl bg-surface p-2 shadow-xl border border-outline-variant/50 z-50">
-                    <Link to="/kyc" onClick={() => setIsUserMenuOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-surface-container transition-colors">
-                      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><UserIcon className="w-4 h-4" /></div>
-                      <div className="min-w-0"><p className="truncate text-sm font-bold text-on-surface">{user?.name}</p><p className="truncate text-xs text-on-surface-variant">Hồ sơ & xác minh eKYC</p></div>
+                    <Link to="/account" onClick={() => setIsUserMenuOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-surface-container transition-colors">
+                      <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg bg-primary/10 text-primary">{user?.avatarMediaUrl ? <img src={user.avatarMediaUrl} alt="" className="h-full w-full object-cover" /> : <UserIcon className="w-4 h-4" />}</div>
+                      <div className="min-w-0"><p className="truncate text-sm font-bold text-on-surface">{user?.name}</p><p className="truncate text-xs text-on-surface-variant">Thông tin cá nhân</p></div>
                     </Link>
+                    <Link to="/kyc" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"><UserCheck className="w-4 h-4 text-primary" />Xác minh eKYC</Link>
                     <div className="my-1 border-t border-outline-variant/40" />
                     <Link to="/my-listings" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><FileText className="w-4 h-4 text-primary" />Kho tin của tôi</Link>
                     <Link to="/billing" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Layers className="w-4 h-4 text-primary" />Gói đăng tin</Link>
@@ -366,7 +367,7 @@ const RootLayoutContent: React.FC = () => {
               <Link to="/search" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Search className="w-5 h-5" />Tìm kiếm</Link>
               <Link to="/compare" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Layers className="w-5 h-5" />So sánh BĐS</Link>
               <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>
-              {isAuthenticated && <Link to="/kyc" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserCheck className="w-5 h-5" />Xác minh eKYC</Link>}
+              {isAuthenticated && <><Link to="/account" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserIcon className="w-5 h-5" />Thông tin cá nhân</Link><Link to="/kyc" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserCheck className="w-5 h-5" />Xác minh eKYC</Link></>}
               {isBroker && <Link to="/broker/workspace" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Briefcase className="w-5 h-5" />Không gian môi giới</Link>}
               {isAdminOrModerator && <Link to="/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
             </nav>

@@ -2,8 +2,8 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 import { apiClient, apiFetch, clearAccessToken, setAccessToken } from '@/shared/api/client';
 
 export type UserRole = 'ADMIN' | 'MODERATOR' | 'BROKER' | 'USER';
-export interface AuthUser { id: string; name: string; email: string; role: UserRole; planCode:string; planExpiresAt?:string; listingQuotaRemaining:number; roleLabel: string; avatarInitial?: string; }
-interface ServerUser { id: string; name: string; email: string; role: UserRole; planCode:string; planExpiresAt?:string; listingQuotaRemaining:number; }
+export interface AuthUser { id: string; name: string; email: string; phone?: string; role: UserRole; planCode:string; planExpiresAt?:string; listingQuotaRemaining:number; avatarMediaUrl?: string; roleLabel: string; avatarInitial?: string; }
+interface ServerUser { id: string; name: string; email: string; phone?: string; role: UserRole; planCode:string; planExpiresAt?:string; listingQuotaRemaining:number; avatarMediaUrl?: string; }
 interface AuthResult { accessToken: string; expiresAt: string; user: ServerUser; }
 interface AuthContextType {
   user: AuthUser | null; isAuthenticated: boolean; isAuthLoading: boolean;
@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (email: string, password: string, mfaCode?: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, password: string, name: string, accountType: 'BROKER' | 'USER') => Promise<{ success: boolean; email?: string; error?: string }>;
   resendVerification: (email: string) => Promise<{ success:boolean; error?:string }>;
+  refreshUser: () => Promise<void>;
   logout: () => void; isLoginModalOpen: boolean; setIsLoginModalOpen: (open: boolean) => void;
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,10 +71,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try { await apiClient<void>('/auth/resend-verification',{method:'POST',body:JSON.stringify({email})}); return {success:true}; }
     catch(error){ return {success:false,error:errorMessage(error)}; }
   };
+  const refreshUser = async () => { const fresh = await apiClient<ServerUser>('/auth/me'); setUser(toUser(fresh)); };
   const value = useMemo<AuthContextType>(() => ({ user, isAuthenticated: !!user, isAuthLoading,
     isAdminOrModerator: user?.role === 'ADMIN' || user?.role === 'MODERATOR',
     isBroker: user?.role === 'BROKER' || user?.role === 'ADMIN', login, register, logout,
-    resendVerification, isLoginModalOpen, setIsLoginModalOpen }), [user, isAuthLoading, isLoginModalOpen]);
+    resendVerification, refreshUser, isLoginModalOpen, setIsLoginModalOpen }), [user, isAuthLoading, isLoginModalOpen]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

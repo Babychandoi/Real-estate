@@ -128,7 +128,9 @@ public class MediaStorageService {
         if (owned == null || owned == 0) throw new IllegalArgumentException("Không tìm thấy ảnh thuộc tài khoản hiện tại.");
         Integer attached = jdbc.queryForObject("SELECT COUNT(*) FROM listing_media WHERE media_url=?",
                 Integer.class, PUBLIC_MEDIA_PREFIX + objectKey);
-        if (attached != null && attached > 0) {
+        Integer avatarAttached = jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE avatar_media_url=?",
+                Integer.class, PUBLIC_MEDIA_PREFIX + objectKey);
+        if ((attached != null && attached > 0) || (avatarAttached != null && avatarAttached > 0)) {
             throw new IllegalStateException("Ảnh đang thuộc lịch sử revision và không thể xóa vật lý.");
         }
         String privateUrl = "/api/v1/media/kyc/" + objectKey;
@@ -193,6 +195,7 @@ public class MediaStorageService {
                 SELECT object_key FROM media_objects m
                 WHERE m.created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours'
                   AND NOT EXISTS (SELECT 1 FROM listing_media lm WHERE lm.media_url=CONCAT('/api/v1/public/media/',m.object_key))
+                  AND NOT EXISTS (SELECT 1 FROM users u WHERE u.avatar_media_url=CONCAT('/api/v1/public/media/',m.object_key))
                   AND NOT EXISTS (
                     SELECT 1 FROM user_kyc_profiles k
                     WHERE k.id_card_front_url=CONCAT('/api/v1/media/kyc/',m.object_key)

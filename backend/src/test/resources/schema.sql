@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY, phone_lookup_hash VARCHAR(64) NOT NULL UNIQUE, phone_encrypted TEXT NOT NULL,
+  id UUID PRIMARY KEY, phone_lookup_hash VARCHAR(64) NOT NULL UNIQUE, phone_encrypted TEXT NOT NULL, avatar_media_url VARCHAR(1000),
   full_name VARCHAR(150) NOT NULL, email VARCHAR(150) UNIQUE, password_hash VARCHAR(100), status VARCHAR(30) NOT NULL,
   email_verified_at TIMESTAMP WITH TIME ZONE,
   plan_code VARCHAR(30) NOT NULL DEFAULT 'FREE', plan_expires_at TIMESTAMP WITH TIME ZONE, listing_quota_remaining INT NOT NULL DEFAULT 2,

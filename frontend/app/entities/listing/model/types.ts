@@ -35,6 +35,7 @@ export interface ListingDetail extends Omit<Listing, 'primaryImageUrl' | 'publis
 
 export interface PublicSellerProfile {
   displayName: string;
+  avatarMediaUrl?: string;
   identityVerified: boolean;
   activeListingCount: number;
   memberSince: string;

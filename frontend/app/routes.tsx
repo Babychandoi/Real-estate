@@ -19,6 +19,7 @@ const CmsManagementPage = lazy(() => import('./routes/_admin.cms').then(m => ({ 
 const BillingPage = lazy(() => import('./routes/_account.billing').then(m => ({ default: m.BillingPage })));
 const MyLeadsPage = lazy(() => import('./routes/_account.leads').then(m => ({ default: m.MyLeadsPage })));
 const KycPage = lazy(() => import('./routes/_account.kyc').then(m => ({ default: m.KycPage })));
+const AccountProfilePage = lazy(() => import('./routes/_account.profile').then(m => ({ default: m.AccountProfilePage })));
 const VerifyEmailPage = lazy(() => import('./routes/_public.verify-email').then(m => ({ default: m.VerifyEmailPage })));
 const InformationPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.InformationPage })));
 const NotFoundPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.NotFoundPage })));
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([{ path: '/', element: <RootLayout />,
   { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER','USER']) },
   { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN','MODERATOR','BROKER','USER']) },
   { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
+  { path: 'account', element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ['ADMIN','MODERATOR','BROKER','USER']) },
   { path: 'verify-email', element: load(<VerifyEmailPage />) },
   { path: 'about', element: load(<InformationPage />) },
   { path: 'terms', element: load(<InformationPage />) },

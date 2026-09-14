@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import com.company.bds.shared.security.PiiProtectionService;
 
 @Service
 public class AuthService {
@@ -32,17 +33,20 @@ public class AuthService {
     private final JavaMailSender mailSender;
     private final String mailFrom;
     private final String publicBaseUrl;
+    private final PiiProtectionService piiProtection;
 
     public AuthService(JdbcTemplate jdbc, PasswordEncoder passwordEncoder, TotpVerifier totpVerifier,
                        JavaMailSender mailSender,
                        @Value("${app.mail.from}") String mailFrom,
-                       @Value("${app.public-base-url}") String publicBaseUrl) {
+                       @Value("${app.public-base-url}") String publicBaseUrl,
+                       PiiProtectionService piiProtection) {
         this.jdbc = jdbc;
         this.passwordEncoder = passwordEncoder;
         this.totpVerifier = totpVerifier;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", "");
+        this.piiProtection = piiProtection;
     }
 
     @Transactional
@@ -168,9 +172,31 @@ public class AuthService {
     }
 
     public UserView view(UserAccount user) {
-        return jdbc.queryForObject("SELECT plan_code,plan_expires_at,listing_quota_remaining FROM users WHERE id=?",
+        return jdbc.queryForObject("SELECT plan_code,plan_expires_at,listing_quota_remaining,avatar_media_url,phone_encrypted FROM users WHERE id=?",
                 (rs, row) -> new UserView(user.id(), user.fullName(), user.email(), user.role(), rs.getString(1),
-                        rs.getTimestamp(2) == null ? null : rs.getTimestamp(2).toInstant(), rs.getInt(3)), user.id());
+                        rs.getTimestamp(2) == null ? null : rs.getTimestamp(2).toInstant(), rs.getInt(3), rs.getString(4),
+                        revealPhoneIfAvailable(rs.getString(5))), user.id());
+    }
+
+    @Transactional
+    public UserView updateProfile(UUID userId, String name, String phone, String avatarMediaUrl) {
+        String normalizedAvatar = avatarMediaUrl == null || avatarMediaUrl.isBlank() ? null : avatarMediaUrl.trim();
+        if (normalizedAvatar != null) {
+            Integer owned = jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM media_objects
+                    WHERE owner_id=? AND visibility='PUBLIC' AND CONCAT('/api/v1/public/media/', object_key)=?
+                    """, Integer.class, userId, normalizedAvatar);
+            if (owned == null || owned == 0) throw new IllegalArgumentException("Ảnh đại diện phải là ảnh công khai thuộc tài khoản hiện tại.");
+        }
+        PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(phone);
+        jdbc.update("UPDATE users SET full_name=?,phone_encrypted=?,phone_lookup_hash=?,avatar_media_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                name.trim(), protectedPhone.encrypted(), protectedPhone.blindIndex(), normalizedAvatar, userId);
+        UserAccount current = loadUser(userId);
+        return view(current);
+    }
+
+    private String revealPhoneIfAvailable(String protectedPhone) {
+        return protectedPhone != null && protectedPhone.startsWith("v1:") ? piiProtection.reveal(protectedPhone) : null;
     }
 
     private static String normalizeEmail(String email) {
@@ -187,7 +213,7 @@ public class AuthService {
     }
 
     public record UserAccount(UUID id, String fullName, String email, String passwordHash, String role) {}
-    public record UserView(UUID id, String name, String email, String role, String planCode, Instant planExpiresAt, int listingQuotaRemaining) {}
+    public record UserView(UUID id, String name, String email, String role, String planCode, Instant planExpiresAt, int listingQuotaRemaining, String avatarMediaUrl, String phone) {}
     public record AuthResult(String accessToken, Instant expiresAt, UserView user) {}
     public record RegistrationResult(String email, boolean requiresEmailVerification) {}
 }

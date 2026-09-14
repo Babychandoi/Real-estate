@@ -22,21 +22,21 @@ public class PublicProfileController {
     @GetMapping("/{ownerId}")
     public ResponseEntity<PublicProfileResponse> getProfile(@PathVariable UUID ownerId) {
         Optional<PublicProfileResponse> profile = jdbc.query("""
-                SELECT u.full_name, u.created_at,
+                SELECT u.full_name, u.avatar_media_url, u.created_at,
                        CASE WHEN EXISTS (SELECT 1 FROM user_kyc_profiles k
                                          WHERE k.user_id = u.id AND k.status = 'VERIFIED') THEN TRUE ELSE FALSE END AS identity_verified,
                        COUNT(l.id) AS active_listing_count
                 FROM users u
                 LEFT JOIN listings l ON l.owner_id = u.id AND l.status = 'ACTIVE'
                 WHERE u.id = ? AND u.status = 'ACTIVE'
-                GROUP BY u.id, u.full_name, u.created_at
+                GROUP BY u.id, u.full_name, u.avatar_media_url, u.created_at
                 """, (rs, row) -> new PublicProfileResponse(
-                rs.getString("full_name"), rs.getBoolean("identity_verified"),
+                rs.getString("full_name"), rs.getString("avatar_media_url"), rs.getBoolean("identity_verified"),
                 rs.getLong("active_listing_count"), rs.getObject("created_at", Instant.class)
         ), ownerId).stream().findFirst();
         return profile.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    public record PublicProfileResponse(String displayName, boolean identityVerified,
+    public record PublicProfileResponse(String displayName, String avatarMediaUrl, boolean identityVerified,
                                         long activeListingCount, Instant memberSince) { }
 }

@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import com.company.bds.shared.security.CurrentUser;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -48,6 +49,11 @@ public class AuthController {
         return authService.view(user);
     }
 
+    @PutMapping("/me")
+    public AuthService.UserView updateMe(@Valid @RequestBody UpdateProfileRequest request, Authentication authentication) {
+        return authService.updateProfile(CurrentUser.id(authentication), request.name(), request.phone(), request.avatarMediaUrl());
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         authService.logout(bearer(authorization));
@@ -65,4 +71,7 @@ public class AuthController {
                                   @NotBlank @Size(min=2, max=150) String name,
                                   @Pattern(regexp="USER|BROKER") String accountType) {}
     public record ResendVerificationRequest(@NotBlank @Email String email) {}
+    public record UpdateProfileRequest(@NotBlank @Size(min=2, max=150) String name,
+                                       @NotBlank @Pattern(regexp="^(0|\\+84)[35789][0-9]{8}$") String phone,
+                                       @Size(max=1000) String avatarMediaUrl) {}
 }
