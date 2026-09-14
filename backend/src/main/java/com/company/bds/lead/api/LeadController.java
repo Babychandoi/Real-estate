@@ -3,6 +3,8 @@ package com.company.bds.lead.api;
 import com.company.bds.lead.api.request.CreateLeadRequest;
 import com.company.bds.lead.api.request.UpdateLeadStatusRequest;
 import com.company.bds.lead.api.response.LeadResponse;
+import com.company.bds.lead.api.response.LeadPageResponse;
+import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.lead.application.LeadApplicationService;
 import com.company.bds.lead.domain.model.Lead;
 import jakarta.validation.Valid;
@@ -95,6 +97,22 @@ public class LeadController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/leads/search")
+    public ResponseEntity<LeadPageResponse> searchLeads(
+            @RequestParam(name = "status", required = false) LeadStatus status,
+            @RequestParam(name = "q", required = false) String keyword,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            Authentication authentication) {
+        page = Math.max(0, page);
+        size = Math.max(1, Math.min(100, size));
+        boolean privileged = isPrivileged(authentication);
+        UUID actorId = CurrentUser.id(authentication);
+        return ResponseEntity.ok(LeadPageResponse.fromDomain(privileged
+                ? leadApplicationService.searchAllLeads(status, keyword, page, size)
+                : leadApplicationService.searchLeadsForBroker(actorId, status, keyword, page, size)));
     }
 
     /**

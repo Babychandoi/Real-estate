@@ -146,6 +146,17 @@ public class LeadApplicationService {
         return leadPersistencePort.findPage(page, size);
     }
 
+    @Transactional(readOnly = true)
+    public com.company.bds.lead.domain.model.LeadPage searchLeadsForBroker(UUID brokerId, LeadStatus status, String keyword, int page, int size) {
+        List<UUID> listingIds = listingPersistencePort.findByOwnerId(brokerId).stream().map(Listing::getId).toList();
+        return leadPersistencePort.search(listingIds, status, normalizeSearchKeyword(keyword), page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public com.company.bds.lead.domain.model.LeadPage searchAllLeads(LeadStatus status, String keyword, int page, int size) {
+        return leadPersistencePort.searchAll(status, normalizeSearchKeyword(keyword), page, size);
+    }
+
     /**
      * Lấy danh sách Lead theo tin đăng cụ thể.
      */
@@ -205,5 +216,9 @@ public class LeadApplicationService {
         }
         return leadPersistencePort.findById((UUID) rows.get(0).get("resource_id"))
                 .orElseThrow(() -> new IllegalStateException("Yêu cầu đang được xử lý; vui lòng thử lại."));
+    }
+
+    private String normalizeSearchKeyword(String keyword) {
+        return keyword == null ? "" : keyword.trim().replaceAll("\\s+", " ");
     }
 }
