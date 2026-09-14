@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag } from 'lucide-react';
+import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Badge } from '@/shared/ui/Badge';
 import { Card } from '@/shared/ui/Card';
@@ -201,6 +201,7 @@ export const ListingDetailPage: React.FC = () => {
               <span className="text-sm font-bold text-on-surface">{formatPropertyType(listing.propertyType)}</span>
             </Card>
             <Card className="flex flex-col items-center text-center p-3">
+              <Tag className="w-5 h-5 text-primary mb-1" aria-hidden="true" />
               <span className="text-xs text-on-surface-variant">Nhu cầu</span>
               <span className="text-sm font-bold text-on-surface">{listing.purpose === 'SALE' ? 'Cần bán' : 'Cho thuê'}</span>
             </Card>
