@@ -7,7 +7,7 @@ export const setAccessToken = (token: string) => sessionStorage.setItem(TOKEN_KE
 export const clearAccessToken = () => sessionStorage.removeItem(TOKEN_KEY);
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
-  const url = endpoint.startsWith('http') ? endpoint : `${BASE_API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const url = endpoint.startsWith('http') || endpoint.startsWith('/api/') ? endpoint : `${BASE_API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   const token = sessionStorage.getItem(TOKEN_KEY);
   const headers = new Headers(options.headers);
   if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {

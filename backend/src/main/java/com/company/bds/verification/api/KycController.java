@@ -4,6 +4,7 @@ import com.company.bds.verification.api.request.RejectKycRequest;
 import com.company.bds.verification.api.request.SubmitKycRequest;
 import com.company.bds.verification.api.response.UserKycResponse;
 import com.company.bds.verification.application.KycApplicationService;
+import com.company.bds.iam.application.AuthService;
 import com.company.bds.verification.domain.model.KycStatus;
 import com.company.bds.verification.domain.model.UserKycProfile;
 import jakarta.validation.Valid;
@@ -17,15 +18,18 @@ import java.util.stream.Collectors;
 import org.springframework.security.core.Authentication;
 import com.company.bds.shared.security.CurrentUser;
 import org.springframework.security.access.AccessDeniedException;
+import jakarta.validation.constraints.NotBlank;
 
 @RestController
 @RequestMapping("/api/v1/kyc")
 public class KycController {
 
     private final KycApplicationService kycApplicationService;
+    private final AuthService authService;
 
-    public KycController(KycApplicationService kycApplicationService) {
+    public KycController(KycApplicationService kycApplicationService, AuthService authService) {
         this.kycApplicationService = kycApplicationService;
+        this.authService = authService;
     }
 
     /**
@@ -62,6 +66,26 @@ public class KycController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/documents/access")
+    public AuthService.KycDocumentAccess grantDocumentAccess(
+            @Valid @RequestBody DocumentAccessRequest request, Authentication authentication) {
+        return authService.grantKycDocumentAccess(CurrentUser.id(authentication), request.password());
+    }
+
+    @GetMapping("/user/{userId}/documents")
+    public KycDocumentsResponse getOwnDocuments(
+            @PathVariable("userId") UUID userId,
+            @RequestHeader("X-Kyc-Document-Access") String accessToken,
+            Authentication authentication) {
+        if (!CurrentUser.id(authentication).equals(userId)
+                || !authService.hasKycDocumentAccess(userId, accessToken)) {
+            throw new AccessDeniedException("Cần xác nhận lại mật khẩu để xem ảnh định danh.");
+        }
+        UserKycProfile profile = kycApplicationService.getKycByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hồ sơ eKYC."));
+        return new KycDocumentsResponse(profile.getIdCardFrontUrl(), profile.getIdCardBackUrl(), profile.getSelfieUrl());
+    }
+
     /**
      * Hàng đợi eKYC chờ duyệt.
      */
@@ -93,4 +117,7 @@ public class KycController {
         UserKycProfile profile = kycApplicationService.rejectKyc(id, request.reason());
         return ResponseEntity.ok(UserKycResponse.fromDomainForReviewer(profile));
     }
+
+    public record DocumentAccessRequest(@NotBlank String password) {}
+    public record KycDocumentsResponse(String idCardFrontUrl, String idCardBackUrl, String selfieUrl) {}
 }

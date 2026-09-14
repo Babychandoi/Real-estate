@@ -26,6 +26,7 @@ import com.company.bds.shared.security.PiiProtectionService;
 @Service
 public class AuthService {
     private static final Duration SESSION_TTL = Duration.ofHours(12);
+    private static final Duration KYC_DOCUMENT_ACCESS_TTL = Duration.ofMinutes(10);
     private static final SecureRandom RANDOM = new SecureRandom();
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
@@ -160,6 +161,33 @@ public class AuthService {
         jdbc.update("UPDATE auth_sessions SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND revoked_at IS NULL", userId);
     }
 
+    @Transactional
+    public KycDocumentAccess grantKycDocumentAccess(UUID userId, String password) {
+        String passwordHash = jdbc.queryForObject("SELECT password_hash FROM users WHERE id=? AND status='ACTIVE'",
+                String.class, userId);
+        if (passwordHash == null || !passwordEncoder.matches(password, passwordHash)) {
+            throw new org.springframework.security.access.AccessDeniedException("Mật khẩu xác nhận không chính xác.");
+        }
+        jdbc.update("DELETE FROM kyc_document_access_grants WHERE user_id=? OR expires_at<CURRENT_TIMESTAMP", userId);
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        Instant expiresAt = Instant.now().plus(KYC_DOCUMENT_ACCESS_TTL);
+        jdbc.update("INSERT INTO kyc_document_access_grants(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
+                UUID.randomUUID(), userId, sha256(token), Timestamp.from(expiresAt));
+        return new KycDocumentAccess(token, expiresAt);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasKycDocumentAccess(UUID userId, String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) return false;
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM kyc_document_access_grants
+                WHERE user_id=? AND token_hash=? AND expires_at>CURRENT_TIMESTAMP
+                """, Integer.class, userId, sha256(rawToken));
+        return count != null && count > 0;
+    }
+
     private void sendNewVerificationToken(UUID userId, String email) {
         jdbc.update("UPDATE email_verification_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
@@ -255,4 +283,5 @@ public class AuthService {
     public record UserView(UUID id, String name, String email, String role, String planCode, Instant planExpiresAt, int listingQuotaRemaining, String avatarMediaUrl, String phone) {}
     public record AuthResult(String accessToken, Instant expiresAt, UserView user) {}
     public record RegistrationResult(String email, boolean requiresEmailVerification) {}
+    public record KycDocumentAccess(String token, Instant expiresAt) {}
 }
