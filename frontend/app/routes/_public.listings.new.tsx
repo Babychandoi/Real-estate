@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Building2, Key, Home, Castle, MapPin,
@@ -11,6 +11,35 @@ import { apiClient } from '@/shared/api/client';
 import { formatPriceVnd, calculateUnitPrice } from '@/entities/listing/model/types';
 import { useAuth } from '@/shared/auth/AuthContext';
 import type { UserKycProfile } from '@/entities/verification/model/types';
+import * as maplibregl from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import 'maplibre-gl/dist/maplibre-gl.css';
+
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
+
+function LocationPicker({ latitude, longitude, onChange }: { latitude: number; longitude: number; onChange: (latitude: number, longitude: number) => void }) {
+  const host = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const marker = useRef<maplibregl.Marker | null>(null);
+
+  useEffect(() => {
+    if (!host.current || map.current) return;
+    const initial: [number, number] = latitude && longitude ? [longitude, latitude] : [105.8542, 21.0285];
+    const instance = new maplibregl.Map({ container: host.current, style: 'https://tiles.openfreemap.org/styles/positron', center: initial, zoom: latitude && longitude ? 14 : 11 });
+    instance.addControl(new maplibregl.NavigationControl(), 'top-right');
+    const setPoint = (lng: number, lat: number) => {
+      marker.current ??= new maplibregl.Marker({ color: '#0f172a' });
+      marker.current.setLngLat([lng, lat]).addTo(instance);
+      onChange(Number(lat.toFixed(6)), Number(lng.toFixed(6)));
+    };
+    if (latitude && longitude) setPoint(longitude, latitude);
+    instance.on('click', (event) => setPoint(event.lngLat.lng, event.lngLat.lat));
+    map.current = instance;
+    return () => { marker.current?.remove(); instance.remove(); map.current = null; marker.current = null; };
+  }, []);
+
+  return <div ref={host} className="mt-3 h-72 overflow-hidden rounded-lg border border-slate-300" aria-label="Bản đồ chọn tọa độ" />;
+}
 
 export const CreateListingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,6 +62,7 @@ export const CreateListingPage: React.FC = () => {
   const [addressSummary, setAddressSummary] = useState('');
   const [latitude, setLatitude] = useState(0);
   const [longitude, setLongitude] = useState(0);
+  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
   const [description, setDescription] = useState('');
 
   // Media
@@ -567,7 +597,7 @@ export const CreateListingPage: React.FC = () => {
                       <MapPin className="w-4 h-4 text-emerald-600" />
                       <span className="text-xs font-bold text-slate-800 uppercase">Tọa độ hiển thị trên bản đồ</span>
                     </div>
-                    <span className="text-xs text-amber-700">Chỉ nhập tọa độ bạn đồng ý công khai.</span>
+                    <button type="button" onClick={() => setIsMapPickerOpen((current) => !current)} className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100">{isMapPickerOpen ? 'Ẩn bản đồ' : 'Chọn trên bản đồ'}</button>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-xs font-mono">
                     <div>
@@ -576,7 +606,7 @@ export const CreateListingPage: React.FC = () => {
                         type="number"
                         step="0.0001"
                         value={latitude}
-                        onChange={(e) => setLatitude(parseFloat(e.target.value))}
+                        onChange={(e) => setLatitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
                       />
                     </div>
@@ -586,11 +616,13 @@ export const CreateListingPage: React.FC = () => {
                         type="number"
                         step="0.0001"
                         value={longitude}
-                        onChange={(e) => setLongitude(parseFloat(e.target.value))}
+                        onChange={(e) => setLongitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
                       />
                     </div>
                   </div>
+                  <p className="mt-3 text-xs text-slate-500">Chỉ chọn hoặc nhập tọa độ bạn đồng ý công khai. Vị trí hiển thị sẽ được làm mờ để bảo vệ riêng tư.</p>
+                  {isMapPickerOpen && <LocationPicker latitude={latitude} longitude={longitude} onChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />}
                 </div>
 
                 <div className="mt-6 flex justify-end">
