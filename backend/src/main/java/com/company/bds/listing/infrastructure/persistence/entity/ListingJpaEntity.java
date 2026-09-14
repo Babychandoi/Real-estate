@@ -26,6 +26,9 @@ public class ListingJpaEntity {
     @Column(name = "public_revision_id")
     private UUID publicRevisionId;
 
+    @Column(name = "slug", nullable = false, length = 180, unique = true)
+    private String slug;
+
     @Column(name = "status", nullable = false, length = 30)
     private String status;
 
@@ -48,10 +51,11 @@ public class ListingJpaEntity {
 
     public ListingJpaEntity() {}
 
-    public ListingJpaEntity(UUID id, UUID ownerId, UUID publicRevisionId, String status, Long version, Instant createdAt, Instant updatedAt) {
+    public ListingJpaEntity(UUID id, UUID ownerId, UUID publicRevisionId, String slug, String status, Long version, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.ownerId = ownerId;
         this.publicRevisionId = publicRevisionId;
+        this.slug = slug;
         this.status = status;
         this.version = version != null ? version : 0L;
         this.createdAt = createdAt;
@@ -70,6 +74,8 @@ public class ListingJpaEntity {
     public void setOwnerId(UUID ownerId) { this.ownerId = ownerId; }
     public UUID getPublicRevisionId() { return publicRevisionId; }
     public void setPublicRevisionId(UUID publicRevisionId) { this.publicRevisionId = publicRevisionId; }
+    public String getSlug() { return slug; }
+    public void setSlug(String slug) { this.slug = slug; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public boolean isVerifiedOwner() { return isVerifiedOwner; }

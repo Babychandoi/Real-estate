@@ -1,5 +1,6 @@
 export interface Listing {
   id: string;
+  slug: string;
   title: string;
   purpose: 'SALE' | 'RENT';
   propertyType: string;

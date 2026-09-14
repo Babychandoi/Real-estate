@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.text.Normalizer;
+import java.util.Locale;
 
 /**
  * Application Service điều phối use case tin đăng và ranh giới transaction.
@@ -57,6 +59,7 @@ public class ListingApplicationService implements
 
         Listing listing = Listing.createNewDraft(
                 command.ownerId(),
+                allocateSlug(command.title()),
                 command.title(),
                 command.purpose(),
                 command.propertyType(),
@@ -75,6 +78,17 @@ public class ListingApplicationService implements
 
         Listing saved = persistencePort.save(listing);
         return saved.getId();
+    }
+
+    private String allocateSlug(String title) {
+        String base = Normalizer.normalize(title.replace('đ', 'd').replace('Đ', 'D'), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT)
+                .replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+        if (base.isBlank()) base = "bat-dong-san";
+        base = base.substring(0, Math.min(160, base.length())).replaceAll("-+$", "");
+        String candidate = base;
+        for (int suffix = 2; persistencePort.existsBySlug(candidate); suffix++) candidate = base + "-" + suffix;
+        return candidate;
     }
 
     @Override

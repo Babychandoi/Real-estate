@@ -15,6 +15,7 @@ public class Listing {
     private final UUID id;
     private final UUID ownerId;
     private UUID publicRevisionId;
+    private final String slug;
     private ListingStatus status;
     private boolean isVerifiedOwner = false;
     private final List<ListingRevision> revisions;
@@ -31,13 +32,14 @@ public class Listing {
             long version,
             Instant createdAt,
             Instant updatedAt) {
-        this(id, ownerId, publicRevisionId, status, false, revisions, version, createdAt, updatedAt);
+        this(id, ownerId, publicRevisionId, null, status, false, revisions, version, createdAt, updatedAt);
     }
 
     public Listing(
             UUID id,
             UUID ownerId,
             UUID publicRevisionId,
+            String slug,
             ListingStatus status,
             boolean isVerifiedOwner,
             List<ListingRevision> revisions,
@@ -47,6 +49,7 @@ public class Listing {
         this.id = id != null ? id : UUID.randomUUID();
         this.ownerId = Objects.requireNonNull(ownerId, "ownerId không được để trống");
         this.publicRevisionId = publicRevisionId;
+        this.slug = slug;
         this.status = status != null ? status : ListingStatus.DRAFT;
         this.isVerifiedOwner = isVerifiedOwner;
         this.revisions = revisions != null ? new ArrayList<>(revisions) : new ArrayList<>();
@@ -60,6 +63,7 @@ public class Listing {
      */
     public static Listing createNewDraft(
             UUID ownerId,
+            String slug,
             String title,
             ListingPurpose purpose,
             PropertyType propertyType,
@@ -98,7 +102,9 @@ public class Listing {
                 listingId,
                 ownerId,
                 null,
+                Objects.requireNonNull(slug, "slug không được để trống"),
                 ListingStatus.DRAFT,
+                false,
                 List.of(initialRevision),
                 0L,
                 now,
@@ -273,6 +279,7 @@ public class Listing {
     public UUID getId() { return id; }
     public UUID getOwnerId() { return ownerId; }
     public UUID getPublicRevisionId() { return publicRevisionId; }
+    public String getSlug() { return slug; }
     public ListingStatus getStatus() { return status; }
     public List<ListingRevision> getRevisions() { return Collections.unmodifiableList(revisions); }
     public long getVersion() { return version; }

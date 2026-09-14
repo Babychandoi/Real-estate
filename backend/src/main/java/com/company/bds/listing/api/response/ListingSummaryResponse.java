@@ -11,6 +11,7 @@ import java.util.UUID;
  */
 public record ListingSummaryResponse(
         UUID id,
+        String slug,
         String title,
         String purpose,
         String propertyType,

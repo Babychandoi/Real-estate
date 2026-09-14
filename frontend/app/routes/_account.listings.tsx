@@ -10,6 +10,7 @@ import { listingPath } from '@/entities/listing/model/seo';
 
 interface MyListingItem {
   id: string;
+  slug: string;
   status: string;
   revisionNumber: number;
   revisionStatus: string;
@@ -166,7 +167,7 @@ export const MyListingsPage: React.FC = () => {
                   </div>
 
                   <h3 className="text-sm font-bold text-on-surface line-clamp-1 hover:text-primary">
-                    <Link to={listingPath({ id: item.id, title: item.title || 'Tin đăng chưa đặt tiêu đề' })}>{item.title || 'Tin đăng chưa đặt tiêu đề'}</Link>
+                    <Link to={listingPath(item)}>{item.title || 'Tin đăng chưa đặt tiêu đề'}</Link>
                   </h3>
                   <p className="text-xs text-on-surface-variant line-clamp-1">{item.addressSummary}</p>
                 </div>
@@ -174,7 +175,7 @@ export const MyListingsPage: React.FC = () => {
 
               {/* Nhóm thao tác */}
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end border-t sm:border-t-0 pt-2 sm:pt-0 border-outline-variant/30">
-                <Link to={listingPath({ id: item.id, title: item.title || 'Tin đăng chưa đặt tiêu đề' })}>
+                <Link to={listingPath(item)}>
                   <Button variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>
                     Xem
                   </Button>

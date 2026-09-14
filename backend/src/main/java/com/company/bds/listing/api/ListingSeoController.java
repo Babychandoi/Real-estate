@@ -35,7 +35,7 @@ public class ListingSeoController {
             for (Listing listing : batch) {
                 ListingRevision revision = listing.getPublicRevision().orElse(null);
                 if (revision == null) continue;
-                String path = "/listings/" + slugify(revision.getTitle()) + "-" + listing.getId();
+                String path = "/listings/" + listing.getSlug();
                 xml.append(url(path, listing.getUpdatedAt().toString(), "daily", "0.8"));
             }
             if (batch.size() < PAGE_SIZE) break;

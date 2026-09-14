@@ -12,6 +12,8 @@ import java.util.UUID;
 public interface ListingPersistencePort {
     Listing save(Listing listing);
     Optional<Listing> findById(UUID id);
+    Optional<Listing> findBySlug(String slug);
+    boolean existsBySlug(String slug);
     List<Listing> findByOwnerId(UUID ownerId);
     List<Listing> findPublicActiveListings(String purpose, int page, int size);
     List<Listing> findPendingReviewListings();

@@ -13,7 +13,7 @@ import { listingIdFromRoute, listingPath } from '@/entities/listing/model/seo';
 
 export const ListingDetailPage: React.FC = () => {
   const { listingId: listingRoute } = useParams<{ listingId: string }>();
-  const listingId = listingIdFromRoute(listingRoute);
+  const legacyListingId = listingIdFromRoute(listingRoute);
   const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
   const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE'>('NONE');
   const [listing, setListing] = useState<ListingDetail | null>(null);
@@ -34,11 +34,11 @@ export const ListingDetailPage: React.FC = () => {
 
   const submitReport = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!listingId || reportDescription.trim().length < 10) return;
+    if (!listing?.id || reportDescription.trim().length < 10) return;
     setReportBusy(true);
     setReportFeedback(null);
     try {
-      await apiClient('/public/reports', { method: 'POST', body: JSON.stringify({ listingId, category: reportCategory, severity: 'MEDIUM', description: reportDescription.trim(), evidenceUrls: '', reporterPhone: '' }) });
+      await apiClient('/public/reports', { method: 'POST', body: JSON.stringify({ listingId: listing.id, category: reportCategory, severity: 'MEDIUM', description: reportDescription.trim(), evidenceUrls: '', reporterPhone: '' }) });
       setReportFeedback('Báo cáo đã được ghi nhận trên hệ thống.');
       setReportDescription('');
     } catch {
@@ -49,7 +49,8 @@ export const ListingDetailPage: React.FC = () => {
   useEffect(() => {
     async function loadListing() {
       try {
-        const data = await apiClient<ListingDetail>(`/listings/${listingId}`);
+        const endpoint = legacyListingId ? `/listings/${legacyListingId}` : `/listings/by-slug/${encodeURIComponent(listingRoute || '')}`;
+        const data = await apiClient<ListingDetail>(endpoint);
         setListing(data);
       } catch (err) {
         console.error('Lỗi khi tải chi tiết tin đăng:', err);
@@ -57,10 +58,10 @@ export const ListingDetailPage: React.FC = () => {
         setIsLoading(false);
       }
     }
-    if (listingId) {
+    if (listingRoute) {
       loadListing();
     }
-  }, [listingId]);
+  }, [legacyListingId, listingRoute]);
 
   useEffect(() => {
     if (!listing) return;

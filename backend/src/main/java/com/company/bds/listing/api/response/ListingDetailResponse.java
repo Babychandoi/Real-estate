@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public record ListingDetailResponse(
         UUID id,
+        String slug,
         UUID ownerId,
         String status,
         int revisionNumber,

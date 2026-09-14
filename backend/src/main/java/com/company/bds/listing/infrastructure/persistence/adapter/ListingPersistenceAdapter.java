@@ -47,6 +47,14 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
     }
 
     @Override
+    public Optional<Listing> findBySlug(String slug) {
+        return listingRepository.findBySlugWithRevisions(slug).map(mapper::toDomain);
+    }
+
+    @Override
+    public boolean existsBySlug(String slug) { return listingRepository.existsBySlug(slug); }
+
+    @Override
     public List<Listing> findByOwnerId(UUID ownerId) {
         return listingRepository.findByOwnerIdWithRevisions(ownerId).stream()
                 .map(mapper::toDomain)

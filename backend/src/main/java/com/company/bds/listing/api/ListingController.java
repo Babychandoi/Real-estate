@@ -159,6 +159,15 @@ public class ListingController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    @GetMapping("/by-slug/{slug}")
+    public ResponseEntity<ListingDetailResponse> getListingBySlug(@PathVariable String slug, Authentication authentication) {
+        return persistencePort.findBySlug(slug)
+                .filter(listing -> canView(listing, authentication))
+                .map(this::mapToDetailResponse)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/my-listings")
     public ResponseEntity<List<ListingDetailResponse>> getMyListings(Authentication authentication) {
         List<Listing> myListings = getListingDetailUseCase.getMyListings(CurrentUser.id(authentication));
@@ -204,8 +213,9 @@ public class ListingController {
                         if (rev != null && !rev.getMediaList().isEmpty()) {
                             imgUrl = rev.getMediaList().get(0).mediaUrl();
                         }
-                        return new ListingSummaryResponse(
+                            return new ListingSummaryResponse(
                                 listing.getId(),
+                                listing.getSlug(),
                                 rev.getTitle(),
                                 rev.getPurpose().name(),
                                 rev.getPropertyType().name(),
@@ -238,6 +248,7 @@ public class ListingController {
 
         return new ListingDetailResponse(
                 listing.getId(),
+                listing.getSlug(),
                 listing.getOwnerId(),
                 listing.getStatus().name(),
                 rev.getRevisionNumber(),
