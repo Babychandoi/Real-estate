@@ -7,9 +7,13 @@ import { Card } from '@/shared/ui/Card';
 import { apiClient } from '@/shared/api/client';
 import { type ListingDetail, formatPriceVnd, calculateUnitPrice, formatPropertyType } from '@/entities/listing/model/types';
 import { LeadConsultationModal } from '@/features/lead/ui/LeadConsultationModal';
+import { useAuth } from '@/shared/auth/AuthContext';
+import type { UserKycProfile } from '@/entities/verification/model/types';
 
 export const ListingDetailPage: React.FC = () => {
   const { listingId } = useParams<{ listingId: string }>();
+  const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
+  const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE'>('NONE');
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
@@ -18,6 +22,13 @@ export const ListingDetailPage: React.FC = () => {
   const [reportDescription, setReportDescription] = useState('');
   const [reportFeedback, setReportFeedback] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setKycStatus('NONE'); return; }
+    apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
+      .then(profile => setKycStatus(profile.status))
+      .catch(() => setKycStatus('NONE'));
+  }, [user]);
 
   const submitReport = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -175,12 +186,13 @@ export const ListingDetailPage: React.FC = () => {
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={() => setIsConsultationModalOpen(true)}
+                  onClick={() => isAuthenticated ? setIsConsultationModalOpen(true) : setIsLoginModalOpen(true)}
                   leftIcon={<MessageSquare className="w-4 h-4 text-primary" />}
                   className="w-full border-primary/30 text-primary hover:bg-primary/10 font-bold"
                 >
-                  Hẹn xem & nhận tư vấn
+                  {isAuthenticated ? 'Hẹn xem & nhận tư vấn' : 'Đăng nhập để liên hệ'}
                 </Button>
+                {isAuthenticated && kycStatus !== 'VERIFIED' && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Tài khoản cần được duyệt eKYC trước khi gửi yêu cầu. <Link to="/kyc" className="font-bold underline underline-offset-4">Mở hồ sơ eKYC</Link></p>}
             </div>
 
             {/* Khối Giao dịch Đặt cọc Trực tuyến Bảo đảm Escrow (FR28, FR30, UC05) */}
@@ -190,7 +202,7 @@ export const ListingDetailPage: React.FC = () => {
                 <div className="text-xs">
                   <span className="font-bold text-emerald-900 block">Liên hệ và trao đổi trực tiếp</span>
                   <span className="text-emerald-700 leading-snug block mt-0.5">
-                    Nhà Đất Chuẩn không nhận tiền cọc hoặc ký hợp đồng thay bạn. Hãy xác minh người đăng và hồ sơ pháp lý trước khi giao dịch.
+                    Chỉ tài khoản đã eKYC mới được gửi và nhận yêu cầu liên hệ. Nhà Đất Chuẩn không nhận tiền cọc hoặc ký hợp đồng thay bạn.
                   </span>
                 </div>
               </div>

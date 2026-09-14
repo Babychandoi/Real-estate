@@ -23,6 +23,8 @@
 - Bàn lead/báo xấu đã nối đủ thao tác tạm ẩn, giải quyết và bác bỏ với ghi chú bắt buộc; lỗi API được hiển thị và không giả cập nhật thành công.
 - Bỏ nút sửa tin dẫn sai sang tạo tin mới cho tới khi có contract revision riêng tư; bỏ toggle eKYC vô hiệu hóa và cam kết SLA 8 giờ khỏi form đăng tin, dẫn người dùng sang hồ sơ eKYC thật.
 - Bộ sáu tin khởi tạo không còn bị xử lý như showcase/demo: đã bỏ nhãn và cảnh báo ở UI, bỏ chặn nhận lead ở backend, làm sạch nội dung trải nghiệm và gán tin cho tài khoản broker vận hành để kiểm thử đầy đủ luồng nhận/reveal/chăm sóc lead.
+- Luồng liên hệ hiện bắt buộc đăng nhập và kiểm tra eKYC `VERIFIED` ở cả người gửi lẫn chủ tin tại backend; giao diện dẫn tài khoản chưa đạt sang hồ sơ eKYC. UUID tiếp tục là khóa nội bộ, còn người dùng chỉ nhận mã tra cứu ngắn dạng `YC-XXXXXXXX`.
+- Flyway V018 chỉ đánh dấu eKYC tổng hợp cho các tài khoản seed phục vụ kiểm thử. Tài khoản thật vẫn phải tải đủ mặt trước CCCD, mặt sau CCCD và ảnh chân dung để admin duyệt thủ công; dữ liệu seed không được coi là bằng chứng định danh thật.
 
 ## Bằng chứng đã chạy
 
@@ -33,6 +35,7 @@
 - Live smoke `nhadatchuan.online`: search trả 6 tin; `PRICE_ASC` đúng thứ tự; cả 6 tin mẫu có nhãn showcase; gửi lead vào showcase trả 409; 8 media object còn nguyên.
 - Sau remediation hardcode: Docker backend/frontend build thành công; backend 21/21 test pass; toàn bộ container gồm Cloudflare tunnel healthy; `/`, `/search`, `/about` và `/api/v1/listings/search` trên domain trả HTTP 200.
 - Sau Flyway V017: migration thành công, sáu tin thuộc tài khoản broker `phong`; POST lead công khai vào tin khởi tạo trả HTTP 201 và tạo lead trạng thái `NEW` trong PostgreSQL.
+- Sau Flyway V018: migration thành công; POST lead không có token qua domain trả HTTP 401; bộ test khóa thêm trường hợp tài khoản chưa eKYC bị từ chối và response thành công có mã `YC-XXXXXXXX`.
 
 ## Chưa thể tuyên bố hoàn tất từ một máy
 

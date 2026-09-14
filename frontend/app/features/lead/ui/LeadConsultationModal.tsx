@@ -7,7 +7,7 @@ interface Props {
   isOpen: boolean; onClose: () => void;
   listing: { id: string; title: string; priceVnd: number; areaM2: number; address: string; imageUrl?: string; };
 }
-interface LeadResult { leadId: string; status: string; createdAt: string; }
+interface LeadResult { requestCode: string; status: string; createdAt: string; }
 
 export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listing }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -50,7 +50,7 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
       const created = await apiClient<LeadResult>('/public/leads', { method: 'POST', headers: { 'Idempotency-Key': idempotencyKeyRef.current }, body: JSON.stringify({
         listingId: listing.id, fullName: fullName.trim(), phone: phone.replace(/\s/g, ''), note: note.trim(), consentPolicy: consent,
       }) });
-      if (!created.leadId) throw new Error('Máy chủ không trả mã yêu cầu');
+      if (!created.requestCode) throw new Error('Máy chủ không trả mã yêu cầu');
       setResult(created);
     } catch (caught) {
       const detail = caught && typeof caught === 'object' && 'problem' in caught
@@ -71,7 +71,7 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
             <div className="py-6 text-center" aria-live="polite">
               <CheckCircle2 className="w-14 h-14 text-secondary mx-auto" />
               <h3 className="font-bold text-xl mt-3">Yêu cầu đã được ghi nhận</h3>
-              <p className="text-sm text-on-surface-variant mt-2">Mã yêu cầu: <strong className="text-on-surface">{result.leadId}</strong>. Người phụ trách sẽ liên hệ khi tiếp nhận.</p>
+              <p className="text-sm text-on-surface-variant mt-2">Mã yêu cầu: <strong className="text-on-surface">{result.requestCode}</strong>. Người phụ trách sẽ liên hệ khi tiếp nhận.</p>
               <button onClick={close} className="mt-6 min-h-11 px-5 rounded-lg bg-primary text-white font-semibold">Hoàn tất</button>
             </div>
           ) : (

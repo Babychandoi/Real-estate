@@ -3,6 +3,7 @@ package com.company.bds;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -13,6 +14,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import com.company.bds.media.MediaStorageService;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -32,6 +34,14 @@ class BdsApplicationTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @AfterEach
+    void removeLeadKycFixture() {
+        jdbcTemplate.update("DELETE FROM user_kyc_profiles WHERE id_number_lookup_hash='test-verified-kyc'");
+    }
 
     @MockBean
     private MediaStorageService mediaStorageService;
@@ -325,6 +335,11 @@ class BdsApplicationTests {
 
     @Test
     void leadLifecycleAndCrm_flow() throws Exception {
+        jdbcTemplate.update("""
+                MERGE INTO user_kyc_profiles (id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,status,created_at,verified_at)
+                KEY(user_id) VALUES (CAST(? AS UUID),CAST(? AS UUID),?,?,?,'VERIFIED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """, "90000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000001",
+                "v1:000****0000:test:test", "test-verified-kyc", "Người dùng kiểm thử");
         // 1. Tạo một tin đăng để nhận lead
         String listingJson = """
             {
@@ -374,6 +389,7 @@ class BdsApplicationTests {
                         .content(leadJson))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.leadId").exists())
+                .andExpect(jsonPath("$.requestCode").value(org.hamcrest.Matchers.matchesPattern("YC-[0-9A-F]{8}")))
                 .andExpect(jsonPath("$.status").value("NEW"))
                 .andReturn();
 
@@ -384,7 +400,8 @@ class BdsApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(leadJson))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.leadId").value(leadId));
+                .andExpect(jsonPath("$.leadId").value(leadId))
+                .andExpect(jsonPath("$.requestCode").value(org.hamcrest.Matchers.matchesPattern("YC-[0-9A-F]{8}")));
 
         // 3. Tra cứu danh sách Lead của tin đăng: SĐT phải được che dấu an toàn NFR12
         mockMvc.perform(get("/api/v1/leads?listingId=" + listingId))

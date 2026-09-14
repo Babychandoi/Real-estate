@@ -13,6 +13,8 @@ import com.company.bds.iam.application.AuthService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import com.company.bds.shared.outbox.OutboxEventWriter;
+import com.company.bds.verification.domain.model.KycStatus;
+import com.company.bds.verification.domain.port.UserKycPersistencePort;
 
 import java.time.Instant;
 import java.util.*;
@@ -26,18 +28,21 @@ public class LeadApplicationService {
     private final PiiProtectionService piiProtection;
     private final JdbcTemplate jdbc;
     private final ObjectProvider<OutboxEventWriter> outbox;
+    private final UserKycPersistencePort kycPersistencePort;
 
     public LeadApplicationService(
             LeadPersistencePort leadPersistencePort,
             ListingPersistencePort listingPersistencePort,
             PiiProtectionService piiProtection,
             JdbcTemplate jdbc,
-            ObjectProvider<OutboxEventWriter> outbox) {
+            ObjectProvider<OutboxEventWriter> outbox,
+            UserKycPersistencePort kycPersistencePort) {
         this.leadPersistencePort = leadPersistencePort;
         this.listingPersistencePort = listingPersistencePort;
         this.piiProtection = piiProtection;
         this.jdbc = jdbc;
         this.outbox = outbox;
+        this.kycPersistencePort = kycPersistencePort;
     }
 
     /**
@@ -45,6 +50,7 @@ public class LeadApplicationService {
      * Mã hóa SĐT và băm tra cứu theo NFR12, kiểm soát spam.
      */
     public Lead submitLead(
+            UUID requesterId,
             UUID listingId,
             String fullName,
             String rawPhone,
@@ -58,6 +64,8 @@ public class LeadApplicationService {
         if (listing.getStatus() != ListingStatus.ACTIVE || listing.getPublicRevisionId() == null) {
             throw new IllegalStateException("Tin đăng không còn nhận yêu cầu liên hệ.");
         }
+        requireVerifiedKyc(requesterId, "Bạn cần hoàn tất eKYC trước khi gửi yêu cầu liên hệ.");
+        requireVerifiedKyc(listing.getOwnerId(), "Người đăng chưa hoàn tất eKYC nên tin này tạm thời chưa nhận yêu cầu liên hệ.");
         Lead replay = findIdempotentReplay(listingId, fullName, rawPhone, note, consentPolicy, idempotencyKey);
         if (replay != null) return replay;
 
@@ -108,6 +116,13 @@ public class LeadApplicationService {
                     "leadId", saved.getId(), "listingId", saved.getListingId(), "createdAt", saved.getCreatedAt()));
         }
         return saved;
+    }
+
+    private void requireVerifiedKyc(UUID userId, String message) {
+        boolean verified = kycPersistencePort.findByUserId(userId)
+                .map(profile -> profile.getStatus() == KycStatus.VERIFIED)
+                .orElse(false);
+        if (!verified) throw new IllegalStateException(message);
     }
 
     /**

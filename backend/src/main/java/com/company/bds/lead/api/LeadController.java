@@ -35,13 +35,15 @@ public class LeadController {
     }
 
     /**
-     * Khách hàng gửi liên hệ tư vấn BĐS (Public endpoint).
+     * Thành viên đã eKYC gửi liên hệ tới người đăng đã eKYC.
      */
     @PostMapping("/public/leads")
     public ResponseEntity<Map<String, Object>> submitLead(
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
-            @Valid @RequestBody CreateLeadRequest request) {
+            @Valid @RequestBody CreateLeadRequest request,
+            Authentication authentication) {
         Lead lead = leadApplicationService.submitLead(
+                CurrentUser.id(authentication),
                 request.listingId(),
                 request.fullName(),
                 request.phone(),
@@ -54,6 +56,7 @@ public class LeadController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
                 "leadId", lead.getId(),
+                "requestCode", "YC-" + lead.getId().toString().substring(0, 8).toUpperCase(java.util.Locale.ROOT),
                 "status", lead.getStatus().name(),
                 "message", msg,
                 "createdAt", lead.getCreatedAt()
