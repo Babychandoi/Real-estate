@@ -27,8 +27,10 @@ import { LoginModal } from '@/shared/auth/LoginModal';
 const RootLayoutContent: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const { user, isAuthenticated, isAdminOrModerator, isBroker, setIsLoginModalOpen, logout } = useAuth();
 
   useEffect(() => {
@@ -48,12 +50,25 @@ const RootLayoutContent: React.FC = () => {
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', onKey); menuButtonRef.current?.focus(); };
   }, [isMobileOpen]);
 
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+    const closeMenu = (event: MouseEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) setIsUserMenuOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeMenu);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.removeEventListener('mousedown', closeMenu); document.removeEventListener('keydown', closeOnEscape); };
+  }, [isUserMenuOpen]);
+
   return (
     <div className="min-h-screen flex flex-col bg-surface text-on-surface">
       <a href="#main-content" className="skip-link">Bỏ qua điều hướng</a>
       {/* Header điều hướng */}
       <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-2">
           {/* Logo & Thương hiệu */}
           <Link to="/" className="flex items-center gap-2.5 shrink-0">
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-on font-bold shadow-md shadow-primary/20">
@@ -70,7 +85,7 @@ const RootLayoutContent: React.FC = () => {
           </Link>
 
           {/* Menu chính */}
-          <nav className="hidden lg:flex items-center gap-1 xl:gap-2 text-sm font-medium text-on-surface-variant">
+          <nav className="hidden xl:flex items-center gap-1 xl:gap-2 text-sm font-medium text-on-surface-variant">
             <Link
               to="/"
               className="px-3 py-2 rounded-lg hover:text-primary hover:bg-surface-container transition-colors whitespace-nowrap"
@@ -284,7 +299,7 @@ const RootLayoutContent: React.FC = () => {
 
           {/* Hành động người dùng & Đăng nhập */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <button ref={menuButtonRef} type="button" aria-label="Mở menu chính" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)} className="lg:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Menu className="w-5 h-5" /></button>
+            <button ref={menuButtonRef} type="button" aria-label="Mở menu chính" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)} className="xl:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Menu className="w-5 h-5" /></button>
             {isAuthenticated ? (
               <Link to="/listings/new">
                 <Button
@@ -320,12 +335,12 @@ const RootLayoutContent: React.FC = () => {
                 <span className="hidden sm:inline">Đăng nhập</span>
               </Button>
             ) : (
-              <div className="flex items-center gap-2 pl-2 border-l border-outline-variant/30">
-                <Link to="/kyc" title="Xác minh eKYC" className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary">
+              <div ref={userMenuRef} className="relative pl-2 border-l border-outline-variant/30">
+                <button type="button" aria-label="Mở menu tài khoản" aria-expanded={isUserMenuOpen} onClick={() => setIsUserMenuOpen((open) => !open)} className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
                     <UserIcon className="w-4 h-4" />
                   </div>
-                  <div className="hidden sm:flex flex-col items-start text-left">
+                  <div className="hidden md:flex flex-col items-start text-left">
                     <span className="text-xs font-bold text-on-surface leading-tight whitespace-nowrap">
                       {user?.name}
                     </span>
@@ -341,15 +356,18 @@ const RootLayoutContent: React.FC = () => {
                       {user?.roleLabel}
                     </span>
                   </div>
-                </Link>
-
-                <button
-                  onClick={logout}
-                  title="Đăng xuất"
-                  className="w-8 h-8 rounded-lg hover:bg-rose-50 text-on-surface-variant hover:text-rose-600 flex items-center justify-center transition-colors border border-transparent hover:border-rose-200"
-                >
-                  <LogOut className="w-4 h-4" />
+                  <ChevronDown className={`hidden md:block w-3.5 h-3.5 text-on-surface-variant transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
+                {isUserMenuOpen && (
+                  <div className="absolute right-0 top-[calc(100%+0.5rem)] w-64 rounded-xl bg-surface p-2 shadow-xl border border-outline-variant/50 z-50">
+                    <Link to="/kyc" onClick={() => setIsUserMenuOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-surface-container transition-colors">
+                      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><UserIcon className="w-4 h-4" /></div>
+                      <div className="min-w-0"><p className="truncate text-sm font-bold text-on-surface">{user?.name}</p><p className="truncate text-xs text-on-surface-variant">Hồ sơ & xác minh eKYC</p></div>
+                    </Link>
+                    <div className="my-1 border-t border-outline-variant/40" />
+                    <button type="button" onClick={() => { logout(); setIsUserMenuOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-primary"><LogOut className="w-4 h-4" />Đăng xuất</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -357,7 +375,7 @@ const RootLayoutContent: React.FC = () => {
       </header>
 
       {isMobileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 lg:hidden" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsMobileOpen(false); }}>
+        <div className="fixed inset-0 z-50 bg-black/50 xl:hidden" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsMobileOpen(false); }}>
           <div ref={mobilePanelRef} role="dialog" aria-modal="true" aria-label="Menu chính" className="ml-auto h-full w-[min(22rem,88vw)] bg-surface p-5 shadow-2xl flex flex-col">
             <div className="flex items-center justify-between pb-4 border-b border-outline-variant"><strong className="text-lg">Điều hướng</strong><button type="button" aria-label="Đóng menu" onClick={() => setIsMobileOpen(false)} className="min-w-11 min-h-11 rounded-lg grid place-items-center hover:bg-surface-container"><X className="w-5 h-5" /></button></div>
             <nav className="py-5 flex flex-col gap-2 text-base" onClick={() => setIsMobileOpen(false)}>
