@@ -44,6 +44,27 @@ public class ListingRevisionJpaEntity {
     @Column(name = "area_m2", nullable = false, precision = 10, scale = 2)
     private BigDecimal areaM2;
 
+    @Column(name = "bedrooms")
+    private Integer bedrooms;
+
+    @Column(name = "bathrooms")
+    private Integer bathrooms;
+
+    @Column(name = "floors")
+    private Integer floors;
+
+    @Column(name = "frontage_m", precision = 10, scale = 2)
+    private BigDecimal frontageM;
+
+    @Column(name = "road_width_m", precision = 10, scale = 2)
+    private BigDecimal roadWidthM;
+
+    @Column(name = "direction", length = 30)
+    private String direction;
+
+    @Column(name = "legal_status", length = 100)
+    private String legalStatus;
+
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
@@ -107,6 +128,20 @@ public class ListingRevisionJpaEntity {
     public void setPriceVnd(long priceVnd) { this.priceVnd = priceVnd; }
     public BigDecimal getAreaM2() { return areaM2; }
     public void setAreaM2(BigDecimal areaM2) { this.areaM2 = areaM2; }
+    public Integer getBedrooms() { return bedrooms; }
+    public void setBedrooms(Integer bedrooms) { this.bedrooms = bedrooms; }
+    public Integer getBathrooms() { return bathrooms; }
+    public void setBathrooms(Integer bathrooms) { this.bathrooms = bathrooms; }
+    public Integer getFloors() { return floors; }
+    public void setFloors(Integer floors) { this.floors = floors; }
+    public BigDecimal getFrontageM() { return frontageM; }
+    public void setFrontageM(BigDecimal frontageM) { this.frontageM = frontageM; }
+    public BigDecimal getRoadWidthM() { return roadWidthM; }
+    public void setRoadWidthM(BigDecimal roadWidthM) { this.roadWidthM = roadWidthM; }
+    public String getDirection() { return direction; }
+    public void setDirection(String direction) { this.direction = direction; }
+    public String getLegalStatus() { return legalStatus; }
+    public void setLegalStatus(String legalStatus) { this.legalStatus = legalStatus; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
     public String getProvinceCode() { return provinceCode; }

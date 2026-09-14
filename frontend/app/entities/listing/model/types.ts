@@ -6,6 +6,13 @@ export interface Listing {
   propertyType: string;
   priceVnd: number;
   areaM2: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  floors?: number;
+  frontageM?: number;
+  roadWidthM?: number;
+  direction?: string;
+  legalStatus?: string;
   description?: string;
   addressSummary: string;
   publicLatitude?: number;

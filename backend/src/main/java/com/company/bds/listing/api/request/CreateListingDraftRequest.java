@@ -29,6 +29,14 @@ public record CreateListingDraftRequest(
         @DecimalMin(value = "1.0", message = "{validation.listing.area.min}")
         BigDecimal areaM2,
 
+        @Min(0) Integer bedrooms,
+        @Min(0) Integer bathrooms,
+        @Min(0) Integer floors,
+        @DecimalMin("0.0") BigDecimal frontageM,
+        @DecimalMin("0.0") BigDecimal roadWidthM,
+        @Size(max = 30) String direction,
+        @Size(max = 100) String legalStatus,
+
         @Size(max = 5000, message = "{validation.listing.description.size}")
         String description,
 

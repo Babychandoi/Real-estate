@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, UserRound } from 'lucide-react';
+import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, UserRound, BedDouble, Bath, Building, Ruler, Route, Compass, FileText } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Badge } from '@/shared/ui/Badge';
 import { Card } from '@/shared/ui/Card';
@@ -214,6 +214,28 @@ export const ListingDetailPage: React.FC = () => {
           </div>
 
           {/* Mô tả chi tiết */}
+          <section className="border-t border-outline-variant/40 pt-6">
+            <h2 className="text-lg font-bold text-on-surface">Đặc điểm bất động sản</h2>
+            <dl className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+              {[
+                { label: 'Diện tích', value: `${listing.areaM2} m²`, icon: Maximize2 },
+                { label: 'Số phòng ngủ', value: listing.bedrooms != null ? `${listing.bedrooms} phòng` : null, icon: BedDouble },
+                { label: 'Số phòng tắm, vệ sinh', value: listing.bathrooms != null ? `${listing.bathrooms} phòng` : null, icon: Bath },
+                { label: 'Số tầng', value: listing.floors != null ? `${listing.floors} tầng` : null, icon: Building },
+                { label: 'Mặt tiền', value: listing.frontageM != null ? `${listing.frontageM} m` : null, icon: Ruler },
+                { label: 'Đường vào', value: listing.roadWidthM != null ? `${listing.roadWidthM} m` : null, icon: Route },
+                { label: 'Hướng nhà', value: listing.direction || null, icon: Compass },
+                { label: 'Pháp lý', value: listing.legalStatus || null, icon: FileText },
+              ].filter((item) => item.value).map(({ label, value, icon: Icon }) => (
+                <div key={label} className="flex min-h-12 items-center gap-3 border-b border-outline-variant/30 py-3">
+                  <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                  <dt className="text-sm text-on-surface-variant">{label}</dt>
+                  <dd className="ml-auto text-right text-sm font-semibold text-on-surface">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
           <div className="flex flex-col gap-3">
             <h2 className="text-lg font-bold text-on-surface">Mô tả bất động sản</h2>
             <div className="text-sm text-on-surface leading-relaxed whitespace-pre-line bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/40">

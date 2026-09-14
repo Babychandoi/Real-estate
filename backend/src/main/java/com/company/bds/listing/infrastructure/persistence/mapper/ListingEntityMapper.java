@@ -67,6 +67,8 @@ public class ListingEntityMapper {
                 PropertyType.valueOf(revEntity.getPropertyType()),
                 revEntity.getPriceVnd(),
                 revEntity.getAreaM2(),
+                revEntity.getBedrooms(), revEntity.getBathrooms(), revEntity.getFloors(),
+                revEntity.getFrontageM(), revEntity.getRoadWidthM(), revEntity.getDirection(), revEntity.getLegalStatus(),
                 revEntity.getDescription(),
                 revEntity.getProvinceCode(),
                 revEntity.getDistrictCode(),
@@ -120,6 +122,13 @@ public class ListingEntityMapper {
         revEntity.setPropertyType(revDomain.getPropertyType().name());
         revEntity.setPriceVnd(revDomain.getPriceVnd());
         revEntity.setAreaM2(revDomain.getAreaM2());
+        revEntity.setBedrooms(revDomain.getBedrooms());
+        revEntity.setBathrooms(revDomain.getBathrooms());
+        revEntity.setFloors(revDomain.getFloors());
+        revEntity.setFrontageM(revDomain.getFrontageM());
+        revEntity.setRoadWidthM(revDomain.getRoadWidthM());
+        revEntity.setDirection(revDomain.getDirection());
+        revEntity.setLegalStatus(revDomain.getLegalStatus());
         revEntity.setDescription(revDomain.getDescription());
         revEntity.setProvinceCode(revDomain.getProvinceCode());
         revEntity.setDistrictCode(revDomain.getDistrictCode());

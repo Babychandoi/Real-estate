@@ -14,6 +14,8 @@ public record CreateListingDraftCommand(
         PropertyType propertyType,
         long priceVnd,
         BigDecimal areaM2,
+        Integer bedrooms, Integer bathrooms, Integer floors,
+        BigDecimal frontageM, BigDecimal roadWidthM, String direction, String legalStatus,
         String description,
         String provinceCode,
         String districtCode,

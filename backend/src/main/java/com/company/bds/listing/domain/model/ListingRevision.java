@@ -24,6 +24,13 @@ public class ListingRevision {
     private PropertyType propertyType;
     private long priceVnd;
     private BigDecimal areaM2;
+    private Integer bedrooms;
+    private Integer bathrooms;
+    private Integer floors;
+    private BigDecimal frontageM;
+    private BigDecimal roadWidthM;
+    private String direction;
+    private String legalStatus;
     private String description;
     private String provinceCode;
     private String districtCode;
@@ -49,6 +56,8 @@ public class ListingRevision {
             PropertyType propertyType,
             long priceVnd,
             BigDecimal areaM2,
+            Integer bedrooms, Integer bathrooms, Integer floors,
+            BigDecimal frontageM, BigDecimal roadWidthM, String direction, String legalStatus,
             String description,
             String provinceCode,
             String districtCode,
@@ -72,6 +81,13 @@ public class ListingRevision {
         this.propertyType = propertyType;
         this.priceVnd = priceVnd;
         this.areaM2 = areaM2;
+        this.bedrooms = bedrooms;
+        this.bathrooms = bathrooms;
+        this.floors = floors;
+        this.frontageM = frontageM;
+        this.roadWidthM = roadWidthM;
+        this.direction = direction;
+        this.legalStatus = legalStatus;
         this.description = description;
         this.provinceCode = provinceCode;
         this.districtCode = districtCode;
@@ -95,6 +111,8 @@ public class ListingRevision {
             PropertyType propertyType,
             long priceVnd,
             BigDecimal areaM2,
+            Integer bedrooms, Integer bathrooms, Integer floors,
+            BigDecimal frontageM, BigDecimal roadWidthM, String direction, String legalStatus,
             String description,
             String provinceCode,
             String districtCode,
@@ -114,6 +132,7 @@ public class ListingRevision {
                 propertyType,
                 priceVnd,
                 areaM2,
+                bedrooms, bathrooms, floors, frontageM, roadWidthM, direction, legalStatus,
                 description,
                 provinceCode,
                 districtCode,
@@ -137,6 +156,8 @@ public class ListingRevision {
             PropertyType propertyType,
             long priceVnd,
             BigDecimal areaM2,
+            Integer bedrooms, Integer bathrooms, Integer floors,
+            BigDecimal frontageM, BigDecimal roadWidthM, String direction, String legalStatus,
             String description,
             String provinceCode,
             String districtCode,
@@ -156,6 +177,13 @@ public class ListingRevision {
         this.propertyType = propertyType;
         this.priceVnd = priceVnd;
         this.areaM2 = areaM2;
+        this.bedrooms = bedrooms;
+        this.bathrooms = bathrooms;
+        this.floors = floors;
+        this.frontageM = frontageM;
+        this.roadWidthM = roadWidthM;
+        this.direction = direction;
+        this.legalStatus = legalStatus;
         this.description = description;
         this.provinceCode = provinceCode;
         this.districtCode = districtCode;
@@ -231,6 +259,7 @@ public class ListingRevision {
                 this.propertyType,
                 this.priceVnd,
                 this.areaM2,
+                this.bedrooms, this.bathrooms, this.floors, this.frontageM, this.roadWidthM, this.direction, this.legalStatus,
                 this.description,
                 this.provinceCode,
                 this.districtCode,
@@ -258,6 +287,13 @@ public class ListingRevision {
     public PropertyType getPropertyType() { return propertyType; }
     public long getPriceVnd() { return priceVnd; }
     public BigDecimal getAreaM2() { return areaM2; }
+    public Integer getBedrooms() { return bedrooms; }
+    public Integer getBathrooms() { return bathrooms; }
+    public Integer getFloors() { return floors; }
+    public BigDecimal getFrontageM() { return frontageM; }
+    public BigDecimal getRoadWidthM() { return roadWidthM; }
+    public String getDirection() { return direction; }
+    public String getLegalStatus() { return legalStatus; }
     public String getDescription() { return description; }
     public String getProvinceCode() { return provinceCode; }
     public String getDistrictCode() { return districtCode; }

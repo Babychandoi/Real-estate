@@ -56,6 +56,13 @@ export const CreateListingPage: React.FC = () => {
   const [title, setTitle] = useState('');
   const [priceVnd, setPriceVnd] = useState<number>(0);
   const [areaM2, setAreaM2] = useState<number>(0);
+  const [bedrooms, setBedrooms] = useState<number | null>(null);
+  const [bathrooms, setBathrooms] = useState<number | null>(null);
+  const [floors, setFloors] = useState<number | null>(null);
+  const [frontageM, setFrontageM] = useState<number | null>(null);
+  const [roadWidthM, setRoadWidthM] = useState<number | null>(null);
+  const [direction, setDirection] = useState('');
+  const [legalStatus, setLegalStatus] = useState('');
   const [province, setProvince] = useState('');
   const [district, setDistrict] = useState('');
   const [ward, setWard] = useState('');
@@ -93,10 +100,12 @@ export const CreateListingPage: React.FC = () => {
 
   useEffect(() => {
     if (!editingListingId) return;
-    apiClient<{ id: string; purpose: 'SALE' | 'RENT'; propertyType: string; title: string; priceVnd: number; areaM2: number; description: string; provinceCode?: string; districtCode?: string; wardCode?: string; addressSummary: string; publicLatitude?: number; publicLongitude?: number; imageUrls: string[] }>(`/listings/${editingListingId}`)
+    apiClient<{ id: string; purpose: 'SALE' | 'RENT'; propertyType: string; title: string; priceVnd: number; areaM2: number; bedrooms?: number; bathrooms?: number; floors?: number; frontageM?: number; roadWidthM?: number; direction?: string; legalStatus?: string; description: string; provinceCode?: string; districtCode?: string; wardCode?: string; addressSummary: string; publicLatitude?: number; publicLongitude?: number; imageUrls: string[] }>(`/listings/${editingListingId}`)
       .then((listing) => {
         setListingId(listing.id); setPurpose(listing.purpose); setPropertyType(listing.propertyType); setTitle(listing.title);
         setPriceVnd(listing.priceVnd); setAreaM2(listing.areaM2); setDescription(listing.description); setProvince(listing.provinceCode || '');
+        setBedrooms(listing.bedrooms ?? null); setBathrooms(listing.bathrooms ?? null); setFloors(listing.floors ?? null);
+        setFrontageM(listing.frontageM ?? null); setRoadWidthM(listing.roadWidthM ?? null); setDirection(listing.direction || ''); setLegalStatus(listing.legalStatus || '');
         setDistrict(listing.districtCode || ''); setWard(listing.wardCode || ''); setAddressSummary(listing.addressSummary);
         setLatitude(listing.publicLatitude || 0); setLongitude(listing.publicLongitude || 0); setImageUrls(listing.imageUrls || []);
       })
@@ -128,6 +137,7 @@ export const CreateListingPage: React.FC = () => {
             title,
             priceVnd,
             areaM2,
+            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
             description,
             provinceCode: province || null,
             districtCode: district || null,
@@ -148,6 +158,7 @@ export const CreateListingPage: React.FC = () => {
             title,
             priceVnd,
             areaM2,
+            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
             description,
             provinceCode: province || null,
             districtCode: district || null,
@@ -200,6 +211,7 @@ export const CreateListingPage: React.FC = () => {
             title,
             priceVnd,
             areaM2,
+            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
             description,
             addressSummary,
             publicLatitude: latitude,
@@ -213,7 +225,7 @@ export const CreateListingPage: React.FC = () => {
         await apiClient(`/listings/${currentId}/draft`, {
           method: 'PUT',
           body: JSON.stringify({
-            purpose, propertyType, title, priceVnd, areaM2, description,
+            purpose, propertyType, title, priceVnd, areaM2, bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null, description,
             provinceCode: province || null, districtCode: district || null, wardCode: ward || null,
             addressSummary,
             publicLatitude: latitude || null,
@@ -461,6 +473,20 @@ export const CreateListingPage: React.FC = () => {
                 </h3>
 
                 {/* Mục đích */}
+                <fieldset className="mb-6 border-t border-slate-100 pt-5">
+                  <legend className="px-0 text-sm font-bold text-slate-900">Đặc điểm bất động sản</legend>
+                  <p className="mt-1 text-xs text-slate-500">Nhập đúng hồ sơ thực tế. Các thông tin này được lưu theo phiên bản tin đăng.</p>
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <label className="text-sm font-medium text-slate-700">Số phòng ngủ<input type="number" min="0" value={bedrooms ?? ''} onChange={(e) => setBedrooms(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Số phòng tắm, vệ sinh<input type="number" min="0" value={bathrooms ?? ''} onChange={(e) => setBathrooms(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Số tầng<input type="number" min="0" value={floors ?? ''} onChange={(e) => setFloors(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Mặt tiền (m)<input type="number" min="0" step="0.1" value={frontageM ?? ''} onChange={(e) => setFrontageM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Đường vào (m)<input type="number" min="0" step="0.1" value={roadWidthM ?? ''} onChange={(e) => setRoadWidthM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
+                    <label className="text-sm font-medium text-slate-700">Hướng nhà<select value={direction} onChange={(e) => setDirection(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"><option value="">Chưa cập nhật</option><option>Đông</option><option>Tây</option><option>Nam</option><option>Bắc</option><option>Đông Bắc</option><option>Đông Nam</option><option>Tây Bắc</option><option>Tây Nam</option></select></label>
+                    <label className="text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3">Pháp lý<select value={legalStatus} onChange={(e) => setLegalStatus(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"><option value="">Chưa cập nhật</option><option>Sổ đỏ / Sổ hồng</option><option>Hợp đồng mua bán</option><option>Đang chờ hoàn thiện hồ sơ</option><option>Giấy tờ khác</option></select></label>
+                  </div>
+                </fieldset>
+
                 <div className="mb-6">
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                     Nhu cầu đăng tin *
