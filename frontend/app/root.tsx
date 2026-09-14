@@ -108,26 +108,6 @@ const RootLayoutContent: React.FC = () => {
               So sánh BĐS
             </Link>
 
-            {/* Chỉ hiển thị khi đã đăng nhập */}
-            {isAuthenticated && (
-              <Link
-                to="/my-listings"
-                className="px-3 py-2 rounded-lg hover:text-primary hover:bg-surface-container transition-colors whitespace-nowrap"
-              >
-                Kho tin của tôi
-              </Link>
-            )}
-            {isAuthenticated && (
-              <Link to="/billing" className="px-3 py-2 rounded-lg hover:text-primary hover:bg-surface-container transition-colors whitespace-nowrap">
-                Gói đăng tin
-              </Link>
-            )}
-            {isAuthenticated && (
-              <Link to="/my-leads" className="px-3 py-2 rounded-lg hover:text-primary hover:bg-surface-container transition-colors whitespace-nowrap">
-                Khách quan tâm
-              </Link>
-            )}
-
             {/* Chỉ hiển thị cho vai trò Môi giới Pro hoặc Admin */}
             {isBroker && (
               <Link
@@ -365,6 +345,10 @@ const RootLayoutContent: React.FC = () => {
                       <div className="min-w-0"><p className="truncate text-sm font-bold text-on-surface">{user?.name}</p><p className="truncate text-xs text-on-surface-variant">Hồ sơ & xác minh eKYC</p></div>
                     </Link>
                     <div className="my-1 border-t border-outline-variant/40" />
+                    <Link to="/my-listings" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><FileText className="w-4 h-4 text-primary" />Kho tin của tôi</Link>
+                    <Link to="/billing" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Layers className="w-4 h-4 text-primary" />Gói đăng tin</Link>
+                    <Link to="/my-leads" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Users className="w-4 h-4 text-primary" />Khách quan tâm</Link>
+                    <div className="my-1 border-t border-outline-variant/40" />
                     <button type="button" onClick={() => { logout(); setIsUserMenuOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-primary"><LogOut className="w-4 h-4" />Đăng xuất</button>
                   </div>
                 )}
@@ -382,8 +366,6 @@ const RootLayoutContent: React.FC = () => {
               <Link to="/search" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Search className="w-5 h-5" />Tìm kiếm</Link>
               <Link to="/compare" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Layers className="w-5 h-5" />So sánh BĐS</Link>
               <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>
-              {isAuthenticated && <Link to="/my-listings" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileText className="w-5 h-5" />Kho tin của tôi</Link>}
-              {isAuthenticated && <Link to="/my-leads" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Users className="w-5 h-5" />Khách quan tâm</Link>}
               {isAuthenticated && <Link to="/kyc" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserCheck className="w-5 h-5" />Xác minh eKYC</Link>}
               {isBroker && <Link to="/broker/workspace" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Briefcase className="w-5 h-5" />Không gian môi giới</Link>}
               {isAdminOrModerator && <Link to="/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
