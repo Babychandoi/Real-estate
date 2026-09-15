@@ -64,6 +64,16 @@ public class BillingService {
     }
     public List<Order> mine(UUID userId){return query("WHERE o.user_id=? ORDER BY o.created_at DESC",userId);}
     public List<Order> queue(){return query("WHERE o.status='TRANSFER_REPORTED' ORDER BY o.user_reported_at",new Object[0]);}
+    public AdminOrderPage adminOrders(int page, int size, String status, String keyword) {
+        int safePage=Math.max(0,page), safeSize=Math.min(100,Math.max(1,size));
+        String normalizedStatus=status==null?"":status.trim().toUpperCase();
+        String normalizedKeyword=keyword==null?"":keyword.trim();
+        String predicates=" WHERE (?='' OR o.status=?) AND (?='' OR o.transfer_reference ILIKE ? OR u.full_name ILIKE ? OR u.email ILIKE ?)";
+        String like="%"+normalizedKeyword+"%";
+        long total=jdbc.queryForObject("SELECT count(*) FROM package_orders o JOIN users u ON u.id=o.user_id"+predicates,Long.class,normalizedStatus,normalizedStatus,normalizedKeyword,like,like,like);
+        List<AdminOrder> items=jdbc.query("SELECT o.id,o.user_id,u.full_name,u.email,o.plan_code,o.plan_name_snapshot,o.amount_vnd,o.transfer_reference,o.status,o.created_at,o.user_reported_at,o.reviewed_at,o.review_note FROM package_orders o JOIN users u ON u.id=o.user_id"+predicates+" ORDER BY o.created_at DESC LIMIT ? OFFSET ?",(r,n)->new AdminOrder(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getString(3),r.getString(4),r.getString(5),r.getString(6),r.getLong(7),r.getString(8),r.getString(9),r.getTimestamp(10).toInstant(),r.getTimestamp(11)==null?null:r.getTimestamp(11).toInstant(),r.getTimestamp(12)==null?null:r.getTimestamp(12).toInstant(),r.getString(13)),normalizedStatus,normalizedStatus,normalizedKeyword,like,like,like,safeSize,safePage*safeSize);
+        return new AdminOrderPage(items,safePage,safeSize,total);
+    }
     private List<Order> query(String where,Object... args){return jdbc.query("SELECT o.id,o.user_id,o.plan_code,o.amount_vnd,o.transfer_reference,o.status,o.created_at,b.bank_bin,b.account_number,b.account_name FROM package_orders o LEFT JOIN bank_settings b ON b.singleton_id=1 "+where,(r,n)->map(r),args);}
     private Order load(UUID id,UUID userId,boolean admin){String where=admin?"WHERE o.id=?":"WHERE o.id=? AND o.user_id=?"; return query(where,admin?new Object[]{id}:new Object[]{id,userId}).stream().findFirst().orElseThrow(()->new IllegalArgumentException("Không tìm thấy yêu cầu thanh toán."));}
     private Order map(java.sql.ResultSet r)throws java.sql.SQLException{String qr=null;if(r.getString(8)!=null)qr="https://img.vietqr.io/image/"+r.getString(8)+"-"+r.getString(9)+"-compact2.png?amount="+r.getLong(4)+"&addInfo="+enc(r.getString(5))+"&accountName="+enc(r.getString(10));return new Order(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getString(3),r.getLong(4),r.getString(5),r.getString(6),r.getTimestamp(7).toInstant(),qr);}
@@ -86,4 +96,6 @@ public class BillingService {
     public record Plan(String code,String name,long priceVnd,int quota,int durationDays,String description){}
     public record BankSettings(String bankBin,String bankName,String accountNumber,String accountName,String adminEmail,long version){}
     public record Order(UUID id,UUID userId,String planCode,long amountVnd,String reference,String status,Instant createdAt,String qrUrl){}
+    public record AdminOrder(UUID id,UUID userId,String customerName,String customerEmail,String planCode,String planName,long amountVnd,String reference,String status,Instant createdAt,Instant reportedAt,Instant reviewedAt,String reviewNote){}
+    public record AdminOrderPage(List<AdminOrder> items,int page,int size,long total){}
 }

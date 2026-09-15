@@ -18,6 +18,7 @@ const ProductAnalyticsPage = lazy(() => import('./routes/_admin.analytics').then
 const ProjectCatalogPage = lazy(() => import('./routes/_admin.projects').then(m => ({ default: m.ProjectCatalogPage })));
 const CmsManagementPage = lazy(() => import('./routes/_admin.cms').then(m => ({ default: m.CmsManagementPage })));
 const BillingPage = lazy(() => import('./routes/_account.billing').then(m => ({ default: m.BillingPage })));
+const AdminBillingPage = lazy(() => import('./routes/_admin.billing').then(m => ({ default: m.AdminBillingPage })));
 const MyLeadsPage = lazy(() => import('./routes/_account.leads').then(m => ({ default: m.MyLeadsPage })));
 const KycPage = lazy(() => import('./routes/_account.kyc').then(m => ({ default: m.KycPage })));
 const AccountProfilePage = lazy(() => import('./routes/_account.profile').then(m => ({ default: m.AccountProfilePage })));
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
     { path: 'moderation', element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN','MODERATOR'], true) },
     { path: 'leads-and-reports', element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ['ADMIN','MODERATOR'], true) },
     { path: 'verification', element: protect(<VerificationDeskPage />, 'Thẩm định', ['ADMIN','MODERATOR'], true) },
+    { path: 'billing', element: protect(<AdminBillingPage />, 'Đơn hàng và đối soát', ['ADMIN'], true) },
     { path: 'analytics', element: protect(<ProductAnalyticsPage />, 'Phân tích', ['ADMIN','MODERATOR'], true) },
     { path: 'projects', element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ['ADMIN','MODERATOR'], true) },
     { path: 'cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ['ADMIN','MODERATOR'], true) },

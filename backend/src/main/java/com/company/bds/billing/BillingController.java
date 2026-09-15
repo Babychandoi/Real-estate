@@ -16,6 +16,11 @@ public class BillingController {
  @GetMapping("/admin/bank") public BillingService.BankSettings bank(){return service.bank();}
  @PutMapping("/admin/bank") public BillingService.BankSettings bank(@RequestBody BillingService.BankSettings b){return service.saveBank(b);}
  @GetMapping("/admin/reconciliation") public List<BillingService.Order> queue(){return service.queue();}
+ @GetMapping("/admin/orders") public BillingService.AdminOrderPage orders(
+         @RequestParam(defaultValue="0") int page,
+         @RequestParam(defaultValue="20") int size,
+         @RequestParam(required=false) String status,
+         @RequestParam(required=false) String q){return service.adminOrders(page,size,status,q);}
  @PostMapping("/admin/reconciliation/{id}/approve") public BillingService.Order approve(@PathVariable UUID id,@RequestBody(required=false) ReviewRequest r,Authentication a){return service.approve(id,CurrentUser.id(a),r==null?null:r.note());}
  @PostMapping("/admin/reconciliation/{id}/reject") public BillingService.Order reject(@PathVariable UUID id,@Valid @RequestBody RejectRequest r,Authentication a){return service.reject(id,CurrentUser.id(a),r.reason());}
  public record PlanRequest(@NotBlank String planCode){} public record ReviewRequest(String note){} public record RejectRequest(@NotBlank String reason){}
