@@ -57,7 +57,7 @@ public class AuthController {
 
     @PostMapping("/admin/login")
     public AuthService.AuthResult adminLogin(@Valid @RequestBody AdminLoginRequest request) {
-        return authService.adminLogin(request.email(), request.password(), request.mfaCode());
+        return authService.adminLogin(request.email(), request.password());
     }
 
     @GetMapping("/me")
@@ -82,8 +82,7 @@ public class AuthController {
     }
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
-    public record AdminLoginRequest(@NotBlank @Email String email, @NotBlank String password,
-                                    @NotBlank @Pattern(regexp="\\d{6}") String mfaCode) {}
+    public record AdminLoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
     public record RegisterRequest(@NotBlank @Email String email,
                                   @NotBlank @Size(min=10, max=72) String password,
                                   @NotBlank @Size(min=2, max=150) String name,

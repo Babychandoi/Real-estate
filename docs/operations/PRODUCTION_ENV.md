@@ -27,7 +27,6 @@ Máy chủ tạm thời dùng file `.env` ở thư mục gốc. File này bị G
 | `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | Recreate MinIO/backend cùng lúc. Không đổi tùy tiện khi đang có phiên upload. |
 | `PII_ENCRYPTION_KEY` | Không được thay nếu chưa re-encrypt dữ liệu PII cũ; thay trực tiếp sẽ làm mất khả năng giải mã. |
 | `PII_INDEX_KEY` | Không được thay nếu chưa dựng lại blind index PII. |
-| `APP_ADMIN_MFA_SECRET_BASE64` | Thay sẽ làm mã TOTP admin/moderator hiện tại đổi ngay. |
 | `OUTBOX_SIGNING_KEY` | Phải đồng bộ với hệ thống nhận webhook trước khi bật outbox. |
 | Credential Cloudflare Tunnel | Đang mount read-only từ `%USERPROFILE%/.cloudflared`; chuyển máy phải chép credential hoặc cấp tunnel mới. |
 

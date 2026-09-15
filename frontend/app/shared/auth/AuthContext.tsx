@@ -9,7 +9,7 @@ interface AuthContextType {
   user: AuthUser | null; isAuthenticated: boolean; isAuthLoading: boolean;
   isAdminOrModerator: boolean; isBroker: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  adminLogin: (email: string, password: string, mfaCode: string) => Promise<{ success: boolean; error?: string }>;
+  adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (email: string, password: string, name: string, accountType: 'BROKER' | 'USER') => Promise<{ success: boolean; email?: string; error?: string }>;
   resendVerification: (email: string) => Promise<{ success:boolean; error?:string }>;
   refreshUser: () => Promise<void>;
@@ -60,8 +60,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try { accept(await apiClient<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })); return { success: true }; }
     catch (error) { return { success: false, error: errorMessage(error) }; }
   };
-  const adminLogin = async (email: string, password: string, mfaCode: string) => {
-    try { accept(await apiClient<AuthResult>('/auth/admin/login', { method: 'POST', body: JSON.stringify({ email, password, mfaCode }) })); return { success: true }; }
+  const adminLogin = async (email: string, password: string) => {
+    try { accept(await apiClient<AuthResult>('/auth/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) })); return { success: true }; }
     catch (error) { return { success: false, error: errorMessage(error) }; }
   };
   const register = async (email: string, password: string, name: string, accountType: 'BROKER' | 'USER') => {

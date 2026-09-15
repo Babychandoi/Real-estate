@@ -25,7 +25,7 @@ if ([string]::IsNullOrWhiteSpace($values['MINIO_ROOT_USER']) -or $values['MINIO_
 }
 
 if ($values['APP_MODE'] -eq 'production') {
-    foreach ($required in @('PII_ENCRYPTION_KEY', 'PII_INDEX_KEY', 'APP_ADMIN_MFA_SECRET_BASE64')) {
+    foreach ($required in @('PII_ENCRYPTION_KEY', 'PII_INDEX_KEY')) {
         if ([string]::IsNullOrWhiteSpace($values[$required])) { throw "Production thiếu $required." }
     }
     if ($values['APP_ALLOWED_ORIGINS'] -notmatch '^https://') {

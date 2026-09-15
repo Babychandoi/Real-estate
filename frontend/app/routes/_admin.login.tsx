@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, KeyRound, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { Button } from '@/shared/ui/Button';
 
@@ -9,7 +9,6 @@ export const AdminLoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mfaCode, setMfaCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +18,7 @@ export const AdminLoginPage: React.FC = () => {
     setError('');
     setLoading(true);
     try {
-      const result = await adminLogin(email, password, mfaCode);
+      const result = await adminLogin(email, password);
       if (result.success) navigate('/admin/moderation', { replace: true });
       else setError(result.error ?? 'Không thể đăng nhập cổng quản trị.');
     } finally {
@@ -46,9 +45,6 @@ export const AdminLoginPage: React.FC = () => {
           </label>
           <label className="block text-sm font-semibold text-on-surface">Mật khẩu
             <span className="relative mt-1.5 block"><LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" /><input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required className="min-h-11 w-full rounded-lg border border-outline-variant bg-white py-2 pl-10 pr-11 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" placeholder="Nhập mật khẩu" /><button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} className="absolute right-1 top-0 grid h-11 w-11 place-items-center text-on-surface-variant hover:text-on-surface">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></span>
-          </label>
-          <label className="block text-sm font-semibold text-on-surface">Mã xác thực MFA
-            <span className="relative mt-1.5 block"><KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" /><input inputMode="numeric" autoComplete="one-time-code" value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required pattern="\d{6}" className="min-h-11 w-full rounded-lg border border-outline-variant bg-white py-2 pl-10 pr-3 text-sm tracking-[0.2em] outline-none focus:border-primary focus:ring-2 focus:ring-primary/20" placeholder="000000" /></span>
           </label>
         </div>
 

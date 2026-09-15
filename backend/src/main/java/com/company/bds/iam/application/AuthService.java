@@ -30,20 +30,18 @@ public class AuthService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
-    private final TotpVerifier totpVerifier;
     private final JavaMailSender mailSender;
     private final String mailFrom;
     private final String publicBaseUrl;
     private final PiiProtectionService piiProtection;
 
-    public AuthService(JdbcTemplate jdbc, PasswordEncoder passwordEncoder, TotpVerifier totpVerifier,
+    public AuthService(JdbcTemplate jdbc, PasswordEncoder passwordEncoder,
                        JavaMailSender mailSender,
                        @Value("${app.mail.from}") String mailFrom,
                        @Value("${app.public-base-url}") String publicBaseUrl,
                        PiiProtectionService piiProtection) {
         this.jdbc = jdbc;
         this.passwordEncoder = passwordEncoder;
-        this.totpVerifier = totpVerifier;
         this.mailSender = mailSender;
         this.mailFrom = mailFrom;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", "");
@@ -79,12 +77,11 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResult adminLogin(String email, String password, String mfaCode) {
+    public AuthResult adminLogin(String email, String password) {
         UserAccount user = authenticate(email, password);
         if (!isPrivileged(user.role())) {
             throw new org.springframework.security.access.AccessDeniedException("Tài khoản này không có quyền truy cập cổng quản trị.");
         }
-        totpVerifier.verifyForPrivilegedRole(user.role(), mfaCode);
         return issueSession(user);
     }
 

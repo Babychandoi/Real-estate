@@ -10,7 +10,6 @@ public class ProductionSafetyValidator implements ApplicationRunner {
     private final String mode;
     private final String databasePassword;
     private final String redisPassword;
-    private final String adminMfaSecret;
     private final String allowedOrigins;
     private final boolean realKyc;
     private final boolean realTransactions;
@@ -26,7 +25,6 @@ public class ProductionSafetyValidator implements ApplicationRunner {
     public ProductionSafetyValidator(@Value("${app.mode:demo}") String mode,
                                      @Value("${spring.datasource.password:}") String databasePassword,
                                      @Value("${spring.data.redis.password:}") String redisPassword,
-                                     @Value("${app.security.admin-mfa-secret-base64:}") String adminMfaSecret,
                                      @Value("${app.security.allowed-origins:}") String allowedOrigins,
                                      @Value("${app.features.real-kyc:false}") boolean realKyc,
                                      @Value("${app.features.real-transactions:false}") boolean realTransactions,
@@ -41,7 +39,6 @@ public class ProductionSafetyValidator implements ApplicationRunner {
         this.mode = mode;
         this.databasePassword = databasePassword;
         this.redisPassword = redisPassword;
-        this.adminMfaSecret = adminMfaSecret;
         this.allowedOrigins = allowedOrigins;
         this.realKyc = realKyc;
         this.realTransactions = realTransactions;
@@ -63,11 +60,6 @@ public class ProductionSafetyValidator implements ApplicationRunner {
         if (!"production".equalsIgnoreCase(mode)) return;
         if (redisPassword.length() < 16) {
             throw new IllegalStateException("Production từ chối khởi động: Redis phải dùng secret tối thiểu 16 ký tự.");
-        }
-        try {
-            if (java.util.Base64.getDecoder().decode(adminMfaSecret).length < 20) throw new IllegalArgumentException();
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalStateException("Production từ chối khởi động: MFA secret Base64 phải có ít nhất 20 byte.");
         }
         if (java.util.Arrays.stream(allowedOrigins.split(",")).map(String::trim)
                 .anyMatch(origin -> !origin.startsWith("https://"))) {

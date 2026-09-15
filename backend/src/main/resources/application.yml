@@ -113,7 +113,6 @@ app:
   mail:
     from: ${APP_MAIL_FROM:no-reply@bds.local}
   security:
-    admin-mfa-secret-base64: ${APP_ADMIN_MFA_SECRET_BASE64:}
     allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
   features:
     real-kyc: ${FEATURE_REAL_KYC:false}
