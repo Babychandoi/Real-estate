@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { RootLayout } from './root';
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
+import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
 
 const HomePage = lazy(() => import('./routes/_public.home').then(m => ({ default: m.HomePage })));
 const SearchAndMapPage = lazy(() => import('./routes/_public.search').then(m => ({ default: m.SearchAndMapPage })));
@@ -28,34 +29,26 @@ const InformationPage = lazy(() => import('./routes/_public.information').then(m
 const NotFoundPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.NotFoundPage })));
 
 const load = (node: ReactNode) => <Suspense fallback={<div className="max-w-6xl mx-auto p-8" role="status">Đang tải nội dung…</div>}>{node}</Suspense>;
-const protect = (node: ReactNode, moduleName: string, allowedRoles: Array<'ADMIN'|'MODERATOR'|'BROKER'|'USER'>) =>
-  load(<ProtectedRoute moduleName={moduleName} allowedRoles={allowedRoles}>{node}</ProtectedRoute>);
+const protect = (node: ReactNode, moduleName: string, allowedRoles: Array<'ADMIN'|'MODERATOR'|'BROKER'|'USER'>, adminLogin = false) => load(<ProtectedRoute moduleName={moduleName} allowedRoles={allowedRoles} loginPath={adminLogin ? '/2026/nhadatchua/admin/login' : undefined}>{node}</ProtectedRoute>);
 
-export const router = createBrowserRouter([{ path: '/', element: <RootLayout />, children: [
-  { index: true, element: load(<HomePage />) },
-  { path: 'search', element: load(<SearchAndMapPage />) },
-  { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN','BROKER','USER']) },
-  { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
-  { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN','BROKER','USER']) },
-  { path: 'admin/moderation', element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN','MODERATOR']) },
-  { path: 'admin/leads-and-reports', element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ['ADMIN','MODERATOR']) },
-  { path: 'admin/verification', element: protect(<VerificationDeskPage />, 'Thẩm định', ['ADMIN','MODERATOR']) },
-  { path: 'admin/analytics', element: protect(<ProductAnalyticsPage />, 'Phân tích', ['ADMIN','MODERATOR']) },
-  { path: 'admin/projects', element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ['ADMIN','MODERATOR']) },
-  { path: 'admin/cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ['ADMIN','MODERATOR']) },
-  { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
-  { path: 'compare', element: load(<PropertyComparePage />) },
-  { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER','USER']) },
-  { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN','MODERATOR','BROKER','USER']) },
-  { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
-  { path: 'account', element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ['ADMIN','MODERATOR','BROKER','USER']) },
-  { path: 'verify-email', element: load(<VerifyEmailPage />) },
-  { path: 'forgot-password', element: load(<ForgotPasswordPage />) },
-  { path: 'reset-password', element: load(<ResetPasswordPage />) },
-  { path: '2026/nhadatchua/admin/login', element: load(<AdminLoginPage />) },
-  { path: 'about', element: load(<InformationPage />) },
-  { path: 'terms', element: load(<InformationPage />) },
-  { path: 'privacy', element: load(<InformationPage />) },
-  { path: 'contact', element: load(<InformationPage />) },
-  { path: '*', element: load(<NotFoundPage />) },
-]}]);
+export const router = createBrowserRouter([
+  { path: '/', element: <RootLayout />, children: [
+    { index: true, element: load(<HomePage />) }, { path: 'search', element: load(<SearchAndMapPage />) },
+    { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN','BROKER','USER']) }, { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
+    { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN','BROKER','USER']) }, { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
+    { path: 'compare', element: load(<PropertyComparePage />) }, { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER','USER']) },
+    { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN','MODERATOR','BROKER','USER']) }, { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
+    { path: 'account', element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ['ADMIN','MODERATOR','BROKER','USER']) }, { path: 'verify-email', element: load(<VerifyEmailPage />) },
+    { path: 'forgot-password', element: load(<ForgotPasswordPage />) }, { path: 'reset-password', element: load(<ResetPasswordPage />) },
+    { path: 'about', element: load(<InformationPage />) }, { path: 'terms', element: load(<InformationPage />) }, { path: 'privacy', element: load(<InformationPage />) }, { path: 'contact', element: load(<InformationPage />) }, { path: '*', element: load(<NotFoundPage />) },
+  ]},
+  { path: '/2026/nhadatchua/admin/login', element: load(<AdminLoginShell><AdminLoginPage /></AdminLoginShell>) },
+  { path: '/admin', element: <AdminShell />, children: [
+    { path: 'moderation', element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN','MODERATOR'], true) },
+    { path: 'leads-and-reports', element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ['ADMIN','MODERATOR'], true) },
+    { path: 'verification', element: protect(<VerificationDeskPage />, 'Thẩm định', ['ADMIN','MODERATOR'], true) },
+    { path: 'analytics', element: protect(<ProductAnalyticsPage />, 'Phân tích', ['ADMIN','MODERATOR'], true) },
+    { path: 'projects', element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ['ADMIN','MODERATOR'], true) },
+    { path: 'cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ['ADMIN','MODERATOR'], true) },
+  ]},
+]);

@@ -9,12 +9,14 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   allowedRoles?: UserRole[];
   moduleName?: string;
+  loginPath?: string;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   allowedRoles = ['ADMIN', 'MODERATOR'],
   moduleName = 'Phân hệ Nội bộ',
+  loginPath,
 }) => {
   const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
 
@@ -87,6 +89,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
                 >
                   Liên hệ hỗ trợ
                 </Button>
+              </Link>
+            ) : loginPath ? (
+              <Link to={loginPath} className="w-full sm:w-1/2">
+                <Button variant="primary" size="sm" className="w-full" leftIcon={<LogIn className="w-4 h-4" />}>Đăng nhập quản trị</Button>
               </Link>
             ) : (
               <Button
