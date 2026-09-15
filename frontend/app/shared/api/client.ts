@@ -36,5 +36,11 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
   }
 
   if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+
+  // Some read endpoints deliberately return an empty 200 response when a
+  // resource has not been configured yet (for example the receiving bank).
+  // Parsing that body as JSON turns a valid empty state into a client error.
+  const body = await response.text();
+  if (!body.trim()) return undefined as T;
+  return JSON.parse(body) as T;
 }
