@@ -62,6 +62,15 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
     }
 
     @Override
+    public List<Listing> findAll(int page, int size) {
+        List<UUID> ids = listingRepository.findAllListingIds(PageRequest.of(page, size));
+        if (ids.isEmpty()) return List.of();
+        Map<UUID, ListingJpaEntity> entities = listingRepository.findAllByIdWithRevisions(ids).stream()
+                .collect(Collectors.toMap(ListingJpaEntity::getId, entity -> entity));
+        return ids.stream().map(entities::get).filter(java.util.Objects::nonNull).map(mapper::toDomain).toList();
+    }
+
+    @Override
     public List<Listing> findPublicActiveListings(String purpose, int page, int size) {
         return hydrateInOrder(listingRepository.findPublicActiveListingIds(PageRequest.of(page, size)));
     }

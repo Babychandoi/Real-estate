@@ -60,6 +60,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**", "/api/v1/listings/search", "/api/v1/listings/by-slug/**", "/api/v1/listings/{id}").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/public/reports").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/public/leads").authenticated()
+                        .requestMatchers("/api/v1/listings/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()
                         .requestMatchers("/api/v1/billing/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/moderation/**", "/api/v1/analytics/**").hasAnyRole("ADMIN", "MODERATOR")

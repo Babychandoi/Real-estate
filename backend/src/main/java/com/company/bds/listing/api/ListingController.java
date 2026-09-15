@@ -181,6 +181,31 @@ public class ListingController {
         return ResponseEntity.ok(responses);
     }
 
+    @GetMapping("/admin/all")
+    public ResponseEntity<List<ListingDetailResponse>> getAllForAdmin(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return ResponseEntity.ok(persistencePort.findAll(safePage, safeSize).stream().map(this::mapToDetailResponse).toList());
+    }
+
+    @PostMapping("/{id}/visibility")
+    public ResponseEntity<Map<String, Object>> changeVisibility(@PathVariable UUID id,
+                                                                  @RequestBody VisibilityRequest request,
+                                                                  Authentication authentication) {
+        UUID actorId = CurrentUser.id(authentication);
+        Listing listing = persistencePort.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        boolean admin = authentication.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        if (!admin && !listing.getOwnerId().equals(actorId)) throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if (request.hidden() && listing.getStatus().name().equals("ACTIVE")) listing.pause(java.time.Instant.now());
+        if (!request.hidden() && listing.getStatus().name().equals("PAUSED")) listing.resume(java.time.Instant.now());
+        Listing saved = persistencePort.save(listing);
+        return ResponseEntity.ok(Map.of("listingId", saved.getId(), "status", saved.getStatus().name()));
+    }
+
+    public record VisibilityRequest(boolean hidden) {}
+
     @GetMapping("/search")
     public ResponseEntity<List<ListingSummaryResponse>> searchListings(
             @RequestParam(required = false) String purpose,

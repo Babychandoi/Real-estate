@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { BarChart3, ChevronLeft, CreditCard, FileCheck2, FileText, FolderKanban, LogOut, Menu, ShieldCheck, UserCheck, Users, X } from 'lucide-react';
+import { BarChart3, ChevronLeft, CreditCard, FileCheck2, FileText, FolderKanban, ListChecks, LogOut, Menu, ShieldCheck, UserCheck, Users, X } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import './admin-light.css';
 
 const navigation = [
   { to: '/admin/moderation', label: 'Kiểm duyệt tin', icon: FileCheck2 },
+  { to: '/admin/listings', label: 'Quản lý tất cả tin', icon: ListChecks },
   { to: '/admin/verification', label: 'Thẩm định eKYC', icon: UserCheck },
   { to: '/admin/billing', label: 'Đơn hàng & đối soát', icon: CreditCard },
   { to: '/admin/leads-and-reports', label: 'Lead & báo cáo', icon: Users },

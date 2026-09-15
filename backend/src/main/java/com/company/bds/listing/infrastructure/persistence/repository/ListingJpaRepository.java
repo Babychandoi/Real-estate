@@ -28,6 +28,12 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, UU
 
     boolean existsBySlug(String slug);
 
+    @Query("SELECT l.id FROM ListingJpaEntity l ORDER BY l.updatedAt DESC, l.id DESC")
+    List<UUID> findAllListingIds(Pageable pageable);
+
+    @Query("SELECT DISTINCT l FROM ListingJpaEntity l LEFT JOIN FETCH l.revisions WHERE l.id IN :ids")
+    List<ListingJpaEntity> findAllByIdWithRevisions(@Param("ids") List<UUID> ids);
+
     @Query("SELECT DISTINCT l FROM ListingJpaEntity l " +
            "LEFT JOIN FETCH l.revisions r " +
            "WHERE l.ownerId = :ownerId " +

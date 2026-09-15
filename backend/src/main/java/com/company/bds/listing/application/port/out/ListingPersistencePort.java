@@ -15,6 +15,7 @@ public interface ListingPersistencePort {
     Optional<Listing> findBySlug(String slug);
     boolean existsBySlug(String slug);
     List<Listing> findByOwnerId(UUID ownerId);
+    List<Listing> findAll(int page, int size);
     List<Listing> findPublicActiveListings(String purpose, int page, int size);
     List<Listing> findPendingReviewListings();
     List<Listing> searchListings(com.company.bds.listing.domain.model.ListingSearchCriteria criteria, int page, int size);

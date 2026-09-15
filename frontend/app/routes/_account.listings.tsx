@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Clock, Eye, Send, Building2, Pencil } from 'lucide-react';
+import { PlusCircle, Clock, Eye, EyeOff, Send, Building2, Pencil } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
@@ -54,6 +54,11 @@ export const MyListingsPage: React.FC = () => {
     } catch (err) {
       console.error('Không thể nộp duyệt:', err);
     }
+  };
+
+  const changeVisibility = async (listingId: string, hidden: boolean) => {
+    try { await apiClient(`/listings/${listingId}/visibility`, { method: 'POST', body: JSON.stringify({ hidden }) }); fetchMyListings(); }
+    catch (err) { console.error('Không thể thay đổi trạng thái hiển thị:', err); }
   };
 
   const filteredListings = listings.filter((item) => {
@@ -170,6 +175,8 @@ export const MyListingsPage: React.FC = () => {
                   <Link to={listingPath(item)}><Button variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>Xem</Button></Link>
                   {item.status !== 'PENDING_REVIEW' && <Link to={`/listings/new?edit=${item.id}`}><Button variant="outline" size="sm" leftIcon={<Pencil className="w-4 h-4" />}>Chỉnh sửa</Button></Link>}
                   {item.status === 'DRAFT' && <Button variant="primary" size="sm" onClick={() => handleQuickSubmit(item.id)} leftIcon={<Send className="w-4 h-4" />}>Nộp duyệt</Button>}
+                  {item.status === 'ACTIVE' && <Button variant="outline" size="sm" onClick={() => changeVisibility(item.id, true)} leftIcon={<EyeOff className="w-4 h-4" />}>Ẩn tin</Button>}
+                  {item.status === 'PAUSED' && <Button variant="primary" size="sm" onClick={() => changeVisibility(item.id, false)} leftIcon={<Eye className="w-4 h-4" />}>Hiện lại</Button>}
                 </div>
               </div>
             </Card>
