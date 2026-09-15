@@ -70,7 +70,25 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResult login(String email, String password, String mfaCode) {
+    public AuthResult login(String email, String password) {
+        UserAccount user = authenticate(email, password);
+        if (isPrivileged(user.role())) {
+            throw new IllegalStateException("Tài khoản quản trị cần đăng nhập tại cổng quản trị riêng.");
+        }
+        return issueSession(user);
+    }
+
+    @Transactional
+    public AuthResult adminLogin(String email, String password, String mfaCode) {
+        UserAccount user = authenticate(email, password);
+        if (!isPrivileged(user.role())) {
+            throw new org.springframework.security.access.AccessDeniedException("Tài khoản này không có quyền truy cập cổng quản trị.");
+        }
+        totpVerifier.verifyForPrivilegedRole(user.role(), mfaCode);
+        return issueSession(user);
+    }
+
+    private UserAccount authenticate(String email, String password) {
         List<UserAccount> users = jdbc.query("""
                 SELECT u.id, u.full_name, u.email, u.password_hash,
                        COALESCE((SELECT ur.role FROM user_roles ur WHERE ur.user_id=u.id
@@ -89,9 +107,12 @@ public class AuthService {
             throw new IllegalStateException("Vui lòng xác minh email trước khi đăng nhập.");
         }
         if (!"ACTIVE".equals(status)) throw new IllegalArgumentException("Tài khoản hiện không hoạt động.");
-        totpVerifier.verifyForPrivilegedRole(users.get(0).role(), mfaCode);
         jdbc.update("DELETE FROM auth_sessions WHERE expires_at < CURRENT_TIMESTAMP OR revoked_at IS NOT NULL");
-        return issueSession(users.get(0));
+        return users.get(0);
+    }
+
+    private static boolean isPrivileged(String role) {
+        return "ADMIN".equals(role) || "MODERATOR".equals(role);
     }
 
     @Transactional

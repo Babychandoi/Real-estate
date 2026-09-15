@@ -27,7 +27,6 @@ export const LoginModal: React.FC = () => {
   // Login form states
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginMfaCode, setLoginMfaCode] = useState('');
   const [showLoginPw, setShowLoginPw] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
@@ -66,7 +65,6 @@ export const LoginModal: React.FC = () => {
   const resetForms = () => {
     setLoginEmail('');
     setLoginPassword('');
-    setLoginMfaCode('');
     setLoginError('');
     setResendMessage('');
     setRegName('');
@@ -94,7 +92,7 @@ export const LoginModal: React.FC = () => {
     setLoginError('');
     setLoginLoading(true);
     try {
-      const result = await login(loginEmail, loginPassword, loginMfaCode || undefined);
+      const result = await login(loginEmail, loginPassword);
       if (!result.success) {
         setLoginError(result.error || 'Đăng nhập thất bại.');
       }
@@ -240,24 +238,6 @@ export const LoginModal: React.FC = () => {
 
             <div className="-mt-2 flex justify-end">
               <Link to="/forgot-password" onClick={handleClose} className="text-xs font-semibold text-primary hover:underline">Quên mật khẩu?</Link>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">
-                Mã MFA <span className="font-normal text-on-surface-variant">(chỉ tài khoản quản trị)</span>
-              </label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                <input
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={loginMfaCode}
-                  onChange={(event) => setLoginMfaCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
-                  placeholder="6 chữ số"
-                  pattern="\d{6}"
-                />
-              </div>
             </div>
 
             {/* Submit */}

@@ -52,7 +52,12 @@ public class AuthController {
 
     @PostMapping("/login")
     public AuthService.AuthResult login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request.email(), request.password(), request.mfaCode());
+        return authService.login(request.email(), request.password());
+    }
+
+    @PostMapping("/admin/login")
+    public AuthService.AuthResult adminLogin(@Valid @RequestBody AdminLoginRequest request) {
+        return authService.adminLogin(request.email(), request.password(), request.mfaCode());
     }
 
     @GetMapping("/me")
@@ -76,8 +81,9 @@ public class AuthController {
         return header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
     }
 
-    public record LoginRequest(@NotBlank @Email String email, @NotBlank String password,
-                               @Pattern(regexp="^$|\\d{6}") String mfaCode) {}
+    public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
+    public record AdminLoginRequest(@NotBlank @Email String email, @NotBlank String password,
+                                    @NotBlank @Pattern(regexp="\\d{6}") String mfaCode) {}
     public record RegisterRequest(@NotBlank @Email String email,
                                   @NotBlank @Size(min=10, max=72) String password,
                                   @NotBlank @Size(min=2, max=150) String name,

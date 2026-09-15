@@ -23,6 +23,7 @@ const AccountProfilePage = lazy(() => import('./routes/_account.profile').then(m
 const VerifyEmailPage = lazy(() => import('./routes/_public.verify-email').then(m => ({ default: m.VerifyEmailPage })));
 const ForgotPasswordPage = lazy(() => import('./routes/_public.forgot-password').then(m => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import('./routes/_public.reset-password').then(m => ({ default: m.ResetPasswordPage })));
+const AdminLoginPage = lazy(() => import('./routes/_admin.login').then(m => ({ default: m.AdminLoginPage })));
 const InformationPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.InformationPage })));
 const NotFoundPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.NotFoundPage })));
 
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([{ path: '/', element: <RootLayout />,
   { path: 'verify-email', element: load(<VerifyEmailPage />) },
   { path: 'forgot-password', element: load(<ForgotPasswordPage />) },
   { path: 'reset-password', element: load(<ResetPasswordPage />) },
+  { path: '2026/nhadatchua/admin/login', element: load(<AdminLoginPage />) },
   { path: 'about', element: load(<InformationPage />) },
   { path: 'terms', element: load(<InformationPage />) },
   { path: 'privacy', element: load(<InformationPage />) },
