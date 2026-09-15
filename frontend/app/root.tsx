@@ -279,7 +279,7 @@ const RootLayoutContent: React.FC = () => {
 
           {/* Hành động người dùng & Đăng nhập */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <button ref={menuButtonRef} type="button" aria-label="Mở menu chính" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)} className="xl:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Menu className="w-5 h-5" /></button>
+            <button ref={menuButtonRef} type="button" aria-label="Mở menu chính" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)} className="order-2 xl:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Menu className="w-5 h-5" /></button>
             {isAuthenticated ? (
               <Link to="/listings/new">
                 <Button
