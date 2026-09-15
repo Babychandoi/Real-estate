@@ -1,0 +1,12 @@
+.admin-shell { background: #f8f9ff; color: #0b1c30; }
+.admin-shell .bg-slate-950, .admin-shell .bg-slate-950\/60, .admin-shell .bg-slate-950\/95 { background-color: #fff !important; }
+.admin-shell .bg-slate-900, .admin-shell .bg-slate-900\/80, .admin-shell .bg-slate-900\/70, .admin-shell .bg-slate-900\/30 { background-color: #f7f9fc !important; }
+.admin-shell .bg-slate-800 { background-color: #eaf0f8 !important; }
+.admin-shell .border-slate-950, .admin-shell .border-slate-900, .admin-shell .border-slate-800, .admin-shell .border-slate-800\/60, .admin-shell .border-slate-700 { border-color: #d7e0ec !important; }
+.admin-shell .text-white, .admin-shell .text-slate-100, .admin-shell .text-slate-200, .admin-shell .text-slate-300 { color: #10233a !important; }
+.admin-shell .text-slate-400, .admin-shell .text-slate-500, .admin-shell .text-slate-600, .admin-shell .text-slate-700 { color: #52657b !important; }
+.admin-shell .placeholder-slate-500::placeholder { color: #71839a !important; }
+.admin-shell .hover\:bg-slate-800:hover, .admin-shell .hover\:bg-slate-700:hover, .admin-shell .hover\:bg-slate-900:hover { background-color: #e6effa !important; }
+.admin-shell .hover\:text-white:hover, .admin-shell .hover\:text-slate-200:hover { color: #0f4c81 !important; }
+.admin-shell .bg-primary.text-white, .admin-shell .bg-emerald-600.text-white, .admin-shell .bg-rose-600.text-white, .admin-shell .bg-sky-600.text-white, .admin-shell .from-sky-600.text-white { color: #fff !important; }
+.admin-shell .shadow-emerald-950\/50, .admin-shell .shadow-rose-950\/50 { --tw-shadow-color: rgb(15 76 129 / .12) !important; }
