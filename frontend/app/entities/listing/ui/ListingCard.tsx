@@ -12,6 +12,7 @@ interface ListingCardProps {
 
 export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
   return (
+    <Link to={listingPath(listing)} aria-label={`Xem chi tiết: ${listing.title}`} className="block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2">
     <Card hoverable className="p-0 overflow-hidden flex flex-col h-full group">
       {/* Khung ảnh đại diện với tỉ lệ 16:9 */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-surface-container">
@@ -52,11 +53,9 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
             </span>
           </div>
 
-          <Link to={listingPath(listing)}>
-            <h3 className="text-base font-semibold text-on-surface mt-1 line-clamp-2 hover:text-primary transition-colors">
-              {listing.title}
-            </h3>
-          </Link>
+          <h3 className="text-base font-semibold text-on-surface mt-1 line-clamp-2 group-hover:text-primary transition-colors">
+            {listing.title}
+          </h3>
         </div>
 
         <div className="pt-2 border-t border-outline-variant/30 flex items-center justify-between text-xs text-on-surface-variant">
@@ -72,5 +71,6 @@ export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
         </div>
       </div>
     </Card>
+    </Link>
   );
 };
