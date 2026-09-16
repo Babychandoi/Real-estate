@@ -19,7 +19,7 @@ export const AdminLoginPage: React.FC = () => {
     setLoading(true);
     try {
       const result = await adminLogin(email, password);
-      if (result.success) navigate('/admin/moderation', { replace: true });
+      if (result.success) navigate('/2026/nhadatchuan/admin/moderation', { replace: true });
       else setError(result.error ?? 'Không thể đăng nhập cổng quản trị.');
     } finally {
       setLoading(false);

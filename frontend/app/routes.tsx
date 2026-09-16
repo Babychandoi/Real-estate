@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { RootLayout } from './root';
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
 import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
@@ -31,7 +31,7 @@ const InformationPage = lazy(() => import('./routes/_public.information').then(m
 const NotFoundPage = lazy(() => import('./routes/_public.information').then(m => ({ default: m.NotFoundPage })));
 
 const load = (node: ReactNode) => <Suspense fallback={<div className="max-w-6xl mx-auto p-8" role="status">Đang tải nội dung…</div>}>{node}</Suspense>;
-const protect = (node: ReactNode, moduleName: string, allowedRoles: Array<'ADMIN'|'MODERATOR'|'BROKER'|'USER'>, adminLogin = false) => load(<ProtectedRoute moduleName={moduleName} allowedRoles={allowedRoles} loginPath={adminLogin ? '/2026/nhadatchua/admin/login' : undefined}>{node}</ProtectedRoute>);
+const protect = (node: ReactNode, moduleName: string, allowedRoles: Array<'ADMIN'|'MODERATOR'|'BROKER'|'USER'>, adminLogin = false) => load(<ProtectedRoute moduleName={moduleName} allowedRoles={allowedRoles} loginPath={adminLogin ? '/2026/nhadatchuan/admin/login' : undefined}>{node}</ProtectedRoute>);
 
 export const router = createBrowserRouter([
   { path: '/', element: <RootLayout />, children: [
@@ -44,8 +44,8 @@ export const router = createBrowserRouter([
     { path: 'forgot-password', element: load(<ForgotPasswordPage />) }, { path: 'reset-password', element: load(<ResetPasswordPage />) },
     { path: 'about', element: load(<InformationPage />) }, { path: 'terms', element: load(<InformationPage />) }, { path: 'privacy', element: load(<InformationPage />) }, { path: 'contact', element: load(<InformationPage />) }, { path: '*', element: load(<NotFoundPage />) },
   ]},
-  { path: '/2026/nhadatchua/admin/login', element: load(<AdminLoginShell><AdminLoginPage /></AdminLoginShell>) },
-  { path: '/admin', element: <AdminShell />, children: [
+  { path: '/2026/nhadatchuan/admin/login', element: load(<AdminLoginShell><AdminLoginPage /></AdminLoginShell>) },
+  { path: '/2026/nhadatchuan/admin', element: <AdminShell />, children: [
     { path: 'moderation', element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN','MODERATOR'], true) },
     { path: 'listings', element: protect(<AdminListingsPage />, 'Quản lý tin', ['ADMIN'], true) },
     { path: 'leads-and-reports', element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ['ADMIN','MODERATOR'], true) },
@@ -55,4 +55,6 @@ export const router = createBrowserRouter([
     { path: 'projects', element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ['ADMIN','MODERATOR'], true) },
     { path: 'cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ['ADMIN','MODERATOR'], true) },
   ]},
+  { path: '/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/moderation" replace /> },
+  { path: '/2026/nhadatchua/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/login" replace /> },
 ]);

@@ -5,14 +5,14 @@ import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import './admin-light.css';
 
 const navigation = [
-  { to: '/admin/moderation', label: 'Kiểm duyệt tin', icon: FileCheck2 },
-  { to: '/admin/listings', label: 'Quản lý tất cả tin', icon: ListChecks },
-  { to: '/admin/verification', label: 'Thẩm định eKYC', icon: UserCheck },
-  { to: '/admin/billing', label: 'Đơn hàng & đối soát', icon: CreditCard },
-  { to: '/admin/leads-and-reports', label: 'Lead & báo cáo', icon: Users },
-  { to: '/admin/analytics', label: 'Phân tích', icon: BarChart3 },
-  { to: '/admin/projects', label: 'Dự án BĐS', icon: FolderKanban },
-  { to: '/admin/cms', label: 'Nội dung CMS', icon: FileText },
+  { to: '/2026/nhadatchuan/admin/moderation', label: 'Kiểm duyệt tin', icon: FileCheck2 },
+  { to: '/2026/nhadatchuan/admin/listings', label: 'Quản lý tất cả tin', icon: ListChecks },
+  { to: '/2026/nhadatchuan/admin/verification', label: 'Thẩm định eKYC', icon: UserCheck },
+  { to: '/2026/nhadatchuan/admin/billing', label: 'Đơn hàng & đối soát', icon: CreditCard },
+  { to: '/2026/nhadatchuan/admin/leads-and-reports', label: 'Lead & báo cáo', icon: Users },
+  { to: '/2026/nhadatchuan/admin/analytics', label: 'Phân tích', icon: BarChart3 },
+  { to: '/2026/nhadatchuan/admin/projects', label: 'Dự án BĐS', icon: FolderKanban },
+  { to: '/2026/nhadatchuan/admin/cms', label: 'Nội dung CMS', icon: FileText },
 ];
 
 const AdminShellContent: React.FC = () => {
@@ -21,7 +21,7 @@ const AdminShellContent: React.FC = () => {
   const navigate = useNavigate();
   const close = () => setMobileOpen(false);
   const sideNav = <nav className="flex h-full flex-col bg-slate-950 px-3 py-4 text-slate-200" aria-label="Điều hướng quản trị">
-    <Link to="/admin/moderation" onClick={close} className="mb-6 flex items-center gap-3 px-2 text-white"><span className="grid h-9 w-9 place-items-center rounded-lg bg-primary"><ShieldCheck className="h-5 w-5" /></span><span><span className="block text-sm font-bold leading-tight">Nhà Đất Chuẩn</span><span className="block text-[11px] text-slate-400">QUẢN TRỊ HỆ THỐNG</span></span></Link>
+    <Link to="/2026/nhadatchuan/admin/moderation" onClick={close} className="mb-6 flex items-center gap-3 px-2 text-white"><span className="grid h-9 w-9 place-items-center rounded-lg bg-primary"><ShieldCheck className="h-5 w-5" /></span><span><span className="block text-sm font-bold leading-tight">Nhà Đất Chuẩn</span><span className="block text-[11px] text-slate-400">QUẢN TRỊ HỆ THỐNG</span></span></Link>
     <div className="space-y-1">{navigation.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} onClick={close} className={({ isActive }) => `flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors ${isActive ? 'bg-primary text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}><Icon className="h-4 w-4" />{label}</NavLink>)}</div>
     <div className="mt-auto border-t border-slate-800 pt-3"><Link to="/" className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-slate-300 hover:bg-slate-800 hover:text-white"><ChevronLeft className="h-4 w-4" />Về trang công khai</Link></div>
   </nav>;

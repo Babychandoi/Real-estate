@@ -149,7 +149,7 @@ const RootLayoutContent: React.FC = () => {
 
                     <div className="flex flex-col gap-0.5">
                       <Link
-                        to="/admin/moderation"
+                        to="/2026/nhadatchuan/admin/moderation"
                         onClick={() => setIsAdminOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-primary/10 transition-colors group"
                       >
@@ -167,7 +167,7 @@ const RootLayoutContent: React.FC = () => {
                       </Link>
 
                       <Link
-                        to="/admin/verification"
+                        to="/2026/nhadatchuan/admin/verification"
                         onClick={() => setIsAdminOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 transition-colors group"
                       >
@@ -185,7 +185,7 @@ const RootLayoutContent: React.FC = () => {
                       </Link>
 
                       <Link
-                        to="/admin/leads-and-reports"
+                        to="/2026/nhadatchuan/admin/leads-and-reports"
                         onClick={() => setIsAdminOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-rose-50 transition-colors group"
                       >
@@ -203,7 +203,7 @@ const RootLayoutContent: React.FC = () => {
                       </Link>
 
                       <Link
-                        to="/admin/analytics"
+                        to="/2026/nhadatchuan/admin/analytics"
                         onClick={() => setIsAdminOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-purple-50 transition-colors group"
                       >
@@ -221,7 +221,7 @@ const RootLayoutContent: React.FC = () => {
                       </Link>
 
                       <Link
-                        to="/admin/projects"
+                        to="/2026/nhadatchuan/admin/projects"
                         onClick={() => setIsAdminOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-amber-50 transition-colors group"
                       >
@@ -239,7 +239,7 @@ const RootLayoutContent: React.FC = () => {
                       </Link>
 
                       <Link
-                        to="/admin/cms"
+                        to="/2026/nhadatchuan/admin/cms"
                         onClick={() => setIsAdminOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-indigo-50 transition-colors group"
                       >
@@ -369,7 +369,7 @@ const RootLayoutContent: React.FC = () => {
               <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>
               {isAuthenticated && <><Link to="/account" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserIcon className="w-5 h-5" />Thông tin cá nhân</Link><Link to="/kyc" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserCheck className="w-5 h-5" />Xác minh eKYC</Link></>}
               {isBroker && <Link to="/broker/workspace" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Briefcase className="w-5 h-5" />Không gian môi giới</Link>}
-              {isAdminOrModerator && <Link to="/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
+              {isAdminOrModerator && <Link to="/2026/nhadatchuan/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
             </nav>
             <div className="mt-auto pt-4 border-t border-outline-variant">
               {isAuthenticated ? <button type="button" onClick={() => { logout(); setIsMobileOpen(false); }} className="w-full min-h-11 rounded-lg bg-surface-container font-semibold">Đăng xuất</button> : <button type="button" onClick={() => { setIsMobileOpen(false); setIsLoginModalOpen(true); }} className="w-full min-h-11 rounded-lg bg-primary text-white font-semibold">Đăng nhập / Đăng ký</button>}
