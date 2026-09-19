@@ -13,4 +13,5 @@ export function fetchLeads(listingId?: string, brokerId?: string): Promise<LeadI
   return apiClient<LeadItem[]>(`/leads${params.size ? `?${params}` : ''}`);
 }
 export const updateLeadStatus = (leadId: string, status: LeadStatus) => apiClient<LeadItem>(`/leads/${leadId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+export const revealLeadContact = (leadId: string) => apiClient<{ phone: string }>(`/leads/${leadId}/contact`);
 export const fetchFunnelAnalytics = () => apiClient<FunnelAnalytics>('/analytics/funnel');

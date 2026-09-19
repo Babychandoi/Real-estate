@@ -49,6 +49,7 @@ public class LeadController {
                 request.listingId(),
                 request.fullName(),
                 request.phone(),
+                request.requestType(),
                 request.note(),
                 request.consentPolicy(),
                 idempotencyKey
@@ -92,8 +93,9 @@ public class LeadController {
             leads = leadApplicationService.getAllLeads(page, size);
         }
 
+        var listingContexts = leadApplicationService.getListingContexts(leads);
         List<LeadResponse> response = leads.stream()
-                .map(LeadResponse::fromDomain)
+                .map(lead -> LeadResponse.fromDomain(lead, listingContexts.get(lead.getListingId())))
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(response);
@@ -110,9 +112,10 @@ public class LeadController {
         size = Math.max(1, Math.min(100, size));
         boolean privileged = isPrivileged(authentication);
         UUID actorId = CurrentUser.id(authentication);
-        return ResponseEntity.ok(LeadPageResponse.fromDomain(privileged
+        var leadPage = privileged
                 ? leadApplicationService.searchAllLeads(status, keyword, page, size)
-                : leadApplicationService.searchLeadsForBroker(actorId, status, keyword, page, size)));
+                : leadApplicationService.searchLeadsForBroker(actorId, status, keyword, page, size);
+        return ResponseEntity.ok(LeadPageResponse.fromDomain(leadPage, leadApplicationService.getListingContexts(leadPage.items())));
     }
 
     /**
@@ -126,7 +129,8 @@ public class LeadController {
 
         Lead updated = leadApplicationService.updateLeadStatus(
                 id, request.status(), CurrentUser.id(authentication), isPrivileged(authentication));
-        return ResponseEntity.ok(LeadResponse.fromDomain(updated));
+        return ResponseEntity.ok(LeadResponse.fromDomain(updated,
+                leadApplicationService.getListingContexts(List.of(updated)).get(updated.getListingId())));
     }
 
     @GetMapping("/leads/{id}/contact")

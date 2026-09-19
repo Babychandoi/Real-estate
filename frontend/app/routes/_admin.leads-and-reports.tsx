@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarDays, CheckCircle2, EyeOff, MessageSquareText, Phone, RefreshCw, ShieldAlert, UserRound, Users, XCircle } from 'lucide-react';
-import { dismissReport, emergencyHideListing, fetchLeads, fetchReports, resolveReport, updateLeadStatus } from '@/entities/lead/api/leadApi';
+import { AlertTriangle, Building2, CalendarDays, CheckCircle2, ExternalLink, EyeOff, MessageSquareText, Phone, RefreshCw, ShieldAlert, UserRound, Users, XCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { dismissReport, emergencyHideListing, fetchLeads, fetchReports, revealLeadContact, resolveReport, updateLeadStatus } from '@/entities/lead/api/leadApi';
 import type { LeadItem, ListingReport, LeadStatus } from '@/entities/lead/model/types';
 import { Button } from '@/shared/ui/Button';
 
@@ -25,6 +26,7 @@ export default function LeadsAndReportsPage() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [phones, setPhones] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -66,6 +68,13 @@ export default function LeadsAndReportsPage() {
     finally { setBusyId(''); }
   };
 
+  const revealPhone = async (id: string) => {
+    setBusyId(id); setError('');
+    try { const result = await revealLeadContact(id); setPhones((current) => ({ ...current, [id]: result.phone })); }
+    catch { setError('Không thể xem số liên hệ của khách. Vui lòng kiểm tra quyền và thử lại.'); }
+    finally { setBusyId(''); }
+  };
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -99,8 +108,8 @@ export default function LeadsAndReportsPage() {
           {leads.length === 0 ? <div className="py-16 text-center"><UserRound className="mx-auto h-9 w-9 text-slate-400" /><p className="mt-3 font-medium text-slate-700">Chưa có khách gửi yêu cầu liên hệ</p></div> : (
             <div className="divide-y divide-slate-200">
               {leads.map((lead) => <article key={lead.id} className="grid gap-4 py-5 md:grid-cols-[minmax(0,1fr)_220px] md:items-center">
-                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-slate-950">{lead.fullName}</h3><span className={`rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${LEAD_BADGES[lead.status]}`}>{LEAD_LABELS[lead.status]}</span></div><div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600"><span className="inline-flex items-center gap-1.5"><Phone className="h-4 w-4" />{lead.maskedPhone}</span><span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDate(lead.createdAt)}</span></div>{lead.note && <p className="mt-3 flex gap-2 text-sm text-slate-700"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span className="break-words">{lead.note}</span></p>}</div>
-                <label className="text-sm font-semibold text-slate-700">Tiến độ chăm sóc<select aria-label={`Trạng thái khách ${lead.fullName}`} disabled={busyId === lead.id} value={lead.status} onChange={(event) => void changeLead(lead.id, event.target.value as LeadStatus)} className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-medium text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:opacity-50">{Object.entries(LEAD_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-slate-950">{lead.fullName}</h3><span className={`rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${LEAD_BADGES[lead.status]}`}>{LEAD_LABELS[lead.status]}</span><span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-800">{lead.requestType === 'VIEWING' ? 'Muốn hẹn xem' : 'Cần tư vấn'}</span></div><div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-slate-600"><span className="inline-flex items-center gap-1.5"><Phone className="h-4 w-4" />{phones[lead.id] || lead.maskedPhone}</span><span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4" />{formatDate(lead.createdAt)}</span></div><div className="mt-3 flex items-center gap-3 rounded-lg border border-slate-200 p-3">{lead.listingImageUrl ? <img src={lead.listingImageUrl} alt="" className="h-14 w-20 rounded-md object-cover" /> : <span className="grid h-14 w-20 place-items-center rounded-md bg-slate-100"><Building2 className="h-5 w-5 text-slate-500" /></span>}<div className="min-w-0"><p className="font-semibold text-slate-900">{lead.listingTitle}</p>{lead.listingAddress && <p className="mt-0.5 text-xs text-slate-600">{lead.listingAddress}</p>}</div></div>{lead.note && <p className="mt-3 flex gap-2 text-sm text-slate-700"><MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" /><span className="break-words">{lead.note}</span></p>}</div>
+                <div className="grid gap-2"><Link to={`/listings/${lead.listingSlug || lead.listingId}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800"><ExternalLink className="h-4 w-4" />Xem tin</Link>{!phones[lead.id] && <button type="button" onClick={() => void revealPhone(lead.id)} disabled={busyId === lead.id || !lead.consentPolicy} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 disabled:opacity-50"><Phone className="h-4 w-4" />Xem số liên hệ</button>}<label className="text-sm font-semibold text-slate-700">Tiến độ chăm sóc<select aria-label={`Trạng thái khách ${lead.fullName}`} disabled={busyId === lead.id} value={lead.status} onChange={(event) => void changeLead(lead.id, event.target.value as LeadStatus)} className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-medium text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:opacity-50">{Object.entries(LEAD_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
               </article>)}
             </div>
           )}

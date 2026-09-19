@@ -52,6 +52,12 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
     }
 
     @Override
+    public List<Listing> findByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) return List.of();
+        return listingRepository.findAllByIdWithRevisions(ids).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
     public boolean existsBySlug(String slug) { return listingRepository.existsBySlug(slug); }
 
     @Override

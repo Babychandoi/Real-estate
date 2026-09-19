@@ -1,6 +1,7 @@
 package com.company.bds.lead.infrastructure.persistence.entity;
 
 import com.company.bds.lead.domain.model.LeadStatus;
+import com.company.bds.lead.domain.model.LeadRequestType;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -29,6 +30,10 @@ public class LeadJpaEntity {
     @Column(name = "phone_lookup_hash", nullable = false, length = 64)
     private String phoneLookupHash;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "request_type", nullable = false, length = 30)
+    private LeadRequestType requestType = LeadRequestType.CONSULTATION;
+
     @Column(name = "note", columnDefinition = "TEXT")
     private String note;
 
@@ -50,6 +55,7 @@ public class LeadJpaEntity {
             String fullName,
             String phoneEncrypted,
             String phoneLookupHash,
+            LeadRequestType requestType,
             String note,
             boolean consentPolicy,
             LeadStatus status,
@@ -59,6 +65,7 @@ public class LeadJpaEntity {
         this.fullName = fullName;
         this.phoneEncrypted = phoneEncrypted;
         this.phoneLookupHash = phoneLookupHash;
+        this.requestType = requestType != null ? requestType : LeadRequestType.CONSULTATION;
         this.note = note;
         this.consentPolicy = consentPolicy;
         this.status = status != null ? status : LeadStatus.NEW;
@@ -75,6 +82,8 @@ public class LeadJpaEntity {
     public void setPhoneEncrypted(String phoneEncrypted) { this.phoneEncrypted = phoneEncrypted; }
     public String getPhoneLookupHash() { return phoneLookupHash; }
     public void setPhoneLookupHash(String phoneLookupHash) { this.phoneLookupHash = phoneLookupHash; }
+    public LeadRequestType getRequestType() { return requestType; }
+    public void setRequestType(LeadRequestType requestType) { this.requestType = requestType; }
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
     public boolean isConsentPolicy() { return consentPolicy; }

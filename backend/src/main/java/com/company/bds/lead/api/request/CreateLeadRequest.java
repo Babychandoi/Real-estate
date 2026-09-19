@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
 import java.util.UUID;
+import com.company.bds.lead.domain.model.LeadRequestType;
 
 /**
  * DTO yêu cầu gửi thông tin tư vấn BĐS của khách hàng.
@@ -21,6 +22,8 @@ public record CreateLeadRequest(
         @NotBlank(message = "{validation.lead.phone.required}")
         @Pattern(regexp = "^(0|\\+84)[3|5|7|8|9][0-9]{8}$", message = "{validation.lead.phone.invalid}")
         String phone,
+
+        LeadRequestType requestType,
 
         String note,
 

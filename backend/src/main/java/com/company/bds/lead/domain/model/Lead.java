@@ -15,6 +15,7 @@ public class Lead {
     private final String fullName;
     private final String phoneEncrypted;
     private final String phoneLookupHash;
+    private final LeadRequestType requestType;
     private final String note;
     private final boolean consentPolicy;
     private LeadStatus status;
@@ -26,6 +27,7 @@ public class Lead {
             String fullName,
             String phoneEncrypted,
             String phoneLookupHash,
+            LeadRequestType requestType,
             String note,
             boolean consentPolicy,
             LeadStatus status,
@@ -35,6 +37,7 @@ public class Lead {
         this.fullName = Objects.requireNonNull(fullName, "fullName không được để trống");
         this.phoneEncrypted = Objects.requireNonNull(phoneEncrypted, "phoneEncrypted không được để trống");
         this.phoneLookupHash = Objects.requireNonNull(phoneLookupHash, "phoneLookupHash không được để trống");
+        this.requestType = requestType != null ? requestType : LeadRequestType.CONSULTATION;
         this.note = note;
         this.consentPolicy = consentPolicy;
         this.status = status != null ? status : LeadStatus.NEW;
@@ -51,6 +54,7 @@ public class Lead {
     public String getFullName() { return fullName; }
     public String getPhoneEncrypted() { return phoneEncrypted; }
     public String getPhoneLookupHash() { return phoneLookupHash; }
+    public LeadRequestType getRequestType() { return requestType; }
     public String getNote() { return note; }
     public boolean isConsentPolicy() { return consentPolicy; }
     public LeadStatus getStatus() { return status; }

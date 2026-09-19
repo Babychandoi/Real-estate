@@ -14,6 +14,7 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
   const closeRef = useRef<HTMLButtonElement>(null);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [requestType, setRequestType] = useState<'VIEWING' | 'CONSULTATION'>('VIEWING');
   const [note, setNote] = useState('');
   const [consent, setConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +49,7 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
     setIsSubmitting(true);
     try {
       const created = await apiClient<LeadResult>('/public/leads', { method: 'POST', headers: { 'Idempotency-Key': idempotencyKeyRef.current }, body: JSON.stringify({
-        listingId: listing.id, fullName: fullName.trim(), phone: phone.replace(/\s/g, ''), note: note.trim(), consentPolicy: consent,
+        listingId: listing.id, fullName: fullName.trim(), phone: phone.replace(/\s/g, ''), requestType, note: note.trim(), consentPolicy: consent,
       }) });
       if (!created.requestCode) throw new Error('Máy chủ không trả mã yêu cầu');
       setResult(created);
@@ -80,6 +81,16 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
                 {listing.imageUrl && <img src={listing.imageUrl} alt="" className="w-20 h-16 object-cover rounded-lg" />}
                 <div className="min-w-0"><p className="font-semibold truncate">{listing.title}</p><p className="text-sm text-primary font-bold">{formatPriceVnd(listing.priceVnd)} · {listing.areaM2} m²</p><p className="text-xs text-on-surface-variant truncate">{listing.address}</p></div>
               </div>
+              <fieldset>
+                <legend className="text-sm font-semibold">Bạn muốn người đăng hỗ trợ gì? *</legend>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {([['VIEWING', 'Hẹn xem trực tiếp'], ['CONSULTATION', 'Nhận tư vấn']] as const).map(([value, label]) => (
+                    <label key={value} className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-sm font-semibold ${requestType === value ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant bg-surface text-on-surface'}`}>
+                      <input type="radio" name="requestType" value={value} checked={requestType === value} onChange={() => setRequestType(value)} className="sr-only" />{label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               {error && <div id="lead-error" role="alert" className="p-3 rounded-lg bg-rose-50 text-rose-800 text-sm">{error}</div>}
               <label className="block text-sm font-semibold">Họ và tên <span aria-hidden="true">*</span><span className="relative block mt-1"><User className="absolute left-3 top-3 w-4 h-4 text-outline" /><input required autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} aria-describedby={error ? 'lead-error' : undefined} className="w-full min-h-11 pl-10 pr-3 rounded-lg border border-outline-variant bg-surface focus:ring-2 focus:ring-primary" /></span></label>
               <label className="block text-sm font-semibold">Số điện thoại <span aria-hidden="true">*</span><span className="relative block mt-1"><Phone className="absolute left-3 top-3 w-4 h-4 text-outline" /><input required type="tel" inputMode="tel" autoComplete="tel" pattern="(0|\+84)[35789][0-9]{8}" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full min-h-11 pl-10 pr-3 rounded-lg border border-outline-variant bg-surface focus:ring-2 focus:ring-primary" /></span></label>

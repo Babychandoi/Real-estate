@@ -21,16 +21,22 @@ export interface ListingReport {
 }
 
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'APPOINTED' | 'CLOSED' | 'SPAM';
+export type LeadRequestType = 'VIEWING' | 'CONSULTATION';
 
 export interface LeadItem {
   id: string;
   listingId: string;
   fullName: string;
   maskedPhone: string;
+  requestType: LeadRequestType;
   note?: string;
   consentPolicy: boolean;
   status: LeadStatus;
   createdAt: string;
+  listingTitle: string;
+  listingSlug?: string;
+  listingAddress?: string;
+  listingImageUrl?: string;
 }
 
 export interface FunnelStepMetric {

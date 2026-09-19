@@ -2,6 +2,7 @@ package com.company.bds.lead.application;
 
 import com.company.bds.lead.domain.model.Lead;
 import com.company.bds.lead.domain.model.LeadStatus;
+import com.company.bds.lead.domain.model.LeadRequestType;
 import com.company.bds.lead.domain.port.LeadPersistencePort;
 import com.company.bds.listing.application.port.out.ListingPersistencePort;
 import com.company.bds.listing.domain.model.Listing;
@@ -54,9 +55,12 @@ public class LeadApplicationService {
             UUID listingId,
             String fullName,
             String rawPhone,
+            LeadRequestType requestType,
             String note,
             boolean consentPolicy,
             String idempotencyKey) {
+
+        requestType = requestType != null ? requestType : LeadRequestType.CONSULTATION;
 
         // 1. Kiểm tra tin đăng có tồn tại không
         Listing listing = listingPersistencePort.findById(listingId)
@@ -66,7 +70,7 @@ public class LeadApplicationService {
         }
         requireVerifiedKyc(requesterId, "Bạn cần hoàn tất eKYC trước khi gửi yêu cầu liên hệ.");
         requireVerifiedKyc(listing.getOwnerId(), "Người đăng chưa hoàn tất eKYC nên tin này tạm thời chưa nhận yêu cầu liên hệ.");
-        Lead replay = findIdempotentReplay(listingId, fullName, rawPhone, note, consentPolicy, idempotencyKey);
+        Lead replay = findIdempotentReplay(listingId, fullName, rawPhone, requestType, note, consentPolicy, idempotencyKey);
         if (replay != null) return replay;
 
         // 2. Chống spam: băm SĐT tra cứu tần suất gửi
@@ -84,7 +88,7 @@ public class LeadApplicationService {
                 throw new IllegalArgumentException("Idempotency-Key không hợp lệ.");
             }
             String requestHash = AuthService.sha256(listingId + "|" + fullName.trim() + "|" + rawPhone.trim()
-                    + "|" + Objects.toString(note, "") + "|" + consentPolicy);
+                    + "|" + requestType + "|" + Objects.toString(note, "") + "|" + consentPolicy);
             int inserted = jdbc.update("""
                     MERGE INTO api_idempotency_keys target
                     USING (VALUES ('PUBLIC_LEAD', CAST(? AS VARCHAR(128)), CAST(? AS VARCHAR(64)), CAST(? AS UUID)))
@@ -107,7 +111,7 @@ public class LeadApplicationService {
         }
         PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(rawPhone);
         Lead lead = new Lead(leadId, listingId, fullName.trim(), protectedPhone.encrypted(),
-                protectedPhone.blindIndex(), note, consentPolicy, LeadStatus.NEW, Instant.now());
+                protectedPhone.blindIndex(), requestType, note, consentPolicy, LeadStatus.NEW, Instant.now());
 
         Lead saved = leadPersistencePort.save(lead);
         OutboxEventWriter writer = outbox.getIfAvailable();
@@ -157,6 +161,13 @@ public class LeadApplicationService {
         return leadPersistencePort.searchAll(status, normalizeSearchKeyword(keyword), page, size);
     }
 
+    @Transactional(readOnly = true)
+    public Map<UUID, Listing> getListingContexts(Collection<Lead> leads) {
+        List<UUID> ids = leads.stream().map(Lead::getListingId).distinct().toList();
+        return listingPersistencePort.findByIds(ids).stream()
+                .collect(java.util.stream.Collectors.toMap(Listing::getId, listing -> listing));
+    }
+
     /**
      * Lấy danh sách Lead theo tin đăng cụ thể.
      */
@@ -198,7 +209,7 @@ public class LeadApplicationService {
         return piiProtection.reveal(lead.getPhoneEncrypted());
     }
 
-    private Lead findIdempotentReplay(UUID listingId, String fullName, String rawPhone, String note,
+    private Lead findIdempotentReplay(UUID listingId, String fullName, String rawPhone, LeadRequestType requestType, String note,
             boolean consentPolicy, String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) return null;
         if (!idempotencyKey.matches("[A-Za-z0-9._:-]{8,128}")) {
@@ -210,7 +221,7 @@ public class LeadApplicationService {
                 """, idempotencyKey);
         if (rows.isEmpty()) return null;
         String requestHash = AuthService.sha256(listingId + "|" + fullName.trim() + "|" + rawPhone.trim()
-                + "|" + Objects.toString(note, "") + "|" + consentPolicy);
+                + "|" + requestType + "|" + Objects.toString(note, "") + "|" + consentPolicy);
         if (!requestHash.equals(rows.get(0).get("request_hash"))) {
             throw new IllegalStateException("Idempotency-Key đã được dùng cho yêu cầu khác.");
         }
