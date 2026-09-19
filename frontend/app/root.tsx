@@ -18,7 +18,8 @@ import {
   Menu,
   X,
   Search,
-  Users
+  Users,
+  History
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
@@ -280,7 +281,7 @@ const RootLayoutContent: React.FC = () => {
           {/* Hành động người dùng & Đăng nhập */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button ref={menuButtonRef} type="button" aria-label="Mở menu chính" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)} className="order-2 xl:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Menu className="w-5 h-5" /></button>
-            {isAuthenticated ? (
+            {isAuthenticated && isBroker ? (
               <Link to="/listings/new">
                 <Button
                   variant="outline"
@@ -291,7 +292,7 @@ const RootLayoutContent: React.FC = () => {
                   Đăng tin
                 </Button>
               </Link>
-            ) : (
+            ) : !isAuthenticated ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -301,7 +302,7 @@ const RootLayoutContent: React.FC = () => {
               >
                 Đăng tin
               </Button>
-            )}
+            ) : null}
 
             {!isAuthenticated ? (
               <Button
@@ -346,9 +347,11 @@ const RootLayoutContent: React.FC = () => {
                     </Link>
                     <Link to="/kyc" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"><UserCheck className="w-4 h-4 text-primary" />Xác minh eKYC</Link>
                     <div className="my-1 border-t border-outline-variant/40" />
-                    <Link to="/my-listings" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><FileText className="w-4 h-4 text-primary" />Kho tin của tôi</Link>
-                    <Link to="/billing" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Layers className="w-4 h-4 text-primary" />Gói đăng tin</Link>
-                    <Link to="/my-leads" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Users className="w-4 h-4 text-primary" />Khách quan tâm</Link>
+                    {isBroker ? <>
+                      <Link to="/my-listings" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><FileText className="w-4 h-4 text-primary" />Kho tin của tôi</Link>
+                      <Link to="/billing" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Layers className="w-4 h-4 text-primary" />Gói đăng tin</Link>
+                      <Link to="/my-leads" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Users className="w-4 h-4 text-primary" />Khách quan tâm</Link>
+                    </> : <Link to="/my-inquiries" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><History className="w-4 h-4 text-primary" />Tin đã liên hệ</Link>}
                     <div className="my-1 border-t border-outline-variant/40" />
                     <button type="button" onClick={() => { logout(); setIsUserMenuOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-primary"><LogOut className="w-4 h-4" />Đăng xuất</button>
                   </div>
@@ -366,8 +369,9 @@ const RootLayoutContent: React.FC = () => {
             <nav className="py-5 flex flex-col gap-2 text-base" onClick={() => setIsMobileOpen(false)}>
               <Link to="/search" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Search className="w-5 h-5" />Tìm kiếm</Link>
               <Link to="/compare" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Layers className="w-5 h-5" />So sánh BĐS</Link>
-              <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>
+              {isBroker && <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>}
               {isAuthenticated && <><Link to="/account" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserIcon className="w-5 h-5" />Thông tin cá nhân</Link><Link to="/kyc" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserCheck className="w-5 h-5" />Xác minh eKYC</Link></>}
+              {user?.role === 'USER' && <Link to="/my-inquiries" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><History className="w-5 h-5" />Tin đã liên hệ</Link>}
               {isBroker && <Link to="/broker/workspace" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Briefcase className="w-5 h-5" />Không gian môi giới</Link>}
               {isAdminOrModerator && <Link to="/2026/nhadatchuan/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
             </nav>

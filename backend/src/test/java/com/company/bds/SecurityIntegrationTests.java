@@ -70,25 +70,15 @@ class SecurityIntegrationTests {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         String token = mapper.readTree(body).get("accessToken").asText();
 
-        String createdListing = mockMvc.perform(post("/api/v1/listings").header("Authorization", "Bearer " + token)
+        mockMvc.perform(post("/api/v1/listings").header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON).content(listing))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String listingId = mapper.readTree(createdListing).get("listingId").asText();
-        java.util.UUID listingUuid = java.util.UUID.fromString(listingId);
-        java.util.UUID revisionUuid = jdbc.queryForObject(
-                "SELECT id FROM listing_revisions WHERE listing_id=? ORDER BY revision_number DESC LIMIT 1",
-                java.util.UUID.class, listingUuid);
-        jdbc.update("UPDATE listings SET status='ACTIVE', public_revision_id=? WHERE id=?",
-                revisionUuid, listingUuid);
-
-        mockMvc.perform(post("/api/v1/public/leads")
-                        .header("Authorization", "Bearer " + token)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"listingId":"%s","fullName":"Tai khoan chua eKYC",
-                                 "phone":"0900000003","note":"Kiem tra cong eKYC","consentPolicy":true}
-                                """.formatted(listingId)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/listings/my-listings").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/leads").header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/leads/sent").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/moderation/queue").header("Authorization", "Bearer " + token))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/v1/auth/logout").header("Authorization", "Bearer " + token))

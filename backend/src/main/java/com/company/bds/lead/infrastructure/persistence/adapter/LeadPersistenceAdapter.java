@@ -73,6 +73,13 @@ public class LeadPersistenceAdapter implements LeadPersistencePort {
     }
 
     @Override
+    public LeadPage findByRequesterId(UUID requesterId, int page, int size) {
+        Page<LeadJpaEntity> result = leadJpaRepository.findByRequesterIdOrderByCreatedAtDesc(requesterId, PageRequest.of(page, size));
+        return new LeadPage(result.getContent().stream().map(this::toDomain).toList(),
+                result.getTotalElements(), page, size, Map.of());
+    }
+
+    @Override
     public long countByPhoneLookupHashSince(String phoneLookupHash, java.time.Instant since) {
         return leadJpaRepository.countByPhoneLookupHashAndCreatedAtAfter(phoneLookupHash, since);
     }
@@ -97,6 +104,7 @@ public class LeadPersistenceAdapter implements LeadPersistencePort {
         return new LeadJpaEntity(
                 domain.getId(),
                 domain.getListingId(),
+                domain.getRequesterId(),
                 domain.getFullName(),
                 domain.getPhoneEncrypted(),
                 domain.getPhoneLookupHash(),
@@ -112,6 +120,7 @@ public class LeadPersistenceAdapter implements LeadPersistencePort {
         return new Lead(
                 entity.getId(),
                 entity.getListingId(),
+                entity.getRequesterId(),
                 entity.getFullName(),
                 entity.getPhoneEncrypted(),
                 entity.getPhoneLookupHash(),

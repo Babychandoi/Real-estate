@@ -21,6 +21,9 @@ public class LeadJpaEntity {
     @Column(name = "listing_id", nullable = false)
     private UUID listingId;
 
+    @Column(name = "requester_id")
+    private UUID requesterId;
+
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
@@ -52,6 +55,7 @@ public class LeadJpaEntity {
     public LeadJpaEntity(
             UUID id,
             UUID listingId,
+            UUID requesterId,
             String fullName,
             String phoneEncrypted,
             String phoneLookupHash,
@@ -62,6 +66,7 @@ public class LeadJpaEntity {
             Instant createdAt) {
         this.id = id;
         this.listingId = listingId;
+        this.requesterId = requesterId;
         this.fullName = fullName;
         this.phoneEncrypted = phoneEncrypted;
         this.phoneLookupHash = phoneLookupHash;
@@ -76,6 +81,8 @@ public class LeadJpaEntity {
     public void setId(UUID id) { this.id = id; }
     public UUID getListingId() { return listingId; }
     public void setListingId(UUID listingId) { this.listingId = listingId; }
+    public UUID getRequesterId() { return requesterId; }
+    public void setRequesterId(UUID requesterId) { this.requesterId = requesterId; }
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
     public String getPhoneEncrypted() { return phoneEncrypted; }

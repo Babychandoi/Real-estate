@@ -22,6 +22,7 @@ const CmsManagementPage = lazy(() => import('./routes/_admin.cms').then(m => ({ 
 const BillingPage = lazy(() => import('./routes/_account.billing').then(m => ({ default: m.BillingPage })));
 const AdminBillingPage = lazy(() => import('./routes/_admin.billing').then(m => ({ default: m.AdminBillingPage })));
 const MyLeadsPage = lazy(() => import('./routes/_account.leads').then(m => ({ default: m.MyLeadsPage })));
+const MyInquiriesPage = lazy(() => import('./routes/_account.inquiries').then(m => ({ default: m.MyInquiriesPage })));
 const KycPage = lazy(() => import('./routes/_account.kyc').then(m => ({ default: m.KycPage })));
 const AccountProfilePage = lazy(() => import('./routes/_account.profile').then(m => ({ default: m.AccountProfilePage })));
 const VerifyEmailPage = lazy(() => import('./routes/_public.verify-email').then(m => ({ default: m.VerifyEmailPage })));
@@ -37,10 +38,10 @@ const protect = (node: ReactNode, moduleName: string, allowedRoles: Array<'ADMIN
 export const router = createBrowserRouter([
   { path: '/', element: <RootLayout />, children: [
     { index: true, element: load(<HomePage />) }, { path: 'search', element: load(<SearchAndMapPage />) },
-    { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN','BROKER','USER']) }, { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
-    { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN','BROKER','USER']) }, { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
-    { path: 'compare', element: load(<PropertyComparePage />) }, { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER','USER']) },
-    { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN','MODERATOR','BROKER','USER']) }, { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
+    { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN','BROKER']) }, { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
+    { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN','BROKER']) }, { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
+    { path: 'compare', element: load(<PropertyComparePage />) }, { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER']) },
+    { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN','BROKER']) }, { path: 'my-inquiries', element: protect(<MyInquiriesPage />, 'Tin đã liên hệ', ['USER']) }, { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
     { path: 'account', element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ['ADMIN','MODERATOR','BROKER','USER']) }, { path: 'verify-email', element: load(<VerifyEmailPage />) },
     { path: 'forgot-password', element: load(<ForgotPasswordPage />) }, { path: 'reset-password', element: load(<ResetPasswordPage />) },
     { path: 'about', element: load(<InformationPage />) }, { path: 'terms', element: load(<InformationPage />) }, { path: 'privacy', element: load(<InformationPage />) }, { path: 'contact', element: load(<InformationPage />) }, { path: '*', element: load(<NotFoundPage />) },

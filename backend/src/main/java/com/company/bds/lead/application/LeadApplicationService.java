@@ -110,7 +110,7 @@ public class LeadApplicationService {
             }
         }
         PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(rawPhone);
-        Lead lead = new Lead(leadId, listingId, fullName.trim(), protectedPhone.encrypted(),
+        Lead lead = new Lead(leadId, listingId, requesterId, fullName.trim(), protectedPhone.encrypted(),
                 protectedPhone.blindIndex(), requestType, note, consentPolicy, LeadStatus.NEW, Instant.now());
 
         Lead saved = leadPersistencePort.save(lead);
@@ -159,6 +159,11 @@ public class LeadApplicationService {
     @Transactional(readOnly = true)
     public com.company.bds.lead.domain.model.LeadPage searchAllLeads(LeadStatus status, String keyword, int page, int size) {
         return leadPersistencePort.searchAll(status, normalizeSearchKeyword(keyword), page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public com.company.bds.lead.domain.model.LeadPage getSentLeads(UUID requesterId, int page, int size) {
+        return leadPersistencePort.findByRequesterId(requesterId, page, size);
     }
 
     @Transactional(readOnly = true)

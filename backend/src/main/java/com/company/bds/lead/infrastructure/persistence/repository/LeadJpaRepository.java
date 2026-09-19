@@ -22,6 +22,8 @@ public interface LeadJpaRepository extends JpaRepository<LeadJpaEntity, UUID> {
 
     List<LeadJpaEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
+    Page<LeadJpaEntity> findByRequesterIdOrderByCreatedAtDesc(UUID requesterId, Pageable pageable);
+
     @Query("""
             SELECT l FROM LeadJpaEntity l
             WHERE l.listingId IN :listingIds

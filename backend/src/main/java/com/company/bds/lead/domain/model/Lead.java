@@ -12,6 +12,7 @@ public class Lead {
 
     private final UUID id;
     private final UUID listingId;
+    private final UUID requesterId;
     private final String fullName;
     private final String phoneEncrypted;
     private final String phoneLookupHash;
@@ -24,6 +25,7 @@ public class Lead {
     public Lead(
             UUID id,
             UUID listingId,
+            UUID requesterId,
             String fullName,
             String phoneEncrypted,
             String phoneLookupHash,
@@ -34,6 +36,7 @@ public class Lead {
             Instant createdAt) {
         this.id = id != null ? id : UUID.randomUUID();
         this.listingId = Objects.requireNonNull(listingId, "listingId không được để trống");
+        this.requesterId = requesterId;
         this.fullName = Objects.requireNonNull(fullName, "fullName không được để trống");
         this.phoneEncrypted = Objects.requireNonNull(phoneEncrypted, "phoneEncrypted không được để trống");
         this.phoneLookupHash = Objects.requireNonNull(phoneLookupHash, "phoneLookupHash không được để trống");
@@ -51,6 +54,7 @@ public class Lead {
     // Getters
     public UUID getId() { return id; }
     public UUID getListingId() { return listingId; }
+    public UUID getRequesterId() { return requesterId; }
     public String getFullName() { return fullName; }
     public String getPhoneEncrypted() { return phoneEncrypted; }
     public String getPhoneLookupHash() { return phoneLookupHash; }

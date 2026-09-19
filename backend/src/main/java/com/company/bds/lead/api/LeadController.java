@@ -118,6 +118,18 @@ public class LeadController {
         return ResponseEntity.ok(LeadPageResponse.fromDomain(leadPage, leadApplicationService.getListingContexts(leadPage.items())));
     }
 
+    @GetMapping("/leads/sent")
+    public ResponseEntity<LeadPageResponse> getSentLeads(
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            Authentication authentication) {
+        page = Math.max(0, page);
+        size = Math.max(1, Math.min(100, size));
+        var leadPage = leadApplicationService.getSentLeads(CurrentUser.id(authentication), page, size);
+        return ResponseEntity.ok(LeadPageResponse.fromDomain(
+                leadPage, leadApplicationService.getListingContexts(leadPage.items())));
+    }
+
     /**
      * Cập nhật trạng thái xử lý Lead (NEW -> CONTACTED -> APPOINTED -> CLOSED -> SPAM).
      */
