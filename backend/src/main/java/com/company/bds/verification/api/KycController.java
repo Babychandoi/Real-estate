@@ -62,7 +62,9 @@ public class KycController {
             throw new AccessDeniedException("Không có quyền xem hồ sơ định danh này.");
         }
         return kycApplicationService.getKycByUserId(userId)
-                .map(p -> ResponseEntity.ok(UserKycResponse.fromDomain(p)))
+                .map(p -> ResponseEntity.ok(privileged
+                        ? UserKycResponse.fromDomainForReviewer(p)
+                        : UserKycResponse.fromDomain(p)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

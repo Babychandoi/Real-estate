@@ -16,6 +16,7 @@ export const rejectVerification = (id: string, reason: string) => apiClient<List
 export const fetchKycQueue = (status?: KycStatus) => apiClient<UserKycProfile[]>(
   `/kyc/queue${status ? `?status=${encodeURIComponent(status)}` : ''}`,
 );
+export const fetchKycByUserId = (userId: string) => apiClient<UserKycProfile>(`/kyc/user/${userId}`);
 export const approveKyc = (id: string) => apiClient<UserKycProfile>(`/kyc/${id}/approve`, { method: 'POST' });
 export const rejectKyc = (id: string, reason: string) => apiClient<UserKycProfile>(`/kyc/${id}/reject`, {
   method: 'POST', body: JSON.stringify({ reason }),
