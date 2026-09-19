@@ -44,9 +44,17 @@ export const LoginModal: React.FC = () => {
   const [verificationSentTo, setVerificationSentTo] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const loginEmailRef = useRef<HTMLInputElement>(null);
+  const loginPasswordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isLoginModalOpen) return;
+    setLoginEmail('');
+    setLoginPassword('');
+    const clearAutofill = window.requestAnimationFrame(() => {
+      if (loginEmailRef.current) loginEmailRef.current.value = '';
+      if (loginPasswordRef.current) loginPasswordRef.current.value = '';
+    });
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden'; closeRef.current?.focus();
@@ -59,7 +67,7 @@ export const LoginModal: React.FC = () => {
       else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
     };
     document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; previous?.focus(); };
+    return () => { window.cancelAnimationFrame(clearAutofill); document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; previous?.focus(); };
   }, [isLoginModalOpen, setIsLoginModalOpen]);
 
   const resetForms = () => {
@@ -185,7 +193,7 @@ export const LoginModal: React.FC = () => {
 
         {/* ═══ TAB: ĐĂNG NHẬP ═══ */}
         {activeTab === 'login' && (
-          <form onSubmit={handleLogin} className="p-6 flex flex-col gap-4">
+          <form onSubmit={handleLogin} autoComplete="off" className="p-6 flex flex-col gap-4">
             {/* Error alert */}
             {loginError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
@@ -201,12 +209,15 @@ export const LoginModal: React.FC = () => {
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  ref={loginEmailRef}
+                  name="public-login-email"
                   type="email"
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
                   placeholder="ten@email.com"
                   required
+                  autoComplete="off"
                   autoFocus
                 />
               </div>
@@ -218,12 +229,15 @@ export const LoginModal: React.FC = () => {
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  ref={loginPasswordRef}
+                  name="public-login-password"
                   type={showLoginPw ? 'text' : 'password'}
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
                   placeholder="Nhập mật khẩu"
                   required
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"
