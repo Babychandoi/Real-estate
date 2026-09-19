@@ -52,6 +52,20 @@ class BdsApplicationTests {
     }
 
     @Test
+    void adminUsers_isServerPaginatedAndAdminOnly() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users").param("page", "0").param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.total").isNumber());
+
+        mockMvc.perform(get("/api/v1/admin/users")
+                        .with(user("00000000-0000-0000-0000-000000000002").roles("BROKER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void listingRevisionLifecycle_fullFlow() throws Exception {
         // 1. Tạo tin nháp mới (Draft #1)
         String createDraftJson = """

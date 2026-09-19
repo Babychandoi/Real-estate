@@ -11,6 +11,7 @@ const CreateListingPage = lazy(() => import('./routes/_public.listings.new').the
 const MyListingsPage = lazy(() => import('./routes/_account.listings').then(m => ({ default: m.MyListingsPage })));
 const ModerationWorkspacePage = lazy(() => import('./routes/_admin.moderation'));
 const AdminListingsPage = lazy(() => import('./routes/_admin.listings').then(m => ({ default: m.AdminListingsPage })));
+const AdminUsersPage = lazy(() => import('./routes/_admin.users').then(m => ({ default: m.AdminUsersPage })));
 const LeadsAndReportsPage = lazy(() => import('./routes/_admin.leads-and-reports'));
 const VerificationDeskPage = lazy(() => import('./routes/_admin.verification'));
 const BrokerWorkspacePage = lazy(() => import('./routes/_account.broker-workspace').then(m => ({ default: m.BrokerWorkspacePage })));
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
   { path: '/2026/nhadatchuan/admin', element: <AdminShell />, children: [
     { path: 'moderation', element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN','MODERATOR'], true) },
     { path: 'listings', element: protect(<AdminListingsPage />, 'Quản lý tin', ['ADMIN'], true) },
+    { path: 'users', element: protect(<AdminUsersPage />, 'Quản lý người dùng', ['ADMIN'], true) },
     { path: 'leads-and-reports', element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ['ADMIN','MODERATOR'], true) },
     { path: 'verification', element: protect(<VerificationDeskPage />, 'Thẩm định', ['ADMIN','MODERATOR'], true) },
     { path: 'billing', element: protect(<AdminBillingPage />, 'Đơn hàng và đối soát', ['ADMIN'], true) },

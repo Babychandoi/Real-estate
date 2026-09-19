@@ -7,6 +7,7 @@ import './admin-light.css';
 const navigation = [
   { to: '/2026/nhadatchuan/admin/moderation', label: 'Kiểm duyệt tin', icon: FileCheck2 },
   { to: '/2026/nhadatchuan/admin/listings', label: 'Quản lý tất cả tin', icon: ListChecks },
+  { to: '/2026/nhadatchuan/admin/users', label: 'Quản lý người dùng', icon: Users },
   { to: '/2026/nhadatchuan/admin/verification', label: 'Thẩm định eKYC', icon: UserCheck },
   { to: '/2026/nhadatchuan/admin/billing', label: 'Đơn hàng & đối soát', icon: CreditCard },
   { to: '/2026/nhadatchuan/admin/leads-and-reports', label: 'Khách quan tâm & báo cáo', icon: Users },
