@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   CheckCircle2,
   Eye,
@@ -53,6 +53,8 @@ export function KycPage() {
   const [access, setAccess] = useState<DocumentAccess | null>(null);
   const [documents, setDocuments] = useState<KycDocuments | null>(null);
   const [previews, setPreviews] = useState<PreviewUrls>({});
+  const [uploadPreviews, setUploadPreviews] = useState<PreviewUrls>({});
+  const uploadPreviewUrls = useRef<PreviewUrls>({});
   const [form, setForm] = useState({
     idNumber: "",
     fullName: user?.name || "",
@@ -111,6 +113,12 @@ export function KycPage() {
     };
   }, [access, documents]);
 
+  useEffect(() => () => {
+    Object.values(uploadPreviewUrls.current).forEach((url) => {
+      if (url) URL.revokeObjectURL(url);
+    });
+  }, []);
+
   const upload = async (field: DocumentField, file?: File) => {
     if (!file) return;
     setUploading(field);
@@ -122,11 +130,17 @@ export function KycPage() {
         method: "POST",
         body,
       });
+      const previewUrl = URL.createObjectURL(file);
+      const previousPreview = uploadPreviewUrls.current[field];
+      if (previousPreview) URL.revokeObjectURL(previousPreview);
+      uploadPreviewUrls.current[field] = previewUrl;
+      setUploadPreviews((current) => ({ ...current, [field]: previewUrl }));
       setForm((current) => ({ ...current, [field]: result.url }));
-    } catch {
-      setError(
-        "Không thể tải ảnh lên. Chỉ dùng JPEG, PNG, WebP hoặc AVIF tối đa 10 MB.",
-      );
+    } catch (reason: unknown) {
+      const detail = reason && typeof reason === "object" && "problem" in reason
+        ? (reason as { problem?: { detail?: string } }).problem?.detail
+        : undefined;
+      setError(detail || "Không thể tải ảnh lên. Chỉ dùng JPEG, PNG, WebP hoặc AVIF tối đa 10 MB.");
     } finally {
       setUploading("");
     }
@@ -147,8 +161,12 @@ export function KycPage() {
           body: JSON.stringify(form),
         }),
       );
-    } catch {
-      setError("Không thể gửi hồ sơ eKYC. Kiểm tra thông tin và thử lại.");
+    } catch (reason: unknown) {
+      const problem = reason && typeof reason === "object" && "problem" in reason
+        ? (reason as { problem?: { detail?: string; errors?: Array<{ message: string }> } }).problem
+        : undefined;
+      const validationMessage = problem?.errors?.map((item) => item.message).filter(Boolean).join(" ");
+      setError(validationMessage || problem?.detail || "Không thể gửi hồ sơ eKYC. Kiểm tra thông tin và thử lại.");
     } finally {
       setSubmitting(false);
     }
@@ -384,13 +402,22 @@ export function KycPage() {
                   {help}
                 </span>
               </span>
+              {uploadPreviews[field] && (
+                <span className="mt-4 block overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <img
+                    src={uploadPreviews[field]}
+                    alt={`Ảnh xem trước ${label.toLowerCase()}`}
+                    className={`h-44 w-full object-contain ${field === "selfieUrl" ? "sm:h-52" : ""}`}
+                  />
+                </span>
+              )}
               <span
                 className={`mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 font-semibold ${form[field] ? "bg-emerald-50 text-emerald-800" : "bg-slate-100 text-primary"}`}
               >
                 {form[field] ? (
                   <>
                     <CheckCircle2 className="h-4 w-4" />
-                    Đã tải lên
+                    Chọn ảnh khác
                   </>
                 ) : (
                   <>
@@ -404,7 +431,11 @@ export function KycPage() {
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/avif"
                 disabled={!!uploading || submitting}
-                onChange={(e) => void upload(field, e.target.files?.[0])}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  void upload(field, file);
+                }}
               />
             </label>
           ))}
