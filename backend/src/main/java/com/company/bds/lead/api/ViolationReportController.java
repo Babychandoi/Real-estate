@@ -40,7 +40,7 @@ public class ViolationReportController {
         ListingReport report = reportApplicationService.submitReport(
                 request.listingId(),
                 request.category(),
-                request.severity() != null ? request.severity() : ReportSeverity.MEDIUM,
+                ReportSeverity.MEDIUM,
                 request.description(),
                 request.evidenceUrls(),
                 request.reporterPhone()

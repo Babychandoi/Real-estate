@@ -45,10 +45,9 @@ public class BillingService {
     @Transactional public Order approve(UUID id, UUID adminId, String note) {
         Order order=load(id,null,true); int changed=jdbc.update("UPDATE package_orders SET status='APPROVED',reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note=?,version=version+1 WHERE id=? AND status='TRANSFER_REPORTED'",adminId,note,id);
         if(changed==0) return load(id,null,true);
-        Plan p=plans().stream().filter(x->x.code().equals(order.planCode())).findFirst().orElseThrow();
-        jdbc.update("UPDATE users SET plan_code=?,plan_expires_at=GREATEST(COALESCE(plan_expires_at,CURRENT_TIMESTAMP),CURRENT_TIMESTAMP)+(?||' days')::interval,listing_quota_remaining=listing_quota_remaining+?,updated_at=CURRENT_TIMESTAMP WHERE id=?",p.code(),p.durationDays(),p.quota(),order.userId());
+        jdbc.update("UPDATE users SET plan_code=?,plan_expires_at=GREATEST(COALESCE(plan_expires_at,CURRENT_TIMESTAMP),CURRENT_TIMESTAMP)+(?||' days')::interval,listing_quota_remaining=listing_quota_remaining+?,updated_at=CURRENT_TIMESTAMP WHERE id=?",order.planCode(),order.durationDays(),order.quota(),order.userId());
         jdbc.update("INSERT INTO invoices(id,invoice_number,order_id,user_id,amount_vnd) VALUES(?,?,?,?,?)",UUID.randomUUID(),"INV-"+java.time.LocalDate.now()+"-"+order.reference(),id,order.userId(),order.amountVnd());
-        notifications.notify(order.userId(),"PLAN_UPGRADED","Nâng cấp thành công","Tài khoản đã được nâng lên gói "+p.name()+" và có thêm "+p.quota()+" lượt đăng tin.");
+        notifications.notify(order.userId(),"PLAN_UPGRADED","Nâng cấp thành công","Tài khoản đã được nâng lên gói "+order.planName()+" và có thêm "+order.quota()+" lượt đăng tin.");
         return load(id,null,true);
     }
     @Transactional public Order reject(UUID id, UUID adminId, String reason) {
@@ -74,9 +73,9 @@ public class BillingService {
         List<AdminOrder> items=jdbc.query("SELECT o.id,o.user_id,u.full_name,u.email,o.plan_code,o.plan_name_snapshot,o.amount_vnd,o.transfer_reference,o.status,o.created_at,o.user_reported_at,o.reviewed_at,o.review_note FROM package_orders o JOIN users u ON u.id=o.user_id"+predicates+" ORDER BY o.created_at DESC LIMIT ? OFFSET ?",(r,n)->new AdminOrder(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getString(3),r.getString(4),r.getString(5),r.getString(6),r.getLong(7),r.getString(8),r.getString(9),r.getTimestamp(10).toInstant(),r.getTimestamp(11)==null?null:r.getTimestamp(11).toInstant(),r.getTimestamp(12)==null?null:r.getTimestamp(12).toInstant(),r.getString(13)),normalizedStatus,normalizedStatus,normalizedKeyword,like,like,like,safeSize,safePage*safeSize);
         return new AdminOrderPage(items,safePage,safeSize,total);
     }
-    private List<Order> query(String where,Object... args){return jdbc.query("SELECT o.id,o.user_id,o.plan_code,o.amount_vnd,o.transfer_reference,o.status,o.created_at,b.bank_bin,b.account_number,b.account_name FROM package_orders o LEFT JOIN bank_settings b ON b.singleton_id=1 "+where,(r,n)->map(r),args);}
+    private List<Order> query(String where,Object... args){return jdbc.query("SELECT o.id,o.user_id,o.plan_code,o.amount_vnd,o.transfer_reference,o.status,o.created_at,o.bank_bin_snapshot,o.account_number_snapshot,o.account_name_snapshot,o.plan_name_snapshot,o.quota_snapshot,o.duration_days_snapshot FROM package_orders o "+where,(r,n)->map(r),args);}
     private Order load(UUID id,UUID userId,boolean admin){String where=admin?"WHERE o.id=?":"WHERE o.id=? AND o.user_id=?"; return query(where,admin?new Object[]{id}:new Object[]{id,userId}).stream().findFirst().orElseThrow(()->new IllegalArgumentException("Không tìm thấy yêu cầu thanh toán."));}
-    private Order map(java.sql.ResultSet r)throws java.sql.SQLException{String qr=null;if(r.getString(8)!=null)qr="https://img.vietqr.io/image/"+r.getString(8)+"-"+r.getString(9)+"-compact2.png?amount="+r.getLong(4)+"&addInfo="+enc(r.getString(5))+"&accountName="+enc(r.getString(10));return new Order(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getString(3),r.getLong(4),r.getString(5),r.getString(6),r.getTimestamp(7).toInstant(),qr);}
+    private Order map(java.sql.ResultSet r)throws java.sql.SQLException{String qr=null;if(r.getString(8)!=null)qr="https://img.vietqr.io/image/"+r.getString(8)+"-"+r.getString(9)+"-compact2.png?amount="+r.getLong(4)+"&addInfo="+enc(r.getString(5))+"&accountName="+enc(r.getString(10));return new Order(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getString(3),r.getLong(4),r.getString(5),r.getString(6),r.getTimestamp(7).toInstant(),qr,r.getString(11),r.getInt(12),r.getInt(13));}
     private static String enc(String v){return URLEncoder.encode(v,StandardCharsets.UTF_8);}
     private void emailAdmin(Order o) {
         BankSettings b=bank();
@@ -95,7 +94,7 @@ public class BillingService {
     }
     public record Plan(String code,String name,long priceVnd,int quota,int durationDays,String description){}
     public record BankSettings(String bankBin,String bankName,String accountNumber,String accountName,String adminEmail,long version){}
-    public record Order(UUID id,UUID userId,String planCode,long amountVnd,String reference,String status,Instant createdAt,String qrUrl){}
+    public record Order(UUID id,UUID userId,String planCode,long amountVnd,String reference,String status,Instant createdAt,String qrUrl,String planName,int quota,int durationDays){}
     public record AdminOrder(UUID id,UUID userId,String customerName,String customerEmail,String planCode,String planName,long amountVnd,String reference,String status,Instant createdAt,Instant reportedAt,Instant reviewedAt,String reviewNote){}
     public record AdminOrderPage(List<AdminOrder> items,int page,int size,long total){}
 }

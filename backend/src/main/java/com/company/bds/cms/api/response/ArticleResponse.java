@@ -42,6 +42,21 @@ public class ArticleResponse {
         return res;
     }
 
+    public static ArticleResponse publicFromDomain(Article domain, ArticleRevision publishedRevision) {
+        ArticleResponse res = new ArticleResponse();
+        res.id = domain.getId();
+        res.slug = domain.getSlug();
+        res.category = domain.getCategory();
+        res.status = domain.getStatus();
+        res.publishedRevisionId = domain.getPublishedRevisionId();
+        res.createdAt = domain.getCreatedAt();
+        res.updatedAt = domain.getUpdatedAt();
+        if (publishedRevision != null && publishedRevision.getId().equals(domain.getPublishedRevisionId())) {
+            res.currentRevision = ArticleRevisionResponse.fromDomain(publishedRevision);
+        }
+        return res;
+    }
+
     // Getters
     public UUID getId() { return id; }
     public String getSlug() { return slug; }

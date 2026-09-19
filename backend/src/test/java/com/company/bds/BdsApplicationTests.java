@@ -458,7 +458,7 @@ class BdsApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
 
-        // 2. Tiếp nhận Báo xấu P0 Khẩn cấp lừa cọc (POST /api/v1/public/reports)
+        // 2. API public không được tin severity do client tự gán.
         String reportJson = String.format("""
             {
                 "listingId": "%s",
@@ -475,21 +475,30 @@ class BdsApplicationTests {
                         .content(reportJson))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.severity").value("P0_EMERGENCY"))
+                .andExpect(jsonPath("$.severity").value("MEDIUM"))
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andReturn();
 
         String reportId = objectMapper.readTree(reportRes.getResponse().getContentAsString()).get("id").asText();
 
-        // 3. Cơ chế bảo vệ khẩn cấp P0 (FR27): Tin đăng lập tức tự động chuyển sang PAUSED
+        // 3. Báo cáo công khai không được tự động làm ẩn tin.
+        mockMvc.perform(get("/api/v1/listings/" + listingId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        // 4. Bàn giải quyết vi phạm tra cứu báo xấu: /api/v1/reports
+        mockMvc.perform(get("/api/v1/reports?severity=MEDIUM"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+
+        // Chỉ bàn kiểm duyệt mới được quyết định tạm ẩn khẩn cấp.
+        mockMvc.perform(post("/api/v1/reports/" + reportId + "/emergency-hide")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"Cần xác minh khẩn cấp\"}"))
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/listings/" + listingId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PAUSED"));
-
-        // 4. Bàn giải quyết vi phạm tra cứu báo xấu: /api/v1/reports
-        mockMvc.perform(get("/api/v1/reports?severity=P0_EMERGENCY"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray());
 
         // 5. Môi giới gửi giải trình (Appeal)
         String appealJson = """

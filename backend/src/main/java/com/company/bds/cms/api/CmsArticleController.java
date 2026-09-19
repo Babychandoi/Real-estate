@@ -104,9 +104,10 @@ public class CmsArticleController {
             @RequestParam(defaultValue = "20") int size) {
         List<Article> articles = articleService.getPublicArticles(Math.max(0, page), Math.max(1, Math.min(100, size)));
         List<ArticleResponse> responseList = articles.stream().map(a -> {
-            List<ArticleRevision> revs = articleService.getRevisions(a.getId());
-            ArticleRevision latest = revs.isEmpty() ? null : revs.get(0);
-            return ArticleResponse.fromDomain(a, latest, revs);
+            ArticleRevision published = articleService.getRevisions(a.getId()).stream()
+                    .filter(revision -> revision.getId().equals(a.getPublishedRevisionId()))
+                    .findFirst().orElse(null);
+            return ArticleResponse.publicFromDomain(a, published);
         }).collect(Collectors.toList());
 
         return ResponseEntity.ok(responseList);
@@ -116,9 +117,10 @@ public class CmsArticleController {
     public ResponseEntity<ArticleResponse> getPublicArticleBySlug(@PathVariable String slug) {
         return articleService.getPublicArticleBySlug(slug)
                 .map(a -> {
-                    List<ArticleRevision> revs = articleService.getRevisions(a.getId());
-                    ArticleRevision latest = revs.isEmpty() ? null : revs.get(0);
-                    return ResponseEntity.ok(ArticleResponse.fromDomain(a, latest, revs));
+                    ArticleRevision published = articleService.getRevisions(a.getId()).stream()
+                            .filter(revision -> revision.getId().equals(a.getPublishedRevisionId()))
+                            .findFirst().orElse(null);
+                    return ResponseEntity.ok(ArticleResponse.publicFromDomain(a, published));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
