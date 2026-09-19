@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { ShieldAlert, LogIn, ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
@@ -25,6 +25,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!hasAccess) {
     // Phân biệt: chưa đăng nhập vs đã đăng nhập nhưng không đủ quyền
     const isLoggedInButNoPermission = isAuthenticated && user;
+
+    if (isLoggedInButNoPermission) {
+      return <Navigate to={user.role === 'USER' ? '/my-inquiries' : '/'} replace />;
+    }
 
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-6">
@@ -80,17 +84,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
                 Về Trang chủ
               </Button>
             </Link>
-            {isLoggedInButNoPermission ? (
-              <Link to="/" className="w-full sm:w-1/2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="w-full shadow-md"
-                >
-                  Liên hệ hỗ trợ
-                </Button>
-              </Link>
-            ) : loginPath ? (
+            {loginPath ? (
               <Link to={loginPath} className="w-full sm:w-1/2">
                 <Button variant="primary" size="sm" className="w-full" leftIcon={<LogIn className="w-4 h-4" />}>Đăng nhập quản trị</Button>
               </Link>
