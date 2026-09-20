@@ -127,21 +127,26 @@ public class LeadController {
     }
 
     @GetMapping("/leads/listings")
-    @PreAuthorize("hasAnyRole('ADMIN','MODERATOR')")
+    @PreAuthorize("hasAnyRole('ADMIN','MODERATOR','BROKER')")
     public LeadListingPageResponse getLeadListings(
             @RequestParam(name = "q", defaultValue = "") String keyword,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "12") int size) {
+            @RequestParam(name = "size", defaultValue = "12") int size,
+            Authentication authentication) {
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(50, size));
         String query = "%" + keyword.trim().toLowerCase(java.util.Locale.ROOT) + "%";
+        boolean privileged = isPrivileged(authentication);
+        UUID ownerId = CurrentUser.id(authentication);
+        String ownershipPredicate = privileged ? "" : " AND s.owner_id=? ";
         Long total = jdbc.queryForObject("""
                 SELECT COUNT(DISTINCT l.listing_id)
                 FROM leads l JOIN listings s ON s.id=l.listing_id
                 JOIN listing_revisions r ON r.id=COALESCE(s.public_revision_id,
                     (SELECT r2.id FROM listing_revisions r2 WHERE r2.listing_id=s.id ORDER BY r2.revision_number DESC LIMIT 1))
-                WHERE LOWER(r.title) LIKE ? OR LOWER(COALESCE(r.address_summary,'')) LIKE ? OR LOWER(s.slug) LIKE ?
-                """, Long.class, query, query, query);
+                WHERE (LOWER(r.title) LIKE ? OR LOWER(COALESCE(r.address_summary,'')) LIKE ? OR LOWER(s.slug) LIKE ?)
+                """ + ownershipPredicate, Long.class,
+                privileged ? new Object[] { query, query, query } : new Object[] { query, query, query, ownerId });
         List<LeadListingPageResponse.Item> items = jdbc.query("""
                 SELECT s.id, r.title, s.slug, r.address_summary,
                        (SELECT lm.media_url FROM listing_media lm WHERE lm.revision_id=r.id
@@ -154,14 +159,16 @@ public class LeadController {
                 FROM leads l JOIN listings s ON s.id=l.listing_id
                 JOIN listing_revisions r ON r.id=COALESCE(s.public_revision_id,
                     (SELECT r2.id FROM listing_revisions r2 WHERE r2.listing_id=s.id ORDER BY r2.revision_number DESC LIMIT 1))
-                WHERE LOWER(r.title) LIKE ? OR LOWER(COALESCE(r.address_summary,'')) LIKE ? OR LOWER(s.slug) LIKE ?
+                WHERE (LOWER(r.title) LIKE ? OR LOWER(COALESCE(r.address_summary,'')) LIKE ? OR LOWER(s.slug) LIKE ?)
                 GROUP BY s.id, r.id, r.title, s.slug, r.address_summary
                 ORDER BY MAX(l.created_at) DESC LIMIT ? OFFSET ?
-                """, (rs, row) -> new LeadListingPageResponse.Item(
+                """.replace("GROUP BY", ownershipPredicate + " GROUP BY"), (rs, row) -> new LeadListingPageResponse.Item(
                         rs.getObject("id", UUID.class), rs.getString("title"), rs.getString("slug"),
                         rs.getString("address_summary"), rs.getString("image_url"), rs.getLong("total_leads"),
                         rs.getLong("new_leads"), rs.getLong("active_leads"), rs.getLong("closed_leads"),
-                        rs.getTimestamp("last_lead_at").toInstant()), query, query, query, safeSize, safePage * safeSize);
+                        rs.getTimestamp("last_lead_at").toInstant()),
+                privileged ? new Object[] { query, query, query, safeSize, safePage * safeSize }
+                        : new Object[] { query, query, query, ownerId, safeSize, safePage * safeSize });
         long count = total == null ? 0 : total;
         int totalPages = count == 0 ? 0 : (int) Math.ceil((double) count / safeSize);
         return new LeadListingPageResponse(items, count, safePage, safeSize, totalPages);
