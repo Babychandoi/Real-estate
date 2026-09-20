@@ -1,8 +1,10 @@
-export type ReportCategory = 'SCAM_DEPOSIT' | 'FAKE_SOLD' | 'INCORRECT_PRICE' | 'OTHER';
+export type ReportCategory =
+  "SCAM_DEPOSIT" | "FAKE_SOLD" | "INCORRECT_PRICE" | "OTHER";
 
-export type ReportSeverity = 'P0_EMERGENCY' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type ReportSeverity = "P0_EMERGENCY" | "HIGH" | "MEDIUM" | "LOW";
 
-export type ReportStatus = 'PENDING' | 'WAITING_REPLY' | 'RESOLVED' | 'DISMISSED' | 'APPEALED';
+export type ReportStatus =
+  "PENDING" | "WAITING_REPLY" | "RESOLVED" | "DISMISSED" | "APPEALED";
 
 export interface ListingReport {
   id: string;
@@ -20,8 +22,8 @@ export interface ListingReport {
   resolvedAt?: string;
 }
 
-export type LeadStatus = 'NEW' | 'CONTACTED' | 'APPOINTED' | 'CLOSED' | 'SPAM';
-export type LeadRequestType = 'VIEWING' | 'CONSULTATION';
+export type LeadStatus = "NEW" | "CONTACTED" | "APPOINTED" | "CLOSED" | "SPAM";
+export type LeadRequestType = "VIEWING" | "CONSULTATION";
 
 export interface LeadItem {
   id: string;
@@ -37,6 +39,36 @@ export interface LeadItem {
   listingSlug?: string;
   listingAddress?: string;
   listingImageUrl?: string;
+}
+
+export interface LeadPage {
+  items: LeadItem[];
+  totalElements: number;
+  page: number;
+  size: number;
+  totalPages: number;
+  statusCounts: Partial<Record<LeadStatus, number>>;
+}
+
+export interface LeadListingItem {
+  listingId: string;
+  title: string;
+  slug: string;
+  address?: string;
+  imageUrl?: string;
+  totalLeads: number;
+  newLeads: number;
+  activeLeads: number;
+  closedLeads: number;
+  lastLeadAt: string;
+}
+
+export interface LeadListingPage {
+  items: LeadListingItem[];
+  totalElements: number;
+  page: number;
+  size: number;
+  totalPages: number;
 }
 
 export interface FunnelStepMetric {

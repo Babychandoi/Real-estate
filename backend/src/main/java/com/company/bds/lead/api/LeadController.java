@@ -4,6 +4,7 @@ import com.company.bds.lead.api.request.CreateLeadRequest;
 import com.company.bds.lead.api.request.UpdateLeadStatusRequest;
 import com.company.bds.lead.api.response.LeadResponse;
 import com.company.bds.lead.api.response.LeadPageResponse;
+import com.company.bds.lead.api.response.LeadListingPageResponse;
 import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.lead.application.LeadApplicationService;
 import com.company.bds.lead.domain.model.Lead;
@@ -14,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.company.bds.shared.security.CurrentUser;
 
 import java.util.List;
@@ -30,10 +33,12 @@ public class LeadController {
 
     private final LeadApplicationService leadApplicationService;
     private final MessageSource messageSource;
+    private final JdbcTemplate jdbc;
 
-    public LeadController(LeadApplicationService leadApplicationService, MessageSource messageSource) {
+    public LeadController(LeadApplicationService leadApplicationService, MessageSource messageSource, JdbcTemplate jdbc) {
         this.leadApplicationService = leadApplicationService;
         this.messageSource = messageSource;
+        this.jdbc = jdbc;
     }
 
     /**
@@ -104,6 +109,7 @@ public class LeadController {
     @GetMapping("/leads/search")
     public ResponseEntity<LeadPageResponse> searchLeads(
             @RequestParam(name = "status", required = false) LeadStatus status,
+            @RequestParam(name = "listingId", required = false) UUID listingId,
             @RequestParam(name = "q", required = false) String keyword,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
@@ -112,10 +118,53 @@ public class LeadController {
         size = Math.max(1, Math.min(100, size));
         boolean privileged = isPrivileged(authentication);
         UUID actorId = CurrentUser.id(authentication);
-        var leadPage = privileged
-                ? leadApplicationService.searchAllLeads(status, keyword, page, size)
-                : leadApplicationService.searchLeadsForBroker(actorId, status, keyword, page, size);
+        var leadPage = listingId != null
+                ? leadApplicationService.searchLeadsByListing(listingId, actorId, privileged, status, keyword, page, size)
+                : privileged
+                    ? leadApplicationService.searchAllLeads(status, keyword, page, size)
+                    : leadApplicationService.searchLeadsForBroker(actorId, status, keyword, page, size);
         return ResponseEntity.ok(LeadPageResponse.fromDomain(leadPage, leadApplicationService.getListingContexts(leadPage.items())));
+    }
+
+    @GetMapping("/leads/listings")
+    @PreAuthorize("hasAnyRole('ADMIN','MODERATOR')")
+    public LeadListingPageResponse getLeadListings(
+            @RequestParam(name = "q", defaultValue = "") String keyword,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "12") int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(50, size));
+        String query = "%" + keyword.trim().toLowerCase(java.util.Locale.ROOT) + "%";
+        Long total = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT l.listing_id)
+                FROM leads l JOIN listings s ON s.id=l.listing_id
+                JOIN listing_revisions r ON r.id=COALESCE(s.public_revision_id,
+                    (SELECT r2.id FROM listing_revisions r2 WHERE r2.listing_id=s.id ORDER BY r2.revision_number DESC LIMIT 1))
+                WHERE LOWER(r.title) LIKE ? OR LOWER(COALESCE(r.address_summary,'')) LIKE ? OR LOWER(s.slug) LIKE ?
+                """, Long.class, query, query, query);
+        List<LeadListingPageResponse.Item> items = jdbc.query("""
+                SELECT s.id, r.title, s.slug, r.address_summary,
+                       (SELECT lm.media_url FROM listing_media lm WHERE lm.revision_id=r.id
+                        ORDER BY lm.is_primary DESC, lm.sort_order ASC LIMIT 1) AS image_url,
+                       COUNT(l.id) AS total_leads,
+                       COUNT(l.id) FILTER (WHERE l.status='NEW') AS new_leads,
+                       COUNT(l.id) FILTER (WHERE l.status IN ('CONTACTED','APPOINTED')) AS active_leads,
+                       COUNT(l.id) FILTER (WHERE l.status='CLOSED') AS closed_leads,
+                       MAX(l.created_at) AS last_lead_at
+                FROM leads l JOIN listings s ON s.id=l.listing_id
+                JOIN listing_revisions r ON r.id=COALESCE(s.public_revision_id,
+                    (SELECT r2.id FROM listing_revisions r2 WHERE r2.listing_id=s.id ORDER BY r2.revision_number DESC LIMIT 1))
+                WHERE LOWER(r.title) LIKE ? OR LOWER(COALESCE(r.address_summary,'')) LIKE ? OR LOWER(s.slug) LIKE ?
+                GROUP BY s.id, r.id, r.title, s.slug, r.address_summary
+                ORDER BY MAX(l.created_at) DESC LIMIT ? OFFSET ?
+                """, (rs, row) -> new LeadListingPageResponse.Item(
+                        rs.getObject("id", UUID.class), rs.getString("title"), rs.getString("slug"),
+                        rs.getString("address_summary"), rs.getString("image_url"), rs.getLong("total_leads"),
+                        rs.getLong("new_leads"), rs.getLong("active_leads"), rs.getLong("closed_leads"),
+                        rs.getTimestamp("last_lead_at").toInstant()), query, query, query, safeSize, safePage * safeSize);
+        long count = total == null ? 0 : total;
+        int totalPages = count == 0 ? 0 : (int) Math.ceil((double) count / safeSize);
+        return new LeadListingPageResponse(items, count, safePage, safeSize, totalPages);
     }
 
     @GetMapping("/leads/sent")

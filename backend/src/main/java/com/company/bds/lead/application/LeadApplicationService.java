@@ -162,6 +162,17 @@ public class LeadApplicationService {
     }
 
     @Transactional(readOnly = true)
+    public com.company.bds.lead.domain.model.LeadPage searchLeadsByListing(
+            UUID listingId, UUID actorId, boolean privileged, LeadStatus status, String keyword, int page, int size) {
+        Listing listing = listingPersistencePort.findById(listingId)
+                .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại."));
+        if (!privileged && !listing.getOwnerId().equals(actorId)) {
+            throw new org.springframework.security.access.AccessDeniedException("Không có quyền xem lead của tin đăng này.");
+        }
+        return leadPersistencePort.search(List.of(listingId), status, normalizeSearchKeyword(keyword), page, size);
+    }
+
+    @Transactional(readOnly = true)
     public com.company.bds.lead.domain.model.LeadPage getSentLeads(UUID requesterId, int page, int size) {
         return leadPersistencePort.findByRequesterId(requesterId, page, size);
     }
