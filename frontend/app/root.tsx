@@ -410,7 +410,7 @@ const RootLayoutContent: React.FC = () => {
             <div className="flex flex-col gap-2">
               <span className="font-bold text-on-surface">Hỗ trợ</span>
               <Link to="/contact" className="hover:underline">Liên hệ tư vấn</Link>
-              <Link to="/search" className="hover:underline">Báo cáo tin vi phạm</Link>
+              <Link to="/contact#report" className="hover:underline">Báo cáo tin vi phạm</Link>
             </div>
           </div>
         </div>
