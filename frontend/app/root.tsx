@@ -304,6 +304,18 @@ const RootLayoutContent: React.FC = () => {
               </Button>
             ) : null}
 
+            {isAuthenticated && isBroker && (
+              <Link
+                to="/billing"
+                aria-label="Xem các gói đăng tin và nâng cấp"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:ring-2 focus-visible:ring-emerald-300 max-sm:px-2 whitespace-nowrap"
+              >
+                <Layers className="h-4 w-4" />
+                <span className="hidden sm:inline">Nâng cấp gói</span>
+                <span className="sm:hidden">Mua gói</span>
+              </Link>
+            )}
+
             {!isAuthenticated ? (
               <Button
                 variant="primary"
@@ -349,7 +361,6 @@ const RootLayoutContent: React.FC = () => {
                     <div className="my-1 border-t border-outline-variant/40" />
                     {isBroker ? <>
                       <Link to="/my-listings" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><FileText className="w-4 h-4 text-primary" />Kho tin của tôi</Link>
-                      <Link to="/billing" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Layers className="w-4 h-4 text-primary" />Gói đăng tin</Link>
                       <Link to="/my-leads" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Users className="w-4 h-4 text-primary" />Khách quan tâm</Link>
                     </> : <Link to="/my-inquiries" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><History className="w-4 h-4 text-primary" />Tin đã liên hệ</Link>}
                     <div className="my-1 border-t border-outline-variant/40" />
