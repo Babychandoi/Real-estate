@@ -332,3 +332,23 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Deploy Redis primary/replicas with Sentinel quorum, four-node distributed MinIO, Vault HA Raft, ingress/TLS and local DNS endpoint.
 - Build/load application images, deploy the BDS workloads, then verify readiness, failover topology and external HTTPS routing.
 - Keep public CDN and authoritative DNS provider activation explicit because it requires a domain/provider account; provide deployable integration configuration without claiming an external service exists.
+
+# 2026-09-26 - Local Docker deployment on Apple Silicon
+
+- Run the full root Compose stack locally in demo mode with `--env-file .env.demo.example`, leaving the production `.env` untouched.
+- Replace the MinIO runtime base (`quay.io/minio/minio` now returns 401 upstream) with Alpine + curl; the MinIO binary is still built from the patched source release.
+- Add `infra/compose.apple-silicon.yaml`: `clamav/clamav-debian:1.4_base` (native arm64, same ClamAV release) and amd64 emulation for `postgis/postgis:16-3.4`.
+- Pin `user_kyc_profiles.status` JPA mapping to `varchar(30)` so the H2 test schema matches Flyway V004 instead of generating an ENUM column.
+- Verification: backend `mvn verify` inside the Docker build, all containers healthy, health/search/login smoke checks.
+
+# 2026-09-26 - Move production runtime to the macOS host
+
+- Restore `backups/20260926-005833` (Git LFS raw volume snapshots, SHA-256 verified) into an isolated Compose project `bds-production`; the demo project and its volumes are kept but stopped.
+- ClamAV signatures are copied from the demo volume instead of restoring the 215 MB archive.
+- `infra/cloudflared/config.yml` (gitignored) targets tunnel `046d1ad4-3b90-4fb8-9479-b3b13ecb75b1`; the tunnel is started only after the Windows connector is offline.
+
+# 2026-09-26 - Compare selection, map place search and UAT data seeder
+
+- Compare: replace the auto-picked "first 3 sale listings" with an explicit selection (max 3, same purpose) kept in `features/compare/compareStore.ts`; "+ So sánh" toggles on listing cards and detail page, a floating tray, an in-page listing picker, extended criteria (unit price, rooms, frontage, road, direction, legal) with "Tốt nhất" highlights.
+- Map search: combobox suggestions from `/public/geocoding` (keyword search or "go to place"); choosing a place flies/fits the map, drops a marker and searches listings inside the visible area. The map stays mounted while results reload. Geocoding filters to Vietnam, biases to Hanoi, returns `boundingbox`, versioned cache key `v2:`; the per-IP limiter now targets the real `/api/v1/public/geocoding` path.
+- `shared/uat/UatDataSeeder`: one-off runner (`--app.uat-seed.mode=seed|purge`) creating fake users, listings in every lifecycle state (incl. revision diffs), leads with real PII encryption, reports, verifications, projects, CMS articles and billing orders. All ids start with `ee5eed`, text keys with `UAT`; configured accounts are referenced, never modified; no bank settings are created.

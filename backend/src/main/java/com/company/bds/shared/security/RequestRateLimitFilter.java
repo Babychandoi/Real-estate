@@ -27,7 +27,7 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         return !(path.startsWith("/api/v1/auth/") || path.equals("/api/v1/public/leads")
-                || path.equals("/api/v1/public/reports") || path.equals("/api/v1/search/geocode"));
+                || path.equals("/api/v1/public/reports") || path.equals("/api/v1/public/geocoding"));
     }
 
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)

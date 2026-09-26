@@ -13,18 +13,34 @@ export function AccountProfilePage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [avatarMessage, setAvatarMessage] = useState('');
 
   useEffect(() => { setName(user?.name ?? ''); setPhone(user?.phone ?? ''); setAvatarMediaUrl(user?.avatarMediaUrl ?? ''); }, [user]);
   const initials = useMemo(() => name.trim().split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join('').toLocaleUpperCase('vi-VN'), [name]);
 
+  // The avatar is saved on its own right away, so it works even before a phone number is on file.
+  const persistAvatar = async (url: string | null, done: string) => {
+    await apiClient('/auth/me/avatar', { method: 'PUT', body: JSON.stringify({ avatarMediaUrl: url }) });
+    setAvatarMediaUrl(url ?? '');
+    await refreshUser();
+    setAvatarMessage(done);
+  };
+
   const uploadAvatar = async (file?: File) => {
     if (!file) return;
-    setMessage(''); setUploading(true);
+    setAvatarMessage(''); setUploading(true);
     try {
       const body = new FormData(); body.append('file', file);
       const uploaded = await apiClient<UploadedImage>('/media/images', { method: 'POST', body });
-      setAvatarMediaUrl(uploaded.url);
-    } catch { setMessage('Không thể tải ảnh. Chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.'); }
+      await persistAvatar(uploaded.url, 'Đã cập nhật ảnh đại diện.');
+    } catch { setAvatarMessage('Không thể tải ảnh. Chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.'); }
+    finally { setUploading(false); }
+  };
+
+  const removeAvatar = async () => {
+    setAvatarMessage(''); setUploading(true);
+    try { await persistAvatar(null, 'Đã gỡ ảnh đại diện.'); }
+    catch { setAvatarMessage('Không thể gỡ ảnh. Vui lòng thử lại.'); }
     finally { setUploading(false); }
   };
 
@@ -48,9 +64,14 @@ export function AccountProfilePage() {
           {avatarMediaUrl ? <img src={avatarMediaUrl} alt="Ảnh đại diện" className="h-full w-full object-cover" /> : initials || <UserRound className="h-7 w-7" />}
           <span className="absolute inset-0 grid place-items-center bg-slate-950/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"><Camera className="h-5 w-5" /></span>
           <span className="absolute bottom-0.5 right-0.5 grid h-7 w-7 place-items-center rounded-full bg-primary text-white shadow-sm"><Camera className="h-3.5 w-3.5" /></span>
-          <input aria-label="Đổi ảnh đại diện" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" disabled={uploading} onChange={(event) => void uploadAvatar(event.target.files?.[0])} />
+          <input aria-label="Đổi ảnh đại diện" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" disabled={uploading} onChange={(event) => { void uploadAvatar(event.target.files?.[0]); event.target.value = ''; }} />
         </label>
-        <div><p className="text-sm font-semibold text-on-surface">{uploading ? 'Đang tải ảnh…' : 'Chạm vào ảnh để thay đổi'}</p><p className="mt-1 text-xs text-on-surface-variant">Ảnh này được hiển thị công khai cùng tin đăng của bạn.</p></div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-on-surface">{uploading ? 'Đang lưu ảnh…' : avatarMediaUrl ? 'Chạm vào ảnh để đổi ảnh khác' : 'Chạm vào ảnh để thêm ảnh đại diện'}</p>
+          <p className="mt-1 text-xs text-on-surface-variant">Ảnh được lưu ngay và hiển thị công khai trên thẻ tin đăng và trang chi tiết tin của bạn.</p>
+          {avatarMediaUrl && !uploading && <button type="button" onClick={() => void removeAvatar()} className="mt-2 min-h-9 rounded-lg px-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">Gỡ ảnh đại diện</button>}
+          {avatarMessage && <p role="status" className={`mt-2 flex items-center gap-1.5 text-xs font-semibold ${avatarMessage.startsWith('Đã') ? 'text-emerald-800' : 'text-rose-700'}`}>{avatarMessage.startsWith('Đã') && <CheckCircle2 className="h-4 w-4" />}{avatarMessage}</p>}
+        </div>
       </section>
       <label className="grid gap-2 text-sm font-semibold text-on-surface">Họ và tên<input required minLength={2} maxLength={150} value={name} onChange={(event) => setName(event.target.value)} className="min-h-11 rounded-lg border border-outline-variant bg-white px-3 font-normal focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" /></label>
       <label className="grid gap-2 text-sm font-semibold text-on-surface">Email đăng nhập<span className="relative"><Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" /><input value={user?.email ?? ''} readOnly className="min-h-11 w-full rounded-lg border border-outline-variant bg-surface-container px-10 text-sm font-normal text-on-surface-variant" /></span><span className="text-xs font-normal text-on-surface-variant">Email là định danh đăng nhập nên không thể thay đổi.</span></label>

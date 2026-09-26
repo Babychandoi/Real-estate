@@ -55,7 +55,7 @@ public class GeocodingController {
         if (query.length() < 3 || query.length() > 250) {
             throw new IllegalArgumentException("Địa chỉ phải dài từ 3 đến 250 ký tự.");
         }
-        String hash = AuthService.sha256(query.toLowerCase());
+        String hash = AuthService.sha256("v2:" + query.toLowerCase());
         var cached = jdbc.queryForList("SELECT response_json FROM geocode_cache WHERE query_hash=?", String.class, hash);
         if (!cached.isEmpty()) return cached.get(0);
         if (!claimProviderSlot()) {
@@ -65,7 +65,8 @@ public class GeocodingController {
         String userAgent = "NhaDatChuan/1.0" + (contact.isBlank() ? "" : " (" + contact + ")");
         boolean photon = providerUrl.contains("photon.komoot.io");
         String endpoint = photon
-                ? providerUrl + "/api?q=" + URLEncoder.encode(query + ", Vietnam", StandardCharsets.UTF_8) + "&limit=5"
+                ? providerUrl + "/api?q=" + URLEncoder.encode(query + ", Vietnam", StandardCharsets.UTF_8)
+                        + "&limit=8&lat=21.0285&lon=105.8542"
                 : providerUrl + "/search?format=jsonv2&limit=5&countrycodes=vn&q="
                         + URLEncoder.encode(query, StandardCharsets.UTF_8);
         HttpRequest request = HttpRequest.newBuilder(URI.create(endpoint))
@@ -86,21 +87,30 @@ public class GeocodingController {
 
     private String normalizePhoton(String body) throws IOException {
         ArrayNode result = objectMapper.createArrayNode();
+        java.util.Set<String> seen = new java.util.HashSet<>();
         for (JsonNode feature : objectMapper.readTree(body).path("features")) {
             JsonNode coordinates = feature.path("geometry").path("coordinates");
             JsonNode properties = feature.path("properties");
             if (coordinates.size() < 2) continue;
-            ObjectNode item = result.addObject();
-            String name = properties.path("name").asText("");
-            String city = properties.path("city").asText("");
-            String state = properties.path("state").asText("");
-            String country = properties.path("country").asText("Vietnam");
-            item.put("display_name", java.util.stream.Stream.of(name, city, state, country)
+            String countryCode = properties.path("countrycode").asText("VN");
+            if (!"VN".equalsIgnoreCase(countryCode)) continue;
+            String displayName = java.util.stream.Stream.of("name", "street", "locality", "district", "county", "city", "state")
+                    .map(key -> properties.path(key).asText(""))
                     .filter(value -> !value.isBlank()).distinct()
-                    .collect(java.util.stream.Collectors.joining(", ")));
+                    .collect(java.util.stream.Collectors.joining(", "));
+            if (displayName.isBlank() || !seen.add(displayName)) continue;
+            ObjectNode item = result.addObject();
+            item.put("display_name", displayName);
             item.put("lat", coordinates.get(1).asText());
             item.put("lon", coordinates.get(0).asText());
             item.put("type", properties.path("type").asText("place"));
+            JsonNode extent = properties.path("extent");
+            if (extent.isArray() && extent.size() == 4) {
+                // Photon extent is [minLon, maxLat, maxLon, minLat]; expose Nominatim order [minLat, maxLat, minLon, maxLon].
+                ArrayNode box = item.putArray("boundingbox");
+                box.add(extent.get(3).asText()).add(extent.get(1).asText()).add(extent.get(0).asText()).add(extent.get(2).asText());
+            }
+            if (result.size() >= 6) break;
         }
         return objectMapper.writeValueAsString(result);
     }

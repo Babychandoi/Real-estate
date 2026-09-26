@@ -87,4 +87,37 @@ class SecurityIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON).content(listing))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void loginPortalMismatchLooksLikeWrongCredentials() throws Exception {
+        String password = "Strong-Test-Password-2026!";
+        String staff = "staff-" + System.nanoTime() + "@example.test";
+        String member = "member-" + System.nanoTime() + "@example.test";
+        for (String email : new String[]{staff, member}) {
+            mockMvc.perform(post("/api/v1/auth/register").contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"email":"%s","password":"%s","name":"Người dùng kiểm thử","accountType":"USER"}
+                                    """.formatted(email, password)))
+                    .andExpect(status().isCreated());
+            jdbc.update("UPDATE users SET status='ACTIVE',email_verified_at=CURRENT_TIMESTAMP WHERE email=?", email);
+        }
+        jdbc.update("UPDATE user_roles SET role='MODERATOR' WHERE user_id=(SELECT id FROM users WHERE email=?)", staff);
+
+        JsonNode wrongPassword = loginProblem("/api/v1/auth/login", member, "Wrong-Password-2026!");
+        JsonNode staffOnMemberPortal = loginProblem("/api/v1/auth/login", staff, password);
+        JsonNode memberOnStaffPortal = loginProblem("/api/v1/auth/admin/login", member, password);
+        JsonNode unknownEmail = loginProblem("/api/v1/auth/admin/login", "nobody-" + System.nanoTime() + "@example.test", password);
+
+        for (JsonNode problem : new JsonNode[]{staffOnMemberPortal, memberOnStaffPortal, unknownEmail}) {
+            org.assertj.core.api.Assertions.assertThat(problem.get("status")).isEqualTo(wrongPassword.get("status"));
+            org.assertj.core.api.Assertions.assertThat(problem.get("detail")).isEqualTo(wrongPassword.get("detail"));
+        }
+    }
+
+    private JsonNode loginProblem(String path, String email, String password) throws Exception {
+        String body = mockMvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"%s\",\"password\":\"%s\"}".formatted(email, password)))
+                .andExpect(status().is4xxClientError()).andReturn().getResponse().getContentAsString();
+        return mapper.readTree(body);
+    }
 }

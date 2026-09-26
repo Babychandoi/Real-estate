@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useLayoutEffect } from 'react';
+import { CompareToggleButton } from '@/features/compare/CompareControls';
+import { Avatar } from '@/shared/ui/Avatar';
 import { useParams, Link } from 'react-router-dom';
-import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, UserRound, BedDouble, Bath, Building, Ruler, Route, Compass, FileText } from 'lucide-react';
+import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, BedDouble, Bath, Building, Ruler, Route, Compass, FileText } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Badge } from '@/shared/ui/Badge';
 import { Card } from '@/shared/ui/Card';
@@ -25,14 +27,6 @@ export const ListingDetailPage: React.FC = () => {
   const [reportDescription, setReportDescription] = useState('');
   const [reportFeedback, setReportFeedback] = useState<string | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
-  const sellerInitials = seller?.displayName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(-2)
-    .map((part) => part[0])
-    .join('')
-    .toLocaleUpperCase('vi-VN');
 
   // Không giữ vị trí cuộn của trang danh sách khi người dùng mở một tin mới.
   useLayoutEffect(() => {
@@ -141,6 +135,8 @@ export const ListingDetailPage: React.FC = () => {
     );
   }
 
+
+  const isOwnListing = Boolean(user && user.id === listing.ownerId);
   return (
     <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 flex flex-col gap-6">
       {/* Nút quay lại */}
@@ -151,7 +147,7 @@ export const ListingDetailPage: React.FC = () => {
         >
           <ArrowLeft className="w-4 h-4" /> Quay lại danh sách
         </Link>
-        <button type="button" onClick={() => setIsReportOpen(true)} className="ml-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-rose-700"><Flag className="h-4 w-4" /> Báo cáo tin vi phạm</button>
+        {!isOwnListing && <button type="button" onClick={() => setIsReportOpen(true)} className="ml-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-rose-700"><Flag className="h-4 w-4" /> Báo cáo tin vi phạm</button>}
       </div>
 
       {/* Hero Gallery ảnh */}
@@ -254,22 +250,43 @@ export const ListingDetailPage: React.FC = () => {
           <section className="border-t border-outline-variant/40 pt-6">
             <h2 className="text-lg font-bold text-on-surface">Thông tin người đăng</h2>
             {seller ? <div className="mt-3 flex items-start gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-4">
-              <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 font-bold text-primary" aria-label={`Ảnh đại diện của ${seller.displayName}`}>{seller.avatarMediaUrl ? <img src={seller.avatarMediaUrl} alt="" className="h-full w-full object-cover" /> : sellerInitials}</div>
-              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-on-surface">{seller.displayName}</h3>{seller.identityVerified && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-4 w-4" />Đã xác minh danh tính</span>}</div><p className="mt-1 text-sm text-on-surface-variant">Đang có {seller.activeListingCount} tin hiển thị · Tham gia từ {new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(new Date(seller.memberSince))}</p><p className="mt-2 text-xs text-on-surface-variant">Thông tin liên hệ chỉ mở cho tài khoản đã xác minh eKYC khi gửi yêu cầu liên hệ.</p></div>
+              <Link to={`/nguoi-dang/${listing.ownerId}`} aria-label={`Xem trang cá nhân của ${seller.displayName}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Avatar name={seller.displayName} src={seller.avatarMediaUrl} size="lg" /></Link>
+              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-on-surface"><Link to={`/nguoi-dang/${listing.ownerId}`} className="hover:text-primary hover:underline">{seller.displayName}</Link></h3>{seller.identityVerified && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-4 w-4" />Đã xác minh danh tính</span>}</div><p className="mt-1 text-sm text-on-surface-variant">Đang có {seller.activeListingCount} tin hiển thị · Tham gia từ {new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(new Date(seller.memberSince))}</p><p className="mt-2 text-xs text-on-surface-variant">Thông tin liên hệ chỉ mở cho tài khoản đã xác minh eKYC khi gửi yêu cầu liên hệ.</p></div>
             </div> : <p className="mt-3 text-sm text-on-surface-variant">Thông tin người đăng đang được cập nhật.</p>}
           </section>
         </div>
 
-        {/* Cột phải: Form gửi yêu cầu tư vấn Lead */}
+        {/* Cột phải: tin của chính mình → khối quản lý thay cho form liên hệ */}
+        {isOwnListing ? (
+        <div className="lg:col-span-1 sticky top-6">
+          <Card className="p-5 border border-primary/20 shadow-lg shadow-primary/5">
+            <div className="flex items-center gap-3 pb-4 border-b border-outline-variant/40">
+              <Avatar name={user?.name} src={user?.avatarMediaUrl} size="md" />
+              <div className="min-w-0">
+                <h3 className="font-bold text-sm text-on-surface">Đây là tin của bạn</h3>
+                <p className="text-xs text-on-surface-variant">Khách quan tâm sẽ gửi yêu cầu liên hệ tới bạn.</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-2.5">
+              {(user?.role === 'BROKER' || user?.role === 'ADMIN') && <>
+                <Link to={`/listings/new?edit=${listing.id}`}><Button type="button" variant="outline" className="w-full min-h-11 font-bold">Chỉnh sửa tin</Button></Link>
+                <Link to="/my-leads"><Button type="button" variant="outline" className="w-full min-h-11 font-bold">Xem khách quan tâm</Button></Link>
+                <Link to="/my-listings"><Button type="button" variant="ghost" className="w-full min-h-11">Quản lý kho tin</Button></Link>
+              </>}
+              <Link to={`/nguoi-dang/${listing.ownerId}`}><Button type="button" variant="ghost" className="w-full min-h-11">Xem trang cá nhân công khai</Button></Link>
+            </div>
+          </Card>
+        </div>
+        ) : (
         <div className="lg:col-span-1 sticky top-6">
           <Card className="p-5 border border-primary/20 shadow-lg shadow-primary/5">
             <div className="flex items-center gap-2 pb-4 border-b border-outline-variant/40">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary" aria-label={seller ? `Ảnh đại diện của ${seller.displayName}` : 'Đang tải ảnh đại diện người đăng'}>
-                {seller?.avatarMediaUrl ? <img src={seller.avatarMediaUrl} alt="" className="h-full w-full object-cover" /> : sellerInitials || <UserRound className="h-5 w-5" aria-hidden="true" />}
-              </div>
-              <div>
-                <h3 className="font-bold text-sm text-on-surface">Liên hệ người đăng</h3>
-                <p className="text-xs text-on-surface-variant">Trao đổi trực tiếp về tin đăng</p>
+              <Link to={`/nguoi-dang/${listing.ownerId}`} aria-label={seller ? `Xem trang cá nhân của ${seller.displayName}` : 'Xem trang cá nhân người đăng'} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+                <Avatar name={seller?.displayName} src={seller?.avatarMediaUrl} size="md" />
+              </Link>
+              <div className="min-w-0">
+                <h3 className="font-bold text-sm text-on-surface">Liên hệ {seller?.displayName ?? 'người đăng'}</h3>
+                <Link to={`/nguoi-dang/${listing.ownerId}`} className="text-xs font-semibold text-primary hover:underline">Xem trang cá nhân</Link>
               </div>
             </div>
 
@@ -285,6 +302,7 @@ export const ListingDetailPage: React.FC = () => {
                 >
                   {isAuthenticated ? 'Hẹn xem & nhận tư vấn' : 'Đăng nhập để liên hệ'}
                 </Button>
+                <CompareToggleButton variant="inline" listing={{ id: listing.id, slug: listing.slug, title: listing.title, purpose: listing.purpose, priceVnd: listing.priceVnd, areaM2: listing.areaM2, addressSummary: listing.addressSummary, primaryImageUrl: listing.imageUrls[0] ?? '' }} />
                 {isAuthenticated && kycStatus !== 'VERIFIED' && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Tài khoản cần được duyệt eKYC trước khi gửi yêu cầu. <Link to="/kyc" className="font-bold underline underline-offset-4">Mở hồ sơ eKYC</Link></p>}
             </div>
 
@@ -303,6 +321,7 @@ export const ListingDetailPage: React.FC = () => {
             </div>
           </Card>
         </div>
+        )}
       </div>
 
       {/* Modal Đăng Ký Tư Vấn & Xác Minh OTP Khách Hàng (FR18, FR20, UC04) */}

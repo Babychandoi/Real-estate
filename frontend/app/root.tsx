@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
+import { CompareTray } from '@/features/compare/CompareControls';
+import { Avatar } from '@/shared/ui/Avatar';
 import {
   Building2,
   PlusCircle,
@@ -19,7 +21,8 @@ import {
   X,
   Search,
   Users,
-  History
+  History,
+  Camera
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
@@ -68,7 +71,7 @@ const RootLayoutContent: React.FC = () => {
     <div className="min-h-screen flex flex-col bg-surface text-on-surface">
       <a href="#main-content" className="skip-link">Bỏ qua điều hướng</a>
       {/* Header điều hướng */}
-      <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
+      <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-2">
           {/* Logo & Thương hiệu */}
           <Link to="/" className="flex items-center gap-2.5 shrink-0">
@@ -330,9 +333,7 @@ const RootLayoutContent: React.FC = () => {
             ) : (
               <div ref={userMenuRef} className="relative pl-2 border-l border-outline-variant/30">
                 <button type="button" aria-label="Mở menu tài khoản" aria-expanded={isUserMenuOpen} onClick={() => setIsUserMenuOpen((open) => !open)} className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary">
-                  <div className="w-8 h-8 overflow-hidden rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                    {user?.avatarMediaUrl ? <img src={user.avatarMediaUrl} alt="" className="h-full w-full object-cover" /> : <UserIcon className="w-4 h-4" />}
-                  </div>
+                  <Avatar name={user?.name} src={user?.avatarMediaUrl} size="sm" />
                   <div className="hidden md:flex flex-col items-start text-left">
                     <span className="text-xs font-bold text-on-surface leading-tight whitespace-nowrap">
                       {user?.name}
@@ -354,9 +355,14 @@ const RootLayoutContent: React.FC = () => {
                 {isUserMenuOpen && (
                   <div className="absolute right-0 top-[calc(100%+0.5rem)] w-64 rounded-xl bg-surface p-2 shadow-xl border border-outline-variant/50 z-50">
                     <Link to="/account" onClick={() => setIsUserMenuOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-surface-container transition-colors">
-                      <div className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg bg-primary/10 text-primary">{user?.avatarMediaUrl ? <img src={user.avatarMediaUrl} alt="" className="h-full w-full object-cover" /> : <UserIcon className="w-4 h-4" />}</div>
+                      <Avatar name={user?.name} src={user?.avatarMediaUrl} size="md" />
                       <div className="min-w-0"><p className="truncate text-sm font-bold text-on-surface">{user?.name}</p><p className="truncate text-xs text-on-surface-variant">Thông tin cá nhân</p></div>
                     </Link>
+                    {!user?.avatarMediaUrl && (
+                      <Link to="/account" onClick={() => setIsUserMenuOpen(false)} className="mx-1 mb-1 flex min-h-10 items-center gap-2 rounded-lg bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary/10">
+                        <Camera className="h-4 w-4" aria-hidden="true" /> Thêm ảnh đại diện để người khác nhận ra bạn
+                      </Link>
+                    )}
                     <Link to="/kyc" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"><UserCheck className="w-4 h-4 text-primary" />Xác minh eKYC</Link>
                     <div className="my-1 border-t border-outline-variant/40" />
                     {isBroker ? <>
@@ -429,6 +435,7 @@ const RootLayoutContent: React.FC = () => {
           © 2026 Nhà Đất Chuẩn. Bảo lưu mọi quyền.
         </div>
       </footer>
+      <CompareTray />
     </div>
   );
 };

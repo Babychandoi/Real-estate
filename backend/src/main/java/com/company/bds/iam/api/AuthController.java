@@ -71,6 +71,11 @@ public class AuthController {
         return authService.updateProfile(CurrentUser.id(authentication), request.name(), request.phone(), request.avatarMediaUrl());
     }
 
+    @PutMapping("/me/avatar")
+    public AuthService.UserView updateAvatar(@Valid @RequestBody UpdateAvatarRequest request, Authentication authentication) {
+        return authService.updateAvatar(CurrentUser.id(authentication), request.avatarMediaUrl());
+    }
+
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
         authService.logout(bearer(authorization));
@@ -91,6 +96,7 @@ public class AuthController {
     public record ForgotPasswordRequest(@NotBlank @Email String email) {}
     public record ResetPasswordRequest(@NotBlank @Size(min=32, max=128) String token,
                                        @NotBlank @Size(min=10, max=72) String password) {}
+    public record UpdateAvatarRequest(@Size(max=1000) String avatarMediaUrl) {}
     public record UpdateProfileRequest(@NotBlank @Size(min=2, max=150) String name,
                                        @NotBlank @Pattern(regexp="^(0|\\+84)[35789][0-9]{8}$") String phone,
                                        @Size(max=1000) String avatarMediaUrl) {}

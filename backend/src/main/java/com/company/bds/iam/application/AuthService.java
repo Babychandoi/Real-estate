@@ -67,21 +67,20 @@ public class AuthService {
         return new RegistrationResult(normalizedEmail, true);
     }
 
+    // Portal mismatches reuse the wrong-credentials message so neither portal reveals which accounts are staff.
+    private static final String INVALID_CREDENTIALS = "Email hoặc mật khẩu không chính xác.";
+
     @Transactional
     public AuthResult login(String email, String password) {
         UserAccount user = authenticate(email, password);
-        if (isPrivileged(user.role())) {
-            throw new IllegalStateException("Tài khoản quản trị cần đăng nhập tại cổng quản trị riêng.");
-        }
+        if (isPrivileged(user.role())) throw new IllegalArgumentException(INVALID_CREDENTIALS);
         return issueSession(user);
     }
 
     @Transactional
     public AuthResult adminLogin(String email, String password) {
         UserAccount user = authenticate(email, password);
-        if (!isPrivileged(user.role())) {
-            throw new org.springframework.security.access.AccessDeniedException("Tài khoản này không có quyền truy cập cổng quản trị.");
-        }
+        if (!isPrivileged(user.role())) throw new IllegalArgumentException(INVALID_CREDENTIALS);
         return issueSession(user);
     }
 
@@ -95,9 +94,11 @@ public class AuthService {
                 """, (rs, row) -> new UserAccount(
                 rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getString("email"),
                 rs.getString("password_hash"), rs.getString("role")), normalizeEmail(email));
-        if (users.isEmpty() || users.get(0).passwordHash() == null ||
-                !passwordEncoder.matches(password, users.get(0).passwordHash())) {
-            throw new IllegalArgumentException("Email hoặc mật khẩu không chính xác.");
+        String storedHash = users.isEmpty() ? null : users.get(0).passwordHash();
+        // Always run one BCrypt comparison so response time does not reveal whether the email exists.
+        boolean matches = passwordEncoder.matches(password, storedHash != null ? storedHash : timingDummyHash());
+        if (storedHash == null || !matches) {
+            throw new IllegalArgumentException(INVALID_CREDENTIALS);
         }
         String status = jdbc.queryForObject("SELECT status FROM users WHERE id=?", String.class, users.get(0).id());
         if ("PENDING_EMAIL_VERIFICATION".equals(status)) {
@@ -106,6 +107,13 @@ public class AuthService {
         if (!"ACTIVE".equals(status)) throw new IllegalArgumentException("Tài khoản hiện không hoạt động.");
         jdbc.update("DELETE FROM auth_sessions WHERE expires_at < CURRENT_TIMESTAMP OR revoked_at IS NOT NULL");
         return users.get(0);
+    }
+
+    private volatile String timingDummyHash;
+
+    private String timingDummyHash() {
+        if (timingDummyHash == null) timingDummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
+        return timingDummyHash;
     }
 
     private static boolean isPrivileged(String role) {
@@ -265,6 +273,22 @@ public class AuthService {
 
     @Transactional
     public UserView updateProfile(UUID userId, String name, String phone, String avatarMediaUrl) {
+        String normalizedAvatar = ownedAvatar(userId, avatarMediaUrl);
+        PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(phone);
+        jdbc.update("UPDATE users SET full_name=?,phone_encrypted=?,phone_lookup_hash=?,avatar_media_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                name.trim(), protectedPhone.encrypted(), protectedPhone.blindIndex(), normalizedAvatar, userId);
+        UserAccount current = loadUser(userId);
+        return view(current);
+    }
+
+    /** Changes only the avatar, so accounts without a phone number can still set a profile photo. */
+    @Transactional
+    public UserView updateAvatar(UUID userId, String avatarMediaUrl) {
+        jdbc.update("UPDATE users SET avatar_media_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", ownedAvatar(userId, avatarMediaUrl), userId);
+        return view(loadUser(userId));
+    }
+
+    private String ownedAvatar(UUID userId, String avatarMediaUrl) {
         String normalizedAvatar = avatarMediaUrl == null || avatarMediaUrl.isBlank() ? null : avatarMediaUrl.trim();
         if (normalizedAvatar != null) {
             Integer owned = jdbc.queryForObject("""
@@ -273,11 +297,7 @@ public class AuthService {
                     """, Integer.class, userId, normalizedAvatar);
             if (owned == null || owned == 0) throw new IllegalArgumentException("Ảnh đại diện phải là ảnh công khai thuộc tài khoản hiện tại.");
         }
-        PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(phone);
-        jdbc.update("UPDATE users SET full_name=?,phone_encrypted=?,phone_lookup_hash=?,avatar_media_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                name.trim(), protectedPhone.encrypted(), protectedPhone.blindIndex(), normalizedAvatar, userId);
-        UserAccount current = loadUser(userId);
-        return view(current);
+        return normalizedAvatar;
     }
 
     private String revealPhoneIfAvailable(String protectedPhone) {

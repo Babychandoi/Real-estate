@@ -5,6 +5,7 @@ import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
 import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
 
 const HomePage = lazy(() => import('./routes/_public.home').then(m => ({ default: m.HomePage })));
+const SellerProfilePage = lazy(() => import('./routes/_public.seller').then(m => ({ default: m.SellerProfilePage })));
 const SearchAndMapPage = lazy(() => import('./routes/_public.search').then(m => ({ default: m.SearchAndMapPage })));
 const ListingDetailPage = lazy(() => import('./routes/_public.listings.$listingId').then(m => ({ default: m.ListingDetailPage })));
 const CreateListingPage = lazy(() => import('./routes/_public.listings.new').then(m => ({ default: m.CreateListingPage })));
@@ -40,7 +41,7 @@ export const router = createBrowserRouter([
     { index: true, element: load(<HomePage />) }, { path: 'search', element: load(<SearchAndMapPage />) },
     { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN','BROKER']) }, { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
     { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN','BROKER']) }, { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
-    { path: 'compare', element: load(<PropertyComparePage />) }, { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER']) },
+    { path: 'compare', element: load(<PropertyComparePage />) }, { path: 'nguoi-dang/:sellerId', element: load(<SellerProfilePage />) }, { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN','BROKER']) },
     { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN','BROKER']) }, { path: 'my-inquiries', element: protect(<MyInquiriesPage />, 'Tin đã liên hệ', ['USER']) }, { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN','MODERATOR','BROKER','USER']) },
     { path: 'account', element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ['ADMIN','MODERATOR','BROKER','USER']) }, { path: 'verify-email', element: load(<VerifyEmailPage />) },
     { path: 'forgot-password', element: load(<ForgotPasswordPage />) }, { path: 'reset-password', element: load(<ResetPasswordPage />) },

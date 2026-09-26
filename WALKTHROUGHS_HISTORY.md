@@ -507,3 +507,42 @@ npm run build
 - Rebuilt the workspace state handling so rejected requests stop loading, show a Vietnamese recovery message and provide a retry action; saving the response target now reports its own recoverable error.
 - Replaced the remaining workspace-facing English `WORKSPACE`, raw listing status codes and `SLA` control wording with Vietnamese labels and added a real empty-listing state.
 - Docker Java 17 verification passed all 19 backend tests; frontend TypeScript/Vite build passed. Backend and frontend containers are healthy and Cloudflare Tunnel is running.
+
+# 2026-09-26 - Local Docker deployment on Apple Silicon
+
+- Files: `infra/minio/Dockerfile` (Alpine runtime base), new `infra/compose.apple-silicon.yaml`, `UserKycJpaEntity` status column definition.
+- Backend Docker build (`mvn -B verify`, Java 17): 22/22 tests pass. The previously failing `adminUsers_isServerPaginatedAndAdminOnly` failed only because H2 generated an ENUM column that rejected `COALESCE(k.status, 'NOT_SUBMITTED')`; PostgreSQL uses VARCHAR(30).
+- Frontend Docker build (`npm run build`, TypeScript + Vite) passed.
+- Runtime: postgres, redis, minio, clamav, elasticsearch, mailpit, backend, frontend all healthy. `/healthz` 200, `/backend-health` `{"status":"UP"}`, `/api/v1/listings/search` returns seeded listings, `demo.user@bds.local` login returns HTTP 200.
+- Run command on Apple Silicon: `docker compose --env-file .env.demo.example -f docker-compose.yml -f infra/compose.apple-silicon.yaml up --build -d`; UI at `http://localhost:3000`, Mailpit at `http://localhost:8025`.
+- Observed: unknown `/api/**` routes return HTTP 500 (`NoResourceFoundException` handled as internal error) instead of 404.
+
+# 2026-09-26 - Production runtime restored on the macOS host
+
+- Restored postgres (109 MB), minio, redis and elasticsearch volumes into `bds-production_*`; archive checksums matched the backup README.
+- All 8 services healthy with `.env` (`APP_MODE=production`). Flyway at V026 with no failed migrations; 9 users and 7 listings present; public search returns 6 listings; a MinIO listing image returns HTTP 200 `image/jpeg`; no backend ERROR logs.
+- Public domain before tunnel start: HTTP 530 / Cloudflare 1033 (no active connector), confirming the Windows connector is offline.
+- Command: `docker compose -p bds-production --env-file .env -f docker-compose.yml -f infra/compose.apple-silicon.yaml --profile edge up -d`.
+
+# 2026-09-26 - Compare selection, map place search and UAT data seeder
+
+- Files: `frontend/app/features/compare/{compareStore.ts,CompareControls.tsx}`, `frontend/app/shared/api/geocodingApi.ts`, `routes/_public.compare.tsx`, `routes/_public.search.tsx`, `shared/map/ListingMap.tsx`, `entities/listing/ui/ListingCard.tsx`, listing detail page, `root.tsx`; backend `GeocodingController`, `RequestRateLimitFilter`, new `shared/uat/UatDataSeeder`.
+- Backend Docker build (`mvn -B verify`): 22/22 tests pass. Frontend `npm run build` (tsc strict + Vite): 0 errors.
+- Seeder on the demo database: 4/4 accounts found; 14 users, 74 listings (52 ACTIVE, 14 PENDING_REVIEW, 2 each DRAFT/PAUSED/REJECTED/EXPIRED), 91 leads, 8 reports, 8 verifications, 8 projects, 8 articles, 16 orders; a second run produced identical counts; `purge` removed every synthetic row and kept the 6 original listings.
+- API checks on seeded data (21 endpoints) returned 200, including lead phone reveal (decrypts), moderation diff (revision 1 → 2), admin users/orders/listings, KYC detail, funnel analytics.
+- Playwright (Chromium) against the Vite dev build: place suggestion → map flies with marker; "+ So sánh" on two cards → tray → compare table with "Tốt nhất"; picker dialog; mobile empty state at 390 px.
+- Production run: `docker compose -p bds-production --env-file .env -f docker-compose.yml -f infra/compose.apple-silicon.yaml run --rm --no-deps -T backend --app.uat-seed.mode=seed --server.port=18080` (`purge` to remove).
+
+# 2026-09-26 - Login portal no longer reveals staff accounts
+
+- `AuthService.login`/`adminLogin`: a staff account on the member portal, or a member on the admin portal, now gets the same 400 "Email hoặc mật khẩu không chính xác." as a wrong password (previously "Tài khoản quản trị cần đăng nhập tại cổng quản trị riêng." / 403 "không có quyền truy cập cổng quản trị"). Unknown emails still run one BCrypt comparison so timing does not reveal account existence.
+- New `SecurityIntegrationTests.loginPortalMismatchLooksLikeWrongCredentials` compares status and detail across wrong password, both portal mismatches and unknown email. Backend Docker build: 23/23 tests pass.
+
+# 2026-09-26 - Avatars, public seller profiles and own-listing view
+
+- Header z-index raised to `z-50` so the account menu is no longer covered by the search bar (`z-40`).
+- Avatars: shared `shared/ui/Avatar.tsx` (image or initials). Profile page saves the photo immediately through new `PUT /api/v1/auth/me/avatar` (no phone required) and can remove it; the account menu prompts users without a photo. Search results now carry `sellerId`, `sellerName`, `sellerAvatarUrl` (`SellerSummaryQuery`, one query per page) and cards show the seller row.
+- Public seller page `/nguoi-dang/:sellerId` with new `GET /api/v1/public/profiles/{ownerId}/listings`; seller rows on cards and the detail page link to it.
+- Detail page: the owner sees "Đây là tin của bạn" with edit/leads/listings actions instead of the contact form, and no report button.
+- Fixed `GET /api/v1/public/profiles/{ownerId}` returning 500 on PostgreSQL (`getObject(..., Instant.class)` unsupported for timestamptz) — the live site showed "Thông tin người đăng đang được cập nhật" on every listing.
+- Backend Docker build: 23/23 tests pass. Frontend `npm run build`: 0 errors. Playwright on the demo stack: seller row → profile page, own listing → owner card, account menu unobstructed.

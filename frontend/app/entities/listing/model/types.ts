@@ -21,6 +21,9 @@ export interface Listing {
   isShowcase?: boolean;
   primaryImageUrl: string;
   publishedAt?: string;
+  sellerId?: string;
+  sellerName?: string;
+  sellerAvatarUrl?: string;
 }
 
 export interface ListingDetail extends Omit<Listing, 'primaryImageUrl' | 'publishedAt'> {

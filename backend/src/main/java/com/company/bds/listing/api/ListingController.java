@@ -47,6 +47,7 @@ public class ListingController {
     private final ListingPersistencePort persistencePort;
     private final MediaUrlPolicy mediaUrlPolicy;
     private final ObjectProvider<MediaStorageService> mediaStorageProvider;
+    private final SellerSummaryQuery sellerSummaryQuery;
 
     public ListingController(
             CreateListingDraftUseCase createDraftUseCase,
@@ -55,7 +56,8 @@ public class ListingController {
             GetListingDetailUseCase getListingDetailUseCase,
             ListingPersistencePort persistencePort,
             MediaUrlPolicy mediaUrlPolicy,
-            ObjectProvider<MediaStorageService> mediaStorageProvider) {
+            ObjectProvider<MediaStorageService> mediaStorageProvider,
+            SellerSummaryQuery sellerSummaryQuery) {
         this.createDraftUseCase = createDraftUseCase;
         this.updateDraftUseCase = updateDraftUseCase;
         this.submitRevisionUseCase = submitRevisionUseCase;
@@ -63,6 +65,7 @@ public class ListingController {
         this.persistencePort = persistencePort;
         this.mediaUrlPolicy = mediaUrlPolicy;
         this.mediaStorageProvider = mediaStorageProvider;
+        this.sellerSummaryQuery = sellerSummaryQuery;
     }
 
     @PostMapping
@@ -234,6 +237,8 @@ public class ListingController {
         List<Listing> activeListings = persistencePort.searchListings(criteria, safePage, safeSize);
 
         if (!activeListings.isEmpty()) {
+            Map<UUID, SellerSummaryQuery.SellerSummary> sellers = sellerSummaryQuery.byOwnerIds(
+                    activeListings.stream().map(Listing::getOwnerId).toList());
             List<ListingSummaryResponse> results = activeListings.stream()
                     .map(listing -> {
                         ListingRevision rev = listing.getPublicRevision().orElseThrow(() ->
@@ -256,7 +261,10 @@ public class ListingController {
                                 listing.isVerifiedOwner(),
                                 false,
                                 imgUrl,
-                                listing.getCreatedAt()
+                                listing.getCreatedAt(),
+                                listing.getOwnerId(),
+                                seller(sellers, listing).displayName(),
+                                seller(sellers, listing).avatarMediaUrl()
                         );
                     })
                     .collect(Collectors.toList());
@@ -264,6 +272,10 @@ public class ListingController {
         }
 
         return ResponseEntity.ok(List.of());
+    }
+
+    private static SellerSummaryQuery.SellerSummary seller(Map<UUID, SellerSummaryQuery.SellerSummary> sellers, Listing listing) {
+        return sellers.getOrDefault(listing.getOwnerId(), new SellerSummaryQuery.SellerSummary(null, null));
     }
 
     private ListingDetailResponse mapToDetailResponse(Listing listing) {

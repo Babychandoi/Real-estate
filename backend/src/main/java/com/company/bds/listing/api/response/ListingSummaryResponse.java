@@ -23,5 +23,8 @@ public record ListingSummaryResponse(
         boolean isVerified,
         boolean isShowcase,
         String primaryImageUrl,
-        Instant publishedAt
+        Instant publishedAt,
+        UUID sellerId,
+        String sellerName,
+        String sellerAvatarUrl
 ) {}

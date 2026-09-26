@@ -5,8 +5,29 @@ import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&ur
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { formatPriceVnd, type Listing } from '@/entities/listing/model/types';
 import { listingPath } from '@/entities/listing/model/seo';
+import type { GeocodePlace } from '@/shared/api/geocodingApi';
 
 export type MapBounds = { minLat: number; maxLat: number; minLng: number; maxLng: number };
+/** A place to fly to; `key` changes on every new request so re-selecting the same place still moves the map. */
+export type MapFocus = GeocodePlace & { key: number };
+
+const toBounds = (instance: MlMap): MapBounds => {
+  const b = instance.getBounds();
+  return { minLat: b.getSouth(), maxLat: b.getNorth(), minLng: b.getWest(), maxLng: b.getEast() };
+};
+
+const ZOOM_BY_TYPE: Record<string, number> = { house: 15, street: 15, locality: 14, district: 13.5, county: 12.5, city: 11.5, state: 10 };
+
+function applyFocus(instance: MlMap, focus: MapFocus, marker: { current?: maplibregl.Marker }, onArrive: (bounds: MapBounds) => void) {
+  marker.current?.remove();
+  const popup = new maplibregl.Popup({ offset: 28, closeButton: false }).setText(focus.label);
+  marker.current = new maplibregl.Marker({ color: '#dc2626' }).setLngLat([focus.lon, focus.lat]).setPopup(popup).addTo(instance);
+  instance.once('moveend', () => { onArrive(toBounds(instance)); marker.current?.togglePopup(); });
+  const box = focus.bbox;
+  const spansArea = box && Math.abs(box[1] - box[0]) > 0.002 && Math.abs(box[3] - box[2]) > 0.002 && Math.abs(box[1] - box[0]) < 3;
+  if (box && spansArea) instance.fitBounds([[box[2], box[0]], [box[3], box[1]]], { padding: 60, maxZoom: 16, duration: 900 });
+  else instance.flyTo({ center: [focus.lon, focus.lat], zoom: ZOOM_BY_TYPE[focus.type] ?? 14, duration: 900 });
+}
 type MapMouseEvent = maplibregl.MapMouseEvent & { features?: GeoJSON.Feature[] };
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
@@ -54,19 +75,27 @@ function listingPopupContent(listing: Listing): HTMLDivElement {
   return content;
 }
 
-export function ListingMap({ listings, selectedId, onSearchArea }: { listings: Listing[]; selectedId?: string | null; onSearchArea: (bounds: MapBounds) => void }) {
+export function ListingMap({ listings, focus, onSearchArea }: { listings: Listing[]; focus?: MapFocus | null; onSearchArea: (bounds: MapBounds) => void }) {
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap>();
+  const loaded = useRef(false);
+  const marker = useRef<maplibregl.Marker>();
   const listingsRef = useRef(listings);
   listingsRef.current = listings;
+  const focusRef = useRef(focus);
+  focusRef.current = focus;
+  const onSearchAreaRef = useRef(onSearchArea);
+  onSearchAreaRef.current = onSearchArea;
   const [bounds, setBounds] = useState<MapBounds>();
 
   useEffect(() => {
     if (!host.current || map.current) return;
-    const instance = new maplibregl.Map({ container: host.current, center: [105.82, 21.03], zoom: 10, style: 'https://tiles.openfreemap.org/styles/positron' });
+    const initial = focusRef.current;
+    const instance = new maplibregl.Map({ container: host.current, center: initial ? [initial.lon, initial.lat] : [105.82, 21.03], zoom: 10, style: 'https://tiles.openfreemap.org/styles/positron' });
     map.current = instance;
     instance.addControl(new maplibregl.NavigationControl(), 'top-right');
     instance.on('load', () => {
+      loaded.current = true;
       instance.addSource('listings', { type: 'geojson', data: listingCollection(listingsRef.current), cluster: true, clusterMaxZoom: 14, clusterRadius: 50 });
       instance.addLayer({ id: 'clusters', type: 'circle', source: 'listings', filter: ['has', 'point_count'], paint: { 'circle-color': '#047857', 'circle-radius': ['step', ['get', 'point_count'], 20, 10, 28, 50, 36], 'circle-stroke-color': '#fff', 'circle-stroke-width': 2 } });
       instance.addLayer({ id: 'cluster-count', type: 'symbol', source: 'listings', filter: ['has', 'point_count'], layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12 }, paint: { 'text-color': '#fff' } });
@@ -81,24 +110,21 @@ export function ListingMap({ listings, selectedId, onSearchArea }: { listings: L
         const listing = listingsRef.current.find((item) => item.id === String(feature?.properties?.id ?? ''));
         if (feature && listing) new maplibregl.Popup({ maxWidth: '296px', offset: 14 }).setLngLat((feature.geometry as GeoJSON.Point).coordinates as [number, number]).setDOMContent(listingPopupContent(listing)).addTo(instance);
       });
+      if (focusRef.current) applyFocus(instance, focusRef.current, marker, (next) => onSearchAreaRef.current(next));
     });
-    instance.on('moveend', () => {
-      const currentBounds = instance.getBounds();
-      setBounds({ minLat: currentBounds.getSouth(), maxLat: currentBounds.getNorth(), minLng: currentBounds.getWest(), maxLng: currentBounds.getEast() });
-    });
-    return () => { instance.remove(); map.current = undefined; };
+    instance.on('moveend', () => setBounds(toBounds(instance)));
+    return () => { instance.remove(); map.current = undefined; loaded.current = false; };
   }, []);
+
+  useEffect(() => {
+    if (!focus || !map.current || !loaded.current) return;
+    applyFocus(map.current, focus, marker, (next) => onSearchAreaRef.current(next));
+  }, [focus?.key]);
 
   useEffect(() => {
     const source = map.current?.getSource('listings') as GeoJSONSource | undefined;
     if (source) source.setData(listingCollection(listings));
   }, [listings]);
-
-  useEffect(() => {
-    if (!selectedId || !map.current) return;
-    const listing = listings.find((item) => item.id === selectedId);
-    if (listing?.publicLatitude != null && listing.publicLongitude != null) map.current.easeTo({ center: [listing.publicLongitude, listing.publicLatitude], duration: 350 });
-  }, [selectedId, listings]);
 
   return <div className="absolute inset-0 z-30"><div ref={host} className="h-full w-full" aria-label="Bản đồ tin đăng tương tác"/><button disabled={!bounds} onClick={() => bounds && onSearchArea(bounds)} className="absolute top-4 left-1/2 -translate-x-1/2 min-h-11 px-5 rounded-full bg-white text-slate-900 font-bold shadow-xl border border-slate-200 disabled:opacity-60">Tìm trong khu vực này</button></div>;
 }
