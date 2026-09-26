@@ -1,0 +1,9 @@
+# Apple Silicon (arm64) overlay for the root docker-compose.yml.
+# Usage: docker compose -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d
+services:
+  postgres:
+    # postgis/postgis publishes amd64 only; runs under Rosetta emulation.
+    platform: linux/amd64
+  clamav:
+    # clamav/clamav:1.4_base has no arm64 build; the Debian variant ships the same release natively.
+    image: clamav/clamav-debian:1.4_base

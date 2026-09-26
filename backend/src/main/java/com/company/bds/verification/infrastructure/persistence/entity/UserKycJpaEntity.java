@@ -45,7 +45,7 @@ public class UserKycJpaEntity {
     private Double faceMatchScore;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 30)
+    @Column(name = "status", nullable = false, length = 30, columnDefinition = "varchar(30)")
     private KycStatus status = KycStatus.PENDING;
 
     @Column(name = "rejection_reason", columnDefinition = "TEXT")

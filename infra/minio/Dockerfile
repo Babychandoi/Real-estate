@@ -7,5 +7,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -ldflags="-s -w -X github.com/minio/minio/cmd.Version=2025-10-15T17:29:55Z -X github.com/minio/minio/cmd.CopyrightYear=2025 -X github.com/minio/minio/cmd.ReleaseTag=RELEASE.2025-10-15T17-29-55Z -X github.com/minio/minio/cmd.CommitID=9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a -X github.com/minio/minio/cmd.ShortCommitID=9e49d5e7a648" \
     github.com/minio/minio@${MINIO_VERSION}
 
-FROM quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+# Upstream no longer publishes community runtime images (quay.io/minio/minio returns 401),
+# so the statically linked binary runs on a minimal Alpine base with curl for the healthcheck.
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates curl
 COPY --from=build /out/minio /usr/bin/minio
+EXPOSE 9000 9001
+VOLUME ["/data"]
+ENTRYPOINT ["/usr/bin/minio"]
