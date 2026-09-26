@@ -1,5 +1,6 @@
 package com.company.bds.listing.api;
 
+import com.company.bds.shared.security.ContactInfoGuard;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,7 +32,7 @@ public class PublicProfileController {
                 WHERE u.id = ? AND u.status = 'ACTIVE'
                 GROUP BY u.id, u.full_name, u.avatar_media_url, u.created_at
                 """, (rs, row) -> new PublicProfileResponse(
-                rs.getString("full_name"), rs.getString("avatar_media_url"), rs.getBoolean("identity_verified"),
+                ContactInfoGuard.redact(rs.getString("full_name")), rs.getString("avatar_media_url"), rs.getBoolean("identity_verified"),
                 rs.getLong("active_listing_count"), rs.getTimestamp("created_at").toInstant()
         ), ownerId).stream().findFirst();
         return profile.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
@@ -51,8 +52,8 @@ public class PublicProfileController {
                 ORDER BY l.created_at DESC
                 LIMIT 60
                 """, (rs, row) -> new PublicListingCard(
-                rs.getObject("id", UUID.class), rs.getString("slug"), rs.getString("title"), rs.getString("purpose"),
-                rs.getString("property_type"), rs.getLong("price_vnd"), rs.getBigDecimal("area_m2"), rs.getString("address_summary"),
+                rs.getObject("id", UUID.class), rs.getString("slug"), ContactInfoGuard.redact(rs.getString("title")), rs.getString("purpose"),
+                rs.getString("property_type"), rs.getLong("price_vnd"), rs.getBigDecimal("area_m2"), ContactInfoGuard.redact(rs.getString("address_summary")),
                 rs.getBoolean("is_verified_owner"), rs.getString("image_url") == null ? "" : rs.getString("image_url"),
                 rs.getTimestamp("created_at").toInstant()), ownerId);
     }

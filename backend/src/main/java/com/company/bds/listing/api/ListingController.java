@@ -27,6 +27,7 @@ import com.company.bds.media.MediaStorageService;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.math.BigDecimal;
+import com.company.bds.shared.security.ContactInfoGuard;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +74,7 @@ public class ListingController {
                                                             Authentication authentication) {
         UUID ownerId = CurrentUser.id(authentication);
         validateMedia(ownerId, request.imageUrls());
+        ContactInfoGuard.requireNoContact(request.title(), request.description(), request.addressSummary(), request.direction(), request.legalStatus());
         CreateListingDraftCommand command = new CreateListingDraftCommand(
                 ownerId,
                 request.title(),
@@ -109,6 +111,7 @@ public class ListingController {
 
         UUID ownerId = CurrentUser.id(authentication);
         validateMedia(ownerId, request.imageUrls());
+        ContactInfoGuard.requireNoContact(request.title(), request.description(), request.addressSummary(), request.direction(), request.legalStatus());
 
         UpdateListingDraftCommand command = new UpdateListingDraftCommand(
                 id,
@@ -250,12 +253,12 @@ public class ListingController {
                             return new ListingSummaryResponse(
                                 listing.getId(),
                                 listing.getSlug(),
-                                rev.getTitle(),
+                                ContactInfoGuard.redact(rev.getTitle()),
                                 rev.getPurpose().name(),
                                 rev.getPropertyType().name(),
                                 rev.getPriceVnd(),
                                 rev.getAreaM2(),
-                                rev.getAddressSummary(),
+                                ContactInfoGuard.redact(rev.getAddressSummary()),
                                 rev.getPublicLatitude(),
                                 rev.getPublicLongitude(),
                                 listing.isVerifiedOwner(),
@@ -263,7 +266,7 @@ public class ListingController {
                                 imgUrl,
                                 listing.getCreatedAt(),
                                 listing.getOwnerId(),
-                                seller(sellers, listing).displayName(),
+                                ContactInfoGuard.redact(seller(sellers, listing).displayName()),
                                 seller(sellers, listing).avatarMediaUrl()
                         );
                     })
@@ -294,18 +297,18 @@ public class ListingController {
                 listing.getStatus().name(),
                 rev.getRevisionNumber(),
                 rev.getStatus().name(),
-                rev.getTitle(),
+                ContactInfoGuard.redact(rev.getTitle()),
                 rev.getPurpose().name(),
                 rev.getPropertyType().name(),
                 rev.getPriceVnd(),
                 rev.getAreaM2(),
                 rev.getBedrooms(), rev.getBathrooms(), rev.getFloors(),
-                rev.getFrontageM(), rev.getRoadWidthM(), rev.getDirection(), rev.getLegalStatus(),
-                rev.getDescription(),
+                rev.getFrontageM(), rev.getRoadWidthM(), ContactInfoGuard.redact(rev.getDirection()), ContactInfoGuard.redact(rev.getLegalStatus()),
+                ContactInfoGuard.redact(rev.getDescription()),
                 rev.getProvinceCode(),
                 rev.getDistrictCode(),
                 rev.getWardCode(),
-                rev.getAddressSummary(),
+                ContactInfoGuard.redact(rev.getAddressSummary()),
                 rev.getPublicLatitude(),
                 rev.getPublicLongitude(),
                 listing.isVerifiedOwner(),

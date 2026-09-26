@@ -546,3 +546,10 @@ npm run build
 - Detail page: the owner sees "Đây là tin của bạn" with edit/leads/listings actions instead of the contact form, and no report button.
 - Fixed `GET /api/v1/public/profiles/{ownerId}` returning 500 on PostgreSQL (`getObject(..., Instant.class)` unsupported for timestamptz) — the live site showed "Thông tin người đăng đang được cập nhật" on every listing.
 - Backend Docker build: 23/23 tests pass. Frontend `npm run build`: 0 errors. Playwright on the demo stack: seller row → profile page, own listing → owner card, account menu unobstructed.
+
+# 2026-09-26 - Keep direct contact details out of public content
+
+- New `shared/security/ContactInfoGuard`: detects Vietnamese mobile/landline numbers (with spaces, dots, dashes, +84), emails (incl. "(at)") and messenger/web links, without matching prices, areas or house numbers.
+- Rejected on write: listing draft create/update (title, description, address, direction, legal status), registration name and profile name — the user sees the server reason instead of a generic save error.
+- Redacted on read as "[đã ẩn liên hệ]": listing detail and search cards, seller profile name and listing cards, seller name on cards. Phone and email are still never part of public responses; lead phones stay masked until the listing owner uses the in-app reveal action on a lead.
+- Listing form now warns under the description field. Backend Docker build: 26/26 tests pass (3 new `ContactInfoGuardTests`); frontend `npm run build`: 0 errors.

@@ -21,6 +21,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import com.company.bds.shared.security.ContactInfoGuard;
 import com.company.bds.shared.security.PiiProtectionService;
 
 @Service
@@ -50,6 +51,7 @@ public class AuthService {
 
     @Transactional
     public RegistrationResult register(String email, String password, String fullName, String accountType) {
+        ContactInfoGuard.requireNoContact(fullName);
         String normalizedEmail = normalizeEmail(email);
         String role = "BROKER".equals(accountType) ? "BROKER" : "USER";
         UUID userId = UUID.randomUUID();
@@ -273,6 +275,7 @@ public class AuthService {
 
     @Transactional
     public UserView updateProfile(UUID userId, String name, String phone, String avatarMediaUrl) {
+        ContactInfoGuard.requireNoContact(name);
         String normalizedAvatar = ownedAvatar(userId, avatarMediaUrl);
         PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(phone);
         jdbc.update("UPDATE users SET full_name=?,phone_encrypted=?,phone_lookup_hash=?,avatar_media_url=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",

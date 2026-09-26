@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { validationMessage } from '@/shared/types/problem-details';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
   Building2, Key, Home, Castle, MapPin,
@@ -173,7 +174,7 @@ export const CreateListingPage: React.FC = () => {
       setAutosaveTime(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
     } catch (err: unknown) {
       console.error('Lỗi khi lưu nháp:', err);
-      setErrorMessage('Không thể lưu bản nháp lên máy chủ. Vui lòng giữ trang này và thử lại.');
+      setErrorMessage(validationMessage(err, 'Không thể lưu bản nháp lên máy chủ. Vui lòng giữ trang này và thử lại.'));
     } finally {
       setIsSaving(false);
     }
@@ -242,7 +243,7 @@ export const CreateListingPage: React.FC = () => {
       setIsSuccessSubmitted(true);
     } catch (err: unknown) {
       console.error('Lỗi khi nộp duyệt tin:', err);
-      setErrorMessage('Chưa thể nộp tin. Bản nháp vẫn được giữ; vui lòng kiểm tra kết nối rồi thử lại.');
+      setErrorMessage(validationMessage(err, 'Chưa thể nộp tin. Bản nháp vẫn được giữ; vui lòng kiểm tra kết nối rồi thử lại.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -722,6 +723,7 @@ export const CreateListingPage: React.FC = () => {
                     className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                   />
                   <span className="text-[11px] text-slate-400">Đã nhập {description.length} ký tự (khuyến nghị từ 80 ký tự để nội dung đầy đủ)</span>
+                  <p className="mt-1 text-[11px] text-amber-700">Không ghi số điện thoại, email hoặc link Zalo/Facebook — người quan tâm liên hệ qua nút “Hẹn xem” để bạn nhận yêu cầu trong mục Khách quan tâm.</p>
                 </div>
 
                 <div className="mt-6 flex justify-between">

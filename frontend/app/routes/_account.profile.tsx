@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Camera, CheckCircle2, Mail, Phone, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
+import { validationMessage } from '@/shared/types/problem-details';
 
 type UploadedImage = { url: string };
 
@@ -49,7 +50,7 @@ export function AccountProfilePage() {
     try {
       await apiClient('/auth/me', { method: 'PUT', body: JSON.stringify({ name: name.trim(), phone: phone.trim(), avatarMediaUrl: avatarMediaUrl || null }) });
       await refreshUser(); setMessage('Đã lưu thông tin cá nhân.');
-    } catch { setMessage('Không thể lưu hồ sơ. Kiểm tra họ tên và số điện thoại rồi thử lại.'); }
+    } catch (error) { setMessage(validationMessage(error, 'Không thể lưu hồ sơ. Kiểm tra họ tên và số điện thoại rồi thử lại.')); }
     finally { setSaving(false); }
   };
 
