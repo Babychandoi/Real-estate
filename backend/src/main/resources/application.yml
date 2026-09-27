@@ -87,6 +87,14 @@ management:
       show-details: when_authorized
       probes:
         enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      # A handful of fixed buckets (not a full histogram) keeps series per route low while allowing p95 and the
+      # "p95 > 500 ms" alert in infra/observability.
+      slo:
+        "[http.server.requests]": 50ms,100ms,250ms,500ms,750ms,1s,2s,5s
 
 # OpenAPI / Swagger UI (Đặc tả 32 FR & 8 UC)
 springdoc:
@@ -114,6 +122,17 @@ app:
     from: ${APP_MAIL_FROM:no-reply@bds.local}
   security:
     allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+    # Peers whose X-Real-IP / X-Forwarded-For are believed (CIDR list). Default: loopback + Docker bridge pools,
+    # i.e. the Nginx container in the Compose network. Any other peer is identified by its socket address.
+    trusted-proxies: ${APP_SECURITY_TRUSTED_PROXIES:127.0.0.0/8,::1/128,172.16.0.0/12,192.168.0.0/16}
+    rate-limit:
+      enabled: ${APP_RATE_LIMIT_ENABLED:true}
+      # Optional secret mixed into Redis key hashes; set it in production so keys cannot be reversed to IPs/e-mails.
+      key-pepper: ${RATE_LIMIT_KEY_PEPPER:}
+      local-max-entries: 100000
+      local-strict-max-entries: 50000
+      redis-retry-interval: 5s
+      # Per-policy overrides, e.g. policies.auth-login.email.limit: 5 (defaults: RateLimitPolicies.defaults()).
   features:
     real-kyc: ${FEATURE_REAL_KYC:false}
     real-transactions: ${FEATURE_REAL_TRANSACTIONS:false}

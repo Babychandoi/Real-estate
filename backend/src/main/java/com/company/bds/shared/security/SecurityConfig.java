@@ -84,9 +84,11 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/transactions/**").authenticated()
                         .requestMatchers("/api/v1/kyc/**", "/api/v1/listings/**", "/api/v1/auth/**", "/api/v1/billing/**", "/api/v1/notifications/**").authenticated()
                         .anyRequest().denyAll())
-                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(bearerTokenFilter, RequestRateLimitFilter.class)
-                .addFilterAfter(auditTrailFilter, BearerTokenFilter.class);
+                // Bearer lookup first so the rate limiter can count per account; rate limiting before the audit
+                // trail so a rejected flood never writes audit rows.
+                .addFilterBefore(bearerTokenFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(rateLimitFilter, BearerTokenFilter.class)
+                .addFilterAfter(auditTrailFilter, RequestRateLimitFilter.class);
         return http.build();
     }
 
