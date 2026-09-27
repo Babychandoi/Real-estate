@@ -18,8 +18,11 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Opt-in Elasticsearch test: a stream-prefixed random index on the shared test cluster, deleted when the JVM exits. */
-@BdsIntegrationTest(properties = BdsIntegrationTestInitializer.ELASTICSEARCH_OPT_IN + "=true")
+/**
+ * Opt-in Elasticsearch test: a stream-prefixed random index on the shared test cluster, deleted when the JVM exits. The
+ * scheduled sync is pushed a day out (its first run is one interval after startup), so only the calls in the test sync.
+ */
+@BdsIntegrationTest(properties = {BdsIntegrationTestInitializer.ELASTICSEARCH_OPT_IN + "=true", "app.search.sync-ms=86400000"})
 class ElasticsearchSyncTests {
     @Autowired ElasticsearchListingIndex index;
     @Autowired TestData data;

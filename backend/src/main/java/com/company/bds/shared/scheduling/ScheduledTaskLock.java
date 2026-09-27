@@ -18,6 +18,12 @@ import java.util.UUID;
  * Cluster-wide mutual exclusion for {@code @Scheduled} business tasks (contract §3.3), backed by {@code scheduled_task_locks}.
  * Every instance keeps its schedule; only the one that takes an unexpired lock runs the task. The lock is taken and
  * released in their own transactions, so they are visible to other instances immediately, whatever the caller does.
+ * Times come from the database, so clock skew between instances only shifts when their schedules fire.
+ *
+ * <p>The lock is a lease, not a fence: a task that runs longer than {@code maxRun} may overlap with the next holder.
+ * Tasks guarded by it must therefore be idempotent and choose {@code maxRun} well above their normal duration (today's
+ * tasks are: orphan cleanup, full search sync, job purge). Use {@code minHold} for periodic tasks that should run once per
+ * period across N instances rather than once per instance.
  */
 @Component
 public class ScheduledTaskLock {

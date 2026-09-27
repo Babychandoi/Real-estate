@@ -142,7 +142,7 @@ public class UatDataSeeder implements ApplicationRunner {
 
     /** Removes every synthetic row (and its search documents); real accounts and their own data stay untouched. */
     public void purgeNow() {
-        List<String> listingIds = jdbc.queryForList("SELECT id::text FROM listings WHERE id::text LIKE ?", String.class, ID_PREFIX + "%");
+        List<String> listingIds = jdbc.queryForList("SELECT id::text FROM listings WHERE id IN " + SYNTHETIC_LISTINGS, String.class);
         tx.executeWithoutResult(status -> purgeRows());
         listingIds.forEach(this::deleteFromSearchIndex);
         log.info("UAT seed: purged all synthetic rows ({} listings)", listingIds.size());
@@ -150,31 +150,64 @@ public class UatDataSeeder implements ApplicationRunner {
 
     // ------------------------------------------------------------------ purge
 
+    /**
+     * Every synthetic id has the shape {@code ee5eed<kind>-0000-4000-8000-<n>} (see {@link #id}); a random UUID matches it
+     * with probability about 2^-66, so a real row is never mistaken for a synthetic one (a bare "ee5eed" prefix would be).
+     */
+    static final String SYNTHETIC_ID_PATTERN = "^ee5eed[0-9a-f]{2}-0000-4000-8000-[0-9a-f]{12}$";
+    private static final String SYNTHETIC_USERS = "(SELECT id FROM users WHERE " + synthetic("id") + ")";
+    /** Seeded listings plus every listing a synthetic account created later through the API. */
+    private static final String SYNTHETIC_LISTINGS = "(SELECT id FROM listings WHERE " + synthetic("id") + " OR owner_id IN " + SYNTHETIC_USERS + ")";
+    private static final String SYNTHETIC_LEADS = "(SELECT id FROM leads WHERE " + synthetic("id") + " OR listing_id IN " + SYNTHETIC_LISTINGS
+            + " OR requester_id IN " + SYNTHETIC_USERS + ")";
+    private static final String SYNTHETIC_CONTRACTS = "(SELECT id FROM deposit_contracts WHERE listing_id IN " + SYNTHETIC_LISTINGS
+            + " OR buyer_id IN " + SYNTHETIC_USERS + " OR seller_id IN " + SYNTHETIC_USERS + ")";
+    private static final String SYNTHETIC_ORDERS = "(SELECT id FROM package_orders WHERE " + synthetic("id") + " OR user_id IN " + SYNTHETIC_USERS + ")";
+    /** Per-user rows removed with the synthetic accounts (sessions and tokens created by E2E sign-ins included). */
+    private static final List<String> USER_OWNED_TABLES = List.of("auth_sessions", "email_verification_tokens", "password_reset_tokens",
+            "kyc_document_access_grants", "user_notifications", "broker_sla_settings", "media_objects:owner_id");
+
+    private static String synthetic(String column) {
+        return column + "::text ~ '" + SYNTHETIC_ID_PATTERN + "'";
+    }
+
+    /**
+     * Removes the seeded rows and everything synthetic accounts created afterwards through the API (listings with their
+     * revisions/media, leads, orders/invoices, contracts, sessions, tokens, notifications, uploads, analytics, jobs), in
+     * foreign-key order so neither purge nor a re-seed aborts. Real rows are only touched where they point at synthetic data:
+     * leads/contracts on synthetic listings are removed, links to synthetic projects/reviewers are cleared. The append-only
+     * audit trail is left as is.
+     */
     private void purgeRows() {
-        String like = ID_PREFIX + "%";
-        // Rows that flows on synthetic data create later (E2E), and tables added after the first seeder version.
-        jdbc.update("DELETE FROM analytics_events WHERE listing_id::text LIKE ? OR user_id::text LIKE ?", like, like);
-        jdbc.update("DELETE FROM background_jobs WHERE dedupe_key LIKE ?", like);
-        jdbc.update("DELETE FROM deposit_contracts WHERE listing_id::text LIKE ? OR buyer_id::text LIKE ? OR seller_id::text LIKE ?", like, like, like);
-        jdbc.update("DELETE FROM media_objects WHERE owner_id::text LIKE ?", like);
-        jdbc.update("UPDATE listing_verifications SET decided_by=NULL WHERE decided_by::text LIKE ?", like);
+        jdbc.update("DELETE FROM analytics_events WHERE listing_id IN " + SYNTHETIC_LISTINGS + " OR user_id IN " + SYNTHETIC_USERS
+                + " OR " + synthetic("listing_id") + " OR " + synthetic("user_id"));
+        jdbc.update("DELETE FROM background_jobs WHERE dedupe_key ~ 'ee5eed[0-9a-f]{2}-0000-4000-8000-[0-9a-f]{12}'");
+        jdbc.update("DELETE FROM api_idempotency_keys WHERE resource_id IN " + SYNTHETIC_LEADS);
+        jdbc.update("DELETE FROM escrow_transactions WHERE contract_id IN " + SYNTHETIC_CONTRACTS + " OR performed_by IN " + SYNTHETIC_USERS);
+        jdbc.update("DELETE FROM deposit_contracts WHERE id IN " + SYNTHETIC_CONTRACTS);
+        jdbc.update("DELETE FROM invoices WHERE " + synthetic("id") + " OR order_id IN " + SYNTHETIC_ORDERS + " OR user_id IN " + SYNTHETIC_USERS);
+        jdbc.update("UPDATE package_orders SET reviewed_by = NULL WHERE reviewed_by IN " + SYNTHETIC_USERS);
+        jdbc.update("DELETE FROM package_orders WHERE id IN " + SYNTHETIC_ORDERS);
+        jdbc.update("DELETE FROM leads WHERE id IN " + SYNTHETIC_LEADS);
+        jdbc.update("DELETE FROM listing_reports WHERE " + synthetic("id") + " OR listing_id IN " + SYNTHETIC_LISTINGS);
+        jdbc.update("DELETE FROM listing_verifications WHERE " + synthetic("id") + " OR listing_id IN " + SYNTHETIC_LISTINGS);
+        jdbc.update("UPDATE listing_verifications SET decided_by = NULL WHERE decided_by IN " + SYNTHETIC_USERS);
+        jdbc.update("UPDATE listings SET public_revision_id = NULL WHERE id IN " + SYNTHETIC_LISTINGS);
+        jdbc.update("DELETE FROM listing_revisions WHERE listing_id IN " + SYNTHETIC_LISTINGS); // listing_media cascades
+        jdbc.update("DELETE FROM listings WHERE id IN " + SYNTHETIC_LISTINGS);
         // A real revision may point at a synthetic project (linked during UAT); unlink it so the project can be removed.
-        jdbc.update("UPDATE listing_revisions SET project_id=NULL WHERE project_id::text LIKE ? AND listing_id::text NOT LIKE ?", like, like);
-        jdbc.update("DELETE FROM invoices WHERE id::text LIKE ? OR order_id IN (SELECT id FROM package_orders WHERE id::text LIKE ?)", like, like);
-        jdbc.update("DELETE FROM package_orders WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM leads WHERE id::text LIKE ? OR listing_id::text LIKE ?", like, like);
-        jdbc.update("DELETE FROM listing_reports WHERE id::text LIKE ? OR listing_id::text LIKE ?", like, like);
-        jdbc.update("DELETE FROM listing_verifications WHERE id::text LIKE ? OR listing_id::text LIKE ?", like, like);
-        jdbc.update("UPDATE listings SET public_revision_id=NULL WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM listing_revisions WHERE listing_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM listings WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM cms_article_revisions WHERE article_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM cms_articles WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM projects WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM user_kyc_profiles WHERE id::text LIKE ? OR user_id::text LIKE ?", like, like);
-        jdbc.update("DELETE FROM broker_sla_settings WHERE user_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM user_roles WHERE user_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM users WHERE id::text LIKE ?", like);
+        jdbc.update("UPDATE listing_revisions SET project_id = NULL WHERE project_id IN (SELECT id FROM projects WHERE " + synthetic("id") + ")");
+        jdbc.update("DELETE FROM cms_article_revisions WHERE article_id IN (SELECT id FROM cms_articles WHERE " + synthetic("id") + ")");
+        jdbc.update("DELETE FROM cms_articles WHERE " + synthetic("id"));
+        jdbc.update("DELETE FROM projects WHERE " + synthetic("id"));
+        jdbc.update("DELETE FROM user_kyc_profiles WHERE " + synthetic("id") + " OR user_id IN " + SYNTHETIC_USERS);
+        for (String table : USER_OWNED_TABLES) {
+            String[] parts = table.split(":");
+            String column = parts.length > 1 ? parts[1] : "user_id";
+            jdbc.update("DELETE FROM " + parts[0] + " WHERE " + column + " IN " + SYNTHETIC_USERS);
+        }
+        jdbc.update("DELETE FROM user_roles WHERE user_id IN " + SYNTHETIC_USERS);
+        jdbc.update("DELETE FROM users WHERE " + synthetic("id"));
     }
 
     private void deleteFromSearchIndex(String listingId) {
@@ -319,8 +352,8 @@ public class UatDataSeeder implements ApplicationRunner {
                         kyc.equals("VERIFIED") ? Timestamp.from(now.minus(Duration.ofDays(2 + i)).atZone(java.time.ZoneOffset.UTC).plusMonths(24).toInstant()) : null);
             }
             if (role.equals("BROKER")) {
-                jdbc.update("INSERT INTO broker_sla_settings(user_id,first_response_minutes,reminder_enabled,daily_digest_enabled) VALUES (?,?,?,?)",
-                        id, 15 + i * 5, true, i % 2 == 0);
+                jdbc.update("INSERT INTO broker_sla_settings(user_id,first_response_minutes,reminder_enabled,daily_digest_enabled,updated_at) VALUES (?,?,?,?,?)",
+                        id, 15 + i * 5, true, i % 2 == 0, created);
             }
             Person person = new Person(id, name, role, false, "VERIFIED".equals(kyc), kycId);
             switch (role) {
@@ -517,10 +550,17 @@ public class UatDataSeeder implements ApplicationRunner {
 
     private void insertLead(int n, SeededListing listing, Person requester, String note, String status, String type, Duration age) {
         PiiProtectionService.ProtectedValue phone = pii.protect(fakePhone(100 + n));
+        // Leads past NEW were answered by the owner side 10-130 minutes after they arrived (never later than the clock).
+        Duration responseDelay = Duration.ofMinutes(10 + (n * 17L) % 120);
+        Duration responseAge = age.minus(responseDelay).isNegative() ? Duration.ZERO : age.minus(responseDelay);
+        Timestamp created = ago(age);
+        Timestamp firstResponse = status.equals("NEW") ? null : ago(responseAge);
         jdbc.update("""
-                INSERT INTO leads(id,listing_id,full_name,phone_encrypted,phone_lookup_hash,note,consent_policy,status,created_at,request_type,requester_id)
-                VALUES (?,?,?,?,?,?,TRUE,?,?,?,?)""",
-                id(K_LEAD, n), listing.id(), requester.name(), phone.encrypted(), phone.blindIndex(), note, status, ago(age), type, requester.id());
+                INSERT INTO leads(id,listing_id,full_name,phone_encrypted,phone_lookup_hash,note,consent_policy,status,created_at,request_type,
+                                  requester_id,updated_at,first_response_at)
+                VALUES (?,?,?,?,?,?,TRUE,?,?,?,?,?,?)""",
+                id(K_LEAD, n), listing.id(), requester.name(), phone.encrypted(), phone.blindIndex(), note, status, created, type,
+                requester.id(), firstResponse != null ? firstResponse : created, firstResponse);
     }
 
     private int seedReports(List<SeededListing> listings) {
