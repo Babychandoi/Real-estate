@@ -1,9 +1,8 @@
 package com.company.bds.analytics.application;
 
+import com.company.bds.analytics.application.port.out.AnalyticsEventRepository;
 import com.company.bds.analytics.domain.AnalyticsEvent;
 import com.company.bds.analytics.domain.BotDetector;
-import com.company.bds.analytics.infrastructure.AnalyticsEventStore;
-import com.company.bds.shared.error.ProblemDetails.ValidationErrorItem;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -48,10 +47,10 @@ public class EventIngestionService {
 
     public record IngestionResult(int accepted, int duplicates) {}
 
-    private final AnalyticsEventStore store;
+    private final AnalyticsEventRepository store;
     private final Clock clock;
 
-    public EventIngestionService(AnalyticsEventStore store, Clock clock) {
+    public EventIngestionService(AnalyticsEventRepository store, Clock clock) {
         this.store = store;
         this.clock = clock;
     }
@@ -235,12 +234,12 @@ public class EventIngestionService {
     }
 
     private static final class Errors {
-        private final List<ValidationErrorItem> items = new ArrayList<>();
+        private final List<EventViolation> items = new ArrayList<>();
         private int total;
 
         void add(String field, String code, String message) {
             total++;
-            if (items.size() < MAX_ERRORS) items.add(new ValidationErrorItem(field, code, message));
+            if (items.size() < MAX_ERRORS) items.add(new EventViolation(field, code, message));
         }
 
         int count() { return total; }

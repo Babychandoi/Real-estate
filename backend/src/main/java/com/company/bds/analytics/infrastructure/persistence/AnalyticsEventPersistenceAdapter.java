@@ -1,5 +1,6 @@
-package com.company.bds.analytics.infrastructure;
+package com.company.bds.analytics.infrastructure.persistence;
 
+import com.company.bds.analytics.application.port.out.AnalyticsEventRepository;
 import com.company.bds.analytics.domain.AnalyticsEvent;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -10,9 +11,9 @@ import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 
-/** Append-only writes to {@code analytics_events}; a repeated event id is ignored (dedupe). */
+/** {@link AnalyticsEventRepository} on {@code analytics_events}: append-only, a repeated event id is ignored (dedupe). */
 @Component
-public class AnalyticsEventStore {
+class AnalyticsEventPersistenceAdapter implements AnalyticsEventRepository {
     private static final String INSERT = """
             INSERT INTO analytics_events (event_id, name, schema_version, occurred_at, anonymous_id, session_id, user_id, listing_id,
                                           is_internal, is_bot, origin, device, area_code, page_path, properties, utm)
@@ -26,11 +27,11 @@ public class AnalyticsEventStore {
 
     private final JdbcTemplate jdbc;
 
-    public AnalyticsEventStore(JdbcTemplate jdbc) {
+    AnalyticsEventPersistenceAdapter(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
-    /** Inserts web events in one batch; returns how many were new (the rest were duplicates). */
+    @Override
     public int insertWebEvents(List<AnalyticsEvent> events) {
         if (events.isEmpty()) return 0;
         int[][] counts = jdbc.batchUpdate(INSERT_WEB, events, events.size(), (statement, event) -> {
@@ -42,7 +43,7 @@ public class AnalyticsEventStore {
         return Arrays.stream(counts).flatMapToInt(Arrays::stream).map(count -> count > 0 ? 1 : 0).sum();
     }
 
-    /** Inserts one server event in the caller's transaction; returns whether it was new. */
+    @Override
     public boolean insertServerEvent(AnalyticsEvent event) {
         return jdbc.update(connection -> {
             PreparedStatement statement = connection.prepareStatement(INSERT_SERVER);

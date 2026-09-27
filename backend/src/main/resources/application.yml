@@ -160,3 +160,8 @@ app:
     elasticsearch:
       enabled: ${APP_SEARCH_ELASTICSEARCH_ENABLED:true}
     index-name: ${APP_SEARCH_INDEX_NAME:bds-listings}
+  analytics:
+    ingestion:
+      # POST /api/v1/events writes rows for anonymous callers: keep it off until the rate-limit policy for that path
+      # (stream S5) is deployed. When off the endpoint answers 503 ANALYTICS_INGESTION_DISABLED without reading the body.
+      enabled: ${APP_ANALYTICS_INGESTION_ENABLED:false}

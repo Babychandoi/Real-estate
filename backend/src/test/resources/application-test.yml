@@ -40,3 +40,7 @@ app:
     elasticsearch:
       # Opt in per test with @BdsIntegrationTest(properties = "bds.test.elasticsearch=true").
       enabled: false
+  analytics:
+    ingestion:
+      # Off by default in the application (kill switch until S5's rate-limit policy exists); tests exercise it.
+      enabled: true

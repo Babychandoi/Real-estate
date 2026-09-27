@@ -1,6 +1,7 @@
 package com.company.bds.analytics.api;
 
 import com.company.bds.analytics.application.EventIngestionService;
+import com.company.bds.analytics.application.EventViolation;
 import com.company.bds.analytics.application.InvalidEventsException;
 import com.company.bds.shared.error.ProblemDetails;
 import com.company.bds.shared.security.CurrentUser;
@@ -8,6 +9,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -28,8 +30,13 @@ import java.util.UUID;
 
 /**
  * Public product-analytics ingestion (contract §5). Accepts {@code application/json} and {@code text/plain} (what
- * {@code navigator.sendBeacon} sends for a string) up to {@value #MAX_BODY_BYTES} bytes. The user id comes only from a valid
- * bearer token; rate limiting is applied by RequestRateLimitFilter (policy owned by stream S5).
+ * {@code navigator.sendBeacon} sends for a string); every request is capped at {@value #MAX_BODY_BYTES} bytes and
+ * {@value EventIngestionService#MAX_EVENTS} events. The user id comes only from a valid bearer token.
+ *
+ * <p>Abuse protection: this endpoint writes to the database for anonymous callers, so the per-client request rate must
+ * come from the rate-limit policy for {@code POST /api/v1/events} (RequestRateLimitFilter, owned by stream S5). Until that
+ * policy is deployed keep {@code app.analytics.ingestion.enabled=false} (env {@code APP_ANALYTICS_INGESTION_ENABLED},
+ * default false): the endpoint then answers 503 {@code ANALYTICS_INGESTION_DISABLED} without reading the body.
  */
 @RestController
 @RequestMapping("/api/v1/events")
@@ -39,15 +46,22 @@ public class EventIngestionController {
 
     private final EventIngestionService ingestion;
     private final ObjectMapper json;
+    private final boolean enabled;
 
-    public EventIngestionController(EventIngestionService ingestion, ObjectMapper json) {
+    public EventIngestionController(EventIngestionService ingestion, ObjectMapper json,
+                                    @Value("${app.analytics.ingestion.enabled:false}") boolean enabled) {
         this.ingestion = ingestion;
         this.json = json;
+        this.enabled = enabled;
     }
 
     @PostMapping
     public ResponseEntity<EventIngestionService.IngestionResult> ingest(HttpServletRequest request, Authentication authentication)
             throws IOException {
+        if (!enabled) {
+            throw new PayloadRejected(HttpStatus.SERVICE_UNAVAILABLE, "ANALYTICS_INGESTION_DISABLED",
+                    "Hệ thống tạm dừng nhận sự kiện phân tích; lô sự kiện không được lưu.");
+        }
         if (!supported(request.getContentType())) {
             throw new PayloadRejected(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE",
                     "Chỉ nhận application/json hoặc text/plain.");
@@ -61,7 +75,7 @@ public class EventIngestionController {
         try {
             batch = json.readTree(body);
         } catch (JsonProcessingException ex) {
-            throw new InvalidEventsException(List.of(new ProblemDetails.ValidationErrorItem("body", "MALFORMED_JSON", "Nội dung không phải JSON hợp lệ.")));
+            throw new InvalidEventsException(List.of(new EventViolation("body", "MALFORMED_JSON", "Nội dung không phải JSON hợp lệ.")));
         }
         EventIngestionService.Viewer viewer = new EventIngestionService.Viewer(userId(authentication), staff(authentication),
                 request.getHeader(HttpHeaders.USER_AGENT));
@@ -70,8 +84,11 @@ public class EventIngestionController {
 
     @ExceptionHandler(InvalidEventsException.class)
     ResponseEntity<ProblemDetails> invalid(InvalidEventsException ex, HttpServletRequest request) {
+        List<ProblemDetails.ValidationErrorItem> errors = ex.violations().stream()
+                .map(violation -> new ProblemDetails.ValidationErrorItem(violation.field(), violation.code(), violation.message()))
+                .toList();
         return problem(HttpStatus.BAD_REQUEST, "INVALID_EVENTS", "Sự kiện không hợp lệ",
-                "Lô sự kiện bị từ chối: " + ex.errors().size() + " lỗi, không sự kiện nào được lưu.", request, ex.errors());
+                "Lô sự kiện bị từ chối: " + errors.size() + " lỗi, không sự kiện nào được lưu.", request, errors);
     }
 
     @ExceptionHandler(PayloadRejected.class)
@@ -83,7 +100,7 @@ public class EventIngestionController {
                                                           HttpServletRequest request, List<ProblemDetails.ValidationErrorItem> errors) {
         ProblemDetails body = new ProblemDetails(URI.create(PROBLEM_BASE + code.toLowerCase().replace('_', '-')), title, status.value(),
                 detail, request.getRequestURI(), code, UUID.randomUUID().toString(), errors);
-        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(body);
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).cacheControl(CacheControl.noStore()).body(body);
     }
 
     private static boolean supported(String contentType) {

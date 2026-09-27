@@ -1,7 +1,7 @@
 package com.company.bds.analytics.application;
 
+import com.company.bds.analytics.application.port.out.AnalyticsEventRepository;
 import com.company.bds.analytics.domain.AnalyticsEvent;
-import com.company.bds.analytics.infrastructure.AnalyticsEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.lang.Nullable;
@@ -20,11 +20,11 @@ import java.util.UUID;
  */
 @Service
 public class AnalyticsRecorder {
-    private final AnalyticsEventStore store;
+    private final AnalyticsEventRepository store;
     private final ObjectMapper json;
     private final Clock clock;
 
-    public AnalyticsRecorder(AnalyticsEventStore store, ObjectMapper json, Clock clock) {
+    public AnalyticsRecorder(AnalyticsEventRepository store, ObjectMapper json, Clock clock) {
         this.store = store;
         this.json = json;
         this.clock = clock;

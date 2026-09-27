@@ -1,17 +1,15 @@
 package com.company.bds.analytics.application;
 
-import com.company.bds.shared.error.ProblemDetails;
-
 import java.util.List;
 
-/** A rejected event batch; nothing of the batch is stored. */
+/** A rejected event batch; nothing of the batch is stored. The api layer maps it to Problem Details. */
 public class InvalidEventsException extends RuntimeException {
-    private final transient List<ProblemDetails.ValidationErrorItem> errors;
+    private final transient List<EventViolation> violations;
 
-    public InvalidEventsException(List<ProblemDetails.ValidationErrorItem> errors) {
-        super("Lô sự kiện có " + errors.size() + " lỗi.");
-        this.errors = List.copyOf(errors);
+    public InvalidEventsException(List<EventViolation> violations) {
+        super("Lô sự kiện có " + violations.size() + " lỗi.");
+        this.violations = List.copyOf(violations);
     }
 
-    public List<ProblemDetails.ValidationErrorItem> errors() { return errors; }
+    public List<EventViolation> violations() { return violations; }
 }
