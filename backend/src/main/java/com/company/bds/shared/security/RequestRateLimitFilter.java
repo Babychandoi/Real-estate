@@ -23,6 +23,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -85,8 +86,13 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         }
         if (policy.uses(RateLimitDimension.EMAIL)) {
             BufferedBodyRequest buffered = BufferedBodyRequest.wrap(request, MAX_EMAIL_BODY_BYTES);
+            if (buffered.completeBody() == null) {
+                // Credential bodies are tiny; a padded body must not dodge the per-account quota.
+                rejectTooLarge(request, response);
+                return;
+            }
             downstream = buffered;
-            String email = buffered.completeBody() == null ? null : emailFrom(buffered.completeBody());
+            String email = emailFrom(buffered.completeBody());
             if (email != null) subjects.put(RateLimitDimension.EMAIL, email);
         }
         RateLimitDecision decision = limiter.check(policy, subjects);
@@ -97,11 +103,12 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         chain.doFilter(downstream, response);
     }
 
+    /**
+     * Classified on the decoded path, like Spring MVC routing: {@code /api/v1/auth/%6Cogin} reaches the login handler,
+     * so it must spend the login quota too.
+     */
     private RateLimitPolicy policyFor(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        String path = contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath) ? uri.substring(contextPath.length()) : uri;
-        return policies.resolve(request.getMethod(), path);
+        return policies.resolve(request.getMethod(), UrlPathHelper.defaultInstance.getPathWithinApplication(request));
     }
 
     private static String currentAccount() {
@@ -136,6 +143,17 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
                 request.getRequestURI(), "RATE_LIMITED", UUID.randomUUID().toString(), null);
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        response.setContentType("application/problem+json");
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getOutputStream().write(mapper.writeValueAsBytes(problem));
+    }
+
+    private void rejectTooLarge(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        ProblemDetails problem = new ProblemDetails(URI.create("https://api.bds.vn/problems/payload-too-large"), "Dữ liệu gửi lên quá lớn",
+                HttpStatus.PAYLOAD_TOO_LARGE.value(), "Yêu cầu vượt quá " + (MAX_EMAIL_BODY_BYTES / 1024) + " KB cho phép.",
+                request.getRequestURI(), "PAYLOAD_TOO_LARGE", UUID.randomUUID().toString(), null);
+        response.setStatus(HttpStatus.PAYLOAD_TOO_LARGE.value());
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
         response.setContentType("application/problem+json");
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

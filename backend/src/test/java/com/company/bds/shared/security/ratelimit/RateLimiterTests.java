@@ -157,6 +157,8 @@ class RateLimiterTests {
         assertThat(resolved.rules()).extracting(RateLimitRule::limit).containsExactly(300, 40);
         assertThat(new RateLimitPolicies(new RateLimitProperties()).resolve("GET", "/api/v1/auth/me").name()).isEqualTo("api-default");
         assertThat(new RateLimitPolicies(new RateLimitProperties()).resolve("GET", "/actuator/health")).isNull();
+        assertThat(new RateLimitPolicies(new RateLimitProperties()).resolve("HEAD", "/api/v1/auth/verify-email").name())
+                .as("HEAD is served by the GET handler").isEqualTo("auth-verify-email");
 
         RateLimitProperties typo = new RateLimitProperties();
         typo.getPolicies().put("auth-logn", Map.of("email", tighter));

@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static com.company.bds.shared.security.ratelimit.RateLimitDimension.ACCOUNT;
 import static com.company.bds.shared.security.ratelimit.RateLimitDimension.EMAIL;
@@ -24,6 +25,7 @@ import static com.company.bds.shared.security.ratelimit.RateLimitFailureMode.FAI
  */
 @Component
 public class RateLimitPolicies {
+    private static final Pattern REPEATED_SLASHES = Pattern.compile("/{2,}");
     private final List<RateLimitPolicy> policies;
 
     @Autowired
@@ -95,7 +97,7 @@ public class RateLimitPolicies {
     /** Lower-case, duplicate slashes collapsed, no trailing slash, so {@code /API//v1/auth/login/} counts as login. */
     public static String normalizePath(String path) {
         if (path == null || path.isEmpty()) return "/";
-        String normalized = path.toLowerCase(Locale.ROOT).replaceAll("/{2,}", "/");
+        String normalized = REPEATED_SLASHES.matcher(path.toLowerCase(Locale.ROOT)).replaceAll("/");
         return normalized.length() > 1 && normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
     }
 

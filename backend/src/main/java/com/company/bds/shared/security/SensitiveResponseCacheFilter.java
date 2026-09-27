@@ -11,9 +11,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Private API areas are never stored by a browser, CDN or proxy (audit F10.2, cache policy §7.3: KYC, leads,
@@ -28,6 +30,7 @@ import java.util.List;
 @Order(Ordered.HIGHEST_PRECEDENCE + 50)
 public class SensitiveResponseCacheFilter extends OncePerRequestFilter {
     static final String NO_STORE = "no-cache, no-store, max-age=0, must-revalidate";
+    private static final Pattern REPEATED_SLASHES = Pattern.compile("/{2,}");
     private static final List<String> SENSITIVE = List.of(
             "/api/v1/auth/**", "/api/v1/kyc/**", "/api/v1/media/**",
             "/api/v1/leads/**", "/api/v1/public/leads",
@@ -65,15 +68,14 @@ public class SensitiveResponseCacheFilter extends OncePerRequestFilter {
     }
 
     boolean isSensitive(String path) {
-        String normalized = path.replaceAll("/{2,}", "/");
+        String normalized = REPEATED_SLASHES.matcher(path).replaceAll("/");
         if (PUBLIC_EXCEPTIONS.stream().anyMatch(pattern -> matcher.match(pattern, normalized))) return false;
         return SENSITIVE.stream().anyMatch(pattern -> matcher.match(pattern, normalized));
     }
 
+    /** Decoded like Spring MVC routing, so {@code /api/v1/%6Byc/queue} is recognised as the KYC area. */
     private static String pathOf(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        String contextPath = request.getContextPath();
-        return contextPath != null && !contextPath.isEmpty() && uri.startsWith(contextPath) ? uri.substring(contextPath.length()) : uri;
+        return UrlPathHelper.defaultInstance.getPathWithinApplication(request);
     }
 
     private static final class NoStoreResponse extends HttpServletResponseWrapper {

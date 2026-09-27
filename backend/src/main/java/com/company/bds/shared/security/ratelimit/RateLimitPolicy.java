@@ -17,7 +17,9 @@ public record RateLimitPolicy(String name, String method, String path, RateLimit
     }
 
     public boolean matches(String requestMethod, String normalizedPath) {
-        if (method != null && !method.equalsIgnoreCase(requestMethod)) return false;
+        // Spring MVC answers HEAD with the GET handler, so HEAD must spend the GET quota.
+        String effectiveMethod = "HEAD".equalsIgnoreCase(requestMethod) ? "GET" : requestMethod;
+        if (method != null && !method.equalsIgnoreCase(effectiveMethod)) return false;
         if (path.endsWith("/**")) {
             String prefix = path.substring(0, path.length() - 3);
             return normalizedPath.equals(prefix) || normalizedPath.startsWith(prefix + "/");

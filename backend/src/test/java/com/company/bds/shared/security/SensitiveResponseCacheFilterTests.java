@@ -48,6 +48,16 @@ class SensitiveResponseCacheFilterTests {
     }
 
     @Test
+    void percentEncodedPrivatePathsAreStillRecognised() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/%6Byc/queue");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getHeader("Cache-Control")).isEqualTo(SensitiveResponseCacheFilter.NO_STORE);
+    }
+
+    @Test
     void controllerCannotOptAPrivateResponseIntoSharedCaching() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/leads/sent");
         MockHttpServletResponse response = new MockHttpServletResponse();

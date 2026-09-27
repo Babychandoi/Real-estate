@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -22,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 
 /**
  * Rate limiter v2 end to end through the real filter chain and a real Redis (audit F13.1–F13.3).
@@ -153,6 +156,41 @@ class RequestRateLimitFilterTests {
         // The controller parsed the replayed body and checked the credentials (not a body-parsing error).
         assertThat(mapper.readTree(otherAccount.getResponse().getContentAsByteArray()).get("detail").asText())
                 .isEqualTo("Email hoặc mật khẩu không chính xác.");
+    }
+
+    @Test
+    void percentEncodedPathsAndHeadRequestsSpendTheSameQuota() throws Exception {
+        String victim = "encoded-" + UUID.randomUUID() + "@example.test";
+        String body = mapper.writeValueAsString(Map.of("email", victim, "password", "Wrong-Password-2026!"));
+        List<MvcResult> attempts = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            attempts.add(mockMvc.perform(post(URI.create("/api/v1/auth/%6Cogin")).contentType(MediaType.APPLICATION_JSON).content(body)
+                    .header("X-Real-IP", "198.51.100." + (60 + i))
+                    .with(servletRequest -> { servletRequest.setRemoteAddr(NGINX); return servletRequest; })).andReturn());
+        }
+        // The encoded path really is the login endpoint (Spring decodes before routing) ...
+        assertThat(mapper.readTree(attempts.get(0).getResponse().getContentAsByteArray()).get("detail").asText())
+                .isEqualTo("Email hoặc mật khẩu không chính xác.");
+        // ... so it spent the per-e-mail login quota (3 in this context).
+        assertThat(status(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body).header("X-Real-IP", "198.51.100.63")
+                .with(servletRequest -> { servletRequest.setRemoteAddr(NGINX); return servletRequest; }))).isEqualTo(429);
+
+        for (int i = 0; i < VERIFY_EMAIL_IP_LIMIT; i++) {
+            assertThat(status(request(HttpMethod.HEAD, VERIFY_EMAIL).param("token", "head-" + i).header("X-Real-IP", "203.0.113.70")
+                    .with(servletRequest -> { servletRequest.setRemoteAddr(NGINX); return servletRequest; }))).isNotEqualTo(429);
+        }
+        assertThat(status(verifyEmailFrom(NGINX, "203.0.113.70"))).as("HEAD runs the GET handler and spends its quota").isEqualTo(429);
+    }
+
+    @Test
+    void paddedCredentialBodiesCannotSkipThePerEmailQuota() throws Exception {
+        String padded = mapper.writeValueAsString(Map.of("email", "victim@example.test", "password", "x", "padding", "A".repeat(9_000)));
+        MvcResult result = mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(padded)
+                .header("X-Real-IP", "198.51.100.80")
+                .with(servletRequest -> { servletRequest.setRemoteAddr(NGINX); return servletRequest; })).andReturn();
+
+        assertThat(result.getResponse().getStatus()).isEqualTo(413);
+        assertThat(mapper.readTree(result.getResponse().getContentAsByteArray()).get("code").asText()).isEqualTo("PAYLOAD_TOO_LARGE");
     }
 
     @Test
