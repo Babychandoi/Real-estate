@@ -1,17 +1,28 @@
+# Integration tests run on PostgreSQL/PostGIS with the real Flyway migrations (no H2).
+# The datasource URL is injected by BdsIntegrationTestInitializer, which creates a fresh database
+# bds_it_<timestamp>_<random> on the shared test server (BDS_TEST_PG_URL) once per JVM and drops it on exit.
+# Every other external service points at the shared test infrastructure (scripts/test-infra.sh env), never at
+# the default localhost ports used by the demo/production stacks.
 spring:
   datasource:
-    url: jdbc:h2:mem:bds_test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    hikari:
+      maximum-pool-size: 6
+      minimum-idle: 1
   jpa:
     hibernate:
-      ddl-auto: create-drop
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+      ddl-auto: validate
   flyway:
-    enabled: false
+    enabled: true
+  data:
+    redis:
+      host: ${BDS_TEST_REDIS_HOST:127.0.0.1}
+      port: ${BDS_TEST_REDIS_PORT:56379}
+      database: ${BDS_TEST_REDIS_DB:1}
+  mail:
+    host: ${BDS_TEST_SMTP_HOST:127.0.0.1}
+    port: ${BDS_TEST_SMTP_PORT:51025}
+  elasticsearch:
+    uris: ${BDS_TEST_ES_URL:http://127.0.0.1:59200}
 
 app:
   billing:
@@ -22,7 +33,10 @@ app:
   features:
     real-kyc: true
     real-transactions: true
-  data:
-    redis:
-      host: localhost
-      port: 6379
+  jobs:
+    # Tests drive the worker explicitly (JobWorker.drain) so they never race a background poller.
+    enabled: false
+  search:
+    elasticsearch:
+      # Opt in per test with @BdsIntegrationTest(properties = "bds.test.elasticsearch=true").
+      enabled: false

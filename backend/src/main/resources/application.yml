@@ -140,3 +140,7 @@ app:
   geocoding:
     provider-url: ${APP_GEOCODING_PROVIDER_URL:https://photon.komoot.io}
     contact: ${APP_GEOCODING_CONTACT:}
+  search:
+    elasticsearch:
+      enabled: ${APP_SEARCH_ELASTICSEARCH_ENABLED:true}
+    index-name: ${APP_SEARCH_INDEX_NAME:bds-listings}
