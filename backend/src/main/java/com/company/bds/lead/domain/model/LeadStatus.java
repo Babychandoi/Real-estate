@@ -5,5 +5,7 @@ public enum LeadStatus {
     CONTACTED,
     APPOINTED,
     CLOSED,
-    SPAM
+    SPAM,
+    /** The requester withdrew the request; only the requester side may set it. */
+    WITHDRAWN
 }

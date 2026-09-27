@@ -201,6 +201,9 @@ public class LeadApplicationService {
      * Môi giới hoặc Admin cập nhật tiến trình chăm sóc Lead (NEW -> CONTACTED -> APPOINTED -> CLOSED -> SPAM).
      */
     public Lead updateLeadStatus(UUID leadId, LeadStatus newStatus, UUID actorId, boolean privileged) {
+        if (newStatus == LeadStatus.WITHDRAWN) {
+            throw new IllegalArgumentException("Chỉ người gửi yêu cầu mới có thể rút yêu cầu liên hệ.");
+        }
         Lead lead = leadPersistencePort.findById(leadId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Lead ID: " + leadId));
         Listing listing = listingPersistencePort.findById(lead.getListingId())
