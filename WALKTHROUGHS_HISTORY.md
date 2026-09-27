@@ -553,3 +553,7 @@ npm run build
 - Rejected on write: listing draft create/update (title, description, address, direction, legal status), registration name and profile name — the user sees the server reason instead of a generic save error.
 - Redacted on read as "[đã ẩn liên hệ]": listing detail and search cards, seller profile name and listing cards, seller name on cards. Phone and email are still never part of public responses; lead phones stay masked until the listing owner uses the in-app reveal action on a lead.
 - Listing form now warns under the description field. Backend Docker build: 26/26 tests pass (3 new `ContactInfoGuardTests`); frontend `npm run build`: 0 errors.
+
+# 2026-09-26 - Profile avatar camera badge
+
+- `_account.profile.tsx`: only the photo is clipped to the circle; the camera badge sits on its edge with a white ring instead of being cut by `overflow-hidden`. Frontend build passed; verified by Playwright screenshot on the demo stack.

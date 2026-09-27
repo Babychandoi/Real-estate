@@ -61,10 +61,13 @@ export function AccountProfilePage() {
     </header>
     <form onSubmit={save} className="mt-6 space-y-6 rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-5 md:p-7">
       <section className="flex items-center gap-5 border-b border-outline-variant/40 pb-6">
-        <label className="group relative grid h-20 w-20 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2">
-          {avatarMediaUrl ? <img src={avatarMediaUrl} alt="Ảnh đại diện" className="h-full w-full object-cover" /> : initials || <UserRound className="h-7 w-7" />}
-          <span className="absolute inset-0 grid place-items-center bg-slate-950/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"><Camera className="h-5 w-5" /></span>
-          <span className="absolute bottom-0.5 right-0.5 grid h-7 w-7 place-items-center rounded-full bg-primary text-white shadow-sm"><Camera className="h-3.5 w-3.5" /></span>
+        <label className="group relative h-20 w-20 shrink-0 cursor-pointer rounded-full focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2">
+          {/* Only the photo is clipped to the circle; the camera badge sits on its edge. */}
+          <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
+            {avatarMediaUrl ? <img src={avatarMediaUrl} alt="Ảnh đại diện" className="h-full w-full object-cover" /> : initials || <UserRound className="h-7 w-7" />}
+            <span className="absolute inset-0 grid place-items-center bg-slate-950/45 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"><Camera className="h-5 w-5" /></span>
+          </span>
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-primary text-white shadow-sm"><Camera className="h-3.5 w-3.5" /></span>
           <input aria-label="Đổi ảnh đại diện" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/avif" disabled={uploading} onChange={(event) => { void uploadAvatar(event.target.files?.[0]); event.target.value = ''; }} />
         </label>
         <div className="min-w-0">
