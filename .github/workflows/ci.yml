@@ -13,6 +13,7 @@ jobs:
     # Integration tests run on PostgreSQL/PostGIS + Flyway (no H2). The service containers mirror
     # infra/test/compose.yaml and expose the same BDS_TEST_* variables as `scripts/test-infra.sh env`.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgis/postgis:16-3.4
