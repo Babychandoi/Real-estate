@@ -31,6 +31,7 @@ public class BdsIntegrationTestInitializer implements ApplicationContextInitiali
         properties.put("spring.datasource.url", database.url());
         properties.put("spring.datasource.username", database.username());
         properties.put("spring.datasource.password", database.password());
+        properties.put("spring.data.redis.database", BdsTestRedis.database());
         if (Boolean.parseBoolean(environment.getProperty(ELASTICSEARCH_OPT_IN, "false"))) {
             String baseUrl = BdsTestEnvironment.require("BDS_TEST_ES_URL").replaceAll("/+$", "");
             String prefix = BdsTestEnvironment.optional("BDS_TEST_ES_PREFIX", "s0be").toLowerCase(Locale.ROOT);

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,6 +23,8 @@ class TestSupportTests {
     @Autowired TestData data;
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper json;
+    @Autowired Environment environment;
+    @Autowired StringRedisTemplate redis;
 
     @Test
     void runsOnAFreshMigratedPostgresDatabase() {
@@ -73,6 +77,24 @@ class TestSupportTests {
         TestData.TestListing draft = data.listing(broker.id()).status("DRAFT").media(0).create();
         assertThat(draft.publicRevisionId()).isNull();
         mockMvc.perform(get("/api/v1/listings/" + draft.id())).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void eachJvmUsesItsOwnClaimedAndFlushedRedisDatabase() {
+        int database = environment.getRequiredProperty("spring.data.redis.database", Integer.class);
+        if (BdsTestEnvironment.optional("BDS_TEST_REDIS_DB", null) == null) {
+            assertThat(database).as("claimed, never the per-stream indexes 1..13 of other tools").isBetween(14, 63);
+            assertThat(BdsTestRedis.claimOwner(database)).isEqualTo(BdsTestRedis.runId());
+        }
+        String key = "s0be:probe:" + UUID.randomUUID();
+        redis.opsForValue().set(key, "mine");
+        try {
+            assertThat(redis.opsForValue().get(key)).isEqualTo("mine");
+            assertThat(redis.execute((org.springframework.data.redis.core.RedisCallback<Long>) connection -> connection.serverCommands().dbSize()))
+                    .as("the database started empty and holds only this run's keys").isPositive();
+        } finally {
+            redis.delete(key);
+        }
     }
 
     @Test

@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
 
 /**
  * Full application context on PostgreSQL/PostGIS + Flyway ({@code ddl-auto: validate}), MockMvc, the {@code test}
- * profile and the shared test infrastructure (Redis DB {@code BDS_TEST_REDIS_DB} (default 1), Mailpit SMTP, Elasticsearch
+ * profile and the shared test infrastructure (a Redis database claimed per JVM, see {@link BdsTestRedis}; Mailpit SMTP; Elasticsearch
  * disabled unless {@code bds.test.elasticsearch=true}). All contexts of one JVM share one fresh database, so tests must
  * create their own rows (see {@link TestData}) and never assume the database is empty: Flyway seed rows exist.
  */
