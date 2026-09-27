@@ -243,7 +243,7 @@ export function SearchAndMapPage() {
   );
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-surface text-on-surface">
+    <div className="min-h-[calc(100vh-4rem)] bg-surface text-on-surface" data-ready={loading ? 'false' : 'true'}>
       <section className="w-full bg-surface relative">
         {/* Top Query & Smart Filters */}
         <div className="p-4 bg-surface-container-lowest flex flex-col gap-3 shadow-sm border-b border-outline-variant/20 flex-shrink-0 relative z-40">
@@ -475,7 +475,7 @@ export function SearchAndMapPage() {
         </div>
 
         {/* Feed Summary & Sorting Toolbar */}
-        <div className="px-4 py-2.5 flex items-center justify-between bg-surface-container-low/50 border-b border-outline-variant/20 flex-shrink-0 text-xs">
+        <div className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-surface-container-low/50 border-b border-outline-variant/20 flex-shrink-0 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="font-bold text-primary text-sm">{visibleListings.length}</span>
@@ -495,7 +495,7 @@ export function SearchAndMapPage() {
                 className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}
               >
                 <LayoutGrid className="w-4 h-4" />
-                <span className="hidden sm:inline">Danh sách</span>
+                <span className="sr-only sm:not-sr-only">Danh sách</span>
               </button>
               <button
                 type="button"
@@ -504,7 +504,7 @@ export function SearchAndMapPage() {
                 className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'map' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}
               >
                 <MapIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">Bản đồ</span>
+                <span className="sr-only sm:not-sr-only">Bản đồ</span>
               </button>
             </div>
             <span className="text-on-surface-variant">Sắp xếp:</span>

@@ -40,14 +40,14 @@ export function SellerProfilePage() {
 
   if (state === 'loading') {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-10">
+      <div className="mx-auto max-w-6xl px-4 py-10" data-ready="false">
         <div className="h-40 animate-pulse rounded-2xl bg-surface-container" />
       </div>
     );
   }
   if (state !== 'ready' || !profile) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-16 text-center">
+      <div className="mx-auto max-w-xl px-4 py-16 text-center" data-ready="true">
         <ShieldQuestion className="mx-auto h-12 w-12 text-outline" aria-hidden="true" />
         <h1 className="mt-3 text-xl font-bold text-on-surface">
           {state === 'missing' ? 'Không tìm thấy người đăng' : 'Không tải được trang cá nhân'}
@@ -75,7 +75,7 @@ export function SellerProfilePage() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-8 md:px-6" data-ready="true">
       <button
         type="button"
         onClick={() => (window.history.length > 1 ? window.history.back() : undefined)}
@@ -110,7 +110,7 @@ export function SellerProfilePage() {
             <div className="flex items-center gap-1.5">
               <CalendarDays className="h-4 w-4" aria-hidden="true" />
               <dt className="sr-only">Ngày tham gia</dt>
-              <dd>Tham gia từ {memberSince}</dd>
+              <dd data-volatile="date">Tham gia từ {memberSince}</dd>
             </div>
           </dl>
           <p className="mt-3 text-xs text-on-surface-variant">

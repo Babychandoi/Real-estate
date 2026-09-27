@@ -115,7 +115,7 @@ export function InformationPage() {
   if (!page) return <NotFoundPage />;
   const Icon = page.icon;
   return (
-    <div className="bg-white">
+    <div className="bg-white" data-ready="true">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 md:px-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:py-14">
         <aside className="lg:pt-2">
           <p className="mb-3 text-sm font-bold text-slate-900">Thông tin</p>
@@ -187,7 +187,7 @@ export function InformationPage() {
 
 export function NotFoundPage() {
   return (
-    <div className="mx-auto max-w-xl px-4 py-20 text-center">
+    <div className="mx-auto max-w-xl px-4 py-20 text-center" data-ready="true">
       <p className="text-sm font-bold text-slate-500">404</p>
       <h1 className="mt-2 text-3xl font-bold">Không tìm thấy trang</h1>
       <Link to="/" className="mt-8 inline-flex min-h-11 items-center font-bold text-blue-800 hover:underline">

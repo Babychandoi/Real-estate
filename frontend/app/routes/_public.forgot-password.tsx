@@ -25,7 +25,7 @@ export function ForgotPasswordPage() {
 
   if (sent)
     return (
-      <div className="mx-auto max-w-md px-4 py-12">
+      <div className="mx-auto max-w-md px-4 py-12" data-ready="true">
         <section className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
           <div className="grid h-12 w-12 place-items-center rounded-full bg-emerald-50 text-emerald-700">
             <CheckCircle2 className="h-7 w-7" />
@@ -65,7 +65,7 @@ export function ForgotPasswordPage() {
     );
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
+    <div className="mx-auto max-w-md px-4 py-12" data-ready="true">
       <section className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
         <Mail className="h-8 w-8 text-primary" />
         <h1 className="mt-4 text-2xl font-bold text-on-surface">Quên mật khẩu</h1>

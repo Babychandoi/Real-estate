@@ -47,7 +47,7 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-8 pb-16">
+    <div className="flex flex-col gap-8 pb-16" data-ready={isLoading ? 'false' : 'true'}>
       {/* Hero Banner & Thanh tìm kiếm chính */}
       <section className="relative overflow-hidden bg-gradient-to-b from-primary-fixed/40 via-surface to-surface pt-10 pb-12 px-4 md:px-8 border-b border-outline-variant/30">
         <div className="max-w-4xl mx-auto flex flex-col items-center text-center gap-4">

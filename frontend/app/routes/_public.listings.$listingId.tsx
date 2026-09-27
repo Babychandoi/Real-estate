@@ -45,6 +45,7 @@ export const ListingDetailPage: React.FC = () => {
   const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE'>('NONE');
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [seller, setSeller] = useState<PublicSellerProfile | null>(null);
+  const [sellerSettled, setSellerSettled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -117,7 +118,8 @@ export const ListingDetailPage: React.FC = () => {
     if (!listing?.ownerId) return;
     apiClient<PublicSellerProfile>(`/public/profiles/${listing.ownerId}`)
       .then(setSeller)
-      .catch(() => setSeller(null));
+      .catch(() => setSeller(null))
+      .finally(() => setSellerSettled(true));
   }, [listing?.ownerId]);
 
   useEffect(() => {
@@ -139,7 +141,7 @@ export const ListingDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-12">
+      <div className="max-w-5xl mx-auto px-4 py-12" data-ready="false">
         <div className="h-96 bg-surface-container rounded-2xl animate-pulse"></div>
       </div>
     );
@@ -147,7 +149,7 @@ export const ListingDetailPage: React.FC = () => {
 
   if (!listing) {
     return (
-      <div className="max-w-md mx-auto my-16 text-center">
+      <div className="max-w-md mx-auto my-16 text-center" data-ready="true">
         <h2 className="text-xl font-bold">Không tìm thấy bất động sản</h2>
         <Link to="/" className="text-primary mt-4 inline-block font-semibold">
           Quay lại trang chủ
@@ -158,7 +160,10 @@ export const ListingDetailPage: React.FC = () => {
 
   const isOwnListing = Boolean(user && user.id === listing.ownerId);
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 flex flex-col gap-6">
+    <div
+      className="max-w-6xl mx-auto px-4 md:px-8 py-6 flex flex-col gap-6"
+      data-ready={sellerSettled || !listing.ownerId ? 'true' : 'false'}
+    >
       {/* Nút quay lại */}
       <div>
         <Link
@@ -330,10 +335,13 @@ export const ListingDetailPage: React.FC = () => {
                     )}
                   </div>
                   <p className="mt-1 text-sm text-on-surface-variant">
-                    Đang có {seller.activeListingCount} tin hiển thị · Tham gia từ{' '}
-                    {new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(
-                      new Date(seller.memberSince),
-                    )}
+                    Đang có {seller.activeListingCount} tin hiển thị ·{' '}
+                    <span data-volatile="date">
+                      Tham gia từ{' '}
+                      {new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(
+                        new Date(seller.memberSince),
+                      )}
+                    </span>
                   </p>
                   <p className="mt-2 text-xs text-on-surface-variant">
                     Thông tin liên hệ chỉ mở cho tài khoản đã xác minh eKYC khi gửi yêu cầu liên hệ.

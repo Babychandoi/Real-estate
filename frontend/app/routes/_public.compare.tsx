@@ -365,7 +365,7 @@ export const PropertyComparePage: React.FC = () => {
   const columns = `minmax(150px,200px) repeat(${MAX_COMPARE}, minmax(220px, 1fr))`;
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
+    <div className="min-h-screen bg-slate-50 py-8" data-ready={loading ? 'false' : 'true'}>
       <div className="container mx-auto max-w-[1360px] px-4">
         <Link
           to="/search"
