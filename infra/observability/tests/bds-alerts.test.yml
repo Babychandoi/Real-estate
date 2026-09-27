@@ -1,0 +1,202 @@
+# promtool unit tests for infra/observability/rules/bds-alerts.yml. Run:
+#   docker run --rm -v "$PWD/infra/observability:/obs:ro" --entrypoint promtool prom/prometheus:v3.5.0 \
+#     test rules /obs/tests/bds-alerts.test.yml
+rule_files:
+  - ../rules/bds-alerts.yml
+evaluation_interval: 30s
+
+tests:
+  - name: 5xx above 1 % fires, SLO-compliant traffic does not
+    interval: 30s
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="bds-backend",instance="backend:8080",status="200",uri="/api/v1/listings/search"}'
+        values: '0+95x40'
+      - series: 'http_server_requests_seconds_count{job="bds-backend",instance="backend:8080",status="500",uri="/api/v1/listings/search"}'
+        values: '0+5x40'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: BdsHigh5xxRate
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: BdsHigh5xxRate
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Tỷ lệ lỗi 5xx của API vượt 1 % trong 5 phút
+              description: Xem dashboard "BDS — API" để biết route và status nào đang lỗi.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdshigh5xxrate
+
+  - name: 0.5 % errors stay below the threshold
+    interval: 30s
+    input_series:
+      - series: 'http_server_requests_seconds_count{job="bds-backend",status="200",uri="/api/v1/listings/search"}'
+        values: '0+199x40'
+      - series: 'http_server_requests_seconds_count{job="bds-backend",status="503",uri="/api/v1/listings/search"}'
+        values: '0+1x40'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: BdsHigh5xxRate
+        exp_alerts: []
+
+  - name: p95 above 500 ms for 10 minutes fires; long-lived SSE requests are ignored
+    interval: 30s
+    input_series:
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/listings/search",le="0.25"}'
+        values: '0+10x60'
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/listings/search",le="0.5"}'
+        values: '0+10x60'
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/listings/search",le="1.0"}'
+        values: '0+100x60'
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/listings/search",le="+Inf"}'
+        values: '0+100x60'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: BdsHighLatencyP95
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: BdsHighLatencyP95
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: p95 độ trễ API trên 500 ms trong 10 phút
+              description: Xem panel "p95 theo route" trong dashboard "BDS — API".
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdshighlatencyp95
+
+  - name: an open SSE stream alone never raises the latency alert
+    interval: 30s
+    input_series:
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/listings/search",le="0.25"}'
+        values: '0+100x60'
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/listings/search",le="+Inf"}'
+        values: '0+100x60'
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/notifications/stream",le="5.0"}'
+        values: '0x60'
+      - series: 'http_server_requests_seconds_bucket{job="bds-backend",uri="/api/v1/notifications/stream",le="+Inf"}'
+        values: '0+100x60'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: BdsHighLatencyP95
+        exp_alerts: []
+
+  - name: job lag above 60 s and dead letters
+    interval: 30s
+    input_series:
+      - series: 'bds_jobs_lag_seconds{queue="search-index"}'
+        values: '120x20'
+      - series: 'bds_jobs_lag_seconds{queue="email"}'
+        values: '10x20'
+      - series: 'bds_jobs_dead{queue="email"}'
+        values: '0 0 1 1 1 1 1 1 1 1'
+      - series: 'bds_jobs_dead{queue="search-index"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: BdsJobQueueLagHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              queue: search-index
+            exp_annotations:
+              summary: Hàng đợi job chậm quá 60 giây
+              description: Job cũ nhất đến hạn trong hàng đợi search-index đã chờ hơn 60 giây.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsjobqueuelaghigh
+      - eval_time: 3m
+        alertname: BdsJobDeadLetters
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              queue: email
+            exp_annotations:
+              summary: Có job bị đưa vào dead letter
+              description: Hàng đợi email có job đã hết số lần thử.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsjobdeadletters
+
+  - name: disk below 20 % warns, tmpfs is ignored, critical needs 10 %
+    interval: 30s
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/"}'
+        values: '15x40'
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100",device="/dev/vda1",fstype="ext4",mountpoint="/"}'
+        values: '100x40'
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100",device="tmpfs",fstype="tmpfs",mountpoint="/run"}'
+        values: '1x40'
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100",device="tmpfs",fstype="tmpfs",mountpoint="/run"}'
+        values: '100x40'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: BdsDiskSpaceLow
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              instance: node-exporter:9100
+              device: /dev/vda1
+              fstype: ext4
+              mountpoint: /
+            exp_annotations:
+              summary: Ổ đĩa còn dưới 20 % dung lượng
+              description: / trên node-exporter:9100 sắp đầy.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsdiskspacelow
+      - eval_time: 12m
+        alertname: BdsDiskSpaceCritical
+        exp_alerts: []
+
+  - name: fail-closed rate-limit rejections page immediately; ordinary rejections do not
+    interval: 30s
+    input_series:
+      - series: 'bds_ratelimit_rejected_total{job="bds-backend",policy="auth-login",dimension="capacity"}'
+        values: '0 0 0 3 3 3 3 3 3 3 3 3'
+      - series: 'bds_ratelimit_rejected_total{job="bds-backend",policy="geocoding",dimension="ip"}'
+        values: '0 5 10 15 20 25 30 35 40 45 50 55'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: BdsRateLimitFailClosed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              policy: auth-login
+            exp_annotations:
+              summary: Endpoint xác thực đang từ chối client mới vì bảng dự phòng đã đầy
+              description: Policy auth-login từ chối request do Redis lỗi và bảng giới hạn cục bộ đầy.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsratelimitfailclosed
+
+  - name: database backup older than two hours
+    interval: 30s
+    input_series:
+      - series: 'bds_backup_last_success_timestamp_seconds{env="production",kind="db"}'
+        values: '0x400'
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: BdsDatabaseBackupStale
+        exp_alerts: []
+      - eval_time: 3h
+        alertname: BdsDatabaseBackupStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              env: production
+            exp_annotations:
+              summary: Không có bản sao lưu PostgreSQL thành công trong 2 giờ
+              description: Môi trường production; lịch mặc định là mỗi giờ.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+      - eval_time: 3h
+        alertname: BdsBackupNeverReported
+        exp_alerts: []
+
+  - name: no backup metric at all is reported after two hours
+    interval: 30s
+    input_series:
+      - series: 'up{job="bds-backend"}'
+        values: '1x300'
+    alert_rule_test:
+      - eval_time: 2h30m
+        alertname: BdsBackupNeverReported
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              kind: db
+            exp_annotations:
+              summary: Chưa có bản sao lưu PostgreSQL nào báo về
+              description: Dịch vụ backup chưa chạy hoặc node-exporter chưa đọc BACKUP_METRICS_DIR.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale

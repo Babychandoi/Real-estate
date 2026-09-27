@@ -1,0 +1,243 @@
+# Alert rules for Nhà Đất Chuẩn (audit D-14, SLO.md). Thresholds follow SLO.md: 5xx > 1 % for 5 min, p95 above the
+# 500 ms search target for 10 min, DB pool > 80 %, disk > 80 %. Each alert links its runbook section.
+# Unit tests: infra/observability/tests/bds-alerts.test.yml (promtool test rules).
+groups:
+  - name: bds-api
+    rules:
+      - alert: BdsBackendDown
+        expr: up{job="bds-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend không trả metrics trong 2 phút
+          description: Prometheus không đọc được /actuator/prometheus của {{ $labels.instance }}.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackenddown
+      - alert: BdsHigh5xxRate
+        expr: |
+          sum(rate(http_server_requests_seconds_count{job="bds-backend",status=~"5.."}[5m]))
+            / sum(rate(http_server_requests_seconds_count{job="bds-backend"}[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Tỷ lệ lỗi 5xx của API vượt 1 % trong 5 phút
+          description: Xem dashboard "BDS — API" để biết route và status nào đang lỗi.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdshigh5xxrate
+      - alert: BdsHighLatencyP95
+        # SSE streams stay open for up to an hour and actuator is internal; neither is user latency.
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job="bds-backend",uri!~"/api/v1/notifications/stream|/actuator.*"}[5m]))) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 độ trễ API trên 500 ms trong 10 phút
+          description: Xem panel "p95 theo route" trong dashboard "BDS — API".
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdshighlatencyp95
+      - alert: BdsDbPoolSaturated
+        expr: max by (instance, pool) (hikaricp_connections_active{job="bds-backend"} / hikaricp_connections_max{job="bds-backend"}) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Pool kết nối PostgreSQL của backend dùng trên 80 %
+          description: Pool {{ $labels.pool }} trên {{ $labels.instance }} gần cạn kết nối.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsdbpoolsaturated
+      - alert: BdsDbConnectionWaits
+        expr: max by (instance, pool) (hikaricp_connections_pending{job="bds-backend"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Request đang phải chờ kết nối PostgreSQL
+          description: Pool {{ $labels.pool }} trên {{ $labels.instance }} có luồng chờ kết nối liên tục 5 phút.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsdbpoolsaturated
+
+  - name: bds-jobs
+    rules:
+      - alert: BdsJobQueueLagHigh
+        expr: max by (queue) (bds_jobs_lag_seconds) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Hàng đợi job chậm quá 60 giây
+          description: Job cũ nhất đến hạn trong hàng đợi {{ $labels.queue }} đã chờ hơn 60 giây.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsjobqueuelaghigh
+      - alert: BdsJobDeadLetters
+        expr: max by (queue) (bds_jobs_dead) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Có job bị đưa vào dead letter
+          description: Hàng đợi {{ $labels.queue }} có job đã hết số lần thử.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsjobdeadletters
+
+  - name: bds-rate-limit
+    rules:
+      - alert: BdsRateLimitRedisFallback
+        expr: min by (instance) (bds_ratelimit_redis_available{job="bds-backend"}) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Rate limiter đang đếm cục bộ vì Redis không dùng được
+          description: Giới hạn trên {{ $labels.instance }} chỉ tính trong từng instance cho tới khi Redis trở lại.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsratelimitredisfallback
+      - alert: BdsRateLimitFailClosed
+        expr: sum by (policy) (increase(bds_ratelimit_rejected_total{job="bds-backend",dimension="capacity"}[5m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: Endpoint xác thực đang từ chối client mới vì bảng dự phòng đã đầy
+          description: Policy {{ $labels.policy }} từ chối request do Redis lỗi và bảng giới hạn cục bộ đầy.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsratelimitfailclosed
+      - alert: BdsRateLimitRejectionsSpike
+        expr: sum by (policy) (rate(bds_ratelimit_rejected_total{job="bds-backend"}[5m])) > 1
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: Nhiều request bị giới hạn tần suất
+          description: Policy {{ $labels.policy }} từ chối hơn 1 request/giây trong 10 phút.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsratelimitrejectionsspike
+
+  - name: bds-data-stores
+    rules:
+      - alert: BdsPostgresDown
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL không phản hồi exporter
+          description: postgres-exporter không kết nối được PostgreSQL trong 2 phút.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdspostgresdown
+      - alert: BdsPostgresConnectionsHigh
+        expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Số kết nối PostgreSQL trên 80 % max_connections
+          description: Kiểm tra pool của backend và các phiên treo trong pg_stat_activity.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdspostgresconnectionshigh
+      - alert: BdsPostgresLongTransaction
+        expr: max by (datname) (pg_stat_activity_max_tx_duration{state=~"active|idle in transaction.*"}) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Có transaction PostgreSQL chạy quá 5 phút
+          description: Database {{ $labels.datname }} có transaction mở lâu, có thể giữ khóa và chặn VACUUM.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdspostgreslongtransaction
+      - alert: BdsPostgresDeadlocks
+        expr: sum by (datname) (increase(pg_stat_database_deadlocks{datname!~"template.*|postgres"}[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: PostgreSQL phát hiện deadlock
+          description: Database {{ $labels.datname }} có deadlock trong 15 phút qua (chi tiết trong log PostgreSQL).
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdspostgreslongtransaction
+      - alert: BdsRedisDown
+        expr: redis_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis không phản hồi exporter
+          description: Rate limit chuyển sang bảng cục bộ; kiểm tra container redis.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsredisdown
+      - alert: BdsRedisEvictions
+        expr: increase(redis_evicted_keys_total[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis đang xóa key vì hết bộ nhớ
+          description: Counter giới hạn tần suất có thể bị mất sớm; tăng maxmemory hoặc tìm key lớn.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsredisdown
+      - alert: BdsElasticsearchDown
+        # elasticsearch_clusterinfo_up is 0 when the exporter cannot reach the cluster; up == 0 when the exporter itself is gone.
+        expr: (elasticsearch_clusterinfo_up == 0) or (up{job="elasticsearch"} == 0)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Elasticsearch không trả trạng thái cluster
+          description: Tìm kiếm chuyển sang PostgreSQL; kết quả có thể chậm hơn.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdselasticsearchdown
+      - alert: BdsElasticsearchRed
+        expr: elasticsearch_cluster_health_status{color="red"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Cluster Elasticsearch ở trạng thái red
+          description: Có shard chính không khả dụng; chỉ mục có thể dựng lại từ PostgreSQL.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdselasticsearchdown
+
+  - name: bds-host
+    rules:
+      - alert: BdsDiskSpaceLow
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|fuse.*|ramfs"}
+            / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|fuse.*|ramfs"} < 0.20
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Ổ đĩa còn dưới 20 % dung lượng
+          description: "{{ $labels.mountpoint }} trên {{ $labels.instance }} sắp đầy."
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsdiskspacelow
+      - alert: BdsDiskSpaceCritical
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|fuse.*|ramfs"}
+            / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|nsfs|fuse.*|ramfs"} < 0.10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Ổ đĩa còn dưới 10 % dung lượng
+          description: "{{ $labels.mountpoint }} trên {{ $labels.instance }} gần đầy; PostgreSQL sẽ dừng ghi khi hết chỗ."
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsdiskspacelow
+
+  - name: bds-backups
+    rules:
+      - alert: BdsDatabaseBackupStale
+        expr: time() - max by (env) (bds_backup_last_success_timestamp_seconds{kind="db"}) > 2 * 3600
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Không có bản sao lưu PostgreSQL thành công trong 2 giờ
+          description: Môi trường {{ $labels.env }}; lịch mặc định là mỗi giờ.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+      - alert: BdsMediaBackupStale
+        expr: time() - max by (env) (bds_backup_last_success_timestamp_seconds{kind="media"}) > 2 * 86400
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Không có bản sao lưu object thành công trong 2 ngày
+          description: Môi trường {{ $labels.env }}; lịch mặc định là mỗi ngày.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+      - alert: BdsBackupFailed
+        expr: bds_backup_last_status == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Lần sao lưu gần nhất thất bại
+          description: "Loại {{ $labels.kind }}, môi trường {{ $labels.env }}; xem log container backup."
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+      - alert: BdsBackupNeverReported
+        expr: absent(bds_backup_last_success_timestamp_seconds{kind="db"})
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: Chưa có bản sao lưu PostgreSQL nào báo về
+          description: Dịch vụ backup chưa chạy hoặc node-exporter chưa đọc BACKUP_METRICS_DIR.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale

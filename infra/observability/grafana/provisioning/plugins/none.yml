@@ -1,0 +1,3 @@
+# No app plugins are provisioned; the dashboards only use panels bundled with Grafana.
+apiVersion: 1
+apps: []
