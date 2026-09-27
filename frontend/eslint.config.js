@@ -70,6 +70,11 @@ export default defineConfig(
     },
   },
   {
+    // Command-line scripts report on stdout.
+    files: ['scripts/**/*.{js,mjs}'],
+    rules: { 'no-console': 'off' },
+  },
+  {
     // Unit tests run in Vitest with jsdom.
     files: ['app/**/*.test.{ts,tsx}'],
     languageOptions: {
