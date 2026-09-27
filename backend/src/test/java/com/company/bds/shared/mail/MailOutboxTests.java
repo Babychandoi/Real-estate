@@ -2,8 +2,10 @@ package com.company.bds.shared.mail;
 
 import com.company.bds.shared.jobs.JobWorker;
 import com.company.bds.testsupport.BdsIntegrationTest;
+import com.company.bds.testsupport.FakeSmtpServer;
 import com.company.bds.testsupport.MailpitClient;
 import com.company.bds.testsupport.TestData;
+import io.micrometer.core.instrument.MeterRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -19,6 +22,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -44,6 +50,7 @@ class MailOutboxTests {
     @Autowired MailOutbox outbox;
     @Autowired JavaMailSenderImpl smtp;
     @Autowired PlatformTransactionManager transactionManager;
+    @Autowired MeterRegistry meters;
 
     private final MailpitClient mailpit = new MailpitClient();
 
@@ -152,6 +159,10 @@ class MailOutboxTests {
 
         worker.drain(MailOutbox.QUEUE);
         await().atMost(Duration.ofSeconds(10)).until(() -> mailpit.subjectsTo(to).size() == 1);
+        assertThat(jdbc.queryForMap("SELECT payload->>'sealed' AS sealed, payload->>'recipient' AS recipient, payload->>'category' AS category"
+                + " FROM background_jobs WHERE id = ?", first.get()))
+                .as("the sealed envelope is dropped once sent; masked recipient and category stay for support")
+                .containsEntry("sealed", null).containsEntry("recipient", MailOutbox.maskAddress(to)).containsEntry("category", "TEST_NOTICE");
         assertThat(outbox.enqueue(message)).as("already sent").isEmpty();
         worker.drain(MailOutbox.QUEUE);
         assertThat(mailpit.subjectsTo(to)).containsExactly("Thông báo kiểm thử một lần");
@@ -168,6 +179,112 @@ class MailOutboxTests {
         assertThatThrownBy(() -> outbox.enqueue(MailMessage.text("a@example.test", "Tiêu đề", "Nội dung", "lowercase", null)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(MailOutbox.maskAddress("Nguyen.Van.A@Gmail.com")).isEqualTo("Ng***@gmail.com");
+    }
+
+    @Test
+    void acceptsEveryAddressTheApiAcceptsAndTryEnqueueNeverThrows() {
+        List<UUID> queued = new ArrayList<>();
+        for (String address : List.of("o'brien@example.test", "a&b@example.test", "x@b.xn--p1ai", "u@localhost", "ke.toan&co@x.vn")) {
+            MailOutbox.Result result = outbox.tryEnqueue(MailMessage.text(address, "Địa chỉ hợp lệ", "Nội dung.", "TEST_NOTICE", null));
+            assertThat(result.outcome()).as(address).isEqualTo(MailOutbox.Outcome.QUEUED);
+            queued.add(result.jobId().orElseThrow());
+        }
+        double before = rejectedCount("TEST_NOTICE");
+        for (String address : List.of("Kế toán <ketoan@congty.vn>", "a@x.vn, b@x.vn", " padded@x.vn", "")) {
+            MailOutbox.Result result = outbox.tryEnqueue(MailMessage.text(address, "Địa chỉ sai", "Nội dung.", "TEST_NOTICE", null));
+            assertThat(result.outcome()).as(address).isEqualTo(MailOutbox.Outcome.REJECTED);
+            assertThat(result.rejectionReason()).contains("invalid_address");
+        }
+        assertThat(rejectedCount("TEST_NOTICE") - before).isEqualTo(4.0);
+        queued.forEach(id -> jdbc.update("DELETE FROM background_jobs WHERE id = ?", id));
+    }
+
+    @Test
+    void forgotPasswordAnswersIdenticallyForUnknownKnownAndUnsendableAccounts() throws Exception {
+        TestData.TestUser known = data.user().email(MailpitClient.uniqueAddress("known")).create();
+        TestData.TestUser unsendable = data.user().email(MailpitClient.uniqueAddress("reject")).create();
+        String unknown = MailpitClient.uniqueAddress("unknown");
+        worker.drain(MailOutbox.QUEUE); // deliver other tests' leftovers through the real test SMTP first
+
+        List<String> answers = new ArrayList<>();
+        for (String email : List.of(unknown, known.email(), unsendable.email())) {
+            MockHttpServletResponse response = mockMvc.perform(post("/api/v1/auth/forgot-password").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"email\":\"%s\"}".formatted(email))).andReturn().getResponse();
+            answers.add(response.getStatus() + " " + response.getContentAsString());
+        }
+        assertThat(answers).as("no difference an attacker could use").containsOnly("202 ");
+
+        int workingPort = smtp.getPort();
+        try (FakeSmtpServer server = new FakeSmtpServer(rcpt -> rcpt.contains("reject") ? "550 5.1.1 Mailbox unavailable" : "250 OK")) {
+            smtp.setPort(server.port());
+            worker.drain(MailOutbox.QUEUE);
+        } finally {
+            smtp.setPort(workingPort);
+        }
+        assertThat(resetJob(known.id())).containsEntry("done", true).containsEntry("dead", false);
+        assertThat(resetJob(unsendable.id())).as("a mailbox the server refuses is given up at once, not retried for a day")
+                .containsEntry("dead", true).containsEntry("attempts", 1).containsEntry("sealed", false);
+    }
+
+    @Test
+    void permanentSmtpRejectionIsDeadLetteredAtOnceWhileATemporaryOneIsRetried() throws Exception {
+        worker.drain(MailOutbox.QUEUE);
+        UUID permanent = outbox.enqueue(MailMessage.text(MailpitClient.uniqueAddress("reject"), "Hộp thư không tồn tại", "Nội dung.",
+                "TEST_NOTICE", null)).orElseThrow();
+        UUID temporary = outbox.enqueue(MailMessage.text(MailpitClient.uniqueAddress("later"), "Máy chủ bận", "Nội dung.",
+                "TEST_NOTICE", null)).orElseThrow();
+        int workingPort = smtp.getPort();
+        try (FakeSmtpServer server = new FakeSmtpServer(rcpt -> rcpt.contains("reject") ? "550 5.1.1 Recipient address rejected"
+                : "451 4.7.1 Try again later")) {
+            smtp.setPort(server.port());
+            worker.drain(MailOutbox.QUEUE);
+        } finally {
+            smtp.setPort(workingPort);
+        }
+        try {
+            assertThat(job(permanent)).containsEntry("dead", true).containsEntry("attempts", 1).containsEntry("sealed", false);
+            assertThat((String) job(permanent).get("last_error")).contains("550 5.1.1").doesNotContain("@example.test");
+            Map<String, Object> retried = job(temporary);
+            assertThat(retried).containsEntry("dead", false).containsEntry("attempts", 1).containsEntry("sealed", true)
+                    .containsEntry("due", false);
+            assertThat((String) retried.get("last_error")).contains("451 4.7.1");
+        } finally {
+            jdbc.update("DELETE FROM background_jobs WHERE id = ?", temporary);
+        }
+    }
+
+    @Test
+    void messagePastItsValidityIsDeadLetteredInsteadOfSentLate() {
+        String to = MailpitClient.uniqueAddress("expired");
+        UUID id = outbox.enqueue(MailMessage.text(to, "Liên kết đặt lại mật khẩu", "Liên kết: /reset-password?token=abc", "PASSWORD_RESET",
+                "test-expired:" + UUID.randomUUID()).withNotAfter(Instant.now().minusSeconds(1))).orElseThrow();
+
+        worker.drain(MailOutbox.QUEUE);
+
+        assertThat(job(id)).containsEntry("dead", true).containsEntry("attempts", 1).containsEntry("sealed", false);
+        assertThat((String) job(id).get("last_error")).startsWith("Expired before delivery");
+        assertThat(mailpit.subjectsTo(to)).isEmpty();
+    }
+
+    private Map<String, Object> resetJob(UUID userId) {
+        return jdbc.queryForMap("""
+                SELECT j.completed_at IS NOT NULL AS done, j.dead_lettered_at IS NOT NULL AS dead, j.attempts, j.payload->>'sealed' IS NOT NULL AS sealed
+                FROM background_jobs j JOIN password_reset_tokens t ON j.dedupe_key = 'password-reset:' || t.id
+                WHERE t.user_id = ? AND j.queue = 'email'
+                """, userId);
+    }
+
+    private Map<String, Object> job(UUID id) {
+        return jdbc.queryForMap("""
+                SELECT completed_at IS NOT NULL AS done, dead_lettered_at IS NOT NULL AS dead, attempts, last_error,
+                       payload->>'sealed' IS NOT NULL AS sealed, run_at <= now() AS due
+                FROM background_jobs WHERE id = ?
+                """, id);
+    }
+
+    private double rejectedCount(String category) {
+        var counter = meters.find("bds.mail.rejected").tags("category", category, "reason", "invalid_address").counter();
+        return counter == null ? 0 : counter.count();
     }
 
     private String linkToken(String email, String path) {

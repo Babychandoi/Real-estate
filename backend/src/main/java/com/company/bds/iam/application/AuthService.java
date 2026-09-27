@@ -154,13 +154,15 @@ public class AuthService {
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         UUID tokenId = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plus(Duration.ofMinutes(30));
         jdbc.update("INSERT INTO password_reset_tokens(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
-                tokenId, userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofMinutes(30))));
-        // Queued in this transaction and sent by the job worker: SMTP never runs inside the request transaction.
-        mailOutbox.enqueue(MailMessage.text(normalizeEmail(email), "Đặt lại mật khẩu Nhà Đất Chuẩn",
+                tokenId, userId, sha256(token), Timestamp.from(expiresAt));
+        // Queued in this transaction and sent by the job worker: SMTP never runs inside the request transaction. tryEnqueue
+        // never throws, so the answer stays 202 whatever the stored address is (no account enumeration).
+        mailOutbox.tryEnqueue(MailMessage.text(normalizeEmail(email), "Đặt lại mật khẩu Nhà Đất Chuẩn",
                 "Chào bạn,\n\nNhấn vào liên kết sau để đặt lại mật khẩu: " + publicBaseUrl
                         + "/reset-password?token=" + token + "\n\nLiên kết có hiệu lực trong 30 phút và chỉ dùng một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này.",
-                "PASSWORD_RESET", "password-reset:" + tokenId));
+                "PASSWORD_RESET", "password-reset:" + tokenId).withNotAfter(expiresAt));
     }
 
     @Transactional
@@ -210,12 +212,13 @@ public class AuthService {
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         UUID tokenId = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plus(Duration.ofHours(24));
         jdbc.update("INSERT INTO email_verification_tokens(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
-                tokenId, userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofHours(24))));
-        mailOutbox.enqueue(MailMessage.text(email, "Xác minh tài khoản Nhà Đất Chuẩn",
+                tokenId, userId, sha256(token), Timestamp.from(expiresAt));
+        mailOutbox.tryEnqueue(MailMessage.text(email, "Xác minh tài khoản Nhà Đất Chuẩn",
                 "Chào bạn,\n\nXác minh email để kích hoạt tài khoản tại:\n" + publicBaseUrl
                         + "/verify-email?token=" + token + "\n\nLiên kết có hiệu lực trong 24 giờ. Nếu bạn không đăng ký, hãy bỏ qua email này.",
-                "EMAIL_VERIFICATION", "email-verification:" + tokenId));
+                "EMAIL_VERIFICATION", "email-verification:" + tokenId).withNotAfter(expiresAt));
     }
 
     public UserAccount findByToken(String rawToken) {
