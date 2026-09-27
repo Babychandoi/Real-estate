@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Clock, Eye, EyeOff, Send, Building2, Pencil } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
 import { apiClient } from '@/shared/api/client';
@@ -84,11 +84,9 @@ export const MyListingsPage: React.FC = () => {
             Theo dõi trạng thái kiểm duyệt, chỉnh sửa bản nháp và nộp duyệt phiên bản mới.
           </p>
         </div>
-        <Link to="/listings/new">
-          <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-            Đăng tin mới
-          </Button>
-        </Link>
+        <ButtonLink to="/listings/new" variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
+          Đăng tin mới
+        </ButtonLink>
       </div>
 
       {/* Thẻ thống kê nhanh */}
@@ -130,7 +128,7 @@ export const MyListingsPage: React.FC = () => {
             }`}
           >
             {tab.label}
-            <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-surface-container-high">{tab.count}</span>
+            <span className="px-1.5 py-0.2 rounded-full text-xs bg-surface-container-high">{tab.count}</span>
           </button>
         ))}
       </div>
@@ -158,7 +156,7 @@ export const MyListingsPage: React.FC = () => {
                     <Building2 className="h-7 w-7" aria-hidden="true" />
                   </div>
                 )}
-                <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-[10px] font-bold">
+                <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-xs font-bold">
                   v{item.revisionNumber}
                 </div>
               </div>
@@ -179,17 +177,18 @@ export const MyListingsPage: React.FC = () => {
                 </h3>
                 <p className="mt-1 text-xs text-on-surface-variant line-clamp-1">{item.addressSummary}</p>
                 <div className="mt-auto flex items-center gap-2 border-t border-outline-variant/30 pt-3">
-                  <Link to={listingPath(item)}>
-                    <Button variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>
-                      Xem
-                    </Button>
-                  </Link>
+                  <ButtonLink to={listingPath(item)} variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>
+                    Xem
+                  </ButtonLink>
                   {item.status !== 'PENDING_REVIEW' && (
-                    <Link to={`/listings/new?edit=${item.id}`}>
-                      <Button variant="outline" size="sm" leftIcon={<Pencil className="w-4 h-4" />}>
-                        Chỉnh sửa
-                      </Button>
-                    </Link>
+                    <ButtonLink
+                      to={`/listings/new?edit=${item.id}`}
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Pencil className="w-4 h-4" />}
+                    >
+                      Chỉnh sửa
+                    </ButtonLink>
                   )}
                   {item.status === 'DRAFT' && (
                     <Button
@@ -233,11 +232,15 @@ export const MyListingsPage: React.FC = () => {
           <p className="text-xs text-on-surface-variant max-w-sm">
             Bắt đầu tạo tin đăng mới để tiếp cận hàng ngàn khách hàng tiềm năng tìm kiếm bất động sản.
           </p>
-          <Link to="/listings/new" className="mt-2">
-            <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-              Tạo tin đăng ngay
-            </Button>
-          </Link>
+          <ButtonLink
+            to="/listings/new"
+            variant="primary"
+            size="md"
+            leftIcon={<PlusCircle className="w-4 h-4" />}
+            className="mt-2"
+          >
+            Tạo tin đăng ngay
+          </ButtonLink>
         </div>
       )}
     </div>

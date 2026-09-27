@@ -21,7 +21,7 @@ import {
   Compass,
   FileText,
 } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { Badge } from '@/shared/ui/Badge';
 import { Card } from '@/shared/ui/Card';
 import { apiClient } from '@/shared/api/client';
@@ -360,28 +360,24 @@ export const ListingDetailPage: React.FC = () => {
               <div className="mt-4 flex flex-col gap-2.5">
                 {isPoster && (
                   <>
-                    <Link to={`/listings/new?edit=${listing.id}`}>
-                      <Button type="button" variant="outline" className="w-full min-h-11 font-bold">
-                        Chỉnh sửa tin
-                      </Button>
-                    </Link>
-                    <Link to="/my-leads">
-                      <Button type="button" variant="outline" className="w-full min-h-11 font-bold">
-                        Xem khách quan tâm
-                      </Button>
-                    </Link>
-                    <Link to="/my-listings">
-                      <Button type="button" variant="ghost" className="w-full min-h-11">
-                        Quản lý kho tin
-                      </Button>
-                    </Link>
+                    <ButtonLink
+                      to={`/listings/new?edit=${listing.id}`}
+                      variant="outline"
+                      className="w-full min-h-11 font-bold"
+                    >
+                      Chỉnh sửa tin
+                    </ButtonLink>
+                    <ButtonLink to="/my-leads" variant="outline" className="w-full min-h-11 font-bold">
+                      Xem khách quan tâm
+                    </ButtonLink>
+                    <ButtonLink to="/my-listings" variant="ghost" className="w-full min-h-11">
+                      Quản lý kho tin
+                    </ButtonLink>
                   </>
                 )}
-                <Link to={`/nguoi-dang/${listing.ownerId}`}>
-                  <Button type="button" variant="ghost" className="w-full min-h-11">
-                    Xem trang cá nhân công khai
-                  </Button>
-                </Link>
+                <ButtonLink to={`/nguoi-dang/${listing.ownerId}`} variant="ghost" className="w-full min-h-11">
+                  Xem trang cá nhân công khai
+                </ButtonLink>
               </div>
             </Card>
           </div>

@@ -195,7 +195,7 @@ export const LoginModal: React.FC = () => {
               <h3 id="auth-dialog-title" className="font-bold text-base text-on-surface">
                 {activeTab === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
               </h3>
-              <p className="text-[11px] text-on-surface-variant">Nhà Đất Chuẩn • Nền tảng đăng tin có kiểm duyệt</p>
+              <p className="text-xs text-on-surface-variant">Nhà Đất Chuẩn • Nền tảng đăng tin có kiểm duyệt</p>
             </div>
           </div>
           <button

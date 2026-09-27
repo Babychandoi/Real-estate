@@ -1,8 +1,8 @@
 import React from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { ShieldAlert, LogIn, ArrowLeft } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { hasRole, SEEKERS, STAFF, type Role } from './roles';
 
 interface ProtectedRouteProps {
@@ -48,7 +48,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           </div>
 
           <div>
-            <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[11px] uppercase tracking-wider mb-2">
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-xs uppercase tracking-wider mb-2">
               {isLoggedInButNoPermission ? 'Không đủ quyền' : 'Yêu cầu đăng nhập'}
             </span>
             <h2 className="text-xl font-bold text-on-surface">
@@ -86,17 +86,25 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full pt-2">
-            <Link to="/" className="w-full sm:w-1/2">
-              <Button variant="outline" size="sm" className="w-full" leftIcon={<ArrowLeft className="w-4 h-4" />}>
-                Về Trang chủ
-              </Button>
-            </Link>
+            <ButtonLink
+              to="/"
+              variant="outline"
+              size="sm"
+              leftIcon={<ArrowLeft className="w-4 h-4" />}
+              className="w-full sm:w-1/2 w-full"
+            >
+              Về Trang chủ
+            </ButtonLink>
             {loginPath ? (
-              <Link to={loginPath} className="w-full sm:w-1/2">
-                <Button variant="primary" size="sm" className="w-full" leftIcon={<LogIn className="w-4 h-4" />}>
-                  Đăng nhập quản trị
-                </Button>
-              </Link>
+              <ButtonLink
+                to={loginPath}
+                variant="primary"
+                size="sm"
+                leftIcon={<LogIn className="w-4 h-4" />}
+                className="w-full sm:w-1/2 w-full"
+              >
+                Đăng nhập quản trị
+              </ButtonLink>
             ) : (
               <Button
                 variant="primary"

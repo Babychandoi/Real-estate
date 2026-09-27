@@ -7,6 +7,7 @@ import {
   Home,
   Castle,
   MapPin,
+  Check,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
@@ -590,7 +591,7 @@ export const CreateListingPage: React.FC = () => {
                 </div>
                 <div className="overflow-hidden">
                   <span className="text-xs font-bold block truncate">{s.label}</span>
-                  <span className="text-[11px] text-slate-400 block">Bước {s.num} / 4</span>
+                  <span className="text-xs text-slate-400 block">Bước {s.num} / 4</span>
                 </div>
               </button>
             );
@@ -824,7 +825,7 @@ export const CreateListingPage: React.FC = () => {
                     placeholder="Ví dụ: Bán căn hộ The Matrix One 2PN Mễ Trì, Nam Từ Liêm, Sổ hồng sẵn sàng"
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     Tối thiểu 15 ký tự, nêu rõ loại hình, dự án và địa điểm để tăng điểm chất lượng tin.
                   </p>
                 </div>
@@ -1012,10 +1013,10 @@ export const CreateListingPage: React.FC = () => {
                     placeholder="Mô tả các ưu điểm về thiết kế, nội thất bàn giao, tầng cao, view, tiện ích..."
                     className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                   />
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-xs text-slate-400">
                     Đã nhập {description.length} ký tự (khuyến nghị từ 80 ký tự để nội dung đầy đủ)
                   </span>
-                  <p className="mt-1 text-[11px] text-amber-700">
+                  <p className="mt-1 text-xs text-amber-700">
                     Không ghi số điện thoại, email hoặc link Zalo/Facebook — người quan tâm liên hệ qua nút “Hẹn xem” để
                     bạn nhận yêu cầu trong mục Khách quan tâm.
                   </p>
@@ -1047,7 +1048,14 @@ export const CreateListingPage: React.FC = () => {
                       Hình ảnh BĐS (Đã tải: {imageUrls.length} ảnh, tối thiểu 3 ảnh) *
                     </label>
                     <span className="text-xs text-emerald-600 font-bold">
-                      {imageUrls.length >= 5 ? '✓ Đạt 25/25 điểm ảnh phong phú' : 'Thêm >= 5 ảnh để đạt điểm tối đa'}
+                      {imageUrls.length >= 5 ? (
+                        <>
+                          <Check className="inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" /> Đạt 25/25 điểm ảnh
+                          phong phú
+                        </>
+                      ) : (
+                        'Thêm >= 5 ảnh để đạt điểm tối đa'
+                      )}
                     </span>
                   </div>
 
@@ -1064,7 +1072,7 @@ export const CreateListingPage: React.FC = () => {
                           loading="lazy"
                         />
                         {idx === 0 && (
-                          <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
+                          <span className="absolute top-1 left-1 bg-emerald-600 text-white text-xs font-bold px-1.5 py-0.5 rounded shadow">
                             Ảnh bìa
                           </span>
                         )}
@@ -1154,12 +1162,12 @@ export const CreateListingPage: React.FC = () => {
                         </div>
                       )}
                       <div className="absolute top-2 left-2 flex flex-col gap-1">
-                        <span className="bg-slate-900/80 text-white text-[11px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
+                        <span className="bg-slate-900/80 text-white text-xs font-bold px-2 py-0.5 rounded backdrop-blur-sm">
                           {purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
                         </span>
                       </div>
                       {imageUrls.length > 0 && (
-                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
+                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs font-mono px-1.5 py-0.5 rounded">
                           1/{imageUrls.length} ảnh
                         </span>
                       )}
@@ -1221,7 +1229,7 @@ export const CreateListingPage: React.FC = () => {
                   {title.length >= 15 ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">{title.length}/15</span>
+                    <span className="text-xs text-slate-400 font-mono">{title.length}/15</span>
                   )}
                 </div>
 
@@ -1230,7 +1238,7 @@ export const CreateListingPage: React.FC = () => {
                   {description.length >= 80 ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">{description.length}/80</span>
+                    <span className="text-xs text-slate-400 font-mono">{description.length}/80</span>
                   )}
                 </div>
 
@@ -1239,7 +1247,7 @@ export const CreateListingPage: React.FC = () => {
                   {imageUrls.length >= 5 ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   ) : (
-                    <span className="text-[10px] text-amber-600 font-mono">{imageUrls.length}/5</span>
+                    <span className="text-xs text-amber-600 font-mono">{imageUrls.length}/5</span>
                   )}
                 </div>
 
@@ -1248,7 +1256,7 @@ export const CreateListingPage: React.FC = () => {
                   {latitude && longitude ? (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                   ) : (
-                    <span className="text-[10px] text-slate-400">Chưa có</span>
+                    <span className="text-xs text-slate-400">Chưa có</span>
                   )}
                 </div>
               </div>

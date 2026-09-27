@@ -9,7 +9,7 @@ import {
   type Listing,
   type ListingDetail,
 } from '@/entities/listing/model/types';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { listingPath } from '@/entities/listing/model/seo';
 import { MAX_COMPARE, compareStore, useCompareItems, type CompareItem } from '@/features/compare/compareStore';
 
@@ -430,11 +430,9 @@ export const PropertyComparePage: React.FC = () => {
               <Button onClick={() => setPickerOpen(true)} leftIcon={<Plus className="h-4 w-4" />} className="min-h-11">
                 Chọn tin ngay tại đây
               </Button>
-              <Link to="/search">
-                <Button variant="outline" className="min-h-11" leftIcon={<Search className="h-4 w-4" />}>
-                  Mở trang tìm kiếm
-                </Button>
-              </Link>
+              <ButtonLink to="/search" variant="outline" leftIcon={<Search className="h-4 w-4" />} className="min-h-11">
+                Mở trang tìm kiếm
+              </ButtonLink>
             </div>
           </section>
         )}

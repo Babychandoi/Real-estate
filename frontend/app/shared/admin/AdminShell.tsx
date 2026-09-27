@@ -59,7 +59,7 @@ const AdminShellContent: React.FC = () => {
         </span>
         <span>
           <span className="block text-sm font-bold leading-tight">Nhà Đất Chuẩn</span>
-          <span className="block text-[11px] text-slate-400">QUẢN TRỊ HỆ THỐNG</span>
+          <span className="block text-xs text-slate-400">QUẢN TRỊ HỆ THỐNG</span>
         </span>
       </Link>
       <div className="space-y-1">

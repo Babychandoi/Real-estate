@@ -5,7 +5,18 @@ import type { Listing, ListingSearchParams } from '../entities/listing/model/typ
 import { ListingMap, type MapBounds, type MapFocus } from '@/shared/map/ListingMap';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
 import { geocodePlaces, type GeocodePlace } from '@/shared/api/geocodingApi';
-import { LayoutGrid, Loader2, Map as MapIcon, MapPin, Navigation, Search } from 'lucide-react';
+import {
+  Building2,
+  Home,
+  LayoutGrid,
+  Loader2,
+  Map as MapIcon,
+  MapPin,
+  Navigation,
+  Scale,
+  Search,
+  X,
+} from 'lucide-react';
 
 type Suggestion = { kind: 'keyword'; text: string } | { kind: 'place'; place: GeocodePlace };
 
@@ -244,7 +255,7 @@ export function SearchAndMapPage() {
                 <div className="flex flex-col flex-1 min-w-0">
                   <label
                     htmlFor="search-keyword"
-                    className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider leading-none"
+                    className="text-xs font-bold text-on-surface-variant uppercase tracking-wider leading-none"
                   >
                     Từ khóa hoặc địa điểm · Hà Nội
                   </label>
@@ -281,7 +292,7 @@ export function SearchAndMapPage() {
                     aria-label="Xóa từ khóa"
                     className="text-outline hover:text-on-surface ml-1 grid h-8 w-8 place-items-center text-xs"
                   >
-                    ✕
+                    <X className="h-4 w-4" aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -317,7 +328,7 @@ export function SearchAndMapPage() {
                         aria-selected={active}
                       >
                         {index === 1 && (
-                          <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                          <p className="px-3 pb-1 pt-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant">
                             Đi tới địa điểm trên bản đồ
                           </p>
                         )}
@@ -361,12 +372,14 @@ export function SearchAndMapPage() {
             <div className="flex rounded-lg bg-surface-container-low p-0.5 border border-outline-variant/30 shrink-0">
               <button
                 onClick={() => setPurpose('SALE')}
+                aria-pressed={purpose === 'SALE'}
                 className={`px-3 py-1 rounded-md transition ${purpose === 'SALE' ? 'bg-primary text-white font-bold shadow-sm' : 'text-on-surface-variant'}`}
               >
                 Cần bán
               </button>
               <button
                 onClick={() => setPurpose('RENT')}
+                aria-pressed={purpose === 'RENT'}
                 className={`px-3 py-1 rounded-md transition ${purpose === 'RENT' ? 'bg-primary text-white font-bold shadow-sm' : 'text-on-surface-variant'}`}
               >
                 Cho thuê
@@ -376,29 +389,34 @@ export function SearchAndMapPage() {
             {/* Property Type Pills */}
             <button
               onClick={() => setPropertyType(propertyType === 'APARTMENT' ? '' : 'APARTMENT')}
-              className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
+              aria-pressed={propertyType === 'APARTMENT'}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition shrink-0 ${
                 propertyType === 'APARTMENT'
                   ? 'bg-primary/10 border-primary text-primary font-bold'
                   : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
               }`}
             >
-              🏢 Căn hộ
+              <Building2 className="h-4 w-4" aria-hidden="true" />
+              Căn hộ
             </button>
 
             <button
               onClick={() => setPropertyType(propertyType === 'HOUSE' ? '' : 'HOUSE')}
-              className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
+              aria-pressed={propertyType === 'HOUSE'}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition shrink-0 ${
                 propertyType === 'HOUSE'
                   ? 'bg-primary/10 border-primary text-primary font-bold'
                   : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
               }`}
             >
-              🏠 Nhà phố
+              <Home className="h-4 w-4" aria-hidden="true" />
+              Nhà phố
             </button>
 
             {/* Price Range Pills */}
             <button
               onClick={() => setPriceRange(priceRange === '<3B' ? 'ALL' : '<3B')}
+              aria-pressed={priceRange === '<3B'}
               className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
                 priceRange === '<3B'
                   ? 'bg-primary/10 border-primary text-primary font-bold'
@@ -410,6 +428,7 @@ export function SearchAndMapPage() {
 
             <button
               onClick={() => setPriceRange(priceRange === '3-5B' ? 'ALL' : '3-5B')}
+              aria-pressed={priceRange === '3-5B'}
               className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
                 priceRange === '3-5B'
                   ? 'bg-primary/10 border-primary text-primary font-bold'
@@ -421,6 +440,7 @@ export function SearchAndMapPage() {
 
             <button
               onClick={() => setPriceRange(priceRange === '>5B' ? 'ALL' : '>5B')}
+              aria-pressed={priceRange === '>5B'}
               className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
                 priceRange === '>5B'
                   ? 'bg-primary/10 border-primary text-primary font-bold'
@@ -433,6 +453,7 @@ export function SearchAndMapPage() {
             {/* Filter Chính chủ eKYC */}
             <button
               onClick={() => setOnlyVerified(!onlyVerified)}
+              aria-pressed={onlyVerified}
               className={`px-3 py-1.5 rounded-full border transition flex items-center gap-1.5 shrink-0 ${
                 onlyVerified
                   ? 'bg-emerald-100 border-emerald-500 text-emerald-800 font-bold shadow-xs'
@@ -447,7 +468,7 @@ export function SearchAndMapPage() {
               to="/compare"
               className="px-3 py-1.5 rounded-full border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 font-bold transition flex items-center gap-1.5 shrink-0 text-xs shadow-xs"
             >
-              <span>⚖️</span>
+              <Scale className="h-4 w-4" aria-hidden="true" />
               So sánh bất động sản
             </Link>
           </div>

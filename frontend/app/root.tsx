@@ -23,8 +23,10 @@ import {
   Users,
   History,
   Camera,
+  Map as MapIcon,
+  BookOpen,
 } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { LoginModal } from '@/shared/auth/LoginModal';
 import { canOpen } from '@/shared/auth/routeAccess';
@@ -99,9 +101,7 @@ const RootLayoutContent: React.FC = () => {
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-base tracking-tight text-primary leading-none">NHÀ ĐẤT CHUẨN</span>
-              <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider mt-0.5">
-                Minh bạch 2026
-              </span>
+              <span className="text-xs text-emerald-800 font-bold uppercase tracking-wider mt-0.5">Minh bạch 2026</span>
             </div>
           </Link>
 
@@ -118,7 +118,7 @@ const RootLayoutContent: React.FC = () => {
               to="/search"
               className="px-3 py-2 rounded-lg text-primary hover:bg-primary/10 transition-colors flex items-center gap-1.5 font-semibold whitespace-nowrap"
             >
-              <span className="text-sm">🗺️</span>
+              <MapIcon className="h-4 w-4" aria-hidden="true" />
               Tìm kiếm & Bản đồ
             </Link>
 
@@ -162,10 +162,10 @@ const RootLayoutContent: React.FC = () => {
                 {isAdminOpen && (
                   <div className="absolute left-0 mt-1 w-80 bg-surface rounded-2xl shadow-2xl border border-outline-variant/40 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 backdrop-blur-xl">
                     <div className="px-3 py-2 border-b border-outline-variant/20 mb-1 flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                         Phân Hệ Quản Trị
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
                         Đã xác thực
                       </span>
                     </div>
@@ -183,9 +183,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-on-surface group-hover:text-primary whitespace-nowrap">
                             Bàn kiểm duyệt tin đăng
                           </span>
-                          <span className="text-[10px] text-on-surface-variant">
-                            So sánh Diff ContentRevision, SLA 8h
-                          </span>
+                          <span className="text-xs text-on-surface-variant">So sánh Diff ContentRevision, SLA 8h</span>
                         </div>
                       </Link>
 
@@ -201,7 +199,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-emerald-900 group-hover:text-emerald-700 whitespace-nowrap">
                             Bàn Thẩm định eKYC Chính chủ
                           </span>
-                          <span className="text-[10px] text-emerald-700/80">Đối soát CCCD & Sổ hồng cấp nhãn</span>
+                          <span className="text-xs text-emerald-700/80">Đối soát CCCD & Sổ hồng cấp nhãn</span>
                         </div>
                       </Link>
 
@@ -217,7 +215,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-rose-900 group-hover:text-rose-700 whitespace-nowrap">
                             Bàn Lead CRM & Báo xấu
                           </span>
-                          <span className="text-[10px] text-rose-700/80">Điều phối lead, xử lý vi phạm SLA 24h</span>
+                          <span className="text-xs text-rose-700/80">Điều phối lead, xử lý vi phạm SLA 24h</span>
                         </div>
                       </Link>
 
@@ -233,7 +231,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-purple-900 group-hover:text-purple-700 whitespace-nowrap">
                             Báo cáo phễu chuyển đổi
                           </span>
-                          <span className="text-[10px] text-purple-700/80">Analytics 5 tầng & Hiệu suất Môi giới</span>
+                          <span className="text-xs text-purple-700/80">Analytics 5 tầng & Hiệu suất Môi giới</span>
                         </div>
                       </Link>
 
@@ -249,7 +247,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-amber-950 group-hover:text-amber-800 whitespace-nowrap">
                             Quản lý Dự án BĐS Master
                           </span>
-                          <span className="text-[10px] text-amber-800/80">Hồ sơ 1/500, Giỏ căn hộ, Ưu đãi</span>
+                          <span className="text-xs text-amber-800/80">Hồ sơ 1/500, Giỏ căn hộ, Ưu đãi</span>
                         </div>
                       </Link>
 
@@ -265,7 +263,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-indigo-950 group-hover:text-indigo-700 whitespace-nowrap">
                             Quản trị CMS Bài viết
                           </span>
-                          <span className="text-[10px] text-indigo-700/80">Pháp lý, cẩm nang, xuất bản Clean HTML</span>
+                          <span className="text-xs text-indigo-700/80">Pháp lý, cẩm nang, xuất bản Clean HTML</span>
                         </div>
                       </Link>
 
@@ -278,7 +276,7 @@ const RootLayoutContent: React.FC = () => {
                         className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors text-slate-800"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-xs">⚡</span>
+                          <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                           <span className="text-xs font-semibold">Tài liệu API Swagger 3.0</span>
                         </div>
                         <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
@@ -303,16 +301,15 @@ const RootLayoutContent: React.FC = () => {
               <Menu className="w-5 h-5" />
             </button>
             {isAuthenticated && isPoster ? (
-              <Link to="/listings/new">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}
-                  className="hidden sm:inline-flex whitespace-nowrap"
-                >
-                  Đăng tin
-                </Button>
-              </Link>
+              <ButtonLink
+                to="/listings/new"
+                variant="outline"
+                size="sm"
+                leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}
+                className="hidden sm:inline-flex whitespace-nowrap"
+              >
+                Đăng tin
+              </ButtonLink>
             ) : !isAuthenticated ? (
               <Button
                 variant="outline"
@@ -363,7 +360,7 @@ const RootLayoutContent: React.FC = () => {
                       {user?.name}
                     </span>
                     <span
-                      className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full mt-0.5 ${
+                      className={`text-xs font-semibold px-1.5 py-0.2 rounded-full mt-0.5 ${
                         role === 'ADMIN'
                           ? 'bg-emerald-100 text-emerald-800'
                           : role === 'MODERATOR'
@@ -637,7 +634,7 @@ const RootLayoutContent: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto px-4 md:px-8 mt-8 pt-4 border-t border-outline-variant/20 text-center text-[11px] text-slate-700">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 mt-8 pt-4 border-t border-outline-variant/20 text-center text-xs text-slate-700">
           © 2026 Nhà Đất Chuẩn. Bảo lưu mọi quyền.
         </div>
       </footer>

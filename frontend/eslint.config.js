@@ -43,6 +43,23 @@ export default defineConfig(
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
+      // Design-system guard rails (DS-03, docs/design-system.md).
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            'JSXText[value=/[\\u2600-\\u27BF\\u2B50\\u2B55]|\\uD83C[\\uDF00-\\uDFFF]|\\uD83D[\\uDC00-\\uDE4F\\uDE80-\\uDEFF]|\\uD83E[\\uDD00-\\uDFFF]/]',
+          message: 'Use a Lucide icon (with aria-hidden or a label) instead of an emoji or symbol character.',
+        },
+        {
+          selector: 'Literal[value=/text-\\[(8|9|10|11)px\\]/]',
+          message: 'Text below 12px is not allowed for information; use text-xs/text-label (12px) or larger.',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/text-\\[(8|9|10|11)px\\]/]',
+          message: 'Text below 12px is not allowed for information; use text-xs/text-label (12px) or larger.',
+        },
+      ],
     },
   },
   {

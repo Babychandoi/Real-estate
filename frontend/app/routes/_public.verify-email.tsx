@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, MailWarning } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { apiClient } from '@/shared/api/client';
-import { Button } from '@/shared/ui/Button';
+import { ButtonLink } from '@/shared/ui/Button';
 
 export function VerifyEmailPage() {
   const [params] = useSearchParams();
@@ -34,9 +34,9 @@ export function VerifyEmailPage() {
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
             <h1 className="mt-4 text-2xl font-bold">Email đã được xác minh</h1>
             <p className="mt-2 text-slate-600">Tài khoản đã được kích hoạt. Bạn có thể đăng nhập ngay.</p>
-            <Link to="/" className="mt-6 inline-block">
-              <Button>Về trang chủ để đăng nhập</Button>
-            </Link>
+            <ButtonLink to="/" className="mt-6">
+              Về trang chủ để đăng nhập
+            </ButtonLink>
           </>
         )}
         {state === 'error' && (
@@ -44,9 +44,9 @@ export function VerifyEmailPage() {
             <MailWarning className="mx-auto h-12 w-12 text-amber-600" />
             <h1 className="mt-4 text-2xl font-bold">Không thể xác minh email</h1>
             <p className="mt-2 text-slate-600">Liên kết không hợp lệ, đã được dùng hoặc đã hết hạn.</p>
-            <Link to="/" className="mt-6 inline-block">
-              <Button>Về trang chủ</Button>
-            </Link>
+            <ButtonLink to="/" className="mt-6">
+              Về trang chủ
+            </ButtonLink>
           </>
         )}
       </section>

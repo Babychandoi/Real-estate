@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ArrowRight, X } from 'lucide-react';
 import { moderationApi } from '../entities/moderation/api/moderationApi';
 import type { FieldDiff, ListingDiff, ModerationQueueItem, StandardReason } from '../entities/moderation/model/types';
 import { formatPriceVnd, formatPropertyType } from '../entities/listing/model/types';
@@ -229,8 +230,13 @@ export default function ModerationWorkspacePage() {
           }`}
         >
           <span>{feedback.message}</span>
-          <button onClick={() => setFeedback(null)} className="text-slate-400 hover:text-white">
-            ✕
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            aria-label="Đóng thông báo"
+            className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:text-white"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       )}
@@ -413,8 +419,9 @@ export default function ModerationWorkspacePage() {
                     )}
                   </div>
                   <span className="text-xs text-slate-400">
-                    Bản cũ: {diff?.previousRevisionNumber ? `Revision #${diff.previousRevisionNumber}` : '(Trống)'} ➔
-                    Bản mới: Revision #{diff?.currentRevisionNumber}
+                    Bản cũ: {diff?.previousRevisionNumber ? `Revision #${diff.previousRevisionNumber}` : '(Trống)'}{' '}
+                    <ArrowRight className="inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" /> Bản mới: Revision #
+                    {diff?.currentRevisionNumber}
                   </span>
                 </div>
 
@@ -444,7 +451,7 @@ export default function ModerationWorkspacePage() {
                           <span className="text-sm font-medium text-slate-200">{d.fieldLabel}</span>
                           <span className="text-xs font-mono text-slate-500">{d.fieldName}</span>
                           {d.isChanged && (
-                            <span className="inline-block mt-1 text-[11px] font-semibold text-amber-400">
+                            <span className="inline-block mt-1 text-xs font-semibold text-amber-400">
                               ● ĐÃ THAY ĐỔI
                             </span>
                           )}
@@ -547,10 +554,12 @@ export default function ModerationWorkspacePage() {
                 <p className="text-xs text-slate-400 mt-0.5">Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setIsRejectModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
+                aria-label="Đóng"
+                className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
               >
-                ✕
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
