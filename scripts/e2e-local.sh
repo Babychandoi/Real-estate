@@ -19,7 +19,8 @@
 #   --skip-backend-build   reuse backend/target/*.jar, rebuild the frontend
 #   --keep-db              leave the database for inspection (prints its name)
 # Environment overrides: E2E_BACKEND_PORT (18111), E2E_FRONTEND_PORT (5311), E2E_REDIS_DB (2), E2E_DB_PREFIX
-# (s0fe_e2e), E2E_SEED_CLOCK (2026-09-01T03:00:00Z), E2E_JAVA_HOME (else $HOME/.local/opt/jdk17, else JAVA_HOME).
+# (s0fe_e2e), E2E_SEED_CLOCK (2026-09-01T03:00:00Z), E2E_JAVA_HOME (else $HOME/.local/opt/jdk17, else JAVA_HOME),
+# E2E_BACKEND_JAR (run another build of the backend, e.g. an integration branch; skips the backend build).
 #
 # Search runs on the PostgreSQL path: Elasticsearch is pointed at a closed port on purpose, so the shared test
 # cluster's index is never written. CI exercises the Elasticsearch path with the full Compose stack.
@@ -115,7 +116,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # --- build ---------------------------------------------------------------------------------------------------------
-if [ "$SKIP_BACKEND_BUILD" = 0 ]; then
+if [ "$SKIP_BACKEND_BUILD" = 0 ] && [ -z "${E2E_BACKEND_JAR:-}" ]; then
   log "building backend jar"
   (cd "$ROOT/backend" && MAVEN_OPTS="${MAVEN_OPTS:--Xmx1g}" sh mvnw -B -ntp -q -DskipTests package)
 fi
@@ -123,8 +124,8 @@ if [ "$SKIP_BUILD" = 0 ]; then
   log "building frontend (UI catalog enabled)"
   (cd "$ROOT/frontend" && VITE_ENABLE_UI_CATALOG=true npm run build >"$LOG_DIR/frontend-build.log" 2>&1)
 fi
-JAR="$(ls "$ROOT"/backend/target/bds-backend-*.jar 2>/dev/null | grep -v plain | head -1)"
-[ -n "$JAR" ] || { echo "backend jar missing; run without --skip-build" >&2; exit 1; }
+JAR="${E2E_BACKEND_JAR:-$(ls "$ROOT"/backend/target/bds-backend-*.jar 2>/dev/null | grep -v plain | head -1)}"
+[ -n "$JAR" ] && [ -f "$JAR" ] || { echo "backend jar missing; run without --skip-build" >&2; exit 1; }
 
 # --- database and backend --------------------------------------------------------------------------------------------
 log "creating database $DB_NAME"
