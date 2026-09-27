@@ -207,6 +207,8 @@ export function ListingMap({
   useEffect(() => {
     if (!focus || !map.current || !loaded.current) return;
     applyFocus(map.current, focus, marker, (next) => onSearchAreaRef.current(next));
+    // A focus request is identified by its key, so re-renders with an equal focus object do not move the map.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.key]);
 
   useEffect(() => {

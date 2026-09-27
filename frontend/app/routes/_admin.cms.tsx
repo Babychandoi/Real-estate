@@ -33,6 +33,31 @@ interface ArticleRevisionItem {
   reviewedBy?: string;
 }
 
+/** Shape of `/cms/articles` rows as read below (only the fields this page maps). */
+interface ArticleResponse {
+  id: string;
+  slug: string;
+  category: ArticleItem['category'];
+  status: ArticleItem['status'];
+  revisions?: unknown[];
+  currentRevision?: {
+    id: string;
+    revisionNumber: number;
+    title: string;
+    summary?: string;
+    contentHtml: string;
+    coverImageUrl?: string;
+    authorName: string;
+    legalReference?: string;
+    metaDescription?: string;
+    canonicalUrl?: string;
+    status: ArticleRevisionItem['status'];
+    createdAt?: string;
+    reviewedAt?: string;
+    reviewedBy?: string;
+  } | null;
+}
+
 interface ArticleItem {
   id: string;
   slug: string;
@@ -154,7 +179,7 @@ export const CmsManagementPage: React.FC = () => {
       })
       .then((data) => {
         if (data && Array.isArray(data) && data.length > 0) {
-          const mapped: ArticleItem[] = data.map((d: any) => ({
+          const mapped: ArticleItem[] = data.map((d: ArticleResponse) => ({
             id: d.id,
             slug: d.slug,
             category: d.category,
@@ -751,8 +776,11 @@ export const CmsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-on-surface mb-1">Tiêu đề bài viết *</label>
+                <label htmlFor="cms-article-title" className="block text-xs font-semibold text-on-surface mb-1">
+                  Tiêu đề bài viết *
+                </label>
                 <input
+                  id="cms-article-title"
                   type="text"
                   required
                   placeholder="VD: Hướng dẫn định giá căn hộ theo chỉ số thị trường"
@@ -775,8 +803,11 @@ export const CmsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Slug URL (SEO FR26) *</label>
+                  <label htmlFor="cms-article-slug" className="block text-xs font-semibold text-on-surface mb-1">
+                    Slug URL (SEO FR26) *
+                  </label>
                   <input
+                    id="cms-article-slug"
                     type="text"
                     required
                     value={formData.slug}
@@ -786,8 +817,11 @@ export const CmsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Chuyên mục *</label>
+                  <label htmlFor="cms-article-category" className="block text-xs font-semibold text-on-surface mb-1">
+                    Chuyên mục *
+                  </label>
                   <select
+                    id="cms-article-category"
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     className="w-full h-10 px-3 rounded-lg border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -801,8 +835,11 @@ export const CmsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Tác giả biên tập viên *</label>
+                  <label htmlFor="cms-article-author" className="block text-xs font-semibold text-on-surface mb-1">
+                    Tác giả biên tập viên *
+                  </label>
                   <input
+                    id="cms-article-author"
                     type="text"
                     required
                     value={formData.authorName}
@@ -812,8 +849,14 @@ export const CmsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">Luật / Pháp lý tham chiếu</label>
+                  <label
+                    htmlFor="cms-article-legal-reference"
+                    className="block text-xs font-semibold text-on-surface mb-1"
+                  >
+                    Luật / Pháp lý tham chiếu
+                  </label>
                   <input
+                    id="cms-article-legal-reference"
                     type="text"
                     placeholder="VD: Luật KDBĐS 2024 số 29/2023/QH15"
                     value={formData.legalReference}
@@ -824,8 +867,11 @@ export const CmsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-on-surface mb-1">Đoạn tóm tắt mở đầu</label>
+                <label htmlFor="cms-article-summary" className="block text-xs font-semibold text-on-surface mb-1">
+                  Đoạn tóm tắt mở đầu
+                </label>
                 <textarea
+                  id="cms-article-summary"
                   rows={2}
                   value={formData.summary}
                   onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
@@ -835,10 +881,11 @@ export const CmsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-on-surface mb-1">
+                <label htmlFor="cms-article-content" className="block text-xs font-semibold text-on-surface mb-1">
                   Nội dung chi tiết (Clean HTML) *
                 </label>
                 <textarea
+                  id="cms-article-content"
                   rows={6}
                   required
                   value={formData.contentHtml}

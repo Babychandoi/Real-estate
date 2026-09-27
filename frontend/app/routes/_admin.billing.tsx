@@ -104,6 +104,8 @@ export function AdminBillingPage() {
   };
   useEffect(() => {
     void load(0);
+    // Reload from page 0 only when the filter changes; load() itself is recreated every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, appliedQuery]);
   const saveBank = async () => {
     setBusy('bank');

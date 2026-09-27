@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import {
   Ban,
   CheckCircle2,
@@ -354,6 +354,7 @@ export function AdminUsersPage() {
       </section>
       {selectedKyc && (
         <div
+          role="presentation"
           className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-6"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setSelectedKyc(null);

@@ -150,14 +150,16 @@ function ListingPicker({
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 sm:items-center sm:p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="picker-title"
-      onClick={onClose}
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <div
         className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
-        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="picker-title"
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 p-5">
           <div>
@@ -202,6 +204,8 @@ function ListingPicker({
           <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:ring-2 focus-within:ring-primary/20">
             <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
             <input
+              // Initial focus of the picker dialog: the filter field is the first thing people use.
+              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
@@ -296,6 +300,7 @@ export const PropertyComparePage: React.FC = () => {
     [searchParams],
   );
   const selectedIds = urlIds.length ? urlIds : stored.map((item) => item.id);
+  const selectedKey = selectedIds.join(',');
 
   useEffect(() => {
     const storedIds = stored.map((item) => item.id).join(',');
@@ -308,7 +313,9 @@ export const PropertyComparePage: React.FC = () => {
       );
       if (known.every(Boolean)) compareStore.replaceAll(known as CompareItem[]);
     }
-  }, [selectedIds.join(','), stored, details]);
+    // Keyed on the joined id list (a new array every render); URL and store are synced from it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, stored, details]);
 
   useEffect(() => {
     const missing = selectedIds.filter((id) => !details[id] && !failedIds.includes(id));
@@ -328,7 +335,9 @@ export const PropertyComparePage: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [selectedIds.join(',')]);
+    // Fetch only when the selection changes; details/failedIds are what this effect fills in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey]);
 
   const selected = selectedIds.map((id) => details[id]).filter((item): item is Detail => Boolean(item));
   const loading = selectedIds.some((id) => !details[id] && !failedIds.includes(id));

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { moderationApi } from '../entities/moderation/api/moderationApi';
 import type { FieldDiff, ListingDiff, ModerationQueueItem, StandardReason } from '../entities/moderation/model/types';
 import { formatPriceVnd, formatPropertyType } from '../entities/listing/model/types';
+import { errorMessage } from '@/shared/api/errors';
 
 export default function ModerationWorkspacePage() {
   const [queue, setQueue] = useState<ModerationQueueItem[]>([]);
@@ -36,6 +37,8 @@ export default function ModerationWorkspacePage() {
         if (data.length > 0) setSelectedReasonCode(data[0].code);
       })
       .catch((err) => console.error('Lỗi tải lý do từ chối:', err));
+    // Mount-only: the queue and the reason catalogue load once; later reloads are explicit (after approve/reject).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadQueue = async () => {
@@ -49,8 +52,8 @@ export default function ModerationWorkspacePage() {
         setSelectedItem(null);
         setDiff(null);
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Không thể tải hàng đợi kiểm duyệt' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Không thể tải hàng đợi kiểm duyệt') });
     } finally {
       setLoadingQueue(false);
     }
@@ -63,8 +66,8 @@ export default function ModerationWorkspacePage() {
     try {
       const diffData = await moderationApi.getDiff(item.listingId);
       setDiff(diffData);
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Không thể tải chi tiết đối chiếu' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Không thể tải chi tiết đối chiếu') });
     } finally {
       setLoadingDiff(false);
     }
@@ -93,8 +96,8 @@ export default function ModerationWorkspacePage() {
       });
       setApprovalNote('');
       await loadQueue();
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Lỗi khi phê duyệt tin đăng' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Lỗi khi phê duyệt tin đăng') });
     } finally {
       setActionLoading(false);
     }
@@ -117,8 +120,8 @@ export default function ModerationWorkspacePage() {
       setIsRejectModalOpen(false);
       setRejectionDetail('');
       await loadQueue();
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Lỗi khi từ chối tin đăng' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Lỗi khi từ chối tin đăng') });
     } finally {
       setActionLoading(false);
     }
@@ -287,8 +290,7 @@ export default function ModerationWorkspacePage() {
                 return (
                   <div
                     key={item.listingId}
-                    onClick={() => selectListing(item)}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                    className={`relative p-3 rounded-xl border cursor-pointer transition-all focus-within:ring-2 focus-within:ring-sky-400 ${
                       isSelected
                         ? 'bg-sky-950/40 border-sky-500 shadow-md ring-1 ring-sky-500/50'
                         : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
@@ -310,7 +312,15 @@ export default function ModerationWorkspacePage() {
                     </div>
 
                     <h3 className="text-sm font-semibold text-slate-100 line-clamp-2 leading-snug mb-2">
-                      {item.title}
+                      {/* The button's overlay makes the whole card clickable while keeping one keyboard stop. */}
+                      <button
+                        type="button"
+                        onClick={() => selectListing(item)}
+                        aria-pressed={isSelected}
+                        className="text-left after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none"
+                      >
+                        {item.title}
+                      </button>
                     </h3>
 
                     <div className="flex items-center justify-between text-xs text-slate-400">
@@ -497,10 +507,11 @@ export default function ModerationWorkspacePage() {
 
                 {/* Approval Note Input */}
                 <div className="mt-2">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                  <label htmlFor="moderation-approval-note" className="block text-xs font-medium text-slate-400 mb-1">
                     Ghi chú thẩm định nội bộ (Lưu vào nhật ký kiểm toán):
                   </label>
                   <input
+                    id="moderation-approval-note"
                     type="text"
                     value={approvalNote}
                     onChange={(e) => setApprovalNote(e.target.value)}
@@ -545,10 +556,14 @@ export default function ModerationWorkspacePage() {
 
             {/* Select Reason */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              <label
+                htmlFor="moderation-reject-reason"
+                className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
+              >
                 Chọn lý do:
               </label>
               <select
+                id="moderation-reject-reason"
                 value={selectedReasonCode}
                 onChange={(e) => setSelectedReasonCode(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-rose-500"
@@ -563,10 +578,14 @@ export default function ModerationWorkspacePage() {
 
             {/* Detail Reason Textarea */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              <label
+                htmlFor="moderation-reject-detail"
+                className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
+              >
                 Chi Tiết Giải Trình Cho Môi Giới (Hiển thị trong thông báo):
               </label>
               <textarea
+                id="moderation-reject-detail"
                 rows={4}
                 value={rejectionDetail}
                 onChange={(e) => setRejectionDetail(e.target.value)}

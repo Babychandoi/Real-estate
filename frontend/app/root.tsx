@@ -36,9 +36,11 @@ const RootLayoutContent: React.FC = () => {
   const mobilePanelRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const { user, isAuthenticated, isAdminOrModerator, isBroker, setIsLoginModalOpen, logout } = useAuth();
+  const closeMobileMenu = () => setIsMobileOpen(false);
 
   useEffect(() => {
     if (!isMobileOpen) return;
+    const menuButton = menuButtonRef.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const first = mobilePanelRef.current?.querySelector<HTMLElement>('button,a');
@@ -60,7 +62,7 @@ const RootLayoutContent: React.FC = () => {
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', onKey);
-      menuButtonRef.current?.focus();
+      menuButton?.focus();
     };
   }, [isMobileOpen]);
 
@@ -482,8 +484,9 @@ const RootLayoutContent: React.FC = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <nav className="py-5 flex flex-col gap-2 text-base" onClick={() => setIsMobileOpen(false)}>
+            <nav className="py-5 flex flex-col gap-2 text-base">
               <Link
+                onClick={closeMobileMenu}
                 to="/search"
                 className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
               >
@@ -491,6 +494,7 @@ const RootLayoutContent: React.FC = () => {
                 Tìm kiếm
               </Link>
               <Link
+                onClick={closeMobileMenu}
                 to="/compare"
                 className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
               >
@@ -499,6 +503,7 @@ const RootLayoutContent: React.FC = () => {
               </Link>
               {isBroker && (
                 <Link
+                  onClick={closeMobileMenu}
                   to="/listings/new"
                   className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
                 >
@@ -509,6 +514,7 @@ const RootLayoutContent: React.FC = () => {
               {isAuthenticated && (
                 <>
                   <Link
+                    onClick={closeMobileMenu}
                     to="/account"
                     className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
                   >
@@ -516,6 +522,7 @@ const RootLayoutContent: React.FC = () => {
                     Thông tin cá nhân
                   </Link>
                   <Link
+                    onClick={closeMobileMenu}
                     to="/kyc"
                     className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
                   >
@@ -526,6 +533,7 @@ const RootLayoutContent: React.FC = () => {
               )}
               {user?.role === 'USER' && (
                 <Link
+                  onClick={closeMobileMenu}
                   to="/my-inquiries"
                   className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
                 >
@@ -535,6 +543,7 @@ const RootLayoutContent: React.FC = () => {
               )}
               {isBroker && (
                 <Link
+                  onClick={closeMobileMenu}
                   to="/broker/workspace"
                   className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
                 >
@@ -544,6 +553,7 @@ const RootLayoutContent: React.FC = () => {
               )}
               {isAdminOrModerator && (
                 <Link
+                  onClick={closeMobileMenu}
                   to="/2026/nhadatchuan/admin/moderation"
                   className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
                 >

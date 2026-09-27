@@ -43,6 +43,8 @@ export function AdminListingsPage() {
   };
   useEffect(() => {
     void load(0);
+    // Mount-only first page; paging and actions call load() explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const visibility = async (item: Listing, hidden: boolean) => {
     setBusy(item.id);

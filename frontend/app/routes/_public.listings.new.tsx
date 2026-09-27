@@ -72,6 +72,8 @@ function LocationPicker({
       map.current = null;
       marker.current = null;
     };
+    // Mount-only: the map is created once; later coordinates come from clicks on the same instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -405,7 +407,7 @@ export const CreateListingPage: React.FC = () => {
     try {
       await apiClient(`/media/images/${objectKey}`, { method: 'DELETE' });
     } catch (err) {
-      console.info('Ảnh đã được gỡ khỏi bản chỉnh sửa; object đang thuộc lịch sử revision hoặc sẽ được dọn nền.', err);
+      console.warn('Ảnh đã được gỡ khỏi bản chỉnh sửa; object đang thuộc lịch sử revision hoặc sẽ được dọn nền.', err);
     } finally {
       setDeletingImage(null);
     }
@@ -723,13 +725,17 @@ export const CreateListingPage: React.FC = () => {
                 </fieldset>
 
                 <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  <span
+                    id="listing-purpose-label"
+                    className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
+                  >
                     Nhu cầu đăng tin *
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
+                  </span>
+                  <div className="grid grid-cols-2 gap-4" role="group" aria-labelledby="listing-purpose-label">
                     <button
                       type="button"
                       onClick={() => setPurpose('SALE')}
+                      aria-pressed={purpose === 'SALE'}
                       className={`p-4 rounded-xl border flex items-center gap-3 font-bold text-sm transition-all ${
                         purpose === 'SALE'
                           ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm'
@@ -746,6 +752,7 @@ export const CreateListingPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setPurpose('RENT')}
+                      aria-pressed={purpose === 'RENT'}
                       className={`p-4 rounded-xl border flex items-center gap-3 font-bold text-sm transition-all ${
                         purpose === 'RENT'
                           ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm'
@@ -763,10 +770,17 @@ export const CreateListingPage: React.FC = () => {
 
                 {/* Loại hình BĐS */}
                 <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  <span
+                    id="listing-type-label"
+                    className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2"
+                  >
                     Loại hình tài sản *
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  </span>
+                  <div
+                    className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+                    role="group"
+                    aria-labelledby="listing-type-label"
+                  >
                     {[
                       { type: 'APARTMENT', label: 'Căn hộ chung cư', icon: Building2 },
                       { type: 'HOUSE', label: 'Nhà riêng / Phố', icon: Home },
@@ -779,6 +793,7 @@ export const CreateListingPage: React.FC = () => {
                           key={item.type}
                           type="button"
                           onClick={() => setPropertyType(item.type)}
+                          aria-pressed={propertyType === item.type}
                           className={`p-3 rounded-xl border text-center flex flex-col items-center gap-2 transition-all ${
                             propertyType === item.type
                               ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
@@ -795,10 +810,14 @@ export const CreateListingPage: React.FC = () => {
 
                 {/* Tiêu đề tin đăng */}
                 <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label
+                    htmlFor="listing-title"
+                    className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
+                  >
                     Tiêu đề tin đăng chuẩn SEO *
                   </label>
                   <input
+                    id="listing-title"
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
@@ -813,8 +832,11 @@ export const CreateListingPage: React.FC = () => {
                 {/* Địa chỉ hành chính có chuẩn hóa */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Tỉnh / Thành phố *</label>
+                    <label htmlFor="listing-province" className="block text-xs font-bold text-slate-600 mb-1">
+                      Tỉnh / Thành phố *
+                    </label>
                     <input
+                      id="listing-province"
                       type="text"
                       value={province}
                       onChange={(e) => setProvince(e.target.value)}
@@ -822,8 +844,11 @@ export const CreateListingPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Quận / Huyện *</label>
+                    <label htmlFor="listing-district" className="block text-xs font-bold text-slate-600 mb-1">
+                      Quận / Huyện *
+                    </label>
                     <input
+                      id="listing-district"
                       type="text"
                       value={district}
                       onChange={(e) => setDistrict(e.target.value)}
@@ -831,8 +856,11 @@ export const CreateListingPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Phường / Xã *</label>
+                    <label htmlFor="listing-ward" className="block text-xs font-bold text-slate-600 mb-1">
+                      Phường / Xã *
+                    </label>
                     <input
+                      id="listing-ward"
                       type="text"
                       value={ward}
                       onChange={(e) => setWard(e.target.value)}
@@ -842,8 +870,11 @@ export const CreateListingPage: React.FC = () => {
                 </div>
 
                 <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Địa chỉ chi tiết / Tên dự án</label>
+                  <label htmlFor="listing-address" className="block text-xs font-bold text-slate-600 mb-1">
+                    Địa chỉ chi tiết / Tên dự án
+                  </label>
                   <input
+                    id="listing-address"
                     type="text"
                     value={addressSummary}
                     onChange={(e) => setAddressSummary(e.target.value)}
@@ -926,10 +957,14 @@ export const CreateListingPage: React.FC = () => {
                 {/* Giá & Diện tích */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    <label
+                      htmlFor="listing-price"
+                      className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
+                    >
                       Mức giá đề xuất (VNĐ) *
                     </label>
                     <input
+                      id="listing-price"
                       type="number"
                       value={priceVnd}
                       onChange={(e) => setPriceVnd(Number(e.target.value))}
@@ -944,10 +979,14 @@ export const CreateListingPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    <label
+                      htmlFor="listing-area"
+                      className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
+                    >
                       Diện tích tim tường (m²) *
                     </label>
                     <input
+                      id="listing-area"
                       type="number"
                       step="0.5"
                       value={areaM2}
@@ -959,10 +998,14 @@ export const CreateListingPage: React.FC = () => {
 
                 {/* Mô tả chi tiết */}
                 <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label
+                    htmlFor="listing-description"
+                    className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1"
+                  >
                     Mô tả chi tiết tài sản *
                   </label>
                   <textarea
+                    id="listing-description"
                     rows={5}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}

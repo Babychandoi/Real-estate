@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient, apiFetch, clearAccessToken, setAccessToken } from '@/shared/api/client';
 
 export type UserRole = 'ADMIN' | 'MODERATOR' | 'BROKER' | 'USER';
@@ -119,60 +119,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     connect();
     return () => controller.abort();
+    // One stream per signed-in account: reconnect when the user id changes, not when profile fields update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const accept = (result: AuthResult) => {
+  // Every action below only touches state setters and module functions, so a stable identity is safe and keeps
+  // the context value from changing on each render.
+  const accept = useCallback((result: AuthResult) => {
     setAccessToken(result.accessToken);
     setUser(toUser(result.user));
     setIsLoginModalOpen(false);
-  };
-  const login = async (email: string, password: string) => {
-    try {
-      accept(await apiClient<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }));
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: errorMessage(error) };
-    }
-  };
-  const adminLogin = async (email: string, password: string) => {
-    try {
-      accept(
-        await apiClient<AuthResult>('/auth/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-      );
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: errorMessage(error) };
-    }
-  };
-  const register = async (email: string, password: string, name: string, accountType: 'BROKER' | 'USER') => {
-    try {
-      const result = await apiClient<{ email: string; requiresEmailVerification: boolean }>('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, name, accountType }),
-      });
-      return { success: true, email: result.email };
-    } catch (error) {
-      return { success: false, error: errorMessage(error) };
-    }
-  };
-  const logout = () => {
+  }, []);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      try {
+        accept(
+          await apiClient<AuthResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+        );
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: errorMessage(error) };
+      }
+    },
+    [accept],
+  );
+  const adminLogin = useCallback(
+    async (email: string, password: string) => {
+      try {
+        accept(
+          await apiClient<AuthResult>('/auth/admin/login', {
+            method: 'POST',
+            body: JSON.stringify({ email, password }),
+          }),
+        );
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: errorMessage(error) };
+      }
+    },
+    [accept],
+  );
+  const register = useCallback(
+    async (email: string, password: string, name: string, accountType: 'BROKER' | 'USER') => {
+      try {
+        const result = await apiClient<{ email: string; requiresEmailVerification: boolean }>('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ email, password, name, accountType }),
+        });
+        return { success: true, email: result.email };
+      } catch (error) {
+        return { success: false, error: errorMessage(error) };
+      }
+    },
+    [],
+  );
+  const logout = useCallback(() => {
     apiClient<void>('/auth/logout', { method: 'POST' }).catch(() => undefined);
     clearAccessToken();
     setUser(null);
     setIsLoginModalOpen(false);
-  };
-  const resendVerification = async (email: string) => {
+  }, []);
+  const resendVerification = useCallback(async (email: string) => {
     try {
       await apiClient<void>('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) });
       return { success: true };
     } catch (error) {
       return { success: false, error: errorMessage(error) };
     }
-  };
-  const refreshUser = async () => {
+  }, []);
+  const refreshUser = useCallback(async () => {
     const fresh = await apiClient<ServerUser>('/auth/me');
     setUser(toUser(fresh));
-  };
+  }, []);
   const value = useMemo<AuthContextType>(
     () => ({
       user,
@@ -189,7 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isLoginModalOpen,
       setIsLoginModalOpen,
     }),
-    [user, isAuthLoading, isLoginModalOpen],
+    [user, isAuthLoading, isLoginModalOpen, login, adminLogin, register, logout, resendVerification, refreshUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

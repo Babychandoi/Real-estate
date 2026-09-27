@@ -79,6 +79,8 @@ export function ForgotPasswordPage() {
               <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
               <input
                 required
+                // The page exists only to collect this address, so the cursor starts there.
+                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 type="email"
                 autoComplete="email"

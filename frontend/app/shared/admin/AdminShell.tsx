@@ -97,6 +97,7 @@ const AdminShellContent: React.FC = () => {
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">{sideNav}</aside>
       {mobileOpen && (
         <div
+          role="presentation"
           className="fixed inset-0 z-50 bg-slate-950/45 lg:hidden"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) close();

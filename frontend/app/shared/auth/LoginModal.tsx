@@ -152,6 +152,7 @@ export const LoginModal: React.FC = () => {
 
   return (
     <div
+      role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) handleClose();
@@ -247,10 +248,13 @@ export const LoginModal: React.FC = () => {
 
             {/* Email */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Email</label>
+              <label htmlFor="login-email" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Email
+              </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="login-email"
                   ref={loginEmailRef}
                   name="public-login-email"
                   type="email"
@@ -260,6 +264,8 @@ export const LoginModal: React.FC = () => {
                   placeholder="ten@email.com"
                   required
                   autoComplete="off"
+                  // Returning to the login tab puts the cursor in the first field of the dialog.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                 />
               </div>
@@ -267,10 +273,13 @@ export const LoginModal: React.FC = () => {
 
             {/* Password */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Mật khẩu</label>
+              <label htmlFor="login-password" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Mật khẩu
+              </label>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="login-password"
                   ref={loginPasswordRef}
                   name="public-login-password"
                   type={showLoginPw ? 'text' : 'password'}
@@ -353,11 +362,14 @@ export const LoginModal: React.FC = () => {
 
             {/* Loại tài khoản - CHỈ User hoặc Broker */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-2 block">Bạn là</label>
-              <div className="grid grid-cols-2 gap-2.5">
+              <span id="register-account-type-label" className="text-xs font-semibold text-on-surface mb-2 block">
+                Bạn là
+              </span>
+              <div className="grid grid-cols-2 gap-2.5" role="group" aria-labelledby="register-account-type-label">
                 <button
                   type="button"
                   onClick={() => setRegAccountType('USER')}
+                  aria-pressed={regAccountType === 'USER'}
                   className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
                     regAccountType === 'USER'
                       ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
@@ -387,6 +399,7 @@ export const LoginModal: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setRegAccountType('BROKER')}
+                  aria-pressed={regAccountType === 'BROKER'}
                   className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
                     regAccountType === 'BROKER'
                       ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-500/20'
@@ -417,10 +430,13 @@ export const LoginModal: React.FC = () => {
 
             {/* Họ tên */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Họ và tên</label>
+              <label htmlFor="register-name" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Họ và tên
+              </label>
               <div className="relative">
                 <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="register-name"
                   type="text"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
@@ -433,10 +449,13 @@ export const LoginModal: React.FC = () => {
 
             {/* Email */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Email</label>
+              <label htmlFor="register-email" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Email
+              </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="register-email"
                   type="email"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
@@ -450,10 +469,13 @@ export const LoginModal: React.FC = () => {
             {/* Mật khẩu */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-on-surface mb-1.5 block">Mật khẩu</label>
+                <label htmlFor="register-password" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                  Mật khẩu
+                </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                   <input
+                    id="register-password"
                     type={showRegPw ? 'text' : 'password'}
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
@@ -465,10 +487,16 @@ export const LoginModal: React.FC = () => {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface mb-1.5 block">Xác nhận</label>
+                <label
+                  htmlFor="register-password-confirm"
+                  className="text-xs font-semibold text-on-surface mb-1.5 block"
+                >
+                  Xác nhận
+                </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                   <input
+                    id="register-password-confirm"
                     type={showRegPw ? 'text' : 'password'}
                     value={regPasswordConfirm}
                     onChange={(e) => setRegPasswordConfirm(e.target.value)}

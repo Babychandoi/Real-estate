@@ -38,6 +38,8 @@ export function SearchAndMapPage() {
   // Load listings from API
   useEffect(() => {
     fetchListings(areaRef.current);
+    // Refetch when a server-side filter changes; fetchListings reads the latest state itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [purpose, propertyType, priceRange, sortBy]);
 
   const fetchListings = async (bounds?: MapBounds, overrides?: Partial<ListingSearchParams>) => {
@@ -107,6 +109,8 @@ export function SearchAndMapPage() {
       window.clearTimeout(timer);
       controller.abort();
     };
+    // Suggestions follow typing only; choosing a place must not trigger a new lookup.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyword]);
 
   const visibleListings = onlyVerified ? listings.filter((listing) => listing.isVerified) : listings;
@@ -486,7 +490,7 @@ export function SearchAndMapPage() {
             <select
               aria-label="Sắp xếp kết quả"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
               className="bg-surface-container-lowest font-semibold text-primary px-2 py-1 rounded-lg border border-outline-variant/30 focus:outline-none"
             >
               <option value="LATEST">Mới niêm yết</option>
