@@ -47,3 +47,9 @@ Thumbs.db
 # Docker data volumes
 docker-data/
 pgdata/
+
+# Backups never go into Git (audit F21, docs/ops/BACKUP_CLASSIFICATION.md): write them to BACKUP_DIR outside the
+# repository. The 2026-09-26 snapshot already tracked under backups/ stays until the owner decides
+# (docs/ops/GIT_HISTORY_REMEDIATION_PLAN.md); ignoring a path does not untrack existing files.
+backups/
+*.dump.age

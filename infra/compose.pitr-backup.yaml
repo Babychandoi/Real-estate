@@ -1,0 +1,15 @@
+# Ships archived WAL segments, encrypted, to BACKUP_DIR every 5 minutes. Use together with compose.backup.yaml and
+# compose.pitr.yaml:
+#   docker compose -p bds-production -f docker-compose.yml -f infra/compose.pitr.yaml \
+#     -f infra/compose.backup.yaml -f infra/compose.pitr-backup.yaml --profile ops up -d postgres backup
+# PostgreSQL writes archived segments with mode 0600 as uid 999, so with WAL shipping the backup service runs as
+# that uid; on a Linux host prepare BACKUP_DIR with `chown 999:999` (Docker Desktop needs nothing).
+services:
+  backup:
+    user: "${BACKUP_UID:-999}:${BACKUP_GID:-999}"
+    environment:
+      WAL_ARCHIVE_DIR: /wal-archive
+      WAL_INTERVAL_SECONDS: ${BACKUP_WAL_INTERVAL_SECONDS:-300}
+      RETENTION_WAL_DAYS: ${BACKUP_RETENTION_WAL_DAYS:-7}
+    volumes:
+      - postgres-wal-archive:/wal-archive:ro
