@@ -20,6 +20,9 @@
    expose drafts, private media, phone numbers or emails.
 
 ## Environment
+- Scratch files: only in `/private/tmp/claude-501/-Users-connecty-Real-estate/2947126b-307c-4bfa-9fb8-e95e50ab2e86/scratchpad/`
+  and always prefixed with your stream id (e.g. `s2-mvn.log`) — several agents share that folder.
+- Redis in tests: each test JVM run uses its own Redis DB index (see the S0-BE test support); never FLUSHALL.
 - Java: `export JAVA_HOME=$HOME/.local/opt/jdk17 PATH=$HOME/.local/opt/jdk17/bin:$PATH`; run `cd backend && sh mvnw -B -ntp verify`.
 - Test infra env: `eval "$(scripts/test-infra.sh env)"` (already running; check with `scripts/test-infra.sh status`).
 - Frontend: Node 20 is installed (`node`, `npm`); `cd frontend && npm ci` once per worktree. Playwright Chromium is installed.
