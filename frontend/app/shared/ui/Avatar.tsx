@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { UserRound } from 'lucide-react';
+import { cn } from './cn';
 
 export function initialsOf(name?: string | null): string {
   return (name ?? '')
@@ -13,7 +14,7 @@ export function initialsOf(name?: string | null): string {
 }
 
 const SIZES = {
-  xs: 'h-6 w-6 text-[10px]',
+  xs: 'h-6 w-6 text-xs',
   sm: 'h-8 w-8 text-xs',
   md: 'h-10 w-10 text-sm',
   lg: 'h-12 w-12 text-base',
@@ -36,7 +37,11 @@ export function Avatar({
   const initials = initialsOf(name);
   return (
     <span
-      className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 font-bold text-primary ${SIZES[size]} ${className}`}
+      className={cn(
+        'grid shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 font-bold leading-none text-primary',
+        SIZES[size],
+        className,
+      )}
     >
       {src && !failed ? (
         <img

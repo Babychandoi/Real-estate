@@ -6,6 +6,10 @@ import { ROUTE_ACCESS } from '@/shared/auth/routeAccess';
 import type { Role } from '@/shared/auth/roles';
 import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
 
+/** The UI kit catalog exists only in dev builds or when VITE_ENABLE_UI_CATALOG=true (a11y suite in CI). */
+export const UI_CATALOG_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_UI_CATALOG === 'true';
+const UiCatalogPage = UI_CATALOG_ENABLED ? lazy(() => import('./routes/__ui')) : null;
+
 const HomePage = lazy(() => import('./routes/_public.home').then((m) => ({ default: m.HomePage })));
 const SellerProfilePage = lazy(() => import('./routes/_public.seller').then((m) => ({ default: m.SellerProfilePage })));
 const SearchAndMapPage = lazy(() => import('./routes/_public.search').then((m) => ({ default: m.SearchAndMapPage })));
@@ -153,6 +157,7 @@ export const router = createBrowserRouter([
       { path: 'cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ROUTE_ACCESS.adminCms, true) },
     ],
   },
+  ...(UiCatalogPage ? [{ path: '/__ui', element: load(<UiCatalogPage />) }] : []),
   { path: '/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/moderation" replace /> },
   { path: '/2026/nhadatchua/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/login" replace /> },
 ]);

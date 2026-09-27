@@ -88,6 +88,11 @@ export default {
         'body-sm': type('body-sm'),
         label: type('label', { fontWeight: '600' }),
       },
+      lineHeight: Object.fromEntries(
+        ['display', 'display-mobile', 'headline-lg', 'headline-md', 'headline-sm', 'body', 'body-sm', 'label'].map(
+          (name) => [name, `var(--leading-${name})`],
+        ),
+      ),
       borderRadius: {
         sm: '0.25rem',
         DEFAULT: 'var(--radius-input)',
