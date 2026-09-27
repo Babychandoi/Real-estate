@@ -7,6 +7,7 @@ import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import com.company.bds.shared.scheduling.ScheduledTaskLock;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -34,8 +36,9 @@ public class MediaStorageService {
     private final JdbcTemplate jdbc;
     private final String bucket;
     private final ClamAvScanner antivirus;
+    private final ScheduledTaskLock taskLock;
 
-    public MediaStorageService(JdbcTemplate jdbc, ClamAvScanner antivirus,
+    public MediaStorageService(JdbcTemplate jdbc, ClamAvScanner antivirus, ScheduledTaskLock taskLock,
             @Value("${app.media.endpoint}") String endpoint,
             @Value("${app.media.access-key}") String accessKey,
             @Value("${app.media.secret-key}") String secretKey,
@@ -45,6 +48,7 @@ public class MediaStorageService {
         }
         this.jdbc = jdbc;
         this.antivirus = antivirus;
+        this.taskLock = taskLock;
         this.bucket = bucket;
         this.minio = MinioClient.builder().endpoint(endpoint).credentials(accessKey, secretKey).build();
     }
@@ -189,8 +193,13 @@ public class MediaStorageService {
         }
     }
 
+    /** Daily cleanup; with several instances only the one holding the task lock runs it. */
     @Scheduled(cron = "${app.media.orphan-cleanup-cron:0 30 3 * * *}")
     public void cleanupOrphans() {
+        taskLock.runExclusive("media-orphan-cleanup", Duration.ofMinutes(30), Duration.ofMinutes(5), this::removeOrphans);
+    }
+
+    void removeOrphans() {
         var keys = jdbc.queryForList("""
                 SELECT object_key FROM media_objects m
                 WHERE m.created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours'

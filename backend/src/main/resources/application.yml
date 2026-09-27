@@ -117,6 +117,14 @@ app:
   features:
     real-kyc: ${FEATURE_REAL_KYC:false}
     real-transactions: ${FEATURE_REAL_TRANSACTIONS:false}
+  jobs:
+    # Durable job queue (background_jobs). The worker runs on every instance; claims are SKIP LOCKED leases.
+    enabled: ${APP_JOBS_ENABLED:true}
+    poll-ms: ${APP_JOBS_POLL_MS:1000}
+    retry-base: ${APP_JOBS_RETRY_BASE:PT30S}
+    retry-cap: ${APP_JOBS_RETRY_CAP:PT1H}
+    completed-retention: ${APP_JOBS_COMPLETED_RETENTION:P7D}
+    purge-cron: ${APP_JOBS_PURGE_CRON:0 17 * * * *}
   outbox:
     enabled: ${OUTBOX_ENABLED:false}
     webhook-url: ${OUTBOX_WEBHOOK_URL:}
