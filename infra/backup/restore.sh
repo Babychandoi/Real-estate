@@ -8,6 +8,9 @@
 #   restore.sh verify-db <id|latest|path> <target-database>     row counts per table vs manifest (Markdown report)
 #   restore.sh verify-media <id|latest|path> [bucket-suffix]    objects, bytes and sha256 vs index (Markdown report)
 #   restore.sh verify-references <target-database> [suffix]     media_objects rows vs restored objects (latest media set)
+#   restore.sh basebackup <id|latest|path> <empty-dir>          PITR: unpack a physical base backup into a data dir
+#   restore.sh wal <dir>                                        PITR: decrypt every shipped WAL segment into <dir>
+#                                                               (then restore_command = 'cp <dir>/%f %p')
 #
 # Environment: AGE_IDENTITY_FILE (the private key, kept offline, never next to the backups), BACKUP_ROOT, BACKUP_ENV,
 # PGHOST/PGPORT/PGUSER/PGPASSWORD of the restore server (PGDATABASE = maintenance database), MINIO_ENDPOINT,
@@ -182,6 +185,38 @@ verify_references() {
   if [ "$missing" -eq 0 ]; then echo "RESULT: PASS"; else echo "RESULT: GAP"; fi
 }
 
+restore_basebackup() {
+  local set target id started
+  set="$(resolve_set base "$1")"
+  target="$2"
+  id="$(identity)"
+  started="$(now_ms)"
+  mkdir -p "$target"
+  [ -z "$(ls -A "$target")" ] || die "target directory $target is not empty"
+  check_files "$set"
+  age -d -i "$id" "$set/base.tar.zst.age" | zstd -d -q | tar -x -C "$target"
+  chmod 0700 "$target"
+  info "restore_basebackup_done set=$(basename "$set") target=$target"
+  echo "DURATION_MS restore-basebackup $(( $(now_ms) - started ))"
+}
+
+restore_wal() {
+  local target id started count=0 file name
+  target="$1"
+  id="$(identity)"
+  started="$(now_ms)"
+  mkdir -p "$target"
+  for file in "$(env_dir)/wal"/*.zst.age; do
+    [ -f "$file" ] || continue
+    name="$(basename "$file" .zst.age)"
+    age -d -i "$id" "$file" | zstd -d -q > "$target/$name.partial"
+    mv "$target/$name.partial" "$target/$name"
+    count=$((count + 1))
+  done
+  info "restore_wal_done segments=$count target=$target"
+  echo "DURATION_MS restore-wal $(( $(now_ms) - started ))"
+}
+
 # key=value summary of a set's manifest (for scripts without jq).
 describe() {
   local set
@@ -211,5 +246,7 @@ case "${1:-}" in
   verify-db) verify_db "${2:?set}" "${3:?target database}" ;;
   verify-media) verify_media "${2:?set}" "${3:-}" ;;
   verify-references) verify_references "${2:?target database}" "${3:-}" ;;
-  *) sed -n '2,15p' "$0" >&2; exit 2 ;;
+  basebackup) restore_basebackup "${2:?set}" "${3:?target directory}" ;;
+  wal) restore_wal "${2:?target directory}" ;;
+  *) sed -n '2,18p' "$0" >&2; exit 2 ;;
 esac

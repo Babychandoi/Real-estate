@@ -24,5 +24,19 @@ services:
     volumes: [postgres-wal-archive:/archive]
     restart: "no"
     network_mode: none
+  postgres-wal-archive-prune:
+    # PostgreSQL never deletes archived segments, and archive_timeout forces a 16 MB segment every 5 minutes even
+    # when idle (~4.6 GB/day before compression), so the local archive is capped by age. Keep it longer than the
+    # base-backup interval (daily in compose.pitr-backup.yaml), otherwise the newest base backup cannot be replayed.
+    image: alpine:3.22
+    user: "999:999"
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do find /archive -type f -mmin +$${KEEP_MINUTES} -delete; sleep 3600; done"]
+    environment:
+      KEEP_MINUTES: ${WAL_ARCHIVE_KEEP_MINUTES:-4320}
+    volumes: [postgres-wal-archive:/archive]
+    network_mode: none
+    depends_on:
+      postgres-wal-archive-init: { condition: service_completed_successfully }
 volumes:
   postgres-wal-archive:

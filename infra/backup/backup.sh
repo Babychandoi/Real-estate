@@ -4,23 +4,29 @@
 #   backup.sh db        pg_dump -Fc of $PGDATABASE, row counts taken in the same snapshot, encrypted with age
 #   backup.sh media     every object of $MINIO_BUCKETS, one age file per object; unchanged objects are hard-linked
 #                       from the previous set, so daily sets cost only the new objects
-#   backup.sh wal       encrypt new WAL segments from $WAL_ARCHIVE_DIR (PITR overlay only)
+#   backup.sh wal       zstd + encrypt new WAL segments from $WAL_ARCHIVE_DIR (PITR overlays only)
+#   backup.sh basebackup  physical base backup for PITR (pg_basebackup tar -> zstd -> age); runs in a sidecar that
+#                       shares PostgreSQL's network namespace (infra/compose.pitr-backup.yaml)
 #   backup.sh prune     apply retention
-#   backup.sh schedule  run db every DB_INTERVAL_SECONDS, media every MEDIA_INTERVAL_SECONDS (and wal every
-#                       WAL_INTERVAL_SECONDS when WAL_ARCHIVE_DIR is set), prune after each run; runs forever
+#   backup.sh schedule  run the jobs listed in SCHEDULE_JOBS (default db,media,wal) at their intervals: db every
+#                       DB_INTERVAL_SECONDS, media every MEDIA_INTERVAL_SECONDS, wal every WAL_INTERVAL_SECONDS (only
+#                       when WAL_ARCHIVE_DIR is set), basebackup every BASEBACKUP_INTERVAL_SECONDS; prunes after each
 #
 # Environment: PGHOST PGPORT PGDATABASE PGUSER PGPASSWORD (libpq), MINIO_ENDPOINT MINIO_ACCESS_KEY MINIO_SECRET_KEY
 # MINIO_BUCKETS, AGE_RECIPIENTS or AGE_RECIPIENTS_FILE (public keys only), BACKUP_ROOT (default /backups),
 # BACKUP_ENV (default production), retention: RETENTION_DB_HOURS (48, keep every set), RETENTION_DB_DAYS (14, one
-# per day), RETENTION_MEDIA_DAYS (14), RETENTION_WAL_DAYS (7), RETENTION_MIN_SETS (3, always kept).
+# per day), RETENTION_MEDIA_DAYS (14), RETENTION_BASE_DAYS (7), RETENTION_WAL_DAYS (7), RETENTION_MIN_SETS (3).
 source "$(dirname "$(readlink -f "$0")")/lib.sh"
 
+SCHEDULE_JOBS="${SCHEDULE_JOBS:-db,media,wal}"
 DB_INTERVAL_SECONDS="${DB_INTERVAL_SECONDS:-3600}"
 MEDIA_INTERVAL_SECONDS="${MEDIA_INTERVAL_SECONDS:-86400}"
 WAL_INTERVAL_SECONDS="${WAL_INTERVAL_SECONDS:-300}"
+BASEBACKUP_INTERVAL_SECONDS="${BASEBACKUP_INTERVAL_SECONDS:-86400}"
 RETENTION_DB_HOURS="${RETENTION_DB_HOURS:-48}"
 RETENTION_DB_DAYS="${RETENTION_DB_DAYS:-14}"
 RETENTION_MEDIA_DAYS="${RETENTION_MEDIA_DAYS:-14}"
+RETENTION_BASE_DAYS="${RETENTION_BASE_DAYS:-7}"
 RETENTION_WAL_DAYS="${RETENTION_WAL_DAYS:-7}"
 RETENTION_MIN_SETS="${RETENTION_MIN_SETS:-3}"
 
@@ -182,6 +188,7 @@ backup_media() {
   write_metrics media 1 "$(( ($(now_ms) - started) / 1000 ))" "$bytes"
 }
 
+# WAL segments are 16 MB even when forced by archive_timeout on an idle server; zstd shrinks those to a few KB.
 backup_wal() {
   require_env WAL_ARCHIVE_DIR
   local age_args dest segment name count=0
@@ -191,13 +198,47 @@ backup_wal() {
   for segment in "$WAL_ARCHIVE_DIR"/*; do
     [ -f "$segment" ] || continue
     name="$(basename "$segment")"
-    [ -f "$dest/$name.age" ] && continue
-    age "${age_args[@]}" -o "$dest/$name.age.partial" < "$segment"
-    mv "$dest/$name.age.partial" "$dest/$name.age"
+    [ -f "$dest/$name.zst.age" ] && continue
+    zstd -q -3 -c "$segment" | age "${age_args[@]}" -o "$dest/$name.zst.age.partial"
+    mv "$dest/$name.zst.age.partial" "$dest/$name.zst.age"
     count=$((count + 1))
   done
   info "backup_wal_done new_segments=$count"
   write_metrics wal 1 0 "$(du -sb "$dest" | cut -f1)"
+}
+
+# Physical base backup for PITR. PGHOST must be 127.0.0.1 inside PostgreSQL's network namespace, where the
+# image's default pg_hba.conf allows replication connections (a remote container is refused).
+backup_basebackup() {
+  require_env PGHOST PGUSER
+  local age_args id dir work tmp started bytes
+  mapfile -t age_args < <(age_recipient_args)
+  id="$(new_id)"
+  dir="$(env_dir)/base/$id"
+  work="$dir.partial"
+  tmp="$(mktemp -d /tmp/bds-basebackup.XXXXXX)"
+  mkfifo "$tmp/plain.fifo"
+  mkdir -p "$work"
+  started="$(now_ms)"
+  pg_basebackup --host="$PGHOST" --port="${PGPORT:-5432}" --username="$PGUSER" --no-password \
+      --pgdata=- --format=tar --wal-method=none --checkpoint=fast --label="bds-$BACKUP_ENV-$id" \
+    | zstd -q -3 \
+    | encrypt_stream "$tmp/plain.fifo" "$tmp/plain.sha256" "$work/base.tar.zst.age" "${age_args[@]}"
+  bytes="$(stat -c %s "$work/base.tar.zst.age")"
+  jq -n --arg format "$FORMAT_VERSION" --arg env "$BACKUP_ENV" --arg id "$id" --arg createdAt "$(iso_now)" \
+    --argjson durationMs "$(( $(now_ms) - started ))" --arg host "$PGHOST" \
+    --arg serverVersion "$(psql -X -At -h "$PGHOST" -U "$PGUSER" -d "${PGDATABASE:-postgres}" -c 'SHOW server_version')" \
+    --arg pgBasebackup "$(pg_basebackup --version)" --arg age "$(age --version)" --argjson recipients "$(recipients_json)" \
+    --argjson bytes "$bytes" --arg sha256 "$(sha256_of "$work/base.tar.zst.age")" --arg plaintextSha256 "$(cat "$tmp/plain.sha256")" \
+    '{format: $format, kind: "base", env: $env, id: $id, createdAt: $createdAt, durationMs: $durationMs,
+      source: {host: $host, serverVersion: $serverVersion}, tools: {pgBasebackup: $pgBasebackup, age: $age},
+      encryption: {scheme: "age", recipients: $recipients}, compression: "zstd",
+      files: [{name: "base.tar.zst.age", bytes: $bytes, sha256: $sha256, plaintextSha256: $plaintextSha256}],
+      counts: {}}' > "$work/manifest.json"
+  finish_set "$work" "$dir"
+  rm -rf "$tmp"
+  info "backup_basebackup_done id=$id bytes=$bytes durationMs=$(( $(now_ms) - started ))"
+  write_metrics base 1 "$(( ($(now_ms) - started) / 1000 ))" "$bytes"
 }
 
 # prune_kind <kind> <keep-all-hours> <keep-daily-days>
@@ -223,12 +264,18 @@ prune_kind() {
   [ -d "$(env_dir)/$kind" ] && find "$(env_dir)/$kind" -mindepth 1 -maxdepth 1 -name '*.partial' -mmin +1440 -exec rm -rf {} + || true
 }
 
+# prune [db|media|basebackup|wal]: one kind (what the scheduler just ran, so two services with different retention
+# settings never prune each other's sets) or, without argument, every kind.
 prune() {
-  prune_kind db "$RETENTION_DB_HOURS" "$RETENTION_DB_DAYS"
-  prune_kind media 0 "$RETENTION_MEDIA_DAYS"
-  if [ -d "$(env_dir)/wal" ]; then
-    find "$(env_dir)/wal" -type f -name '*.age' -mtime +"$RETENTION_WAL_DAYS" -delete
-  fi
+  local kind
+  for kind in ${1:-db media basebackup wal}; do
+    case "$kind" in
+      db) prune_kind db "$RETENTION_DB_HOURS" "$RETENTION_DB_DAYS" ;;
+      media) prune_kind media 0 "$RETENTION_MEDIA_DAYS" ;;
+      basebackup) prune_kind base 0 "$RETENTION_BASE_DAYS" ;;
+      wal) [ ! -d "$(env_dir)/wal" ] || find "$(env_dir)/wal" -type f -name '*.age' -mtime +"$RETENTION_WAL_DAYS" -delete ;;
+    esac
+  done
 }
 
 # Each job runs as its own process (see schedule): bash ignores `set -e` inside anything whose exit status is being
@@ -243,35 +290,46 @@ run_job() {
 }
 
 schedule() {
-  local next_db next_media next_wal now self
+  local now self job interval
+  local -A next=()
   self="$(readlink -f "$0")"
   now="$(date +%s)"
-  next_db="$now"; next_media="$now"; next_wal="$now"
-  [ "${RUN_ON_START:-true}" = true ] || { next_db=$((now + DB_INTERVAL_SECONDS)); next_media=$((now + MEDIA_INTERVAL_SECONDS)); }
-  info "schedule_started env=$BACKUP_ENV dbEvery=${DB_INTERVAL_SECONDS}s mediaEvery=${MEDIA_INTERVAL_SECONDS}s wal=${WAL_ARCHIVE_DIR:-off}"
+  for job in $(printf '%s' "$SCHEDULE_JOBS" | tr ',' ' '); do
+    case "$job" in
+      db|media|basebackup) ;;
+      wal) [ -n "${WAL_ARCHIVE_DIR:-}" ] || continue ;;
+      *) die "unknown job '$job' in SCHEDULE_JOBS" ;;
+    esac
+    next[$job]="$now"
+    [ "${RUN_ON_START:-true}" = true ] || next[$job]=$((now + $(interval_of "$job")))
+  done
+  [ ${#next[@]} -gt 0 ] || die "SCHEDULE_JOBS selects no job"
+  info "schedule_started env=$BACKUP_ENV jobs=${!next[*]} dbEvery=${DB_INTERVAL_SECONDS}s mediaEvery=${MEDIA_INTERVAL_SECONDS}s"
   while true; do
     now="$(date +%s)"
-    if [ "$now" -ge "$next_db" ]; then
-      "$self" db || true
-      next_db=$((now + DB_INTERVAL_SECONDS))
-      "$self" prune || warn "prune_failed"
-    fi
-    if [ "$now" -ge "$next_media" ]; then
-      "$self" media || true
-      next_media=$((now + MEDIA_INTERVAL_SECONDS))
-      "$self" prune || warn "prune_failed"
-    fi
-    if [ -n "${WAL_ARCHIVE_DIR:-}" ] && [ "$now" -ge "$next_wal" ]; then
-      "$self" wal || true
-      next_wal=$((now + WAL_INTERVAL_SECONDS))
-    fi
+    for job in "${!next[@]}"; do
+      [ "$now" -ge "${next[$job]}" ] || continue
+      "$self" "$job" || true
+      interval="$(interval_of "$job")"
+      next[$job]=$((now + interval))
+      "$self" prune "$job" || warn "prune_failed kind=$job"
+    done
     sleep 30
   done
 }
 
+interval_of() {
+  case "$1" in
+    db) echo "$DB_INTERVAL_SECONDS" ;;
+    media) echo "$MEDIA_INTERVAL_SECONDS" ;;
+    wal) echo "$WAL_INTERVAL_SECONDS" ;;
+    basebackup) echo "$BASEBACKUP_INTERVAL_SECONDS" ;;
+  esac
+}
+
 case "${1:-schedule}" in
-  db|media|wal) run_job "$1" ;;
-  prune) prune ;;
+  db|media|wal|basebackup) run_job "$1" ;;
+  prune) prune "${2:-}" ;;
   schedule) schedule ;;
-  *) echo "usage: backup.sh db|media|wal|prune|schedule" >&2; exit 2 ;;
+  *) echo "usage: backup.sh db|media|wal|basebackup|prune|schedule" >&2; exit 2 ;;
 esac
