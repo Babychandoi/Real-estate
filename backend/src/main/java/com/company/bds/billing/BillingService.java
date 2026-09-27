@@ -1,12 +1,8 @@
 package com.company.bds.billing;
 
 import com.company.bds.notification.RealtimeNotificationService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.mail.MailException;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.beans.factory.annotation.Value;
+import com.company.bds.shared.mail.MailMessage;
+import com.company.bds.shared.mail.MailOutbox;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,12 +14,9 @@ import java.util.UUID;
 
 @Service
 public class BillingService {
-    private static final Logger log = LoggerFactory.getLogger(BillingService.class);
-    private final JdbcTemplate jdbc; private final RealtimeNotificationService notifications;
-    private final JavaMailSender mailSender; private final String mailFrom;
-    public BillingService(JdbcTemplate jdbc, RealtimeNotificationService notifications, JavaMailSender mailSender,
-                          @Value("${app.mail.from:no-reply@bds.local}") String mailFrom) {
-        this.jdbc=jdbc; this.notifications=notifications; this.mailSender=mailSender; this.mailFrom=mailFrom;
+    private final JdbcTemplate jdbc; private final RealtimeNotificationService notifications; private final MailOutbox mailOutbox;
+    public BillingService(JdbcTemplate jdbc, RealtimeNotificationService notifications, MailOutbox mailOutbox) {
+        this.jdbc=jdbc; this.notifications=notifications; this.mailOutbox=mailOutbox;
     }
     public List<Plan> plans() { return jdbc.query("SELECT code,name,price_vnd,listing_quota,duration_days,description FROM service_plans WHERE active ORDER BY sort_order", (r,n)->new Plan(r.getString(1),r.getString(2),r.getLong(3),r.getInt(4),r.getInt(5),r.getString(6))); }
     public BankSettings bank() { return jdbc.query("SELECT bank_bin,bank_name,account_number,account_name,admin_notification_email,version FROM bank_settings WHERE singleton_id=1", (r,n)->new BankSettings(r.getString(1),r.getString(2),r.getString(3),r.getString(4),r.getString(5),r.getLong(6))).stream().findFirst().orElse(null); }
@@ -77,20 +70,14 @@ public class BillingService {
     private Order load(UUID id,UUID userId,boolean admin){String where=admin?"WHERE o.id=?":"WHERE o.id=? AND o.user_id=?"; return query(where,admin?new Object[]{id}:new Object[]{id,userId}).stream().findFirst().orElseThrow(()->new IllegalArgumentException("Không tìm thấy yêu cầu thanh toán."));}
     private Order map(java.sql.ResultSet r)throws java.sql.SQLException{String qr=null;if(r.getString(8)!=null)qr="https://img.vietqr.io/image/"+r.getString(8)+"-"+r.getString(9)+"-compact2.png?amount="+r.getLong(4)+"&addInfo="+enc(r.getString(5))+"&accountName="+enc(r.getString(10));return new Order(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getString(3),r.getLong(4),r.getString(5),r.getString(6),r.getTimestamp(7).toInstant(),qr,r.getString(11),r.getInt(12),r.getInt(13));}
     private static String enc(String v){return URLEncoder.encode(v,StandardCharsets.UTF_8);}
+    /** Queued with the transfer report (same transaction) and sent once by the job worker, with retries if SMTP is down. */
     private void emailAdmin(Order o) {
         BankSettings b=bank();
         if(b==null||b.adminEmail()==null||b.adminEmail().isBlank()) return;
-        SimpleMailMessage message=new SimpleMailMessage();
-        message.setFrom(mailFrom);
-        message.setTo(b.adminEmail());
-        message.setSubject("[Nhà Đất Chuẩn] Có thanh toán chờ đối soát " + o.reference());
-        message.setText("Mã đối soát: " + o.reference() + "\nSố tiền: " + o.amountVnd()
-                + " VND\nVui lòng mở trang quản trị để kiểm tra và xác nhận.");
-        try {
-            mailSender.send(message);
-        } catch (MailException ex) {
-            log.error("Không thể gửi email đối soát cho đơn {}", o.id(), ex);
-        }
+        mailOutbox.enqueue(MailMessage.text(b.adminEmail(), "[Nhà Đất Chuẩn] Có thanh toán chờ đối soát " + o.reference(),
+                "Mã đối soát: " + o.reference() + "\nSố tiền: " + o.amountVnd()
+                        + " VND\nVui lòng mở trang quản trị để kiểm tra và xác nhận.",
+                "BILLING_TRANSFER_REPORTED", "billing-transfer-reported:" + o.id()));
     }
     public record Plan(String code,String name,long priceVnd,int quota,int durationDays,String description){}
     public record BankSettings(String bankBin,String bankName,String accountNumber,String accountName,String adminEmail,long version){}

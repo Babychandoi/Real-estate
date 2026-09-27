@@ -19,6 +19,20 @@ class PiiProtectionServiceTests {
     }
 
     @Test
+    void sealsArbitraryTextBoundToItsPurpose() {
+        String text = "Liên kết: https://nhadatchuan.online/reset-password?token=abc  (giữ nguyên khoảng trắng)";
+        String sealed = service.seal(text, "mail-outbox");
+
+        assertEquals(text, service.unseal(sealed, "mail-outbox"));
+        assertNotEquals(sealed, service.seal(text, "mail-outbox"));
+        assertThrows(IllegalStateException.class, () -> service.unseal(sealed, "another-purpose"));
+        int tampered = sealed.lastIndexOf(':') + 5;
+        String flipped = sealed.substring(0, tampered) + (sealed.charAt(tampered) == 'A' ? 'B' : 'A') + sealed.substring(tampered + 1);
+        assertThrows(IllegalStateException.class, () -> service.unseal(flipped, "mail-outbox"));
+        assertThrows(IllegalArgumentException.class, () -> service.unseal("plain", "mail-outbox"));
+    }
+
+    @Test
     void rejectsMalformedOrTamperedValues() {
         assertThrows(IllegalArgumentException.class, () -> service.reveal("plain-text"));
         assertThrows(IllegalStateException.class, () -> service.reveal("v1:091****678:bad:bad"));

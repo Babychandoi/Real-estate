@@ -12,7 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** SMTP points at the shared Mailpit test inbox, so registration emails need no stubbing. */
+/** Registration emails are queued in the durable mail outbox; the test profile does not poll it (see MailOutboxTests). */
 @BdsIntegrationTest
 class SecurityIntegrationTests {
     @Autowired MockMvc mockMvc;

@@ -39,6 +39,34 @@ public class PiiProtectionService {
 
     public String blindIndex(String raw) { return hmac(normalize(raw)); }
 
+    /**
+     * Encrypts arbitrary text (not normalized, unlike {@link #protect}) with AES-GCM; {@code purpose} is bound as associated
+     * data, so a value sealed for one purpose cannot be unsealed as another. Format {@code s1:<nonce>:<ciphertext>}.
+     */
+    public String seal(String plaintext, String purpose) {
+        try {
+            byte[] nonce = new byte[12]; RANDOM.nextBytes(nonce);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(encryptionKey, "AES"), new GCMParameterSpec(128, nonce));
+            cipher.updateAAD(purpose.getBytes(StandardCharsets.UTF_8));
+            byte[] encrypted = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
+            return "s1:" + Base64.getUrlEncoder().withoutPadding().encodeToString(nonce) + ":"
+                    + Base64.getUrlEncoder().withoutPadding().encodeToString(encrypted);
+        } catch (Exception ex) { throw new IllegalStateException("Không thể mã hóa dữ liệu", ex); }
+    }
+
+    public String unseal(String sealed, String purpose) {
+        String[] parts = sealed == null ? new String[0] : sealed.split(":", 3);
+        if (parts.length != 3 || !"s1".equals(parts[0])) throw new IllegalArgumentException("Dữ liệu mã hóa không hợp lệ");
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(encryptionKey, "AES"),
+                    new GCMParameterSpec(128, Base64.getUrlDecoder().decode(parts[1])));
+            cipher.updateAAD(purpose.getBytes(StandardCharsets.UTF_8));
+            return new String(cipher.doFinal(Base64.getUrlDecoder().decode(parts[2])), StandardCharsets.UTF_8);
+        } catch (Exception ex) { throw new IllegalStateException("Không thể giải mã dữ liệu", ex); }
+    }
+
     public String reveal(String protectedValue) {
         if (protectedValue == null || !protectedValue.startsWith("v1:")) {
             throw new IllegalArgumentException("Dữ liệu bảo vệ có định dạng không được hỗ trợ");

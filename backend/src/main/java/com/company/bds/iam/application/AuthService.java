@@ -4,12 +4,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -21,6 +17,8 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import com.company.bds.shared.mail.MailMessage;
+import com.company.bds.shared.mail.MailOutbox;
 import com.company.bds.shared.security.ContactInfoGuard;
 import com.company.bds.shared.security.PiiProtectionService;
 
@@ -31,20 +29,17 @@ public class AuthService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
-    private final String mailFrom;
+    private final MailOutbox mailOutbox;
     private final String publicBaseUrl;
     private final PiiProtectionService piiProtection;
 
     public AuthService(JdbcTemplate jdbc, PasswordEncoder passwordEncoder,
-                       JavaMailSender mailSender,
-                       @Value("${app.mail.from}") String mailFrom,
+                       MailOutbox mailOutbox,
                        @Value("${app.public-base-url}") String publicBaseUrl,
                        PiiProtectionService piiProtection) {
         this.jdbc = jdbc;
         this.passwordEncoder = passwordEncoder;
-        this.mailSender = mailSender;
-        this.mailFrom = mailFrom;
+        this.mailOutbox = mailOutbox;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", "");
         this.piiProtection = piiProtection;
     }
@@ -160,18 +155,14 @@ public class AuthService {
         jdbc.update("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        UUID tokenId = UUID.randomUUID();
         jdbc.update("INSERT INTO password_reset_tokens(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
-                UUID.randomUUID(), userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofMinutes(30))));
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(mailFrom); message.setTo(normalizeEmail(email));
-                message.setSubject("Đặt lại mật khẩu Nhà Đất Chuẩn");
-                message.setText("Chào bạn,\n\nNhấn vào liên kết sau để đặt lại mật khẩu: " + publicBaseUrl
-                        + "/reset-password?token=" + token + "\n\nLiên kết có hiệu lực trong 30 phút và chỉ dùng một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này.");
-                mailSender.send(message);
-            }
-        });
+                tokenId, userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofMinutes(30))));
+        // Queued in this transaction and sent by the job worker: SMTP never runs inside the request transaction.
+        mailOutbox.enqueue(MailMessage.text(normalizeEmail(email), "Đặt lại mật khẩu Nhà Đất Chuẩn",
+                "Chào bạn,\n\nNhấn vào liên kết sau để đặt lại mật khẩu: " + publicBaseUrl
+                        + "/reset-password?token=" + token + "\n\nLiên kết có hiệu lực trong 30 phút và chỉ dùng một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này.",
+                "PASSWORD_RESET", "password-reset:" + tokenId));
     }
 
     @Transactional
@@ -220,18 +211,13 @@ public class AuthService {
         jdbc.update("UPDATE email_verification_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        UUID tokenId = UUID.randomUUID();
         jdbc.update("INSERT INTO email_verification_tokens(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
-                UUID.randomUUID(), userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofHours(24))));
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(mailFrom); message.setTo(email);
-                message.setSubject("Xác minh tài khoản Nhà Đất Chuẩn");
-                message.setText("Chào bạn,\n\nXác minh email để kích hoạt tài khoản tại:\n" + publicBaseUrl
-                        + "/verify-email?token=" + token + "\n\nLiên kết có hiệu lực trong 24 giờ. Nếu bạn không đăng ký, hãy bỏ qua email này.");
-                mailSender.send(message);
-            }
-        });
+                tokenId, userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofHours(24))));
+        mailOutbox.enqueue(MailMessage.text(email, "Xác minh tài khoản Nhà Đất Chuẩn",
+                "Chào bạn,\n\nXác minh email để kích hoạt tài khoản tại:\n" + publicBaseUrl
+                        + "/verify-email?token=" + token + "\n\nLiên kết có hiệu lực trong 24 giờ. Nếu bạn không đăng ký, hãy bỏ qua email này.",
+                "EMAIL_VERIFICATION", "email-verification:" + tokenId));
     }
 
     public UserAccount findByToken(String rawToken) {
