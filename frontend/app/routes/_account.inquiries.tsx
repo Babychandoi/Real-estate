@@ -20,6 +20,7 @@ const STATUS_LABELS: Record<LeadItem['status'], string> = {
   APPOINTED: 'Đã hẹn xem',
   CLOSED: 'Đã hoàn tất',
   SPAM: 'Yêu cầu không hợp lệ',
+  WITHDRAWN: 'Bạn đã rút yêu cầu',
 };
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));

@@ -20,7 +20,8 @@ export interface ListingReport {
   resolvedAt?: string;
 }
 
-export type LeadStatus = 'NEW' | 'CONTACTED' | 'APPOINTED' | 'CLOSED' | 'SPAM';
+/** WITHDRAWN: the requester withdrew the request (contract §2.4); only the requester can set it. */
+export type LeadStatus = 'NEW' | 'CONTACTED' | 'APPOINTED' | 'CLOSED' | 'SPAM' | 'WITHDRAWN';
 export type LeadRequestType = 'VIEWING' | 'CONSULTATION';
 
 export interface LeadItem {

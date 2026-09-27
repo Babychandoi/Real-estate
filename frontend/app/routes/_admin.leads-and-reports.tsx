@@ -53,6 +53,7 @@ const LEAD_LABELS: Record<LeadStatus, string> = {
   APPOINTED: 'Đã hẹn xem',
   CLOSED: 'Hoàn tất',
   SPAM: 'Không hợp lệ',
+  WITHDRAWN: 'Khách đã rút',
 };
 const LEAD_BADGES: Record<LeadStatus, string> = {
   NEW: 'bg-amber-50 text-amber-800 ring-amber-200',
@@ -60,6 +61,7 @@ const LEAD_BADGES: Record<LeadStatus, string> = {
   APPOINTED: 'bg-violet-50 text-violet-800 ring-violet-200',
   CLOSED: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
   SPAM: 'bg-slate-100 text-slate-600 ring-slate-200',
+  WITHDRAWN: 'bg-slate-100 text-slate-600 ring-slate-200',
 };
 
 const formatDate = (value: string) =>
@@ -576,11 +578,14 @@ export default function LeadsAndReportsPage() {
                             onChange={(event) => void changeLead(lead.id, event.target.value as LeadStatus)}
                             className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-medium text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
                           >
-                            {Object.entries(LEAD_LABELS).map(([value, label]) => (
-                              <option key={value} value={value}>
-                                {label}
-                              </option>
-                            ))}
+                            {Object.entries(LEAD_LABELS)
+                              // WITHDRAWN is set by the requester only; shown when it is the current state.
+                              .filter(([value]) => value !== 'WITHDRAWN' || lead.status === 'WITHDRAWN')
+                              .map(([value, label]) => (
+                                <option key={value} value={value} disabled={value === 'WITHDRAWN'}>
+                                  {label}
+                                </option>
+                              ))}
                           </select>
                         </label>
                       </div>

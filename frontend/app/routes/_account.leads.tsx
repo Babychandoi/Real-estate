@@ -23,6 +23,7 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   APPOINTED: 'Đã hẹn xem',
   CLOSED: 'Hoàn tất',
   SPAM: 'Không hợp lệ',
+  WITHDRAWN: 'Khách đã rút yêu cầu',
 };
 const STATUS_STYLES: Record<LeadStatus, string> = {
   NEW: 'bg-amber-50 text-amber-800',
@@ -30,6 +31,7 @@ const STATUS_STYLES: Record<LeadStatus, string> = {
   APPOINTED: 'bg-violet-50 text-violet-800',
   CLOSED: 'bg-emerald-50 text-emerald-800',
   SPAM: 'bg-slate-100 text-slate-700',
+  WITHDRAWN: 'bg-slate-100 text-slate-700',
 };
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('vi-VN', {
@@ -442,7 +444,8 @@ export function MyLeadsPage() {
                           >
                             <option value={lead.status}>{STATUS_LABELS[lead.status]}</option>
                             {(Object.entries(STATUS_LABELS) as [LeadStatus, string][])
-                              .filter(([value]) => value !== lead.status)
+                              // Only the requester withdraws a request; the owner cannot pick WITHDRAWN.
+                              .filter(([value]) => value !== lead.status && value !== 'WITHDRAWN')
                               .map(([value, label]) => (
                                 <option key={value} value={value}>
                                   {label}
