@@ -3,31 +3,41 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { ShieldAlert, LogIn, ArrowLeft } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
-import type { UserRole } from './AuthContext';
+import { hasRole, SEEKERS, STAFF, type Role } from './roles';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: UserRole[];
+  /** Capability list from `./roles` (POSTERS, STAFF, BROKER_WORKSPACE…). */
+  allowedRoles?: readonly Role[];
   moduleName?: string;
   loginPath?: string;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  allowedRoles = ['ADMIN', 'MODERATOR'],
+  allowedRoles = STAFF,
   moduleName = 'Phân hệ Nội bộ',
   loginPath,
 }) => {
-  const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
+  const { user, isAuthenticated, isAuthLoading, setIsLoginModalOpen } = useAuth();
 
-  const hasAccess = isAuthenticated && user && allowedRoles.includes(user.role);
+  // A stored session is still being checked: do not flash "please log in" to a signed-in person.
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-[70vh] grid place-items-center p-6" role="status">
+        <p className="text-sm text-on-surface-variant">Đang kiểm tra phiên đăng nhập…</p>
+      </div>
+    );
+  }
+
+  const hasAccess = isAuthenticated && user && hasRole(user.role, allowedRoles);
 
   if (!hasAccess) {
     // Phân biệt: chưa đăng nhập vs đã đăng nhập nhưng không đủ quyền
     const isLoggedInButNoPermission = isAuthenticated && user;
 
     if (isLoggedInButNoPermission) {
-      return <Navigate to={user.role === 'USER' ? '/my-inquiries' : '/'} replace />;
+      return <Navigate to={hasRole(user.role, SEEKERS) ? '/my-inquiries' : '/'} replace />;
     }
 
     return (

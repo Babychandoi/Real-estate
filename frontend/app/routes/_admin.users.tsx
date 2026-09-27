@@ -42,6 +42,7 @@ interface UserPage {
 
 const ROLE_LABELS: Record<string, string> = {
   USER: 'Người dùng',
+  OWNER: 'Chủ nhà',
   BROKER: 'Môi giới',
   MODERATOR: 'Kiểm duyệt viên',
   ADMIN: 'Quản trị viên',

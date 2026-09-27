@@ -2,6 +2,8 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { RootLayout } from './root';
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
+import { ROUTE_ACCESS } from '@/shared/auth/routeAccess';
+import type { Role } from '@/shared/auth/roles';
 import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
 
 const HomePage = lazy(() => import('./routes/_public.home').then((m) => ({ default: m.HomePage })));
@@ -68,12 +70,7 @@ const load = (node: ReactNode) => (
     {node}
   </Suspense>
 );
-const protect = (
-  node: ReactNode,
-  moduleName: string,
-  allowedRoles: Array<'ADMIN' | 'MODERATOR' | 'BROKER' | 'USER'>,
-  adminLogin = false,
-) =>
+const protect = (node: ReactNode, moduleName: string, allowedRoles: readonly Role[], adminLogin = false) =>
   load(
     <ProtectedRoute
       moduleName={moduleName}
@@ -91,22 +88,22 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: load(<HomePage />) },
       { path: 'search', element: load(<SearchAndMapPage />) },
-      { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN', 'BROKER']) },
+      { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ROUTE_ACCESS.createListing) },
       { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
-      { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN', 'BROKER']) },
+      { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ROUTE_ACCESS.myListings) },
       {
         path: 'broker/workspace',
-        element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN', 'BROKER']),
+        element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ROUTE_ACCESS.brokerWorkspace),
       },
       { path: 'compare', element: load(<PropertyComparePage />) },
       { path: 'nguoi-dang/:sellerId', element: load(<SellerProfilePage />) },
-      { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ['ADMIN', 'BROKER']) },
-      { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ['ADMIN', 'BROKER']) },
-      { path: 'my-inquiries', element: protect(<MyInquiriesPage />, 'Tin đã liên hệ', ['USER']) },
-      { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ['ADMIN', 'MODERATOR', 'BROKER', 'USER']) },
+      { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ROUTE_ACCESS.billing) },
+      { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ROUTE_ACCESS.myLeads) },
+      { path: 'my-inquiries', element: protect(<MyInquiriesPage />, 'Tin đã liên hệ', ROUTE_ACCESS.myInquiries) },
+      { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ROUTE_ACCESS.kyc) },
       {
         path: 'account',
-        element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ['ADMIN', 'MODERATOR', 'BROKER', 'USER']),
+        element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ROUTE_ACCESS.account),
       },
       { path: 'verify-email', element: load(<VerifyEmailPage />) },
       { path: 'forgot-password', element: load(<ForgotPasswordPage />) },
@@ -132,19 +129,28 @@ export const router = createBrowserRouter([
     children: [
       {
         path: 'moderation',
-        element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN', 'MODERATOR'], true),
+        element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ROUTE_ACCESS.adminModeration, true),
       },
-      { path: 'listings', element: protect(<AdminListingsPage />, 'Quản lý tin', ['ADMIN'], true) },
-      { path: 'users', element: protect(<AdminUsersPage />, 'Quản lý người dùng', ['ADMIN'], true) },
+      { path: 'listings', element: protect(<AdminListingsPage />, 'Quản lý tin', ROUTE_ACCESS.adminListings, true) },
+      { path: 'users', element: protect(<AdminUsersPage />, 'Quản lý người dùng', ROUTE_ACCESS.adminUsers, true) },
       {
         path: 'leads-and-reports',
-        element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ['ADMIN', 'MODERATOR'], true),
+        element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ROUTE_ACCESS.adminLeadsAndReports, true),
       },
-      { path: 'verification', element: protect(<VerificationDeskPage />, 'Thẩm định', ['ADMIN', 'MODERATOR'], true) },
-      { path: 'billing', element: protect(<AdminBillingPage />, 'Đơn hàng và đối soát', ['ADMIN'], true) },
-      { path: 'analytics', element: protect(<ProductAnalyticsPage />, 'Phân tích', ['ADMIN', 'MODERATOR'], true) },
-      { path: 'projects', element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ['ADMIN', 'MODERATOR'], true) },
-      { path: 'cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ['ADMIN', 'MODERATOR'], true) },
+      {
+        path: 'verification',
+        element: protect(<VerificationDeskPage />, 'Thẩm định', ROUTE_ACCESS.adminVerification, true),
+      },
+      {
+        path: 'billing',
+        element: protect(<AdminBillingPage />, 'Đơn hàng và đối soát', ROUTE_ACCESS.adminBilling, true),
+      },
+      { path: 'analytics', element: protect(<ProductAnalyticsPage />, 'Phân tích', ROUTE_ACCESS.adminAnalytics, true) },
+      {
+        path: 'projects',
+        element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ROUTE_ACCESS.adminProjects, true),
+      },
+      { path: 'cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ROUTE_ACCESS.adminCms, true) },
     ],
   },
   { path: '/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/moderation" replace /> },

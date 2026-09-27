@@ -1,7 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { apiClient, apiFetch, clearAccessToken, setAccessToken } from '@/shared/api/client';
+import {
+  canUseBrokerWorkspace,
+  hasRole as roleIn,
+  isPoster as roleIsPoster,
+  isStaff as roleIsStaff,
+  ROLE_LABELS,
+  type Role,
+  type SelfServiceRole,
+} from './roles';
 
-export type UserRole = 'ADMIN' | 'MODERATOR' | 'BROKER' | 'USER';
+export type UserRole = Role;
 export interface AuthUser {
   id: string;
   name: string;
@@ -35,15 +44,20 @@ interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isAuthLoading: boolean;
+  /** STAFF: admin desks (moderation, verification, CMS…). */
   isAdminOrModerator: boolean;
+  /** BROKER_WORKSPACE: brokers and admins (the broker workspace, "Môi giới Pro"). */
   isBroker: boolean;
+  /** POSTERS: brokers, owners and admins can post listings and see their leads and billing. */
+  isPoster: boolean;
+  hasRole: (allowed: readonly Role[]) => boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (
     email: string,
     password: string,
     name: string,
-    accountType: 'BROKER' | 'USER',
+    accountType: SelfServiceRole,
   ) => Promise<{ success: boolean; email?: string; error?: string }>;
   resendVerification: (email: string) => Promise<{ success: boolean; error?: string }>;
   refreshUser: () => Promise<void>;
@@ -52,15 +66,12 @@ interface AuthContextType {
   setIsLoginModalOpen: (open: boolean) => void;
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const ROLE_LABELS: Record<UserRole, string> = {
-  ADMIN: 'Quản trị viên',
-  MODERATOR: 'Chuyên viên kiểm duyệt',
-  BROKER: 'Môi giới BĐS',
-  USER: 'Người tìm nhà',
-};
-
 function toUser(user: ServerUser): AuthUser {
-  return { ...user, roleLabel: ROLE_LABELS[user.role], avatarInitial: user.name.charAt(0).toUpperCase() };
+  return {
+    ...user,
+    roleLabel: ROLE_LABELS[user.role] ?? 'Thành viên',
+    avatarInitial: user.name.charAt(0).toUpperCase(),
+  };
 }
 function errorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'problem' in error) {
@@ -159,20 +170,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     [accept],
   );
-  const register = useCallback(
-    async (email: string, password: string, name: string, accountType: 'BROKER' | 'USER') => {
-      try {
-        const result = await apiClient<{ email: string; requiresEmailVerification: boolean }>('/auth/register', {
-          method: 'POST',
-          body: JSON.stringify({ email, password, name, accountType }),
-        });
-        return { success: true, email: result.email };
-      } catch (error) {
-        return { success: false, error: errorMessage(error) };
-      }
-    },
-    [],
-  );
+  const register = useCallback(async (email: string, password: string, name: string, accountType: SelfServiceRole) => {
+    try {
+      const result = await apiClient<{ email: string; requiresEmailVerification: boolean }>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ email, password, name, accountType }),
+      });
+      return { success: true, email: result.email };
+    } catch (error) {
+      return { success: false, error: errorMessage(error) };
+    }
+  }, []);
   const logout = useCallback(() => {
     apiClient<void>('/auth/logout', { method: 'POST' }).catch(() => undefined);
     clearAccessToken();
@@ -196,8 +204,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user,
       isAuthenticated: !!user,
       isAuthLoading,
-      isAdminOrModerator: user?.role === 'ADMIN' || user?.role === 'MODERATOR',
-      isBroker: user?.role === 'BROKER' || user?.role === 'ADMIN',
+      isAdminOrModerator: roleIsStaff(user?.role),
+      isBroker: canUseBrokerWorkspace(user?.role),
+      isPoster: roleIsPoster(user?.role),
+      hasRole: (allowed: readonly Role[]) => roleIn(user?.role, allowed),
       login,
       adminLogin,
       register,

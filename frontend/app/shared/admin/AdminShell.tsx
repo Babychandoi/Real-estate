@@ -15,34 +15,30 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { AuthProvider, useAuth, type UserRole } from '@/shared/auth/AuthContext';
+import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
+import { canOpen, type ProtectedPage } from '@/shared/auth/routeAccess';
 import './admin-light.css';
 
-const navigation: Array<{ to: string; label: string; icon: typeof FileCheck2; roles: UserRole[] }> = [
-  {
-    to: '/2026/nhadatchuan/admin/moderation',
-    label: 'Kiểm duyệt tin',
-    icon: FileCheck2,
-    roles: ['ADMIN', 'MODERATOR'],
-  },
-  { to: '/2026/nhadatchuan/admin/listings', label: 'Quản lý tất cả tin', icon: ListChecks, roles: ['ADMIN'] },
-  { to: '/2026/nhadatchuan/admin/users', label: 'Quản lý người dùng', icon: Users, roles: ['ADMIN'] },
+const navigation: Array<{ to: string; label: string; icon: typeof FileCheck2; page: ProtectedPage }> = [
+  { to: '/2026/nhadatchuan/admin/moderation', label: 'Kiểm duyệt tin', icon: FileCheck2, page: 'adminModeration' },
+  { to: '/2026/nhadatchuan/admin/listings', label: 'Quản lý tất cả tin', icon: ListChecks, page: 'adminListings' },
+  { to: '/2026/nhadatchuan/admin/users', label: 'Quản lý người dùng', icon: Users, page: 'adminUsers' },
   {
     to: '/2026/nhadatchuan/admin/verification',
     label: 'Giấy tờ tin đăng',
     icon: UserCheck,
-    roles: ['ADMIN', 'MODERATOR'],
+    page: 'adminVerification',
   },
-  { to: '/2026/nhadatchuan/admin/billing', label: 'Đơn hàng & đối soát', icon: CreditCard, roles: ['ADMIN'] },
+  { to: '/2026/nhadatchuan/admin/billing', label: 'Đơn hàng & đối soát', icon: CreditCard, page: 'adminBilling' },
   {
     to: '/2026/nhadatchuan/admin/leads-and-reports',
     label: 'Khách quan tâm & báo cáo',
     icon: Users,
-    roles: ['ADMIN', 'MODERATOR'],
+    page: 'adminLeadsAndReports',
   },
-  { to: '/2026/nhadatchuan/admin/analytics', label: 'Phân tích', icon: BarChart3, roles: ['ADMIN', 'MODERATOR'] },
-  { to: '/2026/nhadatchuan/admin/projects', label: 'Dự án BĐS', icon: FolderKanban, roles: ['ADMIN', 'MODERATOR'] },
-  { to: '/2026/nhadatchuan/admin/cms', label: 'Nội dung CMS', icon: FileText, roles: ['ADMIN', 'MODERATOR'] },
+  { to: '/2026/nhadatchuan/admin/analytics', label: 'Phân tích', icon: BarChart3, page: 'adminAnalytics' },
+  { to: '/2026/nhadatchuan/admin/projects', label: 'Dự án BĐS', icon: FolderKanban, page: 'adminProjects' },
+  { to: '/2026/nhadatchuan/admin/cms', label: 'Nội dung CMS', icon: FileText, page: 'adminCms' },
 ];
 
 const AdminShellContent: React.FC = () => {
@@ -50,7 +46,7 @@ const AdminShellContent: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const close = () => setMobileOpen(false);
-  const visibleNavigation = navigation.filter((item) => user && item.roles.includes(user.role));
+  const visibleNavigation = navigation.filter((item) => canOpen(user?.role, item.page));
   const sideNav = (
     <nav className="flex h-full flex-col bg-slate-950 px-3 py-4 text-slate-200" aria-label="Điều hướng quản trị">
       <Link

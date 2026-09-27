@@ -27,6 +27,7 @@ import {
 import { Button } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { LoginModal } from '@/shared/auth/LoginModal';
+import { canOpen } from '@/shared/auth/routeAccess';
 
 const RootLayoutContent: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -35,7 +36,8 @@ const RootLayoutContent: React.FC = () => {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const { user, isAuthenticated, isAdminOrModerator, isBroker, setIsLoginModalOpen, logout } = useAuth();
+  const { user, isAuthenticated, isAdminOrModerator, isPoster, setIsLoginModalOpen, logout } = useAuth();
+  const role = user?.role;
   const closeMobileMenu = () => setIsMobileOpen(false);
 
   useEffect(() => {
@@ -128,7 +130,7 @@ const RootLayoutContent: React.FC = () => {
             </Link>
 
             {/* Chỉ hiển thị cho vai trò Môi giới Pro hoặc Admin */}
-            {isBroker && (
+            {canOpen(role, 'brokerWorkspace') && (
               <Link
                 to="/broker/workspace"
                 className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors flex items-center gap-1.5 font-semibold text-xs border border-blue-200/60 whitespace-nowrap"
@@ -300,7 +302,7 @@ const RootLayoutContent: React.FC = () => {
             >
               <Menu className="w-5 h-5" />
             </button>
-            {isAuthenticated && isBroker ? (
+            {isAuthenticated && isPoster ? (
               <Link to="/listings/new">
                 <Button
                   variant="outline"
@@ -323,7 +325,7 @@ const RootLayoutContent: React.FC = () => {
               </Button>
             ) : null}
 
-            {isAuthenticated && isBroker && (
+            {isAuthenticated && canOpen(role, 'billing') && (
               <Link
                 to="/billing"
                 aria-label="Xem các gói đăng tin và nâng cấp"
@@ -362,13 +364,15 @@ const RootLayoutContent: React.FC = () => {
                     </span>
                     <span
                       className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full mt-0.5 ${
-                        user?.role === 'ADMIN'
+                        role === 'ADMIN'
                           ? 'bg-emerald-100 text-emerald-800'
-                          : user?.role === 'MODERATOR'
+                          : role === 'MODERATOR'
                             ? 'bg-primary/10 text-primary'
-                            : user?.role === 'BROKER'
+                            : role === 'BROKER'
                               ? 'bg-blue-100 text-blue-800'
-                              : 'bg-slate-100 text-slate-800'
+                              : role === 'OWNER'
+                                ? 'bg-warning-container text-warning-on-container'
+                                : 'bg-slate-100 text-slate-800'
                       }`}
                     >
                       {user?.roleLabel}
@@ -409,7 +413,7 @@ const RootLayoutContent: React.FC = () => {
                       Xác minh eKYC
                     </Link>
                     <div className="my-1 border-t border-outline-variant/40" />
-                    {isBroker ? (
+                    {isPoster ? (
                       <>
                         <Link
                           to="/my-listings"
@@ -428,7 +432,7 @@ const RootLayoutContent: React.FC = () => {
                           Khách quan tâm
                         </Link>
                       </>
-                    ) : (
+                    ) : canOpen(role, 'myInquiries') ? (
                       <Link
                         to="/my-inquiries"
                         onClick={() => setIsUserMenuOpen(false)}
@@ -437,7 +441,7 @@ const RootLayoutContent: React.FC = () => {
                         <History className="w-4 h-4 text-primary" />
                         Tin đã liên hệ
                       </Link>
-                    )}
+                    ) : null}
                     <div className="my-1 border-t border-outline-variant/40" />
                     <button
                       type="button"
@@ -501,7 +505,7 @@ const RootLayoutContent: React.FC = () => {
                 <Layers className="w-5 h-5" />
                 So sánh BĐS
               </Link>
-              {isBroker && (
+              {isPoster && (
                 <Link
                   onClick={closeMobileMenu}
                   to="/listings/new"
@@ -531,7 +535,7 @@ const RootLayoutContent: React.FC = () => {
                   </Link>
                 </>
               )}
-              {user?.role === 'USER' && (
+              {canOpen(role, 'myInquiries') && (
                 <Link
                   onClick={closeMobileMenu}
                   to="/my-inquiries"
@@ -541,7 +545,7 @@ const RootLayoutContent: React.FC = () => {
                   Tin đã liên hệ
                 </Link>
               )}
-              {isBroker && (
+              {canOpen(role, 'brokerWorkspace') && (
                 <Link
                   onClick={closeMobileMenu}
                   to="/broker/workspace"

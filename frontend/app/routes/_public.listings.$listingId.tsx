@@ -40,7 +40,7 @@ import { listingIdFromRoute, listingPath } from '@/entities/listing/model/seo';
 export const ListingDetailPage: React.FC = () => {
   const { listingId: listingRoute } = useParams<{ listingId: string }>();
   const legacyListingId = listingIdFromRoute(listingRoute);
-  const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
+  const { user, isAuthenticated, isPoster, setIsLoginModalOpen } = useAuth();
   const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE'>('NONE');
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [seller, setSeller] = useState<PublicSellerProfile | null>(null);
@@ -400,7 +400,7 @@ export const ListingDetailPage: React.FC = () => {
                 </div>
               </div>
               <div className="mt-4 flex flex-col gap-2.5">
-                {(user?.role === 'BROKER' || user?.role === 'ADMIN') && (
+                {isPoster && (
                   <>
                     <Link to={`/listings/new?edit=${listing.id}`}>
                       <Button type="button" variant="outline" className="w-full min-h-11 font-bold">

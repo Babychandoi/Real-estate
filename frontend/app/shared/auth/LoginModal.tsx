@@ -11,14 +11,34 @@ import {
   User,
   Briefcase,
   Home,
+  Search,
   Loader2,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import type { SelfServiceRole } from './roles';
 
 type ModalTab = 'login' | 'register';
-type AccountType = 'BROKER' | 'USER';
+type AccountType = SelfServiceRole;
+
+/** Self-service account types; OWNER posts their own home without claiming to be a broker (P-09). */
+const ACCOUNT_TYPES: ReadonlyArray<{ value: AccountType; label: string; description: string; icon: typeof Search }> = [
+  { value: 'USER', label: 'Người tìm nhà', description: 'Tìm, lưu và so sánh tin; gửi yêu cầu xem nhà.', icon: Search },
+  {
+    value: 'OWNER',
+    label: 'Chủ nhà',
+    description: 'Đăng bán hoặc cho thuê nhà của chính bạn và nhận yêu cầu từ người quan tâm.',
+    icon: Home,
+  },
+  {
+    value: 'BROKER',
+    label: 'Môi giới BĐS',
+    description: 'Đăng và quản lý tin cho khách hàng, dùng không gian môi giới.',
+    icon: Briefcase,
+  },
+];
+const SUBMIT_LABEL: Record<AccountType, string> = { USER: 'Người tìm nhà', OWNER: 'Chủ nhà', BROKER: 'Môi giới' };
 
 export const LoginModal: React.FC = () => {
   const { isLoginModalOpen, setIsLoginModalOpen, login, register, resendVerification } = useAuth();
@@ -360,73 +380,48 @@ export const LoginModal: React.FC = () => {
               </div>
             )}
 
-            {/* Loại tài khoản - CHỈ User hoặc Broker */}
-            <div>
-              <span id="register-account-type-label" className="text-xs font-semibold text-on-surface mb-2 block">
-                Bạn là
-              </span>
-              <div className="grid grid-cols-2 gap-2.5" role="group" aria-labelledby="register-account-type-label">
-                <button
-                  type="button"
-                  onClick={() => setRegAccountType('USER')}
-                  aria-pressed={regAccountType === 'USER'}
-                  className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
-                    regAccountType === 'USER'
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                      : 'border-outline-variant/40 hover:bg-surface-container'
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      regAccountType === 'USER'
-                        ? 'bg-primary/10 text-primary'
-                        : 'bg-surface-container text-on-surface-variant'
-                    }`}
-                  >
-                    <Home className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span
-                      className={`text-xs font-bold ${regAccountType === 'USER' ? 'text-primary' : 'text-on-surface'}`}
+            {/* Loại tài khoản: người tìm nhà, chủ nhà hoặc môi giới (vai trò quản trị không tự chọn được). */}
+            <fieldset>
+              <legend className="text-xs font-semibold text-on-surface mb-2">Bạn là</legend>
+              <div className="grid gap-2">
+                {ACCOUNT_TYPES.map((option) => {
+                  const Icon = option.icon;
+                  const checked = regAccountType === option.value;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors ${
+                        checked
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                          : 'border-outline-variant hover:bg-surface-container'
+                      }`}
                     >
-                      Người tìm nhà
-                    </span>
-                    <span className="text-[10px] text-on-surface-variant">Tìm kiếm & so sánh BĐS</span>
-                  </div>
-                  {regAccountType === 'USER' && <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRegAccountType('BROKER')}
-                  aria-pressed={regAccountType === 'BROKER'}
-                  className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
-                    regAccountType === 'BROKER'
-                      ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-500/20'
-                      : 'border-outline-variant/40 hover:bg-surface-container'
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      regAccountType === 'BROKER'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-surface-container text-on-surface-variant'
-                    }`}
-                  >
-                    <Briefcase className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span
-                      className={`text-xs font-bold ${regAccountType === 'BROKER' ? 'text-blue-800' : 'text-on-surface'}`}
-                    >
-                      Môi giới BĐS
-                    </span>
-                    <span className="text-[10px] text-on-surface-variant">Đăng tin & quản lý BĐS</span>
-                  </div>
-                  {regAccountType === 'BROKER' && <CheckCircle2 className="w-4 h-4 text-blue-600 ml-auto shrink-0" />}
-                </button>
+                      <input
+                        type="radio"
+                        name="register-account-type"
+                        value={option.value}
+                        checked={checked}
+                        onChange={() => setRegAccountType(option.value)}
+                        className="h-4 w-4 shrink-0 accent-primary"
+                      />
+                      <span
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                          checked ? 'bg-primary/10 text-primary' : 'bg-surface-container text-on-surface-variant'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className={`text-sm font-bold ${checked ? 'text-primary' : 'text-on-surface'}`}>
+                          {option.label}
+                        </span>
+                        <span className="text-xs text-on-surface-variant">{option.description}</span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
-            </div>
+            </fieldset>
 
             {/* Họ tên */}
             <div>
@@ -527,7 +522,7 @@ export const LoginModal: React.FC = () => {
                   Đang tạo tài khoản...
                 </span>
               ) : (
-                `Đăng ký ${regAccountType === 'BROKER' ? 'Môi giới' : 'Người tìm nhà'}`
+                `Đăng ký ${SUBMIT_LABEL[regAccountType]}`
               )}
             </Button>
 
