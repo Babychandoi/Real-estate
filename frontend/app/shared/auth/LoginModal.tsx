@@ -75,10 +75,12 @@ export const LoginModal: React.FC = () => {
       if (loginEmailRef.current) loginEmailRef.current.value = '';
       if (loginPasswordRef.current) loginPasswordRef.current.value = '';
     });
+    // The element that opened the dialog gets focus back on close; initial focus is set here (not with
+    // autoFocus) so that `previous` is still the opener.
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    closeRef.current?.focus();
+    (loginEmailRef.current ?? closeRef.current)?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setIsLoginModalOpen(false);
       if (event.key !== 'Tab' || !dialogRef.current) return;
@@ -284,9 +286,6 @@ export const LoginModal: React.FC = () => {
                   placeholder="ten@email.com"
                   required
                   autoComplete="off"
-                  // Returning to the login tab puts the cursor in the first field of the dialog.
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
                 />
               </div>
             </div>
@@ -305,7 +304,7 @@ export const LoginModal: React.FC = () => {
                   type={showLoginPw ? 'text' : 'password'}
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
+                  className="w-full pl-9 pr-12 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
                   placeholder="Nhập mật khẩu"
                   required
                   autoComplete="new-password"
@@ -314,7 +313,7 @@ export const LoginModal: React.FC = () => {
                   type="button"
                   onClick={() => setShowLoginPw(!showLoginPw)}
                   aria-label={showLoginPw ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
+                  className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-lg text-on-surface-variant hover:text-on-surface transition-colors"
                 >
                   {showLoginPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
