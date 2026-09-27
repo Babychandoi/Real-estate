@@ -1,0 +1,43 @@
+# Proposed Prometheus alerting rules for the durable job queue (stream S0-BE). Observability is owned by S5; copy these
+# into the deployed rule set. Every expression is exercised on real scraped series by JobWorkerAlertingTests and
+# JobAlertingWithoutWorkerTests (backend tests); the queue gauges come from a refresher thread that runs on every
+# instance even when app.jobs.enabled=false, so they stay truthful while workers are disabled, dead or hung.
+groups:
+  - name: bds-jobs
+    rules:
+      - alert: JobQueueLagHigh
+        # Oldest due job waited more than 5 minutes (e-mail: verification, password reset, billing notices).
+        expr: max by (queue) (bds_jobs_lag_seconds) > 300
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: "Queue {{ $labels.queue }}: oldest due job waits {{ $value | humanizeDuration }}"
+          runbook: "RUNBOOK.md#hàng-đợi-công-việc"
+      - alert: JobQueueDeadLetters
+        expr: max by (queue) (bds_jobs_dead) > 0
+        for: 5m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Queue {{ $labels.queue }} has {{ $value }} dead-lettered jobs"
+      - alert: JobWorkerNotRunning
+        # Enabled on this instance but the poller died, stalled (heartbeat older than app.jobs.stall-after) or a handler
+        # hung past its time budget (bds_jobs_worker_paused_queues > 0).
+        expr: bds_jobs_worker_enabled == 1 and bds_jobs_worker_running == 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: "Job worker on {{ $labels.instance }} is not running (paused queues: see /actuator/health)"
+      - alert: NoJobWorkerRunning
+        # No instance processes jobs at all (e.g. APP_JOBS_ENABLED=false everywhere); absent() covers a lost scrape target.
+        expr: sum(bds_jobs_worker_running) == 0 or absent(bds_jobs_worker_running)
+        for: 5m
+        labels: { severity: page }
+        annotations:
+          summary: "No backend instance is processing background jobs"
+      - alert: JobMetricsStale
+        # The gauge refresher could not read the queue (database unreachable or stuck) for 2 minutes.
+        expr: bds_jobs_metrics_age_seconds > 120
+        for: 2m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Job queue metrics on {{ $labels.instance }} are {{ $value }} s old"

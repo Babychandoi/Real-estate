@@ -114,12 +114,12 @@ class ScheduledTaskLockTests {
                 ON CONFLICT (name) DO UPDATE SET locked_until = EXCLUDED.locked_until, locked_by = EXCLUDED.locked_by
                 """);
         try {
-            retentionTask.purgeCompletedJobs();
+            retentionTask.purgeOldJobs();
             assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM background_jobs WHERE id = ?", Integer.class, old)).isEqualTo(1);
         } finally {
             jdbc.update("DELETE FROM scheduled_task_locks WHERE name = 'background-jobs-purge'");
         }
-        retentionTask.purgeCompletedJobs();
+        retentionTask.purgeOldJobs();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM background_jobs WHERE id = ?", Integer.class, old)).isZero();
     }
 

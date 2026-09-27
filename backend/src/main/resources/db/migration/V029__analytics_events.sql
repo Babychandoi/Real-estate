@@ -1,5 +1,10 @@
 -- Versioned product analytics events (contract §5), owned by stream S0-BE; consent/bot/retention/dashboards are S8.
 -- Facts, not relations: no foreign keys, so deleting a listing or user never rewrites history (retention is S8's job).
+
+-- Fail fast instead of waiting behind a concurrent lock; both settings end with this migration's transaction.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '120s';
+
 CREATE TABLE analytics_events (
     event_id       UUID PRIMARY KEY,           -- client UUIDv4 for web events, UUIDv3("server:<name>:<key>") for server events
     name           VARCHAR(60)  NOT NULL,

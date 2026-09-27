@@ -3,6 +3,11 @@
 -- Production impact: ADD COLUMN with constant or STABLE defaults is metadata-only; the STORED generated column rewrites
 -- listing_revisions once; every backfill is one UPDATE guarded by "IS NULL" so a re-run would change nothing.
 
+-- Fail fast instead of queueing behind a concurrent long lock (pg_dump, a slow query): the whole migration rolls back
+-- and the deploy can be retried. Both settings end with this migration's transaction.
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '120s';
+
 -- §2.1 Money and attributes of a listing revision -------------------------------------------------------------------
 ALTER TABLE listing_revisions
     ADD COLUMN IF NOT EXISTS price_period VARCHAR(10)

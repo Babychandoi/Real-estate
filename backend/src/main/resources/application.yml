@@ -119,12 +119,20 @@ app:
     real-transactions: ${FEATURE_REAL_TRANSACTIONS:false}
   jobs:
     # Durable job queue (background_jobs). The worker runs on every instance; claims are SKIP LOCKED leases.
+    # Tooling JVMs pointed at a shared database (e.g. the UAT seeder, which does it automatically) must run with
+    # --app.jobs.enabled=false so they never claim production jobs.
     enabled: ${APP_JOBS_ENABLED:true}
     poll-ms: ${APP_JOBS_POLL_MS:1000}
+    stall-after: ${APP_JOBS_STALL_AFTER:PT2M}
     retry-base: ${APP_JOBS_RETRY_BASE:PT30S}
     retry-cap: ${APP_JOBS_RETRY_CAP:PT1H}
     completed-retention: ${APP_JOBS_COMPLETED_RETENTION:P7D}
+    dead-retention: ${APP_JOBS_DEAD_RETENTION:P30D}
     purge-cron: ${APP_JOBS_PURGE_CRON:0 17 * * * *}
+    metrics:
+      # Queue gauges are refreshed by their own thread, also where the worker is disabled.
+      enabled: ${APP_JOBS_METRICS_ENABLED:true}
+      refresh-ms: ${APP_JOBS_METRICS_REFRESH_MS:15000}
   outbox:
     enabled: ${OUTBOX_ENABLED:false}
     webhook-url: ${OUTBOX_WEBHOOK_URL:}
