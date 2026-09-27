@@ -149,7 +149,7 @@ export function AdminUsersPage() {
     }
   };
   return (
-    <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-950">Quản lý người dùng</h1>
@@ -441,7 +441,7 @@ export function AdminUsersPage() {
           </section>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 

@@ -18,7 +18,7 @@ export function VerifyEmailPage() {
       .catch(() => setState('error'));
   }, [params]);
   return (
-    <main className="mx-auto flex min-h-[65vh] max-w-xl items-center px-4 py-12">
+    <div className="mx-auto flex min-h-[65vh] max-w-xl items-center px-4 py-12">
       <section
         className="w-full rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm"
         aria-live="polite"
@@ -50,7 +50,7 @@ export function VerifyEmailPage() {
           </>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 export default VerifyEmailPage;

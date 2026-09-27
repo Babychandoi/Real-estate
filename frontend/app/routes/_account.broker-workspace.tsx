@@ -46,13 +46,13 @@ export function BrokerWorkspacePage() {
 
   if (loading)
     return (
-      <main className="p-10" role="status">
+      <div className="p-10" role="status">
         Đang tải dữ liệu không gian môi giới…
-      </main>
+      </div>
     );
   if (error || !data)
     return (
-      <main className="mx-auto max-w-lg px-4 py-16 text-center">
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-800">
           {error || 'Không có dữ liệu để hiển thị.'}
         </p>
@@ -63,7 +63,7 @@ export function BrokerWorkspacePage() {
         >
           Tải lại
         </button>
-      </main>
+      </div>
     );
 
   const cards = [
@@ -73,7 +73,7 @@ export function BrokerWorkspacePage() {
     ['Lead mới', data.leadStats.new_leads],
   ];
   return (
-    <main className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+    <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <p className="text-emerald-700 text-sm font-bold">KHÔNG GIAN MÔI GIỚI</p>
@@ -157,7 +157,7 @@ export function BrokerWorkspacePage() {
           </button>
         </article>
       </section>
-    </main>
+    </div>
   );
 }
 

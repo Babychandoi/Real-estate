@@ -240,7 +240,7 @@ export default function LeadsAndReportsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-950">Khách quan tâm và báo cáo vi phạm</h1>
@@ -687,6 +687,6 @@ export default function LeadsAndReportsPage() {
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }

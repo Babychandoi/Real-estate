@@ -40,14 +40,14 @@ export function SellerProfilePage() {
 
   if (state === 'loading') {
     return (
-      <main className="mx-auto max-w-6xl px-4 py-10">
+      <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="h-40 animate-pulse rounded-2xl bg-surface-container" />
-      </main>
+      </div>
     );
   }
   if (state !== 'ready' || !profile) {
     return (
-      <main className="mx-auto max-w-xl px-4 py-16 text-center">
+      <div className="mx-auto max-w-xl px-4 py-16 text-center">
         <ShieldQuestion className="mx-auto h-12 w-12 text-outline" aria-hidden="true" />
         <h1 className="mt-3 text-xl font-bold text-on-surface">
           {state === 'missing' ? 'Không tìm thấy người đăng' : 'Không tải được trang cá nhân'}
@@ -63,7 +63,7 @@ export function SellerProfilePage() {
         >
           Xem tin đăng khác
         </Link>
-      </main>
+      </div>
     );
   }
 
@@ -75,7 +75,7 @@ export function SellerProfilePage() {
   );
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
       <button
         type="button"
         onClick={() => (window.history.length > 1 ? window.history.back() : undefined)}
@@ -167,7 +167,7 @@ export function SellerProfilePage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 

@@ -36,17 +36,17 @@ export function ResetPasswordPage() {
   };
   if (!validToken)
     return (
-      <main className="mx-auto max-w-md px-4 py-12">
+      <div className="mx-auto max-w-md px-4 py-12">
         <p className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
           Liên kết đặt lại mật khẩu không hợp lệ.{' '}
           <Link to="/forgot-password" className="font-bold underline">
             Yêu cầu liên kết mới
           </Link>
         </p>
-      </main>
+      </div>
     );
   return (
-    <main className="mx-auto max-w-md px-4 py-12">
+    <div className="mx-auto max-w-md px-4 py-12">
       <section className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
         <Lock className="h-8 w-8 text-primary" />
         <h1 className="mt-4 text-2xl font-bold text-on-surface">Đặt mật khẩu mới</h1>
@@ -98,7 +98,7 @@ export function ResetPasswordPage() {
           </form>
         )}
       </section>
-    </main>
+    </div>
   );
 }
 

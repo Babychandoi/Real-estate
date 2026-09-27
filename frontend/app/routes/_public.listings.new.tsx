@@ -416,16 +416,16 @@ export const CreateListingPage: React.FC = () => {
 
   if (isCheckingKyc) {
     return (
-      <main className="mx-auto max-w-5xl px-4 py-10" role="status">
+      <div className="mx-auto max-w-5xl px-4 py-10" role="status">
         Đang kiểm tra điều kiện đăng tin…
-      </main>
+      </div>
     );
   }
 
   if (kycProfile?.status !== 'VERIFIED') {
     const pending = kycProfile?.status === 'PENDING';
     return (
-      <main className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+      <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
         <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
           <ShieldCheck className="h-9 w-9 text-slate-900" />
           <h1 className="mt-4 text-2xl font-bold text-slate-950">Xác minh danh tính trước khi đăng tin</h1>
@@ -445,7 +445,7 @@ export const CreateListingPage: React.FC = () => {
             </Link>
           )}
         </section>
-      </main>
+      </div>
     );
   }
 

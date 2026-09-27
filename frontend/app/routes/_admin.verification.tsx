@@ -46,7 +46,7 @@ export default function VerificationDeskPage() {
     }
   };
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 md:px-8">
+    <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <div className="flex items-center gap-3">
@@ -145,6 +145,6 @@ export default function VerificationDeskPage() {
           ))}
         </div>
       )}
-    </main>
+    </div>
   );
 }

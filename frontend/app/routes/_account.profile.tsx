@@ -89,7 +89,7 @@ export function AccountProfilePage() {
   };
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8 md:px-8">
+    <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
       <header className="border-b border-outline-variant/40 pb-6">
         <h1 className="text-2xl font-bold text-on-surface">Thông tin cá nhân</h1>
         <p className="mt-2 text-sm text-on-surface-variant">
@@ -226,7 +226,7 @@ export function AccountProfilePage() {
           {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
         </button>
       </form>
-    </main>
+    </div>
   );
 }
 
