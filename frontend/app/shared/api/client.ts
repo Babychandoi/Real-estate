@@ -6,11 +6,15 @@ const TOKEN_KEY = 'bds_access_token';
 export const setAccessToken = (token: string) => sessionStorage.setItem(TOKEN_KEY, token);
 export const clearAccessToken = () => sessionStorage.removeItem(TOKEN_KEY);
 
+/** Full URL of an API endpoint ("/events" → "/api/v1/events"); absolute and "/api/…" paths pass through. */
+export function apiUrl(endpoint: string): string {
+  return endpoint.startsWith('http') || endpoint.startsWith('/api/')
+    ? endpoint
+    : `${BASE_API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+}
+
 export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
-  const url =
-    endpoint.startsWith('http') || endpoint.startsWith('/api/')
-      ? endpoint
-      : `${BASE_API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const url = apiUrl(endpoint);
   const token = sessionStorage.getItem(TOKEN_KEY);
   const headers = new Headers(options.headers);
   if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
