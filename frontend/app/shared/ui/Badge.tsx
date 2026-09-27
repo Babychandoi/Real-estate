@@ -7,13 +7,7 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   icon?: React.ReactNode;
 }
 
-export const Badge: React.FC<BadgeProps> = ({
-  children,
-  variant = 'neutral',
-  icon,
-  className,
-  ...props
-}) => {
+export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', icon, className, ...props }) => {
   const baseStyles = 'inline-flex items-center gap-1 font-semibold text-xs px-2.5 py-0.5 rounded-full';
 
   const variants = {

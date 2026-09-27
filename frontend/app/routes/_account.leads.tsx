@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from 'react';
 import {
   ArrowLeft,
   Building2,
@@ -12,40 +12,29 @@ import {
   Search,
   ShieldCheck,
   X,
-} from "lucide-react";
-import { Link } from "react-router-dom";
-import {
-  fetchLeadListings,
-  revealLeadContact,
-  searchLeads,
-  updateLeadStatus,
-} from "@/entities/lead/api/leadApi";
-import type {
-  LeadItem,
-  LeadListingItem,
-  LeadListingPage,
-  LeadPage,
-  LeadStatus,
-} from "@/entities/lead/model/types";
+} from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { fetchLeadListings, revealLeadContact, searchLeads, updateLeadStatus } from '@/entities/lead/api/leadApi';
+import type { LeadItem, LeadListingItem, LeadListingPage, LeadPage, LeadStatus } from '@/entities/lead/model/types';
 
 const STATUS_LABELS: Record<LeadStatus, string> = {
-  NEW: "Mới nhận",
-  CONTACTED: "Đã liên hệ",
-  APPOINTED: "Đã hẹn xem",
-  CLOSED: "Hoàn tất",
-  SPAM: "Không hợp lệ",
+  NEW: 'Mới nhận',
+  CONTACTED: 'Đã liên hệ',
+  APPOINTED: 'Đã hẹn xem',
+  CLOSED: 'Hoàn tất',
+  SPAM: 'Không hợp lệ',
 };
 const STATUS_STYLES: Record<LeadStatus, string> = {
-  NEW: "bg-amber-50 text-amber-800",
-  CONTACTED: "bg-blue-50 text-blue-800",
-  APPOINTED: "bg-violet-50 text-violet-800",
-  CLOSED: "bg-emerald-50 text-emerald-800",
-  SPAM: "bg-slate-100 text-slate-700",
+  NEW: 'bg-amber-50 text-amber-800',
+  CONTACTED: 'bg-blue-50 text-blue-800',
+  APPOINTED: 'bg-violet-50 text-violet-800',
+  CLOSED: 'bg-emerald-50 text-emerald-800',
+  SPAM: 'bg-slate-100 text-slate-700',
 };
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "short",
-    timeStyle: "short",
+  new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
   }).format(new Date(value));
 
 function Pagination({
@@ -59,10 +48,7 @@ function Pagination({
 }) {
   if (totalPages <= 1) return null;
   return (
-    <nav
-      aria-label="Phân trang"
-      className="mt-7 flex items-center justify-between border-t border-slate-200 pt-5"
-    >
+    <nav aria-label="Phân trang" className="mt-7 flex items-center justify-between border-t border-slate-200 pt-5">
       <span className="text-sm text-slate-600">
         Trang {page + 1}/{totalPages}
       </span>
@@ -104,28 +90,25 @@ export function MyLeadsPage() {
     totalPages: 0,
     statusCounts: {},
   });
-  const [selectedListing, setSelectedListing] =
-    useState<LeadListingItem | null>(null);
-  const [listingInput, setListingInput] = useState("");
-  const [listingQuery, setListingQuery] = useState("");
-  const [leadInput, setLeadInput] = useState("");
-  const [leadQuery, setLeadQuery] = useState("");
-  const [leadStatus, setLeadStatus] = useState("");
+  const [selectedListing, setSelectedListing] = useState<LeadListingItem | null>(null);
+  const [listingInput, setListingInput] = useState('');
+  const [listingQuery, setListingQuery] = useState('');
+  const [leadInput, setLeadInput] = useState('');
+  const [leadQuery, setLeadQuery] = useState('');
+  const [leadStatus, setLeadStatus] = useState('');
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState("");
-  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState('');
+  const [error, setError] = useState('');
 
   const loadListings = useCallback(
     async (page = 0) => {
       setLoading(true);
-      setError("");
+      setError('');
       try {
         setListingPage(await fetchLeadListings(page, 9, listingQuery));
       } catch {
-        setError(
-          "Không thể tải các bài đăng có yêu cầu liên hệ. Vui lòng thử lại.",
-        );
+        setError('Không thể tải các bài đăng có yêu cầu liên hệ. Vui lòng thử lại.');
       } finally {
         setLoading(false);
       }
@@ -137,22 +120,13 @@ export function MyLeadsPage() {
   }, [loadListings]);
 
   const loadLeads = useCallback(
-    async (
-      listing: LeadListingItem,
-      page = 0,
-      query = leadQuery,
-      status = leadStatus,
-    ) => {
+    async (listing: LeadListingItem, page = 0, query = leadQuery, status = leadStatus) => {
       setLoading(true);
-      setError("");
+      setError('');
       try {
-        setLeadPage(
-          await searchLeads(listing.listingId, page, 10, query, status),
-        );
+        setLeadPage(await searchLeads(listing.listingId, page, 10, query, status));
       } catch {
-        setError(
-          "Không thể tải danh sách người đã yêu cầu liên hệ cho tin này.",
-        );
+        setError('Không thể tải danh sách người đã yêu cầu liên hệ cho tin này.');
       } finally {
         setLoading(false);
       }
@@ -161,37 +135,33 @@ export function MyLeadsPage() {
   );
   const openListing = async (listing: LeadListingItem) => {
     setSelectedListing(listing);
-    setLeadInput("");
-    setLeadQuery("");
-    setLeadStatus("");
-    await loadLeads(listing, 0, "", "");
+    setLeadInput('');
+    setLeadQuery('');
+    setLeadStatus('');
+    await loadLeads(listing, 0, '', '');
   };
   const revealPhone = async (lead: LeadItem) => {
     setBusyId(lead.id);
-    setError("");
+    setError('');
     try {
       const result = await revealLeadContact(lead.id);
       setPhones((current) => ({ ...current, [lead.id]: result.phone }));
     } catch {
-      setError(
-        "Không thể xem số liên hệ. Kiểm tra quyền truy cập rồi thử lại.",
-      );
+      setError('Không thể xem số liên hệ. Kiểm tra quyền truy cập rồi thử lại.');
     } finally {
-      setBusyId("");
+      setBusyId('');
     }
   };
   const changeStatus = async (lead: LeadItem, status: LeadStatus) => {
     setBusyId(lead.id);
-    setError("");
+    setError('');
     try {
       await updateLeadStatus(lead.id, status);
       if (selectedListing) await loadLeads(selectedListing, leadPage.page);
     } catch {
-      setError(
-        "Không thể cập nhật trạng thái chăm sóc. Dữ liệu chưa được thay đổi.",
-      );
+      setError('Không thể cập nhật trạng thái chăm sóc. Dữ liệu chưa được thay đổi.');
     } finally {
-      setBusyId("");
+      setBusyId('');
     }
   };
 
@@ -200,25 +170,20 @@ export function MyLeadsPage() {
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-7 md:flex-row md:items-end">
           <div className="max-w-3xl">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">
-              Hộp thư khách quan tâm
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">Hộp thư khách quan tâm</h1>
             <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">
-              Theo dõi yêu cầu liên hệ theo từng bài đăng để không lẫn khách của
-              các tin khác nhau.
+              Theo dõi yêu cầu liên hệ theo từng bài đăng để không lẫn khách của các tin khác nhau.
             </p>
           </div>
           <button
             type="button"
             onClick={() =>
-              selectedListing
-                ? void loadLeads(selectedListing, leadPage.page)
-                : void loadListings(listingPage.page)
+              selectedListing ? void loadLeads(selectedListing, leadPage.page) : void loadListings(listingPage.page)
             }
             disabled={loading}
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Làm mới
           </button>
         </header>
@@ -234,10 +199,7 @@ export function MyLeadsPage() {
         {loading ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }, (_, index) => (
-              <div
-                key={index}
-                className="h-80 animate-pulse rounded-xl bg-slate-100"
-              />
+              <div key={index} className="h-80 animate-pulse rounded-xl bg-slate-100" />
             ))}
           </div>
         ) : !selectedListing ? (
@@ -248,10 +210,7 @@ export function MyLeadsPage() {
                   <ShieldCheck className="h-4 w-4 text-blue-700" />
                   {listingPage.totalElements} bài đăng có yêu cầu liên hệ
                 </div>
-                <h2
-                  id="listing-leads-title"
-                  className="mt-2 text-xl font-bold text-slate-950"
-                >
+                <h2 id="listing-leads-title" className="mt-2 text-xl font-bold text-slate-950">
                   Chọn bài đăng để xem khách quan tâm
                 </h2>
               </div>
@@ -284,9 +243,7 @@ export function MyLeadsPage() {
               <div className="grid min-h-72 place-items-center text-center">
                 <div>
                   <Building2 className="mx-auto h-10 w-10 text-slate-400" />
-                  <h2 className="mt-4 text-lg font-bold text-slate-950">
-                    Chưa có bài đăng nào có yêu cầu liên hệ
-                  </h2>
+                  <h2 className="mt-4 text-lg font-bold text-slate-950">Chưa có bài đăng nào có yêu cầu liên hệ</h2>
                   <p className="mt-2 text-sm text-slate-600">
                     Khi có người gửi yêu cầu, bài đăng sẽ xuất hiện tại đây.
                   </p>
@@ -304,11 +261,7 @@ export function MyLeadsPage() {
                     >
                       <div className="relative">
                         {listing.imageUrl ? (
-                          <img
-                            src={listing.imageUrl}
-                            alt=""
-                            className="h-40 w-full object-cover"
-                          />
+                          <img src={listing.imageUrl} alt="" className="h-40 w-full object-cover" />
                         ) : (
                           <span className="grid h-40 place-items-center bg-slate-100">
                             <Building2 className="h-8 w-8 text-slate-400" />
@@ -330,21 +283,15 @@ export function MyLeadsPage() {
                         )}
                         <span className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-center text-xs">
                           <span>
-                            <strong className="block text-lg text-amber-700">
-                              {listing.newLeads}
-                            </strong>
+                            <strong className="block text-lg text-amber-700">{listing.newLeads}</strong>
                             Mới
                           </span>
                           <span>
-                            <strong className="block text-lg text-blue-700">
-                              {listing.activeLeads}
-                            </strong>
+                            <strong className="block text-lg text-blue-700">{listing.activeLeads}</strong>
                             Đang xử lý
                           </span>
                           <span>
-                            <strong className="block text-lg text-emerald-700">
-                              {listing.closedLeads}
-                            </strong>
+                            <strong className="block text-lg text-emerald-700">{listing.closedLeads}</strong>
                             Hoàn tất
                           </span>
                         </span>
@@ -376,15 +323,11 @@ export function MyLeadsPage() {
             </button>
             <div className="mt-3 flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2
-                  id="customer-leads-title"
-                  className="text-xl font-bold text-slate-950"
-                >
+                <h2 id="customer-leads-title" className="text-xl font-bold text-slate-950">
                   {selectedListing.title}
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
-                  {selectedListing.address || "Chưa có địa điểm hiển thị"} ·{" "}
-                  {leadPage.totalElements} yêu cầu phù hợp
+                  {selectedListing.address || 'Chưa có địa điểm hiển thị'} · {leadPage.totalElements} yêu cầu phù hợp
                 </p>
               </div>
               <Link
@@ -442,31 +385,20 @@ export function MyLeadsPage() {
             <div className="mt-5 grid gap-3">
               {leadPage.items.length === 0 ? (
                 <div className="grid min-h-52 place-items-center rounded-xl border border-dashed border-slate-300 text-center">
-                  <p className="text-sm text-slate-600">
-                    Không có yêu cầu liên hệ phù hợp.
-                  </p>
+                  <p className="text-sm text-slate-600">Không có yêu cầu liên hệ phù hợp.</p>
                 </div>
               ) : (
                 leadPage.items.map((lead) => (
-                  <article
-                    key={lead.id}
-                    className="rounded-xl border border-slate-200 bg-white p-5"
-                  >
+                  <article key={lead.id} className="rounded-xl border border-slate-200 bg-white p-5">
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-bold text-slate-950">
-                            {lead.fullName}
-                          </h3>
-                          <span
-                            className={`rounded-md px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[lead.status]}`}
-                          >
+                          <h3 className="text-lg font-bold text-slate-950">{lead.fullName}</h3>
+                          <span className={`rounded-md px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[lead.status]}`}>
                             {STATUS_LABELS[lead.status]}
                           </span>
                           <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800">
-                            {lead.requestType === "VIEWING"
-                              ? "Muốn hẹn xem"
-                              : "Cần tư vấn"}
+                            {lead.requestType === 'VIEWING' ? 'Muốn hẹn xem' : 'Cần tư vấn'}
                           </span>
                         </div>
                         <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
@@ -475,12 +407,8 @@ export function MyLeadsPage() {
                         </p>
                         {lead.note && (
                           <div className="mt-4 rounded-lg bg-slate-50 px-4 py-3">
-                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                              Nội dung để lại
-                            </p>
-                            <p className="mt-1.5 break-words text-sm leading-6 text-slate-800">
-                              {lead.note}
-                            </p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Nội dung để lại</p>
+                            <p className="mt-1.5 break-words text-sm leading-6 text-slate-800">{lead.note}</p>
                           </div>
                         )}
                       </div>
@@ -501,9 +429,7 @@ export function MyLeadsPage() {
                             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
                           >
                             <Phone className="h-4 w-4" />
-                            {lead.consentPolicy
-                              ? "Xem số liên hệ"
-                              : "Chưa đồng ý liên hệ"}
+                            {lead.consentPolicy ? 'Xem số liên hệ' : 'Chưa đồng ý liên hệ'}
                           </button>
                         )}
                         <label className="text-sm font-semibold text-slate-700">
@@ -511,23 +437,11 @@ export function MyLeadsPage() {
                           <select
                             value={lead.status}
                             disabled={busyId === lead.id}
-                            onChange={(event) =>
-                              void changeStatus(
-                                lead,
-                                event.target.value as LeadStatus,
-                              )
-                            }
+                            onChange={(event) => void changeStatus(lead, event.target.value as LeadStatus)}
                             className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900"
                           >
-                            <option value={lead.status}>
-                              {STATUS_LABELS[lead.status]}
-                            </option>
-                            {(
-                              Object.entries(STATUS_LABELS) as [
-                                LeadStatus,
-                                string,
-                              ][]
-                            )
+                            <option value={lead.status}>{STATUS_LABELS[lead.status]}</option>
+                            {(Object.entries(STATUS_LABELS) as [LeadStatus, string][])
                               .filter(([value]) => value !== lead.status)
                               .map(([value, label]) => (
                                 <option key={value} value={value}>

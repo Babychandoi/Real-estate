@@ -1,10 +1,8 @@
-export type ReportCategory =
-  "SCAM_DEPOSIT" | "FAKE_SOLD" | "INCORRECT_PRICE" | "OTHER";
+export type ReportCategory = 'SCAM_DEPOSIT' | 'FAKE_SOLD' | 'INCORRECT_PRICE' | 'OTHER';
 
-export type ReportSeverity = "P0_EMERGENCY" | "HIGH" | "MEDIUM" | "LOW";
+export type ReportSeverity = 'P0_EMERGENCY' | 'HIGH' | 'MEDIUM' | 'LOW';
 
-export type ReportStatus =
-  "PENDING" | "WAITING_REPLY" | "RESOLVED" | "DISMISSED" | "APPEALED";
+export type ReportStatus = 'PENDING' | 'WAITING_REPLY' | 'RESOLVED' | 'DISMISSED' | 'APPEALED';
 
 export interface ListingReport {
   id: string;
@@ -22,8 +20,8 @@ export interface ListingReport {
   resolvedAt?: string;
 }
 
-export type LeadStatus = "NEW" | "CONTACTED" | "APPOINTED" | "CLOSED" | "SPAM";
-export type LeadRequestType = "VIEWING" | "CONSULTATION";
+export type LeadStatus = 'NEW' | 'CONTACTED' | 'APPOINTED' | 'CLOSED' | 'SPAM';
+export type LeadRequestType = 'VIEWING' | 'CONSULTATION';
 
 export interface LeadItem {
   id: string;

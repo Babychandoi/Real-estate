@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listingApi } from '../entities/listing/api/listingApi';
@@ -19,9 +18,7 @@ export function SearchAndMapPage() {
 
   // Filters state
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
-  const [purpose, setPurpose] = useState<'SALE' | 'RENT'>(
-    (searchParams.get('purpose') as 'SALE' | 'RENT') || 'SALE'
-  );
+  const [purpose, setPurpose] = useState<'SALE' | 'RENT'>((searchParams.get('purpose') as 'SALE' | 'RENT') || 'SALE');
   const [propertyType, setPropertyType] = useState<string>(searchParams.get('propertyType') || '');
   const [priceRange, setPriceRange] = useState<string>('ALL'); // ALL, <3B, 3-5B, >5B
   const [sortBy, setSortBy] = useState<'LATEST' | 'PRICE_ASC' | 'PRICE_DESC' | 'AREA_DESC'>('LATEST');
@@ -55,7 +52,8 @@ export function SearchAndMapPage() {
         size: 100,
       };
       const effectivePropertyType = overrides && 'propertyType' in overrides ? overrides.propertyType : propertyType;
-      const effectiveKeyword = overrides && 'keyword' in overrides ? overrides.keyword : (activePlace ? undefined : keyword);
+      const effectiveKeyword =
+        overrides && 'keyword' in overrides ? overrides.keyword : activePlace ? undefined : keyword;
       if (effectivePropertyType) params.propertyType = effectivePropertyType;
       if (effectiveKeyword?.trim()) params.keyword = effectiveKeyword.trim();
       if (bounds) Object.assign(params, bounds);
@@ -88,16 +86,27 @@ export function SearchAndMapPage() {
   useEffect(() => {
     const text = keyword.trim();
     if (activePlace && text === activePlace.label) return;
-    if (text.length < 3) { setPlaces([]); setPlacesLoading(false); return; }
+    if (text.length < 3) {
+      setPlaces([]);
+      setPlacesLoading(false);
+      return;
+    }
     const controller = new AbortController();
     setPlacesLoading(true);
     const timer = window.setTimeout(() => {
       geocodePlaces(text, controller.signal)
         .then((result) => setPlaces(result))
-        .catch(() => { if (!controller.signal.aborted) setPlaces([]); })
-        .finally(() => { if (!controller.signal.aborted) setPlacesLoading(false); });
+        .catch(() => {
+          if (!controller.signal.aborted) setPlaces([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setPlacesLoading(false);
+        });
     }, 450);
-    return () => { window.clearTimeout(timer); controller.abort(); };
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
   }, [keyword]);
 
   const visibleListings = onlyVerified ? listings.filter((listing) => listing.isVerified) : listings;
@@ -169,20 +178,41 @@ export function SearchAndMapPage() {
 
   const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!suggestOpen || !suggestions.length) return;
-    if (event.key === 'ArrowDown') { event.preventDefault(); setHighlight((index) => (index + 1) % suggestions.length); }
-    else if (event.key === 'ArrowUp') { event.preventDefault(); setHighlight((index) => (index <= 0 ? suggestions.length - 1 : index - 1)); }
-    else if (event.key === 'Escape') { setSuggestOpen(false); setHighlight(-1); }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlight((index) => (index + 1) % suggestions.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlight((index) => (index <= 0 ? suggestions.length - 1 : index - 1));
+    } else if (event.key === 'Escape') {
+      setSuggestOpen(false);
+      setHighlight(-1);
+    }
   };
 
-  const summary = activePlace
-    ? <>trong khu vực <span className="font-bold text-on-surface">{activePlace.label.split(',')[0]}</span></>
-    : areaRef.current ? 'trong vùng bản đồ đang xem' : 'phù hợp bộ lọc';
+  const summary = activePlace ? (
+    <>
+      trong khu vực <span className="font-bold text-on-surface">{activePlace.label.split(',')[0]}</span>
+    </>
+  ) : areaRef.current ? (
+    'trong vùng bản đồ đang xem'
+  ) : (
+    'phù hợp bộ lọc'
+  );
 
   const emptyState = (
     <div className="text-center py-16 text-on-surface-variant text-sm">
-      <p>{activePlace ? 'Chưa có tin đăng trong khu vực này.' : 'Không tìm thấy bất động sản nào khớp với bộ lọc hiện tại.'}</p>
+      <p>
+        {activePlace
+          ? 'Chưa có tin đăng trong khu vực này.'
+          : 'Không tìm thấy bất động sản nào khớp với bộ lọc hiện tại.'}
+      </p>
       {emptyKeywordPlace && (
-        <button type="button" onClick={() => goToPlace(emptyKeywordPlace)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 font-semibold text-primary">
+        <button
+          type="button"
+          onClick={() => goToPlace(emptyKeywordPlace)}
+          className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 font-semibold text-primary"
+        >
           <Navigation className="h-4 w-4" /> Xem “{emptyKeywordPlace.label.split(',')[0]}” trên bản đồ
         </button>
       )}
@@ -208,7 +238,10 @@ export function SearchAndMapPage() {
               <div className="flex items-center bg-surface-container-low rounded-xl px-3 py-2 transition-all focus-within:ring-2 focus-within:ring-primary/20">
                 <MapPin className="w-5 h-5 text-primary mr-2 flex-shrink-0" aria-hidden="true" />
                 <div className="flex flex-col flex-1 min-w-0">
-                  <label htmlFor="search-keyword" className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider leading-none">
+                  <label
+                    htmlFor="search-keyword"
+                    className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider leading-none"
+                  >
                     Từ khóa hoặc địa điểm · Hà Nội
                   </label>
                   <input
@@ -221,7 +254,12 @@ export function SearchAndMapPage() {
                     aria-activedescendant={highlight >= 0 ? `suggestion-${highlight}` : undefined}
                     autoComplete="off"
                     value={keyword}
-                    onChange={(e) => { setKeyword(e.target.value); setActivePlace(null); setSuggestOpen(true); setHighlight(-1); }}
+                    onChange={(e) => {
+                      setKeyword(e.target.value);
+                      setActivePlace(null);
+                      setSuggestOpen(true);
+                      setHighlight(-1);
+                    }}
                     onFocus={() => setSuggestOpen(true)}
                     onBlur={() => window.setTimeout(() => setSuggestOpen(false), 150)}
                     onKeyDown={onInputKeyDown}
@@ -229,7 +267,9 @@ export function SearchAndMapPage() {
                     className="bg-transparent text-sm font-semibold text-on-surface focus:outline-none w-full truncate pt-0.5"
                   />
                 </div>
-                {placesLoading && <Loader2 className="h-4 w-4 animate-spin text-outline" aria-label="Đang tìm địa điểm" />}
+                {placesLoading && (
+                  <Loader2 className="h-4 w-4 animate-spin text-outline" aria-label="Đang tìm địa điểm" />
+                )}
                 {keyword && (
                   <button
                     type="button"
@@ -243,25 +283,54 @@ export function SearchAndMapPage() {
               </div>
 
               {suggestOpen && suggestions.length > 0 && (
-                <ul id="search-suggestions" role="listbox" className="absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-outline-variant/40 bg-white py-1 shadow-xl">
+                <ul
+                  id="search-suggestions"
+                  role="listbox"
+                  className="absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-outline-variant/40 bg-white py-1 shadow-xl"
+                >
                   {suggestions.map((suggestion, index) => {
                     const active = index === highlight;
                     const base = `flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm ${active ? 'bg-primary/10' : 'hover:bg-surface-container-low'}`;
                     return suggestion.kind === 'keyword' ? (
                       <li key="keyword" id={`suggestion-${index}`} role="option" aria-selected={active}>
-                        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => void runKeywordSearch(suggestion.text)} className={base}>
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => void runKeywordSearch(suggestion.text)}
+                          className={base}
+                        >
                           <Search className="mt-0.5 h-4 w-4 shrink-0 text-outline" aria-hidden="true" />
-                          <span>Tìm tin đăng có từ khóa <strong>“{suggestion.text}”</strong></span>
+                          <span>
+                            Tìm tin đăng có từ khóa <strong>“{suggestion.text}”</strong>
+                          </span>
                         </button>
                       </li>
                     ) : (
-                      <li key={`${suggestion.place.lat},${suggestion.place.lon},${index}`} id={`suggestion-${index}`} role="option" aria-selected={active}>
-                        {index === 1 && <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Đi tới địa điểm trên bản đồ</p>}
-                        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => goToPlace(suggestion.place)} className={base}>
+                      <li
+                        key={`${suggestion.place.lat},${suggestion.place.lon},${index}`}
+                        id={`suggestion-${index}`}
+                        role="option"
+                        aria-selected={active}
+                      >
+                        {index === 1 && (
+                          <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                            Đi tới địa điểm trên bản đồ
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => goToPlace(suggestion.place)}
+                          className={base}
+                        >
                           <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
                           <span className="min-w-0">
-                            <span className="block truncate font-semibold text-on-surface">{suggestion.place.label.split(',')[0]}</span>
-                            <span className="block truncate text-xs text-on-surface-variant">{suggestion.place.label.split(',').slice(1).join(',').trim()}</span>
+                            <span className="block truncate font-semibold text-on-surface">
+                              {suggestion.place.label.split(',')[0]}
+                            </span>
+                            <span className="block truncate text-xs text-on-surface-variant">
+                              {suggestion.place.label.split(',').slice(1).join(',').trim()}
+                            </span>
                           </span>
                         </button>
                       </li>
@@ -378,7 +447,6 @@ export function SearchAndMapPage() {
               So sánh bất động sản
             </Link>
           </div>
-
         </div>
 
         {/* Feed Summary & Sorting Toolbar */}
@@ -390,9 +458,29 @@ export function SearchAndMapPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex rounded-lg bg-surface-container-low p-0.5 border border-outline-variant/30" role="group" aria-label="Chế độ hiển thị kết quả">
-              <button type="button" onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}><LayoutGrid className="w-4 h-4" /><span className="hidden sm:inline">Danh sách</span></button>
-              <button type="button" onClick={() => setViewMode('map')} aria-pressed={viewMode === 'map'} className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'map' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}><MapIcon className="w-4 h-4" /><span className="hidden sm:inline">Bản đồ</span></button>
+            <div
+              className="flex rounded-lg bg-surface-container-low p-0.5 border border-outline-variant/30"
+              role="group"
+              aria-label="Chế độ hiển thị kết quả"
+            >
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+                className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                <span className="hidden sm:inline">Danh sách</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('map')}
+                aria-pressed={viewMode === 'map'}
+                className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'map' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}
+              >
+                <MapIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">Bản đồ</span>
+              </button>
             </div>
             <span className="text-on-surface-variant">Sắp xếp:</span>
             <select
@@ -415,11 +503,23 @@ export function SearchAndMapPage() {
             <ListingMap listings={visibleListings} focus={focus} onSearchArea={handleSearchArea} />
             <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4">
               {loading ? (
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải tin đăng…</span>
+                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Đang tải tin đăng…
+                </span>
               ) : loadError ? (
-                <span role="alert" className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-lg">{loadError}<button type="button" onClick={() => void fetchListings(areaRef.current)} className="underline">Thử lại</button></span>
+                <span
+                  role="alert"
+                  className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-lg"
+                >
+                  {loadError}
+                  <button type="button" onClick={() => void fetchListings(areaRef.current)} className="underline">
+                    Thử lại
+                  </button>
+                </span>
               ) : visibleListings.length === 0 ? (
-                <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg">Chưa có tin đăng trong vùng này — kéo hoặc thu nhỏ bản đồ rồi bấm “Tìm trong khu vực này”.</span>
+                <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg">
+                  Chưa có tin đăng trong vùng này — kéo hoặc thu nhỏ bản đồ rồi bấm “Tìm trong khu vực này”.
+                </span>
               ) : null}
             </div>
           </div>
@@ -431,10 +531,23 @@ export function SearchAndMapPage() {
                 Đang tải danh sách bất động sản…
               </div>
             ) : loadError ? (
-              <div className="py-16 text-center" role="alert"><p className="text-rose-700">{loadError}</p><button type="button" onClick={() => void fetchListings(areaRef.current)} className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white">Thử lại</button></div>
-            ) : visibleListings.length === 0 ? emptyState : (
+              <div className="py-16 text-center" role="alert">
+                <p className="text-rose-700">{loadError}</p>
+                <button
+                  type="button"
+                  onClick={() => void fetchListings(areaRef.current)}
+                  className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white"
+                >
+                  Thử lại
+                </button>
+              </div>
+            ) : visibleListings.length === 0 ? (
+              emptyState
+            ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
-                {visibleListings.map((item) => <ListingCard key={item.id} listing={item} />)}
+                {visibleListings.map((item) => (
+                  <ListingCard key={item.id} listing={item} />
+                ))}
               </div>
             )}
           </div>

@@ -162,8 +162,8 @@ export const CmsManagementPage: React.FC = () => {
               d.category === 'LEGAL_POLICY'
                 ? 'Chính sách & Pháp lý (FR32)'
                 : d.category === 'KNOWLEDGE'
-                ? 'Chuyên mục kiến thức'
-                : 'Cẩm nang thị trường',
+                  ? 'Chuyên mục kiến thức'
+                  : 'Cẩm nang thị trường',
             status: d.status,
             revisionsCount: d.revisions ? d.revisions.length : 1,
             currentRevision: d.currentRevision
@@ -187,10 +187,19 @@ export const CmsManagementPage: React.FC = () => {
                   reviewedBy: d.currentRevision.reviewedBy,
                 }
               : {
-                  id: '', articleId: d.id, revisionNumber: 0, title: '(Chưa có phiên bản)',
-                  summary: '', contentHtml: '', coverImageUrl: '', authorName: '',
-                  legalReference: '', metaDescription: '', canonicalUrl: `/${d.slug}`,
-                  status: 'DRAFT', createdAt: '',
+                  id: '',
+                  articleId: d.id,
+                  revisionNumber: 0,
+                  title: '(Chưa có phiên bản)',
+                  summary: '',
+                  contentHtml: '',
+                  coverImageUrl: '',
+                  authorName: '',
+                  legalReference: '',
+                  metaDescription: '',
+                  canonicalUrl: `/${d.slug}`,
+                  status: 'DRAFT',
+                  createdAt: '',
                 },
           }));
           setArticles(mapped);
@@ -236,8 +245,8 @@ export const CmsManagementPage: React.FC = () => {
             created.category === 'LEGAL_POLICY'
               ? 'Chính sách & Pháp lý (FR32)'
               : created.category === 'KNOWLEDGE'
-              ? 'Chuyên mục kiến thức'
-              : 'Cẩm nang thị trường',
+                ? 'Chuyên mục kiến thức'
+                : 'Cẩm nang thị trường',
           status: 'DRAFT',
           revisionsCount: 1,
           currentRevision: {
@@ -276,16 +285,22 @@ export const CmsManagementPage: React.FC = () => {
       });
       if (!response.ok) throw new Error('Máy chủ từ chối phê duyệt');
       const approved = await response.json();
-      setArticles((current) => current.map((art) => art.id === articleId ? {
-        ...art,
-        status: 'PUBLISHED',
-        currentRevision: {
-          ...art.currentRevision,
-          status: approved.status,
-          reviewedBy: approved.reviewedBy,
-          reviewedAt: approved.reviewedAt ? new Date(approved.reviewedAt).toLocaleString('vi-VN') : undefined,
-        },
-      } : art));
+      setArticles((current) =>
+        current.map((art) =>
+          art.id === articleId
+            ? {
+                ...art,
+                status: 'PUBLISHED',
+                currentRevision: {
+                  ...art.currentRevision,
+                  status: approved.status,
+                  reviewedBy: approved.reviewedBy,
+                  reviewedAt: approved.reviewedAt ? new Date(approved.reviewedAt).toLocaleString('vi-VN') : undefined,
+                },
+              }
+            : art,
+        ),
+      );
     } catch {
       showToast('Chưa thể phê duyệt. Vui lòng kiểm tra kết nối và thử lại.');
       return;
@@ -312,7 +327,7 @@ export const CmsManagementPage: React.FC = () => {
           body: JSON.stringify({
             reason: rejectReason.trim(),
           }),
-        }
+        },
       );
       if (!response.ok) throw new Error('Máy chủ từ chối thao tác');
     } catch {
@@ -334,7 +349,7 @@ export const CmsManagementPage: React.FC = () => {
           };
         }
         return art;
-      })
+      }),
     );
 
     setRejectingId(null);
@@ -344,8 +359,7 @@ export const CmsManagementPage: React.FC = () => {
 
   // Filter
   const filteredArticles = articles.filter((art) => {
-    const matchesCategory =
-      selectedCategory === 'ALL' || art.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'ALL' || art.category === selectedCategory;
 
     const matchesTab =
       selectedTab === 'ALL' ||
@@ -371,9 +385,7 @@ export const CmsManagementPage: React.FC = () => {
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-primary text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in border border-primary-container">
           <ShieldCheck className="w-5 h-5 text-emerald-400" />
           <div className="text-sm">
-            <span className="font-semibold block text-emerald-300">
-              CMS KIỂM DUYỆT ĐỘC LẬP (FR24 / FR32)
-            </span>
+            <span className="font-semibold block text-emerald-300">CMS KIỂM DUYỆT ĐỘC LẬP (FR24 / FR32)</span>
             <span>{toastMessage}</span>
           </div>
         </div>
@@ -391,7 +403,8 @@ export const CmsManagementPage: React.FC = () => {
               </span>
             </div>
             <p className="text-sm text-on-surface-variant mt-1">
-              Quản lý ContentRevision (ED04/ERD04) theo quy chuẩn kiểm duyệt nội dung độc lập của Biên tập viên và Ban biên tập.
+              Quản lý ContentRevision (ED04/ERD04) theo quy chuẩn kiểm duyệt nội dung độc lập của Biên tập viên và Ban
+              biên tập.
             </p>
           </div>
 
@@ -421,7 +434,9 @@ export const CmsManagementPage: React.FC = () => {
               </span>
             </div>
             <p className="text-on-surface-variant leading-relaxed">
-              Biên tập viên (BTV) không thể tự ý xuất bản bài viết lên trang chủ. Mọi nội dung sửa đổi trên bài viết đang công khai sẽ tự động sinh một <strong>Revision mới</strong>; bài viết cũ tiếp tục giữ nguyên hiệu lực cho tới khi Admin Tổng biên tập đối soát và phê duyệt.
+              Biên tập viên (BTV) không thể tự ý xuất bản bài viết lên trang chủ. Mọi nội dung sửa đổi trên bài viết
+              đang công khai sẽ tự động sinh một <strong>Revision mới</strong>; bài viết cũ tiếp tục giữ nguyên hiệu lực
+              cho tới khi Admin Tổng biên tập đối soát và phê duyệt.
             </p>
           </div>
         </div>
@@ -467,7 +482,7 @@ export const CmsManagementPage: React.FC = () => {
                 key: 'DRAFT',
                 label: 'Đang soạn / Trả về',
                 count: articles.filter(
-                  (a) => a.currentRevision.status === 'DRAFT' || a.currentRevision.status === 'REJECTED'
+                  (a) => a.currentRevision.status === 'DRAFT' || a.currentRevision.status === 'REJECTED',
                 ).length,
                 color: 'text-outline',
               },
@@ -494,9 +509,7 @@ export const CmsManagementPage: React.FC = () => {
                 }`}
               >
                 <span>{tab.label}</span>
-                <span className={`text-[11px] ${tab.color}`}>
-                  {tab.count.toString().padStart(2, '0')}
-                </span>
+                <span className={`text-[11px] ${tab.color}`}>{tab.count.toString().padStart(2, '0')}</span>
               </button>
             ))}
           </div>
@@ -527,9 +540,7 @@ export const CmsManagementPage: React.FC = () => {
           {filteredArticles.length === 0 ? (
             <div className="py-16 text-center bg-surface-container-lowest border border-dashed border-outline-variant rounded-xl p-8 space-y-3">
               <FileText className="w-12 h-12 text-outline mx-auto" />
-              <div className="font-semibold text-base text-on-surface">
-                Không tìm thấy bài viết phù hợp
-              </div>
+              <div className="font-semibold text-base text-on-surface">Không tìm thấy bài viết phù hợp</div>
               <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
                 Vui lòng thử điều chỉnh lại chuyên mục hoặc trạng thái vòng đời bài viết.
               </p>
@@ -559,11 +570,14 @@ export const CmsManagementPage: React.FC = () => {
                 >
                   {/* Cover Image & Metadata Overlay */}
                   <div className="md:w-80 h-48 md:h-auto relative shrink-0 overflow-hidden bg-surface-dim">
-                    {rev.coverImageUrl ? <img
-                      src={rev.coverImageUrl}
-                      alt={rev.title}
-                      className="w-full h-full object-cover"
-                    /> : <div className="grid h-full place-items-center text-slate-500"><FileText className="h-10 w-10"/><span className="sr-only">Bài viết chưa có ảnh bìa</span></div>}
+                    {rev.coverImageUrl ? (
+                      <img src={rev.coverImageUrl} alt={rev.title} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="grid h-full place-items-center text-slate-500">
+                        <FileText className="h-10 w-10" />
+                        <span className="sr-only">Bài viết chưa có ảnh bìa</span>
+                      </div>
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"></div>
 
                     {/* Status badge */}
@@ -573,10 +587,10 @@ export const CmsManagementPage: React.FC = () => {
                           isPending
                             ? 'bg-amber-600 text-white animate-pulse'
                             : isRejected
-                            ? 'bg-rose-600 text-white'
-                            : art.status === 'PUBLISHED'
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-700 text-white'
+                              ? 'bg-rose-600 text-white'
+                              : art.status === 'PUBLISHED'
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-700 text-white'
                         }`}
                       >
                         {isPending && <Clock className="w-3.5 h-3.5" />}
@@ -584,16 +598,15 @@ export const CmsManagementPage: React.FC = () => {
                         {isPending
                           ? 'CHỜ DUYỆT'
                           : isRejected
-                          ? 'TRẢ VỀ SỬA'
-                          : art.status === 'PUBLISHED'
-                          ? 'ĐÃ XUẤT BẢN'
-                          : 'BẢN NHÁP'}
+                            ? 'TRẢ VỀ SỬA'
+                            : art.status === 'PUBLISHED'
+                              ? 'ĐÃ XUẤT BẢN'
+                              : 'BẢN NHÁP'}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-black/60 text-white text-[11px] font-mono">
                         Rev #{rev.revisionNumber}
                       </span>
                     </div>
-
                   </div>
 
                   {/* Body Content */}
@@ -603,14 +616,10 @@ export const CmsManagementPage: React.FC = () => {
                         <span className="text-xs px-2 py-0.5 rounded bg-surface-container text-primary font-semibold">
                           {art.categoryLabel}
                         </span>
-                        <span className="text-outline text-[11px] font-mono">
-                          ID: #{rev.id.slice(0, 12)}
-                        </span>
+                        <span className="text-outline text-[11px] font-mono">ID: #{rev.id.slice(0, 12)}</span>
                       </div>
 
-                      <h2 className="text-lg font-bold text-on-surface leading-snug">
-                        {rev.title}
-                      </h2>
+                      <h2 className="text-lg font-bold text-on-surface leading-snug">{rev.title}</h2>
 
                       {/* Author & Legal Citation */}
                       <div className="flex items-center gap-2 text-xs text-on-surface-variant flex-wrap">
@@ -626,9 +635,7 @@ export const CmsManagementPage: React.FC = () => {
                         <span className="text-outline">{rev.createdAt}</span>
                       </div>
 
-                      <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2">
-                        {rev.summary}
-                      </p>
+                      <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2">{rev.summary}</p>
 
                       {/* SEO Specs Accordion FR26 */}
                       <div className="p-2.5 rounded-lg bg-surface-container-low text-xs space-y-1 font-mono text-[11px]">
@@ -671,7 +678,9 @@ export const CmsManagementPage: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          <span className="text-xs text-slate-500">Chưa có thao tác chỉnh sửa phiên bản đã xuất bản.</span>
+                          <span className="text-xs text-slate-500">
+                            Chưa có thao tác chỉnh sửa phiên bản đã xuất bản.
+                          </span>
                         </>
                       )}
                     </div>
@@ -725,9 +734,7 @@ export const CmsManagementPage: React.FC = () => {
             <div className="p-5 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-low">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-base text-on-surface">
-                  Soạn thảo bài viết CMS (Chuẩn ERD04 & FR32)
-                </h3>
+                <h3 className="font-bold text-base text-on-surface">Soạn thảo bài viết CMS (Chuẩn ERD04 & FR32)</h3>
               </div>
               <button
                 onClick={() => setIsCreateModalOpen(false)}
@@ -739,13 +746,12 @@ export const CmsManagementPage: React.FC = () => {
 
             <form onSubmit={handleCreateArticle} className="p-6 overflow-y-auto space-y-4 text-sm">
               <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-xs text-blue-800">
-                <strong>Quy tắc FR24:</strong> Bài viết mới sẽ lưu dưới dạng <strong>Revision 1 (DRAFT)</strong>. Bạn cần nộp duyệt để Ban biên tập thẩm định trước khi xuất bản.
+                <strong>Quy tắc FR24:</strong> Bài viết mới sẽ lưu dưới dạng <strong>Revision 1 (DRAFT)</strong>. Bạn
+                cần nộp duyệt để Ban biên tập thẩm định trước khi xuất bản.
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Tiêu đề bài viết *
-                </label>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Tiêu đề bài viết *</label>
                 <input
                   type="text"
                   required
@@ -769,9 +775,7 @@ export const CmsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Slug URL (SEO FR26) *
-                  </label>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Slug URL (SEO FR26) *</label>
                   <input
                     type="text"
                     required
@@ -782,9 +786,7 @@ export const CmsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Chuyên mục *
-                  </label>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Chuyên mục *</label>
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -799,9 +801,7 @@ export const CmsManagementPage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Tác giả biên tập viên *
-                  </label>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Tác giả biên tập viên *</label>
                   <input
                     type="text"
                     required
@@ -812,9 +812,7 @@ export const CmsManagementPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Luật / Pháp lý tham chiếu
-                  </label>
+                  <label className="block text-xs font-semibold text-on-surface mb-1">Luật / Pháp lý tham chiếu</label>
                   <input
                     type="text"
                     placeholder="VD: Luật KDBĐS 2024 số 29/2023/QH15"
@@ -826,9 +824,7 @@ export const CmsManagementPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Đoạn tóm tắt mở đầu
-                </label>
+                <label className="block text-xs font-semibold text-on-surface mb-1">Đoạn tóm tắt mở đầu</label>
                 <textarea
                   rows={2}
                   value={formData.summary}

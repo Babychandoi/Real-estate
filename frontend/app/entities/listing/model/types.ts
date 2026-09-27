@@ -57,8 +57,12 @@ export function formatPropertyType(propertyType: string): string {
 }
 
 const LISTING_STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Bản nháp', PENDING_REVIEW: 'Chờ duyệt', ACTIVE: 'Đang hiển thị',
-  REJECTED: 'Bị từ chối', ARCHIVED: 'Đã lưu trữ', SUSPENDED: 'Tạm dừng',
+  DRAFT: 'Bản nháp',
+  PENDING_REVIEW: 'Chờ duyệt',
+  ACTIVE: 'Đang hiển thị',
+  REJECTED: 'Bị từ chối',
+  ARCHIVED: 'Đã lưu trữ',
+  SUSPENDED: 'Tạm dừng',
 };
 
 export function formatListingStatus(status: string): string {

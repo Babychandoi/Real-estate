@@ -42,21 +42,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
               {isLoggedInButNoPermission ? 'Không đủ quyền' : 'Yêu cầu đăng nhập'}
             </span>
             <h2 className="text-xl font-bold text-on-surface">
-              {isLoggedInButNoPermission
-                ? 'Quyền truy cập bị giới hạn'
-                : 'Vui lòng đăng nhập'}
+              {isLoggedInButNoPermission ? 'Quyền truy cập bị giới hạn' : 'Vui lòng đăng nhập'}
             </h2>
             <p className="text-xs text-on-surface-variant mt-2 leading-relaxed">
               {isLoggedInButNoPermission ? (
                 <>
-                  Tài khoản <strong className="text-on-surface">{user.email}</strong> không có quyền
-                  truy cập phân hệ <strong className="text-on-surface">"{moduleName}"</strong>.
-                  Vui lòng liên hệ quản trị viên hệ thống để được cấp quyền.
+                  Tài khoản <strong className="text-on-surface">{user.email}</strong> không có quyền truy cập phân hệ{' '}
+                  <strong className="text-on-surface">"{moduleName}"</strong>. Vui lòng liên hệ quản trị viên hệ thống
+                  để được cấp quyền.
                 </>
               ) : (
                 <>
-                  Bạn cần đăng nhập để truy cập phân hệ{' '}
-                  <strong className="text-on-surface">"{moduleName}"</strong>.
+                  Bạn cần đăng nhập để truy cập phân hệ <strong className="text-on-surface">"{moduleName}"</strong>.
                 </>
               )}
             </p>
@@ -86,7 +83,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             </Link>
             {loginPath ? (
               <Link to={loginPath} className="w-full sm:w-1/2">
-                <Button variant="primary" size="sm" className="w-full" leftIcon={<LogIn className="w-4 h-4" />}>Đăng nhập quản trị</Button>
+                <Button variant="primary" size="sm" className="w-full" leftIcon={<LogIn className="w-4 h-4" />}>
+                  Đăng nhập quản trị
+                </Button>
               </Link>
             ) : (
               <Button

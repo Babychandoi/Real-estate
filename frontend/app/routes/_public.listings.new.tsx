@@ -2,9 +2,26 @@ import React, { useState, useEffect, useRef } from 'react';
 import { validationMessage } from '@/shared/types/problem-details';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import {
-  Building2, Key, Home, Castle, MapPin,
-  CheckCircle2, ArrowRight, ArrowLeft, Save, Send, Sparkles, AlertCircle,
-  ShieldCheck, Image as ImageIcon, Eye, TrendingUp, HelpCircle, Upload, X, ChevronDown
+  Building2,
+  Key,
+  Home,
+  Castle,
+  MapPin,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  Save,
+  Send,
+  Sparkles,
+  AlertCircle,
+  ShieldCheck,
+  Image as ImageIcon,
+  Eye,
+  TrendingUp,
+  HelpCircle,
+  Upload,
+  X,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
@@ -18,7 +35,15 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
-function LocationPicker({ latitude, longitude, onChange }: { latitude: number; longitude: number; onChange: (latitude: number, longitude: number) => void }) {
+function LocationPicker({
+  latitude,
+  longitude,
+  onChange,
+}: {
+  latitude: number;
+  longitude: number;
+  onChange: (latitude: number, longitude: number) => void;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const marker = useRef<maplibregl.Marker | null>(null);
@@ -26,7 +51,12 @@ function LocationPicker({ latitude, longitude, onChange }: { latitude: number; l
   useEffect(() => {
     if (!host.current || map.current) return;
     const initial: [number, number] = latitude && longitude ? [longitude, latitude] : [105.8542, 21.0285];
-    const instance = new maplibregl.Map({ container: host.current, style: 'https://tiles.openfreemap.org/styles/positron', center: initial, zoom: latitude && longitude ? 14 : 11 });
+    const instance = new maplibregl.Map({
+      container: host.current,
+      style: 'https://tiles.openfreemap.org/styles/positron',
+      center: initial,
+      zoom: latitude && longitude ? 14 : 11,
+    });
     instance.addControl(new maplibregl.NavigationControl(), 'top-right');
     const setPoint = (lng: number, lat: number) => {
       marker.current ??= new maplibregl.Marker({ color: '#0f172a' });
@@ -36,10 +66,21 @@ function LocationPicker({ latitude, longitude, onChange }: { latitude: number; l
     if (latitude && longitude) setPoint(longitude, latitude);
     instance.on('click', (event) => setPoint(event.lngLat.lng, event.lngLat.lat));
     map.current = instance;
-    return () => { marker.current?.remove(); instance.remove(); map.current = null; marker.current = null; };
+    return () => {
+      marker.current?.remove();
+      instance.remove();
+      map.current = null;
+      marker.current = null;
+    };
   }, []);
 
-  return <div ref={host} className="mt-3 h-72 overflow-hidden rounded-lg border border-slate-300" aria-label="Bản đồ chọn tọa độ" />;
+  return (
+    <div
+      ref={host}
+      className="mt-3 h-72 overflow-hidden rounded-lg border border-slate-300"
+      aria-label="Bản đồ chọn tọa độ"
+    />
+  );
 }
 
 export const CreateListingPage: React.FC = () => {
@@ -101,14 +142,51 @@ export const CreateListingPage: React.FC = () => {
 
   useEffect(() => {
     if (!editingListingId) return;
-    apiClient<{ id: string; purpose: 'SALE' | 'RENT'; propertyType: string; title: string; priceVnd: number; areaM2: number; bedrooms?: number; bathrooms?: number; floors?: number; frontageM?: number; roadWidthM?: number; direction?: string; legalStatus?: string; description: string; provinceCode?: string; districtCode?: string; wardCode?: string; addressSummary: string; publicLatitude?: number; publicLongitude?: number; imageUrls: string[] }>(`/listings/${editingListingId}`)
+    apiClient<{
+      id: string;
+      purpose: 'SALE' | 'RENT';
+      propertyType: string;
+      title: string;
+      priceVnd: number;
+      areaM2: number;
+      bedrooms?: number;
+      bathrooms?: number;
+      floors?: number;
+      frontageM?: number;
+      roadWidthM?: number;
+      direction?: string;
+      legalStatus?: string;
+      description: string;
+      provinceCode?: string;
+      districtCode?: string;
+      wardCode?: string;
+      addressSummary: string;
+      publicLatitude?: number;
+      publicLongitude?: number;
+      imageUrls: string[];
+    }>(`/listings/${editingListingId}`)
       .then((listing) => {
-        setListingId(listing.id); setPurpose(listing.purpose); setPropertyType(listing.propertyType); setTitle(listing.title);
-        setPriceVnd(listing.priceVnd); setAreaM2(listing.areaM2); setDescription(listing.description); setProvince(listing.provinceCode || '');
-        setBedrooms(listing.bedrooms ?? null); setBathrooms(listing.bathrooms ?? null); setFloors(listing.floors ?? null);
-        setFrontageM(listing.frontageM ?? null); setRoadWidthM(listing.roadWidthM ?? null); setDirection(listing.direction || ''); setLegalStatus(listing.legalStatus || '');
-        setDistrict(listing.districtCode || ''); setWard(listing.wardCode || ''); setAddressSummary(listing.addressSummary);
-        setLatitude(listing.publicLatitude || 0); setLongitude(listing.publicLongitude || 0); setImageUrls(listing.imageUrls || []);
+        setListingId(listing.id);
+        setPurpose(listing.purpose);
+        setPropertyType(listing.propertyType);
+        setTitle(listing.title);
+        setPriceVnd(listing.priceVnd);
+        setAreaM2(listing.areaM2);
+        setDescription(listing.description);
+        setProvince(listing.provinceCode || '');
+        setBedrooms(listing.bedrooms ?? null);
+        setBathrooms(listing.bathrooms ?? null);
+        setFloors(listing.floors ?? null);
+        setFrontageM(listing.frontageM ?? null);
+        setRoadWidthM(listing.roadWidthM ?? null);
+        setDirection(listing.direction || '');
+        setLegalStatus(listing.legalStatus || '');
+        setDistrict(listing.districtCode || '');
+        setWard(listing.wardCode || '');
+        setAddressSummary(listing.addressSummary);
+        setLatitude(listing.publicLatitude || 0);
+        setLongitude(listing.publicLongitude || 0);
+        setImageUrls(listing.imageUrls || []);
       })
       .catch(() => setErrorMessage('Không thể tải dữ liệu tin để chỉnh sửa. Vui lòng quay lại kho tin và thử lại.'));
   }, [editingListingId]);
@@ -138,7 +216,13 @@ export const CreateListingPage: React.FC = () => {
             title,
             priceVnd,
             areaM2,
-            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
+            bedrooms,
+            bathrooms,
+            floors,
+            frontageM,
+            roadWidthM,
+            direction: direction || null,
+            legalStatus: legalStatus || null,
             description,
             provinceCode: province || null,
             districtCode: district || null,
@@ -159,7 +243,13 @@ export const CreateListingPage: React.FC = () => {
             title,
             priceVnd,
             areaM2,
-            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
+            bedrooms,
+            bathrooms,
+            floors,
+            frontageM,
+            roadWidthM,
+            direction: direction || null,
+            legalStatus: legalStatus || null,
             description,
             provinceCode: province || null,
             districtCode: district || null,
@@ -212,7 +302,13 @@ export const CreateListingPage: React.FC = () => {
             title,
             priceVnd,
             areaM2,
-            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
+            bedrooms,
+            bathrooms,
+            floors,
+            frontageM,
+            roadWidthM,
+            direction: direction || null,
+            legalStatus: legalStatus || null,
             description,
             addressSummary,
             publicLatitude: latitude,
@@ -226,8 +322,22 @@ export const CreateListingPage: React.FC = () => {
         await apiClient(`/listings/${currentId}/draft`, {
           method: 'PUT',
           body: JSON.stringify({
-            purpose, propertyType, title, priceVnd, areaM2, bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null, description,
-            provinceCode: province || null, districtCode: district || null, wardCode: ward || null,
+            purpose,
+            propertyType,
+            title,
+            priceVnd,
+            areaM2,
+            bedrooms,
+            bathrooms,
+            floors,
+            frontageM,
+            roadWidthM,
+            direction: direction || null,
+            legalStatus: legalStatus || null,
+            description,
+            provinceCode: province || null,
+            districtCode: district || null,
+            wardCode: ward || null,
             addressSummary,
             publicLatitude: latitude || null,
             publicLongitude: longitude || null,
@@ -243,7 +353,9 @@ export const CreateListingPage: React.FC = () => {
       setIsSuccessSubmitted(true);
     } catch (err: unknown) {
       console.error('Lỗi khi nộp duyệt tin:', err);
-      setErrorMessage(validationMessage(err, 'Chưa thể nộp tin. Bản nháp vẫn được giữ; vui lòng kiểm tra kết nối rồi thử lại.'));
+      setErrorMessage(
+        validationMessage(err, 'Chưa thể nộp tin. Bản nháp vẫn được giữ; vui lòng kiểm tra kết nối rồi thử lại.'),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -253,7 +365,9 @@ export const CreateListingPage: React.FC = () => {
     if (!files?.length) return;
     const selected = Array.from(files).slice(0, 20 - imageUrls.length);
     const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
-    const invalid = selected.find((file) => !allowedTypes.has(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024);
+    const invalid = selected.find(
+      (file) => !allowedTypes.has(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024,
+    );
     if (invalid) {
       setErrorMessage(`Ảnh “${invalid.name}” không hợp lệ. Chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.`);
       return;
@@ -273,7 +387,9 @@ export const CreateListingPage: React.FC = () => {
       }
     } catch (err) {
       console.error('Không thể tải ảnh lên MinIO:', err);
-      setErrorMessage('Một số ảnh chưa tải được lên kho lưu trữ. Các ảnh đã tải thành công vẫn được giữ lại; hãy thử lại phần còn thiếu.');
+      setErrorMessage(
+        'Một số ảnh chưa tải được lên kho lưu trữ. Các ảnh đã tải thành công vẫn được giữ lại; hãy thử lại phần còn thiếu.',
+      );
     } finally {
       setIsUploadingImages(false);
     }
@@ -296,19 +412,38 @@ export const CreateListingPage: React.FC = () => {
   };
 
   if (isCheckingKyc) {
-    return <main className="mx-auto max-w-5xl px-4 py-10" role="status">Đang kiểm tra điều kiện đăng tin…</main>;
+    return (
+      <main className="mx-auto max-w-5xl px-4 py-10" role="status">
+        Đang kiểm tra điều kiện đăng tin…
+      </main>
+    );
   }
 
   if (kycProfile?.status !== 'VERIFIED') {
     const pending = kycProfile?.status === 'PENDING';
-    return <main className="mx-auto max-w-3xl px-4 py-10 md:px-8">
-      <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
-        <ShieldCheck className="h-9 w-9 text-slate-900" />
-        <h1 className="mt-4 text-2xl font-bold text-slate-950">Xác minh danh tính trước khi đăng tin</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Để bảo vệ người đăng và người liên hệ, chỉ tài khoản đã được duyệt eKYC mới có thể tạo hoặc gửi tin đăng.</p>
-        {pending ? <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">Hồ sơ eKYC của bạn đang chờ duyệt thủ công. Bạn sẽ có thể đăng tin ngay khi hồ sơ được xác nhận.</p> : <Link to="/kyc" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-bold text-white hover:bg-slate-800">Đi tới xác minh eKYC</Link>}
-      </section>
-    </main>;
+    return (
+      <main className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+        <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
+          <ShieldCheck className="h-9 w-9 text-slate-900" />
+          <h1 className="mt-4 text-2xl font-bold text-slate-950">Xác minh danh tính trước khi đăng tin</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+            Để bảo vệ người đăng và người liên hệ, chỉ tài khoản đã được duyệt eKYC mới có thể tạo hoặc gửi tin đăng.
+          </p>
+          {pending ? (
+            <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
+              Hồ sơ eKYC của bạn đang chờ duyệt thủ công. Bạn sẽ có thể đăng tin ngay khi hồ sơ được xác nhận.
+            </p>
+          ) : (
+            <Link
+              to="/kyc"
+              className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-bold text-white hover:bg-slate-800"
+            >
+              Đi tới xác minh eKYC
+            </Link>
+          )}
+        </section>
+      </main>
+    );
   }
 
   if (isSuccessSubmitted) {
@@ -319,11 +454,10 @@ export const CreateListingPage: React.FC = () => {
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-10 h-10" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
-              Nộp duyệt tin đăng thành công!
-            </h2>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Nộp duyệt tin đăng thành công!</h2>
             <p className="text-slate-600 text-sm mb-6 leading-relaxed">
-              Tin đăng đã được tiếp nhận vào hàng đợi kiểm duyệt nội dung. Bạn sẽ nhận được thông báo khi quản trị viên hoàn tất xét duyệt.
+              Tin đăng đã được tiếp nhận vào hàng đợi kiểm duyệt nội dung. Bạn sẽ nhận được thông báo khi quản trị viên
+              hoàn tất xét duyệt.
             </p>
 
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-left mb-6 text-xs space-y-2">
@@ -338,7 +472,11 @@ export const CreateListingPage: React.FC = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button onClick={() => navigate('/my-listings')} variant="primary" className="bg-emerald-600 hover:bg-emerald-700">
+              <Button
+                onClick={() => navigate('/my-listings')}
+                variant="primary"
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
                 Về Quản lý tin của tôi
               </Button>
               <Button onClick={() => navigate('/broker/workspace')} variant="outline">
@@ -356,7 +494,10 @@ export const CreateListingPage: React.FC = () => {
       <div className="container mx-auto px-4 max-w-6xl">
         {/* Top Breadcrumb & Autosave info */}
         <div className="flex items-center justify-between mb-6">
-          <Link to="/my-listings" className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
+          <Link
+            to="/my-listings"
+            className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors"
+          >
             <ArrowLeft className="w-4 h-4" />
             <span>Quay lại Kho tin của tôi</span>
           </Link>
@@ -430,8 +571,8 @@ export const CreateListingPage: React.FC = () => {
                   isActive
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-sm'
                     : isCompleted
-                    ? 'bg-white border-slate-300 text-slate-800'
-                    : 'bg-white/60 border-slate-200 text-slate-400'
+                      ? 'bg-white border-slate-300 text-slate-800'
+                      : 'bg-white/60 border-slate-200 text-slate-400'
                 }`}
               >
                 <div
@@ -439,8 +580,8 @@ export const CreateListingPage: React.FC = () => {
                     isActive
                       ? 'bg-emerald-600 text-white shadow'
                       : isCompleted
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-100 text-slate-500'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-100 text-slate-500'
                   }`}
                 >
                   {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
@@ -476,23 +617,106 @@ export const CreateListingPage: React.FC = () => {
                 {/* Mục đích */}
                 <fieldset className="mb-6 border-t border-slate-100 pt-5">
                   <legend className="px-0 text-sm font-bold text-slate-900">Đặc điểm bất động sản</legend>
-                  <p className="mt-1 text-xs text-slate-500">Nhập đúng hồ sơ thực tế. Các thông tin này được lưu theo phiên bản tin đăng.</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Nhập đúng hồ sơ thực tế. Các thông tin này được lưu theo phiên bản tin đăng.
+                  </p>
                   <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <label className="text-sm font-medium text-slate-700">Số phòng ngủ<input type="number" min="0" value={bedrooms ?? ''} onChange={(e) => setBedrooms(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Số phòng tắm, vệ sinh<input type="number" min="0" value={bathrooms ?? ''} onChange={(e) => setBathrooms(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Số tầng<input type="number" min="0" value={floors ?? ''} onChange={(e) => setFloors(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Mặt tiền (m)<input type="number" min="0" step="0.1" value={frontageM ?? ''} onChange={(e) => setFrontageM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Đường vào (m)<input type="number" min="0" step="0.1" value={roadWidthM ?? ''} onChange={(e) => setRoadWidthM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Hướng nhà
+                    <label className="text-sm font-medium text-slate-700">
+                      Số phòng ngủ
+                      <input
+                        type="number"
+                        min="0"
+                        value={bedrooms ?? ''}
+                        onChange={(e) => setBedrooms(e.target.value === '' ? null : e.target.valueAsNumber)}
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Số phòng tắm, vệ sinh
+                      <input
+                        type="number"
+                        min="0"
+                        value={bathrooms ?? ''}
+                        onChange={(e) => setBathrooms(e.target.value === '' ? null : e.target.valueAsNumber)}
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Số tầng
+                      <input
+                        type="number"
+                        min="0"
+                        value={floors ?? ''}
+                        onChange={(e) => setFloors(e.target.value === '' ? null : e.target.valueAsNumber)}
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Mặt tiền (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={frontageM ?? ''}
+                        onChange={(e) => setFrontageM(e.target.value === '' ? null : e.target.valueAsNumber)}
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Đường vào (m)
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={roadWidthM ?? ''}
+                        onChange={(e) => setRoadWidthM(e.target.value === '' ? null : e.target.valueAsNumber)}
+                        className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                      />
+                    </label>
+                    <label className="text-sm font-medium text-slate-700">
+                      Hướng nhà
                       <span className="relative mt-1 block">
-                        <select value={direction} onChange={(e) => setDirection(e.target.value)} className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"><option value="">Chưa cập nhật</option><option>Đông</option><option>Tây</option><option>Nam</option><option>Bắc</option><option>Đông Bắc</option><option>Đông Nam</option><option>Tây Bắc</option><option>Tây Nam</option></select>
-                        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={2} />
+                        <select
+                          value={direction}
+                          onChange={(e) => setDirection(e.target.value)}
+                          className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                        >
+                          <option value="">Chưa cập nhật</option>
+                          <option>Đông</option>
+                          <option>Tây</option>
+                          <option>Nam</option>
+                          <option>Bắc</option>
+                          <option>Đông Bắc</option>
+                          <option>Đông Nam</option>
+                          <option>Tây Bắc</option>
+                          <option>Tây Nam</option>
+                        </select>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+                          strokeWidth={2}
+                        />
                       </span>
                     </label>
-                    <label className="text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3">Pháp lý
+                    <label className="text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3">
+                      Pháp lý
                       <span className="relative mt-1 block">
-                        <select value={legalStatus} onChange={(e) => setLegalStatus(e.target.value)} className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"><option value="">Chưa cập nhật</option><option>Sổ đỏ / Sổ hồng</option><option>Hợp đồng mua bán</option><option>Đang chờ hoàn thiện hồ sơ</option><option>Giấy tờ khác</option></select>
-                        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={2} />
+                        <select
+                          value={legalStatus}
+                          onChange={(e) => setLegalStatus(e.target.value)}
+                          className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"
+                        >
+                          <option value="">Chưa cập nhật</option>
+                          <option>Sổ đỏ / Sổ hồng</option>
+                          <option>Hợp đồng mua bán</option>
+                          <option>Đang chờ hoàn thiện hồ sơ</option>
+                          <option>Giấy tờ khác</option>
+                        </select>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+                          strokeWidth={2}
+                        />
                       </span>
                     </label>
                   </div>
@@ -634,7 +858,13 @@ export const CreateListingPage: React.FC = () => {
                       <MapPin className="w-4 h-4 text-emerald-600" />
                       <span className="text-xs font-bold text-slate-800 uppercase">Tọa độ hiển thị trên bản đồ</span>
                     </div>
-                    <button type="button" onClick={() => setIsMapPickerOpen((current) => !current)} className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100">{isMapPickerOpen ? 'Ẩn bản đồ' : 'Chọn trên bản đồ'}</button>
+                    <button
+                      type="button"
+                      onClick={() => setIsMapPickerOpen((current) => !current)}
+                      className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                    >
+                      {isMapPickerOpen ? 'Ẩn bản đồ' : 'Chọn trên bản đồ'}
+                    </button>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-xs font-mono">
                     <div>
@@ -643,7 +873,9 @@ export const CreateListingPage: React.FC = () => {
                         type="number"
                         step="0.0001"
                         value={latitude}
-                        onChange={(e) => setLatitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
+                        onChange={(e) =>
+                          setLatitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)
+                        }
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
                       />
                     </div>
@@ -653,13 +885,26 @@ export const CreateListingPage: React.FC = () => {
                         type="number"
                         step="0.0001"
                         value={longitude}
-                        onChange={(e) => setLongitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
+                        onChange={(e) =>
+                          setLongitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)
+                        }
                         className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
                       />
                     </div>
                   </div>
-                  <p className="mt-3 text-xs text-slate-500">Chỉ chọn hoặc nhập tọa độ bạn đồng ý công khai. Vị trí hiển thị sẽ được làm mờ để bảo vệ riêng tư.</p>
-                  {isMapPickerOpen && <LocationPicker latitude={latitude} longitude={longitude} onChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />}
+                  <p className="mt-3 text-xs text-slate-500">
+                    Chỉ chọn hoặc nhập tọa độ bạn đồng ý công khai. Vị trí hiển thị sẽ được làm mờ để bảo vệ riêng tư.
+                  </p>
+                  {isMapPickerOpen && (
+                    <LocationPicker
+                      latitude={latitude}
+                      longitude={longitude}
+                      onChange={(lat, lng) => {
+                        setLatitude(lat);
+                        setLongitude(lng);
+                      }}
+                    />
+                  )}
                 </div>
 
                 <div className="mt-6 flex justify-end">
@@ -691,7 +936,9 @@ export const CreateListingPage: React.FC = () => {
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                     <div className="flex items-center justify-between text-xs text-slate-500 mt-1">
-                      <span>Bằng chữ: <strong>{formatPriceVnd(priceVnd)}</strong></span>
+                      <span>
+                        Bằng chữ: <strong>{formatPriceVnd(priceVnd)}</strong>
+                      </span>
                       <span>{calculateUnitPrice(priceVnd, areaM2)}</span>
                     </div>
                   </div>
@@ -722,8 +969,13 @@ export const CreateListingPage: React.FC = () => {
                     placeholder="Mô tả các ưu điểm về thiết kế, nội thất bàn giao, tầng cao, view, tiện ích..."
                     className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
                   />
-                  <span className="text-[11px] text-slate-400">Đã nhập {description.length} ký tự (khuyến nghị từ 80 ký tự để nội dung đầy đủ)</span>
-                  <p className="mt-1 text-[11px] text-amber-700">Không ghi số điện thoại, email hoặc link Zalo/Facebook — người quan tâm liên hệ qua nút “Hẹn xem” để bạn nhận yêu cầu trong mục Khách quan tâm.</p>
+                  <span className="text-[11px] text-slate-400">
+                    Đã nhập {description.length} ký tự (khuyến nghị từ 80 ký tự để nội dung đầy đủ)
+                  </span>
+                  <p className="mt-1 text-[11px] text-amber-700">
+                    Không ghi số điện thoại, email hoặc link Zalo/Facebook — người quan tâm liên hệ qua nút “Hẹn xem” để
+                    bạn nhận yêu cầu trong mục Khách quan tâm.
+                  </p>
                 </div>
 
                 <div className="mt-6 flex justify-between">
@@ -758,8 +1010,16 @@ export const CreateListingPage: React.FC = () => {
 
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
                     {imageUrls.map((url, idx) => (
-                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
-                        <img src={url} alt={`Ảnh bất động sản ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
+                      <div
+                        key={idx}
+                        className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100"
+                      >
+                        <img
+                          src={url}
+                          alt={`Ảnh bất động sản ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
                         {idx === 0 && (
                           <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
                             Ảnh bìa
@@ -772,7 +1032,11 @@ export const CreateListingPage: React.FC = () => {
                           aria-label={`Xóa ảnh ${idx + 1}`}
                           className="absolute top-1 right-1 bg-black/70 text-white w-11 h-11 rounded-full flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
                         >
-                          {deletingImage === url ? <span className="loading loading-spinner loading-xs" /> : <X className="w-4 h-4" />}
+                          {deletingImage === url ? (
+                            <span className="loading loading-spinner loading-xs" />
+                          ) : (
+                            <X className="w-4 h-4" />
+                          )}
                         </button>
                       </div>
                     ))}
@@ -790,9 +1054,17 @@ export const CreateListingPage: React.FC = () => {
                         event.target.value = '';
                       }}
                     />
-                    {isUploadingImages ? <span className="loading loading-spinner loading-md text-emerald-700" /> : <Upload className="h-7 w-7 text-emerald-700" />}
+                    {isUploadingImages ? (
+                      <span className="loading loading-spinner loading-md text-emerald-700" />
+                    ) : (
+                      <Upload className="h-7 w-7 text-emerald-700" />
+                    )}
                     <span className="text-sm font-bold text-emerald-950">
-                      {isUploadingImages ? 'Đang lưu ảnh vào MinIO…' : imageUrls.length >= 20 ? 'Đã đạt giới hạn 20 ảnh' : 'Chọn ảnh từ thiết bị'}
+                      {isUploadingImages
+                        ? 'Đang lưu ảnh vào MinIO…'
+                        : imageUrls.length >= 20
+                          ? 'Đã đạt giới hạn 20 ảnh'
+                          : 'Chọn ảnh từ thiết bị'}
                     </span>
                     <span className="text-xs leading-relaxed text-emerald-800">
                       JPEG, PNG, WebP hoặc AVIF · tối đa 10 MB/ảnh · còn {20 - imageUrls.length} vị trí
@@ -853,7 +1125,9 @@ export const CreateListingPage: React.FC = () => {
                     <div className="p-4">
                       <div className="flex items-baseline justify-between mb-1">
                         <span className="text-lg font-black text-emerald-700">{formatPriceVnd(priceVnd)}</span>
-                        <span className="text-xs text-slate-500 font-medium">{areaM2} m² • {calculateUnitPrice(priceVnd, areaM2)}</span>
+                        <span className="text-xs text-slate-500 font-medium">
+                          {areaM2} m² • {calculateUnitPrice(priceVnd, areaM2)}
+                        </span>
                       </div>
                       <h4 className="font-bold text-sm text-slate-900 line-clamp-1 mb-2">
                         {title || 'Tiêu đề tin đăng BĐS'}
@@ -869,7 +1143,9 @@ export const CreateListingPage: React.FC = () => {
                 {/* Bản cam kết kiểm duyệt */}
                 <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed mb-6">
                   <p className="font-bold mb-1">Cam kết của người đăng tin:</p>
-                  Tôi cam đoan thông tin mô tả, mức giá và hồ sơ pháp lý cung cấp là hoàn toàn chính xác. Tôi đồng ý để ban quản trị đối soát, áp dụng bộ lọc trùng lặp và tạm gỡ tin nếu phát hiện hành vi gian lận hoặc đăng khống.
+                  Tôi cam đoan thông tin mô tả, mức giá và hồ sơ pháp lý cung cấp là hoàn toàn chính xác. Tôi đồng ý để
+                  ban quản trị đối soát, áp dụng bộ lọc trùng lặp và tạm gỡ tin nếu phát hiện hành vi gian lận hoặc đăng
+                  khống.
                 </div>
 
                 <div className="mt-6 flex justify-between items-center">
@@ -932,7 +1208,6 @@ export const CreateListingPage: React.FC = () => {
                     <span className="text-[10px] text-slate-400">Chưa có</span>
                   )}
                 </div>
-
               </div>
             </Card>
 
@@ -945,7 +1220,8 @@ export const CreateListingPage: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Mỗi tin đăng sau khi gửi sẽ vào hàng đợi kiểm duyệt. Nếu cần bổ sung nội dung, trạng thái tin sẽ được cập nhật trong Kho tin của tôi.
+                Mỗi tin đăng sau khi gửi sẽ vào hàng đợi kiểm duyệt. Nếu cần bổ sung nội dung, trạng thái tin sẽ được
+                cập nhật trong Kho tin của tôi.
               </p>
             </div>
           </div>
