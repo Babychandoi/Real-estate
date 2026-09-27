@@ -7,19 +7,19 @@ compatible behaviour, write the deviation in your stream report (`streams/<strea
 
 | Stream | Scope (summary) | Flyway range | Backend port | Vite port | ES/Redis prefix |
 |---|---|---|---|---|---|
-| S0-BE | Test infra on PostgreSQL, shared schema, job queue, scheduler lock, mail outbox, analytics recorder+ingestion, roles | V027–V029 | 18110 | 5310 | `s0be` / db 1 |
-| S0-FE | Tokens, fonts, UI kit, ESLint/Prettier, meta hook, `track()`, E2E restructure, CI artifacts, route budgets | — | 18111 | 5311 | `s0fe` / db 2 |
-| S1-MEDIA | Image variants, EXIF/orientation, placeholders, signed private URLs, asset policy | V030–V032 | 18112 | 5312 | `s1` / db 3 |
-| S2-SEARCH | Read model, index pipeline, search/map/detail API v2, caches, search/detail/compare/seller UI | V033–V044 | 18113 | 5313 | `s2` / db 4 |
-| S3-SUPPLY | Listing write path + wizard, OWNER persona, my-listings, leads (quota/idempotency/history/withdraw), appointments, broker workspace, import, quality, freshness | V045–V054 | 18114 | 5314 | `s3` / db 5 |
-| S4-ADMIN | Moderation v2, admin listings/users/reports/verification/billing, trust decisions, KYC page, billing F18, dedupe/assets/price history | V055–V064 | 18115 | 5315 | `s4` / db 6 |
-| S5-SEC | Nginx headers, real IP, rate limit v2, session ADR + tests, admin MFA + sessions, auth token pages, backups/DR tooling, observability | V065–V067 | 18116 | 5316 | `s5` / db 7 |
-| S6-ENGAGE | Favorites, shortlist sharing, saved searches + alerts, notification center, preferences/unsubscribe, SSE multi-node | V068–V074 | 18117 | 5317 | `s6` / db 8 |
-| S7-SEO | Prerender renderer + statuses, sitemap index, CMS public/preview/schedule, info pages, project & area pages, home | V075–V079 | 18118 | 5318 | `s7` / db 9 |
-| S8-ANALYTICS | Consent, bot/internal filtering, retention, RUM, funnel/cohort/metric dashboards | V080–V084 | 18119 | 5319 | `s8` / db 10 |
-| S9-QUALITY | ArchUnit, OpenAPI snapshot + generated TS types, Spotless, logging/requestId/PII masking, Problem Details | V085–V086 | 18120 | 5320 | `s9` / db 11 |
-| S10-PERF | Synthetic datasets, EXPLAIN reports, k6 constant-arrival-rate, failure/concurrency/rebuild/restore drills | V087–V088 | 18121 | 5321 | `s10` / db 12 |
-| S11-UX | Final UI/a11y/responsive pass, journey E2E, visual baselines, alias regression | — | 18122 | 5322 | `s11` / db 13 |
+| S0-BE (W1) | Test infra on PostgreSQL, shared schema, job queue, scheduler lock, mail outbox, analytics recorder+ingestion, roles, `PublicImageResolver` interface + URL-only impl | V027–V029 | 18110 | 5310 | `s0be` / db 1 |
+| S0-FE (W1) | Tokens, fonts, UI kit, ESLint/Prettier, meta hook, `track()`, E2E restructure, CI artifacts, route budgets | — | 18111 | 5311 | `s0fe` / db 2 |
+| S1-MEDIA (W3) | Image variants, EXIF/orientation, placeholders, signed private URLs, asset policy | V030–V032 | 18112 | 5312 | `s1` / db 3 |
+| S2-SEARCH (W2) | Read model, index pipeline, search/map/detail API v2, caches, search/detail/compare/seller UI | V033–V044 | 18113 | 5313 | `s2` / db 4 |
+| S3-SUPPLY (W2) | Listing write path + wizard, OWNER persona, my-listings, leads (quota/idempotency/history/withdraw), appointments, broker workspace, import, quality, freshness | V045–V054 | 18114 | 5314 | `s3` / db 5 |
+| S4-ADMIN (W2) | Moderation v2, admin listings/users/reports/verification/billing, trust decisions, KYC page, billing F18, dedupe/assets/price history | V055–V064 | 18115 | 5315 | `s4` / db 6 |
+| S5-SEC (A: W1, B: W3) | A: Nginx headers (sole owner of `frontend/nginx.conf`), real IP, rate limit v2 (sole owner of `RequestRateLimitFilter`), session ADR, backups/DR tooling, observability. B: admin MFA + sessions, session tests, least privilege, auth token pages | A: V065, B: V066–V067 | 18116 | 5316 | `s5` / db 7 |
+| S6-ENGAGE (W3) | Favorites, shortlist sharing, saved searches + alerts, notification center, preferences/unsubscribe, SSE multi-node | V068–V074 | 18117 | 5317 | `s6` / db 8 |
+| S7-SEO (W4) | Prerender renderer + statuses, sitemap index, CMS public/preview/schedule, info pages, project & area pages, home | V075–V079 | 18118 | 5318 | `s7` / db 9 |
+| S8-ANALYTICS (W4) | Consent, bot/internal filtering, retention, RUM, funnel/cohort/metric dashboards | V080–V084 | 18119 | 5319 | `s8` / db 10 |
+| S9-QUALITY (W4) | ArchUnit, OpenAPI snapshot + generated TS types, Spotless, logging/requestId/PII masking, Problem Details | V085–V086 | 18120 | 5320 | `s9` / db 11 |
+| S10-PERF (W5) | Synthetic datasets, EXPLAIN reports, k6 constant-arrival-rate, failure/concurrency/rebuild/restore drills | V087–V088 | 18121 | 5321 | `s10` / db 12 |
+| S11-UX (W5) | Final UI/a11y/responsive pass, journey E2E, visual baselines, alias regression | — | 18122 | 5322 | `s11` / db 13 |
 
 Never edit `V001`–`V026` or another stream's migrations (production already applied V001–V026; checksums must stay).
 
@@ -281,8 +281,9 @@ bbox span > 3° → `400 BBOX_TOO_LARGE`.
            "srcset": [ {"url": "/api/v1/public/media/<key>__w320.webp", "width": 320}, … ],
            "placeholder": { "dominantColor": "#c8b8a0" } }
 ```
-`PublicImageResolver.resolve(List<String> mediaUrls)` (S1) returns `ImageDto`s in one query (`media_variants` table);
-legacy images without variants return `srcset: []`. Frontend `<ResponsiveImage image sizes alt/>` (S0-FE shell, S1 wires
+`PublicImageResolver.resolve(List<String> mediaUrls)` returns `ImageDto`s in one query. S0-BE ships the interface
+(`com.company.bds.media`) with a URL-only implementation (`srcset: []`, width/height null); S1 replaces the bean with the
+variant-aware one backed by a `media_variants` table. Legacy images without variants keep `srcset: []`. Frontend `<ResponsiveImage image sizes alt/>` (S0-FE shell, S1 wires
 data). Public media is served only for objects referenced by a publicly visible listing, a user avatar, or a published
 CMS/project asset; drafts/private use short-lived signed URLs (`?exp=…&sig=…`) issued to owner/staff.
 

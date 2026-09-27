@@ -21,18 +21,19 @@
 ## Đợt và luồng
 | Đợt | Luồng | Phạm vi chính |
 |---|---|---|
-| W1 | S0-BE | Test trên PostgreSQL thật (bỏ H2), schema dùng chung, job queue bền vững, khóa scheduler, mail outbox, ghi nhận analytics, vai trò OWNER |
-| W1 | S0-FE | Design tokens, font tự host, UI kit, ESLint/Prettier, hook metadata, `track()`, tái cấu trúc E2E (F01), artifact CI, budget bundle |
-| W1 | S1-MEDIA | Pipeline ảnh (WebP 320/640/960/1600, EXIF, xoay ảnh, placeholder), URL ký cho ảnh riêng tư, chính sách ảnh tin ẩn |
+| W1 | S0-BE | Test trên PostgreSQL thật (bỏ H2), schema dùng chung, job queue bền vững, khóa scheduler, mail outbox, ghi nhận analytics, vai trò OWNER, interface ảnh công khai |
+| W1 | S0-FE | Design tokens, font tự host, UI kit, ESLint/Prettier, Vitest, hook metadata, `track()`, tái cấu trúc E2E (F01), artifact CI, budget bundle |
+| W1 | S5-SEC (pha A) | Header Nginx dùng chung, IP thật qua tunnel, rate limit v2, ADR session, backup mã hóa/DR, observability |
 | W2 | S2-SEARCH | Read model, pipeline chỉ mục (F05), API v2 search/map/detail (F02–F07, F09, F10), UI tìm kiếm/chi tiết/so sánh/người đăng |
 | W2 | S3-SUPPLY | Đường ghi tin + wizard 4 bước, chủ nhà (OWNER), kho tin, lead (quota/idempotency/lịch sử/rút), hẹn xem, workspace môi giới, import, chất lượng tin, còn hàng/hết hạn |
 | W2 | S4-ADMIN | Kiểm duyệt v2, quản trị tin/người dùng/báo xấu/xác minh/billing, trust, KYC, F18, chống trùng/tài sản/lịch sử giá |
-| W3 | S5-SEC | Header Nginx, IP thật, rate limit v2, ADR session + test, MFA admin + phiên, trang token, backup/DR, observability |
+| W3 | S1-MEDIA | Pipeline ảnh (WebP 320/640/960/1600, EXIF, xoay ảnh, placeholder), URL ký cho ảnh riêng tư, chính sách ảnh tin ẩn |
+| W3 | S5-SEC (pha B) | MFA admin, quản lý phiên, test logout/revoke/expiry, least privilege, trang token (verify/forgot/reset) |
 | W3 | S6-ENGAGE | Tin đã lưu, shortlist chia sẻ, tìm kiếm đã lưu + cảnh báo, trung tâm thông báo, tùy chọn thông báo, SSE nhiều node |
-| W3 | S7-SEO | Prerender + status 404/410, sitemap index, CMS public/preview/lịch xuất bản, trang thông tin, trang dự án/khu vực, trang chủ |
+| W4 | S7-SEO | Prerender + status 404/410, sitemap index, CMS public/preview/lịch xuất bản, trang thông tin, trang dự án/khu vực, trang chủ |
 | W4 | S8-ANALYTICS | Consent, lọc bot/nội bộ, retention, RUM, funnel/cohort/chỉ số trung tâm |
-| W4 | S9-QUALITY | ArchUnit, OpenAPI snapshot + type sinh tự động, format, log có requestId/không PII, Problem Details |
-| W4 | S10-PERF | Dataset 100k/1M, EXPLAIN, k6 constant-arrival-rate, test sự cố/cạnh tranh/rebuild/khôi phục |
+| W4 | S9-QUALITY | ArchUnit, OpenAPI snapshot + type sinh tự động, log có requestId/không PII, Problem Details (format toàn bộ chạy cuối cùng) |
+| W5 | S10-PERF | Dataset 100k/1M, EXPLAIN, k6 constant-arrival-rate, test sự cố/cạnh tranh/rebuild/khôi phục |
 | W5 | S11-UX | Rà soát UX/a11y/responsive cuối, E2E hành trình, baseline visual, alias admin |
 
 ## Quyết định đã chốt (có thể đổi nếu chủ sản phẩm yêu cầu)
