@@ -1,6 +1,7 @@
 package com.company.bds.iam.api;
 
 import com.company.bds.shared.security.CurrentUser;
+import com.company.bds.shared.security.Roles;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +24,10 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/admin/users")
 public class AdminUserController {
-    private static final Set<String> ROLES = Set.of("USER", "BROKER", "MODERATOR", "ADMIN");
+    private static final Set<String> ROLES = Roles.ALL;
+    /** One row per user with its effective role (priority order), also for accounts with several role rows. */
+    private static final String USERS_WITH_ROLE = "FROM users u CROSS JOIN LATERAL (SELECT "
+            + Roles.effectiveRoleSql("u.id") + " AS role) ur ";
     private static final Set<String> STATUSES = Set.of("ACTIVE", "SUSPENDED", "PENDING_EMAIL_VERIFICATION");
     private final JdbcTemplate jdbc;
 
@@ -50,7 +54,7 @@ public class AdminUserController {
                   AND (? = '' OR u.status = ?)
                 """;
         Object[] countArgs = {normalizedQuery, normalizedQuery, normalizedQuery, normalizedRole, normalizedRole, normalizedStatus, normalizedStatus};
-        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id=u.id " + where, Long.class, countArgs);
+        Long total = jdbc.queryForObject("SELECT COUNT(*) " + USERS_WITH_ROLE + where, Long.class, countArgs);
         Object[] dataArgs = {normalizedQuery, normalizedQuery, normalizedQuery, normalizedRole, normalizedRole, normalizedStatus, normalizedStatus, safeSize, safePage * safeSize};
         List<UserSummary> items = jdbc.query("""
                 SELECT u.id,u.full_name,u.email,u.status,u.created_at,u.email_verified_at,
@@ -58,10 +62,9 @@ public class AdminUserController {
                        COALESCE(k.status, 'NOT_SUBMITTED') AS kyc_status,
                        (SELECT MAX(s.created_at) FROM auth_sessions s WHERE s.user_id=u.id) AS last_login_at,
                        (SELECT COUNT(*) FROM listings l WHERE l.owner_id=u.id) AS listing_count
-                FROM users u
-                JOIN user_roles ur ON ur.user_id=u.id
+                """ + USERS_WITH_ROLE + """
                 LEFT JOIN user_kyc_profiles k ON k.user_id=u.id
-                """ + where + " ORDER BY u.created_at DESC LIMIT ? OFFSET ?", (rs, row) -> new UserSummary(
+                """ + where + " ORDER BY u.created_at DESC, u.id DESC LIMIT ? OFFSET ?", (rs, row) -> new UserSummary(
                 rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getString("email"),
                 rs.getString("role"), rs.getString("status"), rs.getString("kyc_status"),
                 rs.getString("plan_code"), rs.getInt("listing_quota_remaining"), rs.getLong("listing_count"),
@@ -76,12 +79,11 @@ public class AdminUserController {
         String requested = request.status() == null ? "" : request.status().trim().toUpperCase(Locale.ROOT);
         if (!Set.of("ACTIVE", "SUSPENDED").contains(requested)) throw new IllegalArgumentException("Trạng thái tài khoản không hợp lệ.");
         if (CurrentUser.id(authentication).equals(id)) throw new IllegalArgumentException("Không thể khóa hoặc mở khóa chính tài khoản đang đăng nhập.");
-        List<TargetUser> targets = jdbc.query("""
-                SELECT u.status,ur.role FROM users u JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=?
-                """, (rs, row) -> new TargetUser(rs.getString(1), rs.getString(2)), id);
+        List<TargetUser> targets = jdbc.query("SELECT u.status,ur.role " + USERS_WITH_ROLE + "WHERE u.id=?",
+                (rs, row) -> new TargetUser(rs.getString(1), rs.getString(2)), id);
         if (targets.isEmpty()) throw new IllegalArgumentException("Không tìm thấy tài khoản.");
         TargetUser target = targets.get(0);
-        if ("ADMIN".equals(target.role())) throw new IllegalArgumentException("Không thể thay đổi trạng thái của tài khoản quản trị khác.");
+        if (Roles.ADMIN.equals(target.role())) throw new IllegalArgumentException("Không thể thay đổi trạng thái của tài khoản quản trị khác.");
         if ("ACTIVE".equals(requested) && !"SUSPENDED".equals(target.status())) throw new IllegalArgumentException("Chỉ tài khoản đã khóa mới có thể được mở lại.");
         if ("SUSPENDED".equals(requested) && !"ACTIVE".equals(target.status())) throw new IllegalArgumentException("Chỉ tài khoản đang hoạt động mới có thể bị khóa.");
         jdbc.update("UPDATE users SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", requested, id);

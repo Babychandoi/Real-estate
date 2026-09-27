@@ -42,6 +42,9 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        String[] posters = Roles.anyOf(Roles.POSTERS);
+        String[] staff = Roles.anyOf(Roles.STAFF);
+        String[] leadInbox = Roles.anyOf(Roles.STAFF, Roles.POSTERS);
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -63,23 +66,25 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/listings/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/listings", "/api/v1/listings/*/submit",
                                 "/api/v1/listings/*/visibility", "/api/v1/listings/estimate-price",
-                                "/api/v1/listings/quality-score").hasAnyRole("ADMIN", "BROKER")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/listings/*/draft").hasAnyRole("ADMIN", "BROKER")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/listings/my-listings").hasAnyRole("ADMIN", "BROKER")
+                                "/api/v1/listings/quality-score").hasAnyRole(posters)
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/listings/*/draft").hasAnyRole(posters)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/listings/my-listings").hasAnyRole(posters)
                         .requestMatchers(HttpMethod.GET, "/api/v1/listings/{id}").permitAll()
                         .requestMatchers("/api/v1/admin/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()
                         .requestMatchers("/api/v1/billing/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/v1/billing/**").hasAnyRole("ADMIN", "BROKER")
-                        .requestMatchers("/api/v1/moderation/**", "/api/v1/analytics/**").hasAnyRole("ADMIN", "MODERATOR")
+                        .requestMatchers("/api/v1/billing/**").hasAnyRole(posters)
+                        .requestMatchers("/api/v1/moderation/**", "/api/v1/analytics/**").hasAnyRole(staff)
                         .requestMatchers(HttpMethod.GET, "/api/v1/leads/sent").authenticated()
-                        .requestMatchers("/api/v1/leads/**").hasAnyRole("ADMIN", "MODERATOR", "BROKER")
-                        .requestMatchers("/api/v1/broker/**").hasAnyRole("ADMIN", "BROKER")
+                        // Owner-side lead inbox; the services still restrict non-staff to leads of their own listings.
+                        .requestMatchers("/api/v1/leads/**").hasAnyRole(leadInbox)
+                        // The broker workspace stays broker-only; owners get the simplified dashboard in my-listings/my-leads.
+                        .requestMatchers("/api/v1/broker/**").hasAnyRole(Roles.ADMIN, Roles.BROKER)
                         .requestMatchers("/api/v1/media/**").authenticated()
-                        .requestMatchers("/api/v1/reports/**").hasAnyRole("ADMIN", "MODERATOR")
+                        .requestMatchers("/api/v1/reports/**").hasAnyRole(staff)
                         .requestMatchers("/api/v1/kyc/queue", "/api/v1/kyc/*/approve", "/api/v1/kyc/*/reject",
-                                "/api/v1/verifications/**").hasAnyRole("ADMIN", "MODERATOR")
-                        .requestMatchers("/api/v1/catalog/**", "/api/v1/cms/**").hasAnyRole("ADMIN", "MODERATOR")
+                                "/api/v1/verifications/**").hasAnyRole(staff)
+                        .requestMatchers("/api/v1/catalog/**", "/api/v1/cms/**").hasAnyRole(staff)
                         .requestMatchers(HttpMethod.POST, "/api/v1/transactions/deposits/*/release", "/api/v1/transactions/deposits/*/refund").hasRole("ADMIN")
                         .requestMatchers("/api/v1/transactions/**").authenticated()
                         .requestMatchers("/api/v1/kyc/**", "/api/v1/listings/**", "/api/v1/auth/**", "/api/v1/billing/**", "/api/v1/notifications/**").authenticated()

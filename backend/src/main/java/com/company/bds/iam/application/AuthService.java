@@ -21,6 +21,7 @@ import com.company.bds.shared.mail.MailMessage;
 import com.company.bds.shared.mail.MailOutbox;
 import com.company.bds.shared.security.ContactInfoGuard;
 import com.company.bds.shared.security.PiiProtectionService;
+import com.company.bds.shared.security.Roles;
 
 @Service
 public class AuthService {
@@ -48,7 +49,7 @@ public class AuthService {
     public RegistrationResult register(String email, String password, String fullName, String accountType) {
         ContactInfoGuard.requireNoContact(fullName);
         String normalizedEmail = normalizeEmail(email);
-        String role = "BROKER".equals(accountType) ? "BROKER" : "USER";
+        String role = accountType != null && Roles.SELF_REGISTRATION.contains(accountType) ? accountType : Roles.USER;
         UUID userId = UUID.randomUUID();
         try {
             jdbc.update("""
@@ -83,12 +84,9 @@ public class AuthService {
 
     private UserAccount authenticate(String email, String password) {
         List<UserAccount> users = jdbc.query("""
-                SELECT u.id, u.full_name, u.email, u.password_hash,
-                       COALESCE((SELECT ur.role FROM user_roles ur WHERE ur.user_id=u.id
-                                 ORDER BY CASE ur.role WHEN 'ADMIN' THEN 1 WHEN 'MODERATOR' THEN 2 WHEN 'BROKER' THEN 3 ELSE 4 END
-                                 LIMIT 1), 'USER') role
+                SELECT u.id, u.full_name, u.email, u.password_hash, %s AS role
                 FROM users u WHERE LOWER(u.email)=?
-                """, (rs, row) -> new UserAccount(
+                """.formatted(Roles.effectiveRoleSql("u.id")), (rs, row) -> new UserAccount(
                 rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getString("email"),
                 rs.getString("password_hash"), rs.getString("role")), normalizeEmail(email));
         String storedHash = users.isEmpty() ? null : users.get(0).passwordHash();
@@ -114,7 +112,7 @@ public class AuthService {
     }
 
     private static boolean isPrivileged(String role) {
-        return "ADMIN".equals(role) || "MODERATOR".equals(role);
+        return Roles.isStaff(role);
     }
 
     @Transactional
@@ -222,13 +220,10 @@ public class AuthService {
 
     public UserAccount findByToken(String rawToken) {
         List<UserAccount> users = jdbc.query("""
-                SELECT u.id, u.full_name, u.email, u.password_hash,
-                       COALESCE((SELECT ur.role FROM user_roles ur WHERE ur.user_id=u.id
-                                 ORDER BY CASE ur.role WHEN 'ADMIN' THEN 1 WHEN 'MODERATOR' THEN 2 WHEN 'BROKER' THEN 3 ELSE 4 END
-                                 LIMIT 1), 'USER') role
+                SELECT u.id, u.full_name, u.email, u.password_hash, %s AS role
                 FROM auth_sessions s JOIN users u ON u.id=s.user_id
                 WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at>CURRENT_TIMESTAMP AND u.status='ACTIVE'
-                """, (rs, row) -> new UserAccount(
+                """.formatted(Roles.effectiveRoleSql("u.id")), (rs, row) -> new UserAccount(
                 rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getString("email"),
                 null, rs.getString("role")), sha256(rawToken));
         return users.isEmpty() ? null : users.get(0);
@@ -236,9 +231,8 @@ public class AuthService {
 
     private UserAccount loadUser(UUID id) {
         return jdbc.queryForObject("""
-                SELECT u.id,u.full_name,u.email,u.password_hash,ur.role FROM users u
-                JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=?
-                """, (rs, row) -> new UserAccount(rs.getObject("id", UUID.class), rs.getString("full_name"),
+                SELECT u.id,u.full_name,u.email,u.password_hash,%s AS role FROM users u WHERE u.id=?
+                """.formatted(Roles.effectiveRoleSql("u.id")), (rs, row) -> new UserAccount(rs.getObject("id", UUID.class), rs.getString("full_name"),
                 rs.getString("email"), rs.getString("password_hash"), rs.getString("role")), id);
     }
 

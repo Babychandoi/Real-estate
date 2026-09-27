@@ -91,7 +91,7 @@ public class AuthController {
     public record RegisterRequest(@NotBlank @Email String email,
                                   @NotBlank @Size(min=10, max=72) String password,
                                   @NotBlank @Size(min=2, max=150) String name,
-                                  @Pattern(regexp="USER|BROKER") String accountType) {}
+                                  @Pattern(regexp="USER|OWNER|BROKER") String accountType) {}
     public record ResendVerificationRequest(@NotBlank @Email String email) {}
     public record ForgotPasswordRequest(@NotBlank @Email String email) {}
     public record ResetPasswordRequest(@NotBlank @Size(min=32, max=128) String token,
