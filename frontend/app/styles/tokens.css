@@ -1,0 +1,141 @@
+/*
+ * Design tokens — the single source for colour, type, radius, shadow, focus, control and icon sizes (DS-01).
+ * tailwind.config.js maps its theme to these variables (and derives the daisyUI theme from them), so a value
+ * changes here and nowhere else. Documentation: docs/design-system.md.
+ *
+ * Colours are space-separated RGB channels so Tailwind opacity modifiers keep working
+ * (`bg-primary/10` → rgb(var(--color-primary) / 0.1)). Hex values are noted for reference.
+ */
+:root {
+  /* ---- Brand ---------------------------------------------------------------------------------------------- */
+  --color-primary: 0 53 95; /* #00355F — main CTA, active navigation, prominent prices */
+  --color-on-primary: 255 255 255;
+  --color-primary-container: 15 76 129; /* #0F4C81 — hover/selected state of primary */
+  --color-on-primary-container: 142 189 249; /* #8EBDF9 */
+  --color-primary-fixed: 210 228 255; /* #D2E4FF */
+  --color-primary-fixed-dim: 160 201 255; /* #A0C9FF */
+
+  --color-secondary: 0 108 74; /* #006C4A — evidence-backed verification, success; always paired with a label */
+  --color-on-secondary: 255 255 255;
+  --color-secondary-container: 130 245 193; /* #82F5C1 */
+  --color-on-secondary-container: 0 113 78; /* #00714E */
+  --color-secondary-fixed: 133 248 196; /* #85F8C4 */
+  --color-secondary-fixed-dim: 104 219 169; /* #68DBA9 */
+
+  --color-tertiary: 82 41 0; /* #522900 */
+  --color-on-tertiary: 255 255 255;
+  --color-tertiary-container: 115 60 0; /* #733C00 */
+  --color-on-tertiary-container: 255 166 88; /* #FFA658 */
+  --color-tertiary-fixed: 255 220 195; /* #FFDCC3 */
+  --color-tertiary-fixed-dim: 255 183 125; /* #FFB77D */
+
+  /* ---- Feedback ------------------------------------------------------------------------------------------- */
+  --color-success: 0 108 74; /* #006C4A (= secondary) */
+  --color-on-success: 255 255 255;
+  --color-success-container: 220 247 234; /* #DCF7EA — success text on it: 5.7:1 */
+  --color-on-success-container: 0 81 58; /* #00513A */
+
+  --color-warning: 138 75 0; /* #8A4B00 — needs attention; never used to make prices look urgent */
+  --color-on-warning: 255 255 255;
+  --color-warning-container: 255 241 224; /* #FFF1E0 — warning text on it: 6.1:1 */
+  --color-on-warning-container: 92 50 0; /* #5C3200 */
+
+  --color-error: 186 26 26; /* #BA1A1A */
+  --color-on-error: 255 255 255;
+  --color-error-container: 255 218 214; /* #FFDAD6 */
+  --color-on-error-container: 147 0 10; /* #93000A */
+
+  --color-info: 15 76 129; /* #0F4C81 */
+  --color-on-info: 255 255 255;
+  --color-info-container: 210 228 255; /* #D2E4FF */
+  --color-on-info-container: 0 53 95; /* #00355F */
+
+  /* ---- Surfaces and text ---------------------------------------------------------------------------------- */
+  --color-surface: 248 249 255; /* #F8F9FF — page background */
+  --color-surface-dim: 203 219 245; /* #CBDBF5 */
+  --color-surface-bright: 248 249 255; /* #F8F9FF */
+  --color-surface-variant: 211 228 254; /* #D3E4FE */
+  --color-surface-container-lowest: 255 255 255; /* #FFFFFF — cards, forms, menus */
+  --color-surface-container-low: 239 244 255; /* #EFF4FF */
+  --color-surface-container: 229 238 255; /* #E5EEFF */
+  --color-surface-container-high: 220 233 255; /* #DCE9FF */
+  --color-surface-container-highest: 211 228 254; /* #D3E4FE */
+  --color-on-surface: 11 28 48; /* #0B1C30 — primary text (16.3:1 on surface) */
+  --color-on-surface-variant: 66 71 79; /* #42474F — secondary text (8.9:1 on surface) */
+  --color-inverse-surface: 33 49 69; /* #213145 */
+  --color-inverse-on-surface: 234 241 255; /* #EAF1FF */
+  --color-outline: 114 119 128; /* #727780 — input borders and other meaningful boundaries (4.5:1 on white) */
+  --color-outline-variant: 194 199 209; /* #C2C7D1 — dividers only (1.7:1: never the sole boundary of a control) */
+
+  --color-focus-ring: 15 76 129; /* #0F4C81 — 8.9:1 on white; drawn outside the control via offset */
+  --color-selection: 185 221 255; /* #B9DDFF */
+  --color-on-selection: 6 28 45; /* #061C2D */
+
+  /* ---- Typography (px/line-height from audit §8.2) -------------------------------------------------------- */
+  --font-sans:
+    'Be Vietnam Pro', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --text-display: 2.5rem; /* 40 */
+  --leading-display: 3rem; /* 48 */
+  --text-display-mobile: 1.75rem; /* 28 — page H1 below the sm breakpoint */
+  --leading-display-mobile: 2.25rem; /* 36 */
+  --text-headline-lg: 2rem; /* 32 */
+  --leading-headline-lg: 2.5rem; /* 40 */
+  --text-headline-md: 1.5rem; /* 24 */
+  --leading-headline-md: 2rem; /* 32 */
+  --text-headline-sm: 1.125rem; /* 18 */
+  --leading-headline-sm: 1.625rem; /* 26 */
+  --text-body: 1rem; /* 16 */
+  --leading-body: 1.625rem; /* 26 */
+  --text-body-sm: 0.875rem; /* 14 */
+  --leading-body-sm: 1.375rem; /* 22 */
+  --text-label: 0.75rem; /* 12 — minimum size for meaningful text */
+  --leading-label: 1rem; /* 16 */
+
+  /* ---- Spacing scale (4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 = Tailwind 1 · 2 · 3 · 4 · 6 · 8 · 12 · 16) ---------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ---- Shape and elevation -------------------------------------------------------------------------------- */
+  --radius-input: 0.5rem; /* 8 — inputs, buttons */
+  --radius-card: 0.75rem; /* 12 — cards, small dialogs */
+  --radius-dialog: 0.75rem; /* 12 */
+  --radius-panel: 1rem; /* 16 — panels, sheets */
+  --radius-pill: 9999px; /* chips and badges only */
+
+  --shadow-card: 0 2px 8px -2px rgb(15 76 129 / 0.06), 0 1px 4px -1px rgb(0 0 0 / 0.04);
+  --shadow-card-hover: 0 10px 20px -4px rgb(15 76 129 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.03);
+  --shadow-elevated: 0 16px 40px -12px rgb(11 28 48 / 0.28), 0 4px 12px -4px rgb(11 28 48 / 0.12);
+  --shadow-cta: 0 10px 25px -5px rgb(15 76 129 / 0.12);
+
+  /* ---- Focus, controls, icons ----------------------------------------------------------------------------- */
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 3px;
+  --control-sm: 2.25rem; /* 36 — dense desktop toolbars only */
+  --control-md: 2.75rem; /* 44 — default touch target */
+  --control-lg: 3rem; /* 48 — primary actions on touch */
+  --icon-sm: 1rem; /* 16 */
+  --icon-md: 1.25rem; /* 20 */
+  --icon-lg: 1.5rem; /* 24 */
+
+  /* ---- Motion and layers ---------------------------------------------------------------------------------- */
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --z-header: 50;
+  --z-overlay: 60;
+  --z-toast: 70;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+  }
+}
