@@ -10,14 +10,15 @@ compatible behaviour, write the deviation in your stream report (`streams/<strea
 | S0-BE (W1) | Test infra on PostgreSQL, shared schema, job queue, scheduler lock, mail outbox, analytics recorder+ingestion, roles, `PublicImageResolver` interface + URL-only impl | V027–V029 | 18110 | 5310 | `s0be` / db 1 |
 | S0-FE (W1) | Tokens, fonts, UI kit, ESLint/Prettier, meta hook, `track()`, E2E restructure, CI artifacts, route budgets | — | 18111 | 5311 | `s0fe` / db 2 |
 | S1-MEDIA (W3) | Image variants, EXIF/orientation, placeholders, signed private URLs, asset policy | V030–V032 | 18112 | 5312 | `s1` / db 3 |
-| S2-SEARCH (W2) | Read model, index pipeline, search/map/detail API v2, caches, search/detail/compare/seller UI | V033–V044 | 18113 | 5313 | `s2` / db 4 |
-| S3-SUPPLY (W2) | Listing write path + wizard, OWNER persona, my-listings, leads (quota/idempotency/history/withdraw), appointments, broker workspace, import, quality, freshness | V045–V054 | 18114 | 5314 | `s3` / db 5 |
-| S4-ADMIN (W2) | Moderation v2, admin listings/users/reports/verification/billing, trust decisions, KYC page, billing F18, dedupe/assets/price history | V055–V064 | 18115 | 5315 | `s4` / db 6 |
-| S5-SEC (A: W1, B: W3) | A: Nginx headers (sole owner of `frontend/nginx.conf`), real IP, rate limit v2 (sole owner of `RequestRateLimitFilter`), session ADR, backups/DR tooling, observability. B: admin MFA + sessions, session tests, least privilege, auth token pages | A: V065, B: V066–V067 | 18116 | 5316 | `s5` / db 7 |
+| S2-SEARCH (W2) | Read model, index pipeline, search/map/detail API v2, caches, price history, search/detail/compare/seller UI | V033–V044 | 18113 | 5313 | `s2` / db 4 |
+| S3a-SUPPLY (W2) | Listing write path + wizard, OWNER persona, my-listings paging, freshness/expiry, import, quality | V045–V049 | 18114 | 5314 | `s3a` / db 5 |
+| S3b-LEADS (W3) | Leads (owner JOIN, atomic quota, scoped idempotency, history, optimistic lock, withdraw), appointments + reminders, broker workspace, qualified-lead/ROI report | V050–V054 | 18123 | 5323 | `s3b` / db 14 |
+| S4-ADMIN (W2) | Moderation v2, admin listings/users/reports/verification/billing, trust decisions, KYC page, billing F18, property assets/dedupe | V055–V064 | 18115 | 5315 | `s4` / db 6 |
+| S5-SEC (A: W1, B: W4) | A: Nginx headers (sole owner of `frontend/nginx.conf`), real IP, rate limit v2 (sole owner of `RequestRateLimitFilter`), session ADR, backups/DR tooling, observability. B: admin MFA + sessions, session tests, least privilege, auth token pages | A: V065, B: V066–V067 | 18116 | 5316 | `s5` / db 7 |
 | S6-ENGAGE (W3) | Favorites, shortlist sharing, saved searches + alerts, notification center, preferences/unsubscribe, SSE multi-node | V068–V074 | 18117 | 5317 | `s6` / db 8 |
 | S7-SEO (W4) | Prerender renderer + statuses, sitemap index, CMS public/preview/schedule, info pages, project & area pages, home | V075–V079 | 18118 | 5318 | `s7` / db 9 |
 | S8-ANALYTICS (W4) | Consent, bot/internal filtering, retention, RUM, funnel/cohort/metric dashboards | V080–V084 | 18119 | 5319 | `s8` / db 10 |
-| S9-QUALITY (W4) | ArchUnit, OpenAPI snapshot + generated TS types, Spotless, logging/requestId/PII masking, Problem Details | V085–V086 | 18120 | 5320 | `s9` / db 11 |
+| S9-QUALITY (W5) | ArchUnit, OpenAPI snapshot + generated TS types, Spotless, logging/requestId/PII masking, Problem Details | V085–V086 | 18120 | 5320 | `s9` / db 11 |
 | S10-PERF (W5) | Synthetic datasets, EXPLAIN reports, k6 constant-arrival-rate, failure/concurrency/rebuild/restore drills | V087–V088 | 18121 | 5321 | `s10` / db 12 |
 | S11-UX (W5) | Final UI/a11y/responsive pass, journey E2E, visual baselines, alias regression | — | 18122 | 5322 | `s11` / db 13 |
 

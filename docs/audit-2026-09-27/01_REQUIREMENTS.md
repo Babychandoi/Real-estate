@@ -26,7 +26,7 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | F03.2 | Server chịu trách nhiệm mọi filter (kể cả xác thực) | Lọc xác thực ngoài trang đầu vẫn đúng | S2-SEARCH | TODO |
 | F03.3 | Đổi filter reset cursor; URL giữ location/bbox, purpose, đơn vị giá, sort, view | Copy URL/reload/back/forward khôi phục cùng tiêu chí (E2E) | S2-SEARCH | TODO |
 | F03.4 | push history cho thay đổi chủ ý, replace khi kéo bản đồ | E2E back/forward | S2-SEARCH | TODO |
-| F04.1 | Money contract amount/currency/period; phí quản lý/đặt cọc tách riêng | API trả `price{amount,currency,period}`, `rentTerms` | S0-BE, S2-SEARCH, S3-SUPPLY | TODO |
+| F04.1 | Money contract amount/currency/period; phí quản lý/đặt cọc tách riêng | API trả `price{amount,currency,period}`, `rentTerms` | S0-BE, S2-SEARCH, S3a-SUPPLY | TODO |
 | F04.2 | Bộ lọc thuê theo tháng, preset theo phân khúc; không dùng ngưỡng giá bán | Chip thuê khác chip bán; đổi SALE↔RENT reset filter giá | S2-SEARCH | TODO |
 | F04.3 | Card/detail/compare/search cùng đơn vị; ranh giới không chồng lấn | Test formatter + E2E hiển thị `/tháng` | S2-SEARCH | TODO |
 | F05.1 | Sự kiện thay đổi tin phát cùng transaction; consumer checkpoint riêng | Trigger/queue `search-index` riêng, không dùng cờ processed chung | S0-BE, S2-SEARCH | TODO |
@@ -39,15 +39,15 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | F06.3 | Circuit breaker có timeout budget, metrics; fallback có hợp đồng công khai | Test ES timeout → DB, `degraded` trong response | S2-SEARCH | TODO |
 | F06.4 | Parity ES–DB: tiếng Việt, tie-breaker, ẩn tin, query sai, deep browse | Bộ test chạy cùng dữ liệu trên hai engine | S2-SEARCH | TODO |
 | F07.1 | Summary projection chỉ JOIN public revision, thumbnail, seller | Không tải mọi revision cho card | S2-SEARCH | TODO |
-| F07.2 | Detail lấy public revision + media; owner/editor lấy draft riêng | Endpoint public không trả draft/private | S2-SEARCH, S3-SUPPLY | TODO |
-| F07.3 | Không nuốt LazyInitializationException | Mapper không còn catch nuốt lỗi | S3-SUPPLY | TODO |
+| F07.2 | Detail lấy public revision + media; owner/editor lấy draft riêng | Endpoint public không trả draft/private | S2-SEARCH, S3a-SUPPLY | TODO |
+| F07.3 | Không nuốt LazyInitializationException | Mapper không còn catch nuốt lỗi | S3a-SUPPLY | TODO |
 | F07.4 | Query count giới hạn (≤4) cho trang 24 tin có 1 hoặc 10 revision | Test đếm query bằng datasource-proxy | S2-SEARCH | TODO |
-| F08.1 | Owner listings phân trang | `/my-listings` server paging | S3-SUPPLY | TODO |
+| F08.1 | Owner listings phân trang | `/my-listings` server paging | S3a-SUPPLY | TODO |
 | F08.2 | Moderation pending phân trang | Queue server paging | S4-ADMIN | TODO |
-| F08.3 | Lead broker JOIN theo owner_id, không tải toàn bộ tin | Test owner 10.000 tin mở trang lead không tải hết | S3-SUPPLY | TODO |
+| F08.3 | Lead broker JOIN theo owner_id, không tải toàn bộ tin | Test owner 10.000 tin mở trang lead không tải hết | S3b-LEADS | TODO |
 | F08.4 | Billing mine/queue phân trang | API paging + UI | S4-ADMIN | TODO |
 | F08.5 | Seller public >60 tin xem tiếp được | API seller listings có cursor/page | S2-SEARCH | TODO |
-| F08.6 | Mọi query có sort ổn định và giới hạn size | Rà soát + test | S3/S4/S2 | TODO |
+| F08.6 | Mọi query có sort ổn định và giới hạn size | Rà soát + test | S2/S3a/S3b/S4 | TODO |
 | F09.1 | Dynamic predicates; ít mẫu ORDER BY cố định; read model | Không còn `OR :param IS NULL` ở đường public | S2-SEARCH | TODO |
 | F09.2 | Cột không gian + GiST cho bbox; FTS/trgm cho keyword | Index tồn tại và được EXPLAIN dùng | S2-SEARCH, S10-PERF | TODO |
 | F09.3 | EXPLAIN (ANALYZE, BUFFERS) ở 100k và 1M tin | Báo cáo kế hoạch truy vấn | S10-PERF | TODO |
@@ -75,10 +75,10 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | F16.4 | Sitemap index nhiều phần từ projection, cache snapshot | >10.000 tin không hydrate domain (test) | S7-SEO | TODO |
 | F16.5 | Không index mọi tổ hợp filter | robots/noindex cho trang filter | S7-SEO | TODO |
 | F16.6 | Kiểm tra Search Console | Cần quyền Search Console | S7-SEO | EXTERNAL |
-| F17.1 | Quota atomic (không count-then-insert) | 20 request song song không vượt quota (PostgreSQL) | S3-SUPPLY | TODO |
-| F17.2 | Idempotency scoped actor + route + payload hash, có hạn lưu | Khác actor không nhận replay; retry nhận đúng leadId | S3-SUPPLY | TODO |
-| F17.3 | Chính sách pause listing cạnh tranh với tạo lead | Test + tài liệu | S3-SUPPLY | TODO |
-| F17.4 | Đo tỷ lệ bỏ cuộc trước/sau KYC | Event funnel lead_form_opened→kyc_required→lead_submitted | S3-SUPPLY, S8 | TODO |
+| F17.1 | Quota atomic (không count-then-insert) | 20 request song song không vượt quota (PostgreSQL) | S3b-LEADS | TODO |
+| F17.2 | Idempotency scoped actor + route + payload hash, có hạn lưu | Khác actor không nhận replay; retry nhận đúng leadId | S3b-LEADS | TODO |
+| F17.3 | Chính sách pause listing cạnh tranh với tạo lead | Test + tài liệu | S3b-LEADS | TODO |
+| F17.4 | Đo tỷ lệ bỏ cuộc trước/sau KYC | Event funnel lead_form_opened→kyc_required→lead_submitted | S3b-LEADS, S8 | TODO |
 | F17.5 | Quyết định thay đổi yêu cầu KYC | Product/security chốt — giữ nguyên KYC | — | EXTERNAL |
 | F18.1 | Email billing qua outbox bền vững | SMTP lỗi không giữ transaction; retry | S0-BE, S4-ADMIN | TODO |
 | F18.2 | Order create idempotency; không cộng quyền nhiều lần | Test song song | S4-ADMIN | TODO |
@@ -111,11 +111,11 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | UI-03 | `/listings/:id` | Gallery đủ ảnh, giá thuê, trust panel, CTA, metadata | S2-SEARCH | TODO |
 | UI-04 | `/nguoi-dang/:id` | Inventory phân trang; tách xác minh danh tính và xác minh từng tin | S2-SEARCH | TODO |
 | UI-05 | `/compare` | Khác biệt, giá thuê đúng chu kỳ, phản ánh tin không còn hoạt động | S2-SEARCH | TODO |
-| UI-06 | `/listings/new` | 4 bước cơ bản–vị trí–ảnh–xem trước; tự lưu draft; lỗi tại trường; vai trò chủ nhà rõ | S3-SUPPLY | TODO |
-| UI-07 | `/my-listings` | Phân trang, lọc trạng thái, bản công khai và bản sửa tách biệt | S3-SUPPLY | TODO |
-| UI-08 | `/broker/workspace` | SLA thực, việc cần làm hôm nay, phân công, lịch sử tiếp nhận lead | S3-SUPPLY | TODO |
-| UI-09 | `/my-leads` | JOIN owner, filter server, lịch sử trạng thái, chống cập nhật đè | S3-SUPPLY | TODO |
-| UI-10 | `/my-inquiries` | Lịch hẹn/đổi lịch, trạng thái phản hồi thực, rút yêu cầu | S3-SUPPLY | TODO |
+| UI-06 | `/listings/new` | 4 bước cơ bản–vị trí–ảnh–xem trước; tự lưu draft; lỗi tại trường; vai trò chủ nhà rõ | S3a-SUPPLY | TODO |
+| UI-07 | `/my-listings` | Phân trang, lọc trạng thái, bản công khai và bản sửa tách biệt | S3a-SUPPLY | TODO |
+| UI-08 | `/broker/workspace` | SLA thực, việc cần làm hôm nay, phân công, lịch sử tiếp nhận lead | S3b-LEADS | TODO |
+| UI-09 | `/my-leads` | JOIN owner, filter server, lịch sử trạng thái, chống cập nhật đè | S3b-LEADS | TODO |
+| UI-10 | `/my-inquiries` | Lịch hẹn/đổi lịch, trạng thái phản hồi thực, rút yêu cầu | S3b-LEADS | TODO |
 | UI-11 | `/billing` | Trạng thái đơn/đối soát rõ, snapshot, phân trang lịch sử, chống tạo lặp | S4-ADMIN | TODO |
 | UI-12 | `/kyc` | Phạm vi, lý do cần giấy tờ, trạng thái/lý do từ chối, gửi lại | S4-ADMIN | TODO |
 | UI-13 | `/account` | Đồng bộ cache sau sửa, ảnh vỡ, quản lý thông báo/quyền riêng tư | S6-ENGAGE | TODO |
@@ -140,18 +140,18 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 |---|---|---|---|---|
 | P-01 | Tìm kiếm | Phòng ngủ, pháp lý, nội thất/chi phí thuê; địa danh có dấu/không dấu, bí danh; URL hoàn chỉnh; kết quả ngoài trang đầu | S2-SEARCH | TODO |
 | P-02 | Giữ chân | Favorite tài khoản, saved search, cảnh báo tin mới/giảm giá/còn hàng, tần suất; shortlist chia sẻ có quyền và ngừng thông báo | S6-ENGAGE | TODO |
-| P-03 | Hẹn xem | Slot, xác nhận hai bên, nhắc lịch, đổi/hủy, ghi nhận no-show | S3-SUPPLY | TODO |
+| P-03 | Hẹn xem | Slot, xác nhận hai bên, nhắc lịch, đổi/hủy, ghi nhận no-show | S3b-LEADS | TODO |
 | P-04 | Trust | Phân loại identity/listing/ownership; bằng chứng còn hiệu lực; báo hết hàng; lịch sử xử lý khiếu nại | S4-ADMIN, S2 | TODO |
-| P-05 | Dữ liệu BĐS | Tài sản thực vs nhiều tin; chống trùng; nguồn, freshness, lịch sử giá | S4-ADMIN, S3 | TODO |
+| P-05 | Dữ liệu BĐS | Tài sản thực vs nhiều tin; chống trùng; nguồn, freshness, lịch sử giá | S4-ADMIN (tài sản, chống trùng), S2 (lịch sử giá), S3a (nguồn, freshness) | TODO |
 | P-06 | Khu vực/dự án | Trang public có inventory, tiện ích có nguồn, phương pháp thống kê, SEO | S7-SEO | TODO |
 | P-07 | Nội dung | CMS đã duyệt lên public, revision, preview, lịch xuất bản, tác giả/nguồn | S7-SEO | TODO |
-| P-08 | Seller/broker | Import có kiểm tra, chất lượng tin, SLA phản hồi, báo cáo lead đủ điều kiện và ROI | S3-SUPPLY | TODO |
-| P-09 | Chủ nhà | Persona chủ nhà (vai trò OWNER) có capability đăng tin, nhãn rõ | S3-SUPPLY | TODO |
+| P-08 | Seller/broker | Import có kiểm tra, chất lượng tin, SLA phản hồi, báo cáo lead đủ điều kiện và ROI | S3a (import, chất lượng), S3b (SLA, ROI) | TODO |
+| P-09 | Chủ nhà | Persona chủ nhà (vai trò OWNER) có capability đăng tin, nhãn rõ | S0-BE, S0-FE, S3a-SUPPLY | TODO |
 | P-10 | Analytics | Event pipeline, cohort, nguồn traffic/attribution có giới hạn, chất lượng lead | S8-ANALYTICS | TODO |
 | P-11 | Thanh toán | Idempotency, audit, exception queue; tách dịch vụ đăng tin khỏi tiền cọc BĐS | S4-ADMIN | TODO |
 | P-12 | AI/3D/chat | Không giả lập; giữ 501 rõ ràng; tiêu chí mở khi có dữ liệu | S7-SEO (tài liệu) | TODO |
 | P-13 | Chỉ số trung tâm | Lịch hẹn hai bên xác nhận / người tìm đủ điều kiện / tuần + zero-result, search→detail, detail→lead đủ ĐK, thời gian phản hồi, lead→hẹn, hẹn diễn ra, tỷ lệ tin hết hàng, quay lại; broker: chi phí/lead đủ ĐK, gia hạn | S8-ANALYTICS | TODO |
-| P-14 | Vận hành nguồn cung | Chuẩn hóa ảnh/địa chỉ/giá/xác nhận còn hàng; thu hồi tin không cập nhật; kiểm tra ngẫu nhiên; phản hồi báo cáo | S3-SUPPLY, S4-ADMIN | TODO |
+| P-14 | Vận hành nguồn cung | Chuẩn hóa ảnh/địa chỉ/giá/xác nhận còn hàng; thu hồi tin không cập nhật; kiểm tra ngẫu nhiên; phản hồi báo cáo | S3a-SUPPLY, S4-ADMIN | TODO |
 | P-15 | Pilot/phỏng vấn/tuyển nguồn cung | Giả thuyết sản phẩm phải thử với người thật | — | EXTERNAL |
 
 ## D. Dữ liệu và hiệu suất (mục 7)
@@ -169,7 +169,7 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | D-09 | Chính sách cache theo bảng 7.3 (assets, thumbnail, detail, search trang đầu, cluster, dự án/CMS, geocode, dữ liệu nhạy cảm, danh mục) | S2, S1, S7, S5 | TODO |
 | D-10 | Chống trùng: exact hash → candidate theo khu vực/diện tích/giá → similarity trên candidate (không O(n²)) | S4-ADMIN | TODO |
 | D-11 | Gợi ý top-k rule-based (tin tương tự, zero-result) | S2-SEARCH | TODO |
-| D-12 | Nhắc lịch bằng job bền vững có `due_at` index, lease/idempotency | S0-BE, S3 | TODO |
+| D-12 | Nhắc lịch bằng job bền vững có `due_at` index, lease/idempotency | S0-BE, S3b-LEADS | TODO |
 | D-13 | Benchmark: tải chuẩn 100 RPS đọc + 10 RPS ghi (constant-arrival-rate), cold/warm, 1M tin, burst/soak, ES/Redis hỏng, ghi cạnh tranh, rebuild index, khôi phục | S10-PERF | TODO |
 | D-14 | Observability tối thiểu (route RED, DB pool/slow/locks, ES lag, outbox/queue lag/DLQ, Redis hit/eviction, storage, 429, notification, CWV) | S5-SEC, S8 | TODO |
 | D-15 | Topology production nhỏ; 2 instance sau khi sửa SSE/scheduler | S5-SEC (tài liệu), S0-BE (scheduler lock) | TODO |
@@ -182,14 +182,14 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | DS-02 | Be Vietnam Pro tự host, chỉ weight cần | S0-FE | TODO |
 | DS-03 | Không dùng 10px cho thông tin quan trọng; control 44–48px; icon Lucide thống nhất, bỏ emoji | S0-FE, S11-UX | TODO |
 | DS-04 | WCAG 2.2 AA: contrast, focus, keyboard, reflow; kiểm tra trên cặp màu thực tế | S11-UX | TODO |
-| DS-05 | Layout theo trang (bảng 8.3) desktop/mobile | S2, S3, S4, S7, S11 | TODO |
+| DS-05 | Layout theo trang (bảng 8.3) desktop/mobile | S2, S3a, S3b, S4, S7, S11 | TODO |
 | DS-06 | Kiểm tra 360/390/768/1024/1440 và zoom 200% | S11-UX | TODO |
 | DS-07 | Không dùng thuật ngữ nội bộ trong hành trình người tìm nhà | S11-UX | TODO |
 | DS-08 | Component tối thiểu và đủ trạng thái (SearchBox, FilterBar/Sheet, ListingCard, TrustBadge/Panel, Gallery, ContactPanel, Compare, FormField, DataTable/Queue, Toast/InlineFeedback) | S0-FE (+ luồng dùng) | TODO |
 | DS-09 | Tách anchor khỏi nút favorite/compare/link người đăng (không lồng tương tác) | S2-SEARCH | TODO |
 | DS-10 | Nhãn xác thực trả lời “xác thực cái gì” | S2-SEARCH | TODO |
-| DS-11 | UX flow người tìm nhà (khám phá trước đăng nhập, quay về mục đích sau xác minh) | S2, S3, S5 | TODO |
-| DS-12 | UX flow người đăng (draft tự lưu → preview → gửi duyệt → lý do từ chối → quản lý bản công khai/bản sửa → lead → xác nhận còn hàng; tin hết hiệu lực được nhắc) | S3-SUPPLY | TODO |
+| DS-11 | UX flow người tìm nhà (khám phá trước đăng nhập, quay về mục đích sau xác minh) | S2, S3b, S5 | TODO |
+| DS-12 | UX flow người đăng (draft tự lưu → preview → gửi duyệt → lý do từ chối → quản lý bản công khai/bản sửa → lead → xác nhận còn hàng; tin hết hiệu lực được nhắc) | S3a-SUPPLY | TODO |
 | DS-13 | UX flow admin (ưu tiên → claim → đối chiếu → quyết định có lý do → audit; không dùng màu làm tín hiệu duy nhất; nút chấp nhận/từ chối không sát nhau) | S4-ADMIN | TODO |
 | DS-14 | Thử tác vụ với 5–8 người mỗi nhóm | Chuẩn bị protocol; thực hiện cần người dùng thật | EXTERNAL |
 | DS-15 | CWV p75 LCP ≤2,5 s, INP ≤200 ms, CLS ≤0,1 bằng RUM; a11y axe + keyboard/screen reader cho dialog, filter sheet, map, gallery | S8, S11 | TODO |
@@ -201,7 +201,7 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | R-1 | CI bắt buộc xanh; E2E theo route/slug thật; có artifact | S0-FE, S11 | TODO |
 | R-2 | Search/filter/map/pagination thống nhất; không còn giới hạn 100; đơn vị thuê đúng | S2 | TODO |
 | R-3 | Không lộ draft/private media qua API/cache; kiểm tra quyền owner/admin/inactive; badge đúng phạm vi | S2, S1, S4 | TODO |
-| R-4 | Lead, approve gói, sửa revision, retry không double effect/lost update (test PostgreSQL cạnh tranh) | S3, S4 | TODO |
+| R-4 | Lead, approve gói, sửa revision, retry không double effect/lost update (test PostgreSQL cạnh tranh) | S3a (revision), S3b (lead), S4 (gói) | TODO |
 | R-5 | Query count/p95/p99, index lag, outbox backlog, error rate được đo; fallback có kiểm soát | S10 | TODO |
 | R-6 | Header/IP chain/session kiểm chứng từ response cuối; backup phân loại, restore có bằng chứng | S5, S10 | TODO |
 | R-7 | Core flows mobile/desktop, keyboard, screen reader nghiệm thu; đủ trạng thái giá/empty/error/loading/offline | S11 | TODO |
