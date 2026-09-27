@@ -62,6 +62,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/verify-email").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**", "/api/v1/listings/search", "/api/v1/listings/by-slug/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/public/reports").permitAll()
+                        // Product analytics ingestion: anonymous allowed; a valid bearer token only adds the user id.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/events").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/public/leads").authenticated()
                         .requestMatchers("/api/v1/listings/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/listings", "/api/v1/listings/*/submit",

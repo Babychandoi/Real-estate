@@ -1,5 +1,6 @@
 package com.company.bds.moderation.application.service;
 
+import com.company.bds.analytics.application.AnalyticsRecorder;
 import com.company.bds.listing.application.port.out.ListingPersistencePort;
 import com.company.bds.listing.domain.exception.ListingDomainException;
 import com.company.bds.listing.domain.model.Listing;
@@ -24,10 +25,12 @@ public class ModerationApplicationService implements GetModerationQueueUseCase, 
 
     private final ListingPersistencePort listingPersistencePort;
     private final Clock clock;
+    private final AnalyticsRecorder analytics;
 
-    public ModerationApplicationService(ListingPersistencePort listingPersistencePort, Clock clock) {
+    public ModerationApplicationService(ListingPersistencePort listingPersistencePort, Clock clock, AnalyticsRecorder analytics) {
         this.listingPersistencePort = listingPersistencePort;
         this.clock = clock;
+        this.analytics = analytics;
     }
 
     @Override
@@ -106,7 +109,12 @@ public class ModerationApplicationService implements GetModerationQueueUseCase, 
                 .orElseThrow(() -> new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng: " + command.listingId()));
 
         listing.approveRevision(command.revisionId(), clock.instant());
-        return listingPersistencePort.save(listing);
+        Listing saved = listingPersistencePort.save(listing);
+        // The listing's owner is the subject (a moderator approving must not make the fact "internal").
+        saved.getPublicRevision().ifPresent(revision -> analytics.recordServer("listing_published", 1,
+                saved.getId() + ":" + revision.getRevisionNumber(), saved.getOwnerId(), saved.getId(),
+                Map.of("revisionNumber", revision.getRevisionNumber())));
+        return saved;
     }
 
     @Override
