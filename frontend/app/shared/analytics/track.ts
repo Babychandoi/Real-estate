@@ -2,7 +2,8 @@
  * `track(name, properties)` — consent-aware, batched web analytics (contract §5/§12).
  *
  * - Only catalogued web events are sent (unknown or server-only names are a no-op); only catalogued properties
- *   leave the page.
+ *   leave the page. Listing events need `{ listingId }` (enforced by the types); an event the server would reject
+ *   is dropped here, because one invalid event makes the server refuse the whole batch.
  * - Consent is taken when the event happens. Without "granted" the event carries no anonymous id, session id or
  *   UTM and the batch is sent with `consent: "denied"` (the server stores it without identifiers).
  * - Events are batched (flush at 20 waiting events or after 5 s, at most 50 per request), flushed with
@@ -14,6 +15,7 @@ import {
   isWebEventName,
   pickCatalogProperties,
   WEB_EVENT_CATALOG,
+  type ListingEventName,
   type WebEventName,
   type WebEventProperties,
 } from './catalog';
@@ -51,6 +53,13 @@ export interface TrackContext {
   /** Listing the event is about (envelope field, not a property). */
   listingId?: string;
 }
+
+/** `listing_detail_viewed` and `lead_form_opened` must say which listing they are about. */
+export type TrackContextArg<N extends WebEventName> = N extends ListingEventName
+  ? [context: TrackContext & { listingId: string }]
+  : [context?: TrackContext];
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface AnalyticsClientOptions {
   /** Endpoint path or URL; default `/events` under the API base (`/api/v1/events`). */
@@ -257,13 +266,18 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
     let batch = takeBatch();
     while (batch.length) {
       const payload = body(batch);
-      if (!beacon(url, new Blob([payload], { type: 'application/json' }))) void send(payload).catch(() => undefined);
+      // text/plain is CORS-safelisted, so every browser accepts the beacon; the server parses it as JSON.
+      if (!beacon(url, new Blob([payload], { type: 'text/plain;charset=UTF-8' })))
+        void send(payload).catch(() => undefined);
       batch = takeBatch();
     }
   }
 
-  function track<N extends WebEventName>(name: N, properties: WebEventProperties[N], context: TrackContext = {}) {
+  function track<N extends WebEventName>(name: N, properties: WebEventProperties[N], ...rest: TrackContextArg<N>) {
     if (!isWebEventName(name)) return;
+    const context: TrackContext = rest[0] ?? {};
+    if (context.listingId !== undefined && !UUID.test(context.listingId)) return;
+    if (WEB_EVENT_CATALOG[name].requiresListing && !context.listingId) return;
     const consent = consentOf();
     const granted = consent === 'granted';
     const event: WebEvent = {
@@ -333,9 +347,9 @@ const analyticsDisabled = import.meta.env.MODE === 'test' || import.meta.env.VIT
 export function track<N extends WebEventName>(
   name: N,
   properties: WebEventProperties[N],
-  context?: TrackContext,
+  ...context: TrackContextArg<N>
 ): void {
   if (analyticsDisabled || typeof window === 'undefined') return;
   defaultClient ??= createAnalyticsClient();
-  defaultClient.track(name, properties, context);
+  defaultClient.track(name, properties, ...context);
 }
