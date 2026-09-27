@@ -1,0 +1,54 @@
+# Shared, disposable test infrastructure for local development and agents.
+# Isolated from every other Compose project: own name, own volumes (none persisted), loopback-only ports.
+# Usage: scripts/test-infra.sh up | down | status | env
+name: bds-test
+services:
+  postgres:
+    # postgis publishes amd64 only; Docker Desktop runs it under emulation on Apple Silicon.
+    image: postgis/postgis:16-3.4
+    platform: linux/amd64
+    environment:
+      POSTGRES_USER: bds_test
+      POSTGRES_PASSWORD: bds_test_only
+      POSTGRES_DB: bds_test_admin
+    command: ["postgres", "-c", "max_connections=300", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+    ports: ["127.0.0.1:55432:5432"]
+    tmpfs: ["/var/lib/postgresql/data"]
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bds_test -d bds_test_admin"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.5
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms384m -Xmx384m"
+      action.destructive_requires_name: "false"
+    ports: ["127.0.0.1:59200:9200"]
+    mem_limit: 900m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--databases", "64"]
+    ports: ["127.0.0.1:56379:6379"]
+    mem_limit: 128m
+  minio:
+    image: bds-minio:RELEASE.2025-10-15T17-29-55Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: bds-test-media
+      MINIO_ROOT_PASSWORD: bds-test-media-only
+    ports: ["127.0.0.1:59000:9000", "127.0.0.1:59001:9001"]
+    tmpfs: ["/data"]
+    mem_limit: 256m
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports: ["127.0.0.1:51025:1025", "127.0.0.1:58025:8025"]
+    mem_limit: 64m
