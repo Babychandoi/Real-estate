@@ -14,10 +14,13 @@ import java.util.List;
  * Resolves the address of the client behind the proxy chain (audit F13.1).
  *
  * <p>Forwarding headers are honoured only when the direct peer (the socket address) is a declared proxy in
- * {@code app.security.trusted-proxies}; from any other peer they are client input and are ignored. In the Compose
- * deployment the peer is the Nginx container, which sets {@code X-Real-IP} to the address it resolved from
- * Cloudflare's {@code CF-Connecting-IP}. When a trusted proxy sends no usable {@code X-Real-IP}, the right-most
- * {@code X-Forwarded-For} hop that is not itself a trusted proxy is used.</p>
+ * {@code app.security.trusted-proxies}; from any other peer they are client input and are ignored.</p>
+ *
+ * <p>From a trusted peer, {@code X-Forwarded-For} wins: its right-most hop that is not itself a trusted proxy is the
+ * address the last trusted proxy saw, and a client can only prepend entries to it. {@code X-Real-IP} is used only when
+ * there is no {@code X-Forwarded-For}, because some proxies (Caddy, for example) pass a client-supplied
+ * {@code X-Real-IP} through untouched. Nginx here sets both headers to the address it resolved from Cloudflare's
+ * {@code CF-Connecting-IP}.</p>
  */
 @Component
 public class ClientIpResolver {
@@ -40,16 +43,20 @@ public class ClientIpResolver {
         if (peer == null) return rawPeer == null || rawPeer.isBlank() ? "unknown" : rawPeer;
         if (!isTrustedProxy(peer)) return peer;
 
-        String realIp = IpAddresses.normalize(request.getHeader("X-Real-IP"));
-        if (realIp != null) return realIp;
-
         List<String> hops = forwardedHops(request);
-        for (int i = hops.size() - 1; i >= 0; i--) {
-            String hop = IpAddresses.normalize(hops.get(i));
-            if (hop == null) break; // a malformed hop means everything to its left is unverifiable
-            if (!isTrustedProxy(hop)) return hop;
+        if (!hops.isEmpty()) {
+            String leftmostTrusted = null;
+            for (int i = hops.size() - 1; i >= 0; i--) {
+                String hop = IpAddresses.normalize(hops.get(i));
+                if (hop == null) return peer; // the last proxy did not write a valid hop: nothing here is verifiable
+                if (!isTrustedProxy(hop)) return hop;
+                leftmostTrusted = hop;
+            }
+            return leftmostTrusted; // every hop is internal (e.g. a request from the host itself)
         }
-        return peer;
+
+        String realIp = IpAddresses.normalize(request.getHeader("X-Real-IP"));
+        return realIp != null ? realIp : peer;
     }
 
     /** Subject for per-IP quotas (IPv6 clients are grouped by /64). */

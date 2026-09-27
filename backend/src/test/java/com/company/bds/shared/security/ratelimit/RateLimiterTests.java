@@ -130,6 +130,39 @@ class RateLimiterTests {
     }
 
     @Test
+    void aRequestRejectedForItsAddressDoesNotSpendTheTargetedAccountsQuota() {
+        RateLimitPolicy login = new RateLimitPolicy("auth-login", "POST", "/api/v1/auth/login", RateLimitFailureMode.FAIL_CLOSED, List.of(
+                new RateLimitRule(RateLimitDimension.IP, 1, Duration.ofMinutes(1)),
+                new RateLimitRule(RateLimitDimension.EMAIL, 2, Duration.ofMinutes(15))));
+        RateLimiter limiter = limiter(null, 1_000, login);
+        String victim = "victim@example.test";
+
+        assertThat(limiter.check(login, Map.of(RateLimitDimension.IP, "203.0.113.1", RateLimitDimension.EMAIL, victim)).allowed()).isTrue();
+        RateLimitDecision overIp = limiter.check(login, Map.of(RateLimitDimension.IP, "203.0.113.1", RateLimitDimension.EMAIL, victim));
+        assertThat(overIp.violated()).isEqualTo(RateLimitDimension.IP);
+        // The rejected attempt did not count against the victim, so another address still gets the second attempt.
+        assertThat(limiter.check(login, Map.of(RateLimitDimension.IP, "203.0.113.2", RateLimitDimension.EMAIL, victim)).allowed()).isTrue();
+        assertThat(limiter.check(login, Map.of(RateLimitDimension.IP, "203.0.113.3", RateLimitDimension.EMAIL, victim)).violated())
+                .isEqualTo(RateLimitDimension.EMAIL);
+    }
+
+    @Test
+    void oneAddressRotatingEmailsCannotFillTheFailClosedTableDuringAnOutage() throws IOException {
+        RateLimitPolicy forgot = new RateLimitPolicy("auth-forgot-password", "POST", "/api/v1/auth/forgot-password", RateLimitFailureMode.FAIL_CLOSED, List.of(
+                new RateLimitRule(RateLimitDimension.IP, 10, Duration.ofMinutes(15)),
+                new RateLimitRule(RateLimitDimension.EMAIL, 3, Duration.ofHours(1))));
+        RateLimiter limiter = limiter(unreachableRedis(), 1_000, forgot);
+
+        for (int i = 0; i < 5_000; i++) {
+            limiter.check(forgot, Map.of(RateLimitDimension.IP, "198.51.100.7", RateLimitDimension.EMAIL, "random-" + i + "@example.test"));
+        }
+
+        assertThat(limiter.localEntries(RateLimitFailureMode.FAIL_CLOSED)).as("1 address slot + 10 e-mail slots").isEqualTo(11);
+        assertThat(limiter.check(forgot, Map.of(RateLimitDimension.IP, "203.0.113.50", RateLimitDimension.EMAIL, "real-user@example.test")).allowed())
+                .as("a legitimate user is still served").isTrue();
+    }
+
+    @Test
     void rulesWithoutASubjectAreSkippedAndKeysNeverContainTheSubject() {
         RateLimitPolicy login = loginPolicy();
         RateLimiter limiter = limiter(null, 1_000, login);

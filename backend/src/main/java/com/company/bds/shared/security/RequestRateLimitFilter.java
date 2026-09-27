@@ -1,6 +1,5 @@
 package com.company.bds.shared.security;
 
-import com.company.bds.shared.error.ProblemDetails;
 import com.company.bds.shared.security.ratelimit.RateLimitDecision;
 import com.company.bds.shared.security.ratelimit.RateLimitDimension;
 import com.company.bds.shared.security.ratelimit.RateLimitPolicies;
@@ -16,38 +15,30 @@ import jakarta.servlet.ServletInputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import org.springframework.web.util.UrlPathHelper;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.URI;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 
 /**
- * Rate limiting for {@code /api/**} (audit F13): explicit route policies ({@link RateLimitPolicies}), quotas per
- * client IP (resolved by {@link ClientIpResolver}, so forged forwarding headers are ignored), per signed-in account
- * and, for credential endpoints, per targeted e-mail. Runs after the bearer-token filter so the account is known and
- * before the audit filter so rejected floods do not write audit rows. Rejections are {@code 429} Problem Details with
+ * Rate limiting for {@code /api/**}, phase 1 of 2 (audit F13): explicit route policies ({@link RateLimitPolicies}),
+ * quotas per client IP (resolved by {@link ClientIpResolver}, so forged forwarding headers are ignored) and, for
+ * credential endpoints, per targeted e-mail read from the body. It runs before the bearer-token lookup, so a flood of
+ * requests with random tokens is cut off here instead of costing a database query each. Per-account quotas need the
+ * authenticated user and are phase 2 ({@link AccountRateLimitFilter}). Rejections are {@code 429} Problem Details with
  * an exact {@code Retry-After}.
  */
 @Component
 public class RequestRateLimitFilter extends OncePerRequestFilter {
-    private static final int MAX_EMAIL_BODY_BYTES = 8 * 1024;
+    static final int MAX_EMAIL_BODY_BYTES = 8 * 1024;
     private static final int MAX_EMAIL_LENGTH = 320;
-    private static final URI PROBLEM_TYPE = URI.create("https://api.bds.vn/problems/rate-limited");
 
     private final boolean enabled;
     private final RateLimitPolicies policies;
@@ -66,13 +57,13 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !enabled || "OPTIONS".equalsIgnoreCase(request.getMethod()) || policyFor(request) == null;
+        return !enabled || RateLimitResponses.policyFor(policies, request) == null;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        RateLimitPolicy policy = policyFor(request);
+        RateLimitPolicy policy = RateLimitResponses.policyFor(policies, request);
         if (policy == null) {
             chain.doFilter(request, response);
             return;
@@ -80,47 +71,25 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         Map<RateLimitDimension, String> subjects = new EnumMap<>(RateLimitDimension.class);
         HttpServletRequest downstream = request;
         if (policy.uses(RateLimitDimension.IP)) subjects.put(RateLimitDimension.IP, clientIp.quotaSubject(request));
-        if (policy.uses(RateLimitDimension.ACCOUNT)) {
-            String account = currentAccount();
-            if (account != null) subjects.put(RateLimitDimension.ACCOUNT, account);
-        }
         if (policy.uses(RateLimitDimension.EMAIL)) {
             BufferedBodyRequest buffered = BufferedBodyRequest.wrap(request, MAX_EMAIL_BODY_BYTES);
             if (buffered.completeBody() == null) {
                 // Credential bodies are tiny; a padded body must not dodge the per-account quota.
-                rejectTooLarge(request, response);
+                RateLimitResponses.payloadTooLarge(request, response, MAX_EMAIL_BODY_BYTES, mapper);
                 return;
             }
             downstream = buffered;
             String email = emailFrom(buffered.completeBody());
             if (email != null) subjects.put(RateLimitDimension.EMAIL, email);
         }
-        RateLimitDecision decision = limiter.check(policy, subjects);
-        if (!decision.allowed()) {
-            reject(request, response, decision);
-            return;
+        if (!subjects.isEmpty()) {
+            RateLimitDecision decision = limiter.check(policy, subjects);
+            if (!decision.allowed()) {
+                RateLimitResponses.tooManyRequests(request, response, decision, mapper);
+                return;
+            }
         }
         chain.doFilter(downstream, response);
-    }
-
-    /**
-     * Classified on the decoded path, like Spring MVC routing: {@code /api/v1/auth/%6Cogin} reaches the login handler,
-     * so it must spend the login quota too.
-     */
-    private RateLimitPolicy policyFor(HttpServletRequest request) {
-        return policies.resolve(request.getMethod(), UrlPathHelper.defaultInstance.getPathWithinApplication(request));
-    }
-
-    private static String currentAccount() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
-            return null;
-        }
-        try {
-            return CurrentUser.id(authentication).toString();
-        } catch (IllegalStateException ex) {
-            return authentication.getName();
-        }
     }
 
     /** Same normalisation as {@code AuthService.normalizeEmail}, so case or padding cannot split one account's quota. */
@@ -134,34 +103,6 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         } catch (IOException ex) {
             return null; // the controller rejects the malformed body; the IP quota still applies
         }
-    }
-
-    private void reject(HttpServletRequest request, HttpServletResponse response, RateLimitDecision decision) throws IOException {
-        long seconds = decision.retryAfterSeconds();
-        ProblemDetails problem = new ProblemDetails(PROBLEM_TYPE, "Quá nhiều yêu cầu", HttpStatus.TOO_MANY_REQUESTS.value(),
-                "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau " + humanWait(seconds) + ".",
-                request.getRequestURI(), "RATE_LIMITED", UUID.randomUUID().toString(), null);
-        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-        response.setHeader(HttpHeaders.RETRY_AFTER, Long.toString(seconds));
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
-        response.setContentType("application/problem+json");
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getOutputStream().write(mapper.writeValueAsBytes(problem));
-    }
-
-    private void rejectTooLarge(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        ProblemDetails problem = new ProblemDetails(URI.create("https://api.bds.vn/problems/payload-too-large"), "Dữ liệu gửi lên quá lớn",
-                HttpStatus.PAYLOAD_TOO_LARGE.value(), "Yêu cầu vượt quá " + (MAX_EMAIL_BODY_BYTES / 1024) + " KB cho phép.",
-                request.getRequestURI(), "PAYLOAD_TOO_LARGE", UUID.randomUUID().toString(), null);
-        response.setStatus(HttpStatus.PAYLOAD_TOO_LARGE.value());
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
-        response.setContentType("application/problem+json");
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.getOutputStream().write(mapper.writeValueAsBytes(problem));
-    }
-
-    private static String humanWait(long seconds) {
-        return seconds < 90 ? seconds + " giây" : "khoảng " + ((seconds + 59) / 60) + " phút";
     }
 
     /**

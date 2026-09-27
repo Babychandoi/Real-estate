@@ -85,6 +85,14 @@ class LocalRateLimitStoreTests {
         clock.advance(Duration.ofMinutes(1).plusSeconds(1));
         assertThat(store.increment(rejected, RateLimitFailureMode.FAIL_CLOSED).capacityExceeded())
                 .as("expired windows are swept and free their slots").isFalse();
+
+        // Refill right after a sweep emptied the table: Retry-After must stay within the window, never "forever".
+        RateLimitCounter refilled = null;
+        for (int i = 0; i < 10_000 && (refilled == null || !refilled.capacityExceeded()); i++) {
+            refilled = store.increment(key("second-wave-" + i), RateLimitFailureMode.FAIL_CLOSED);
+        }
+        assertThat(refilled.capacityExceeded()).isTrue();
+        assertThat(refilled.ttlMillis()).isBetween(1_000L, 60_000L);
     }
 
     @Test

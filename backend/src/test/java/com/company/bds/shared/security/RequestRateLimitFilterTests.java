@@ -1,5 +1,6 @@
 package com.company.bds.shared.security;
 
+import com.company.bds.iam.application.AuthService;
 import com.company.bds.shared.security.ratelimit.RateLimitDecision;
 import com.company.bds.shared.security.ratelimit.RateLimitDimension;
 import com.company.bds.shared.security.ratelimit.RateLimitPolicies;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -36,6 +38,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -47,6 +53,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  */
 @SpringBootTest(properties = {
         "app.security.rate-limit.limit-multiplier=1",
+        "app.security.rate-limit.policies.api-default.ip.limit=5",
         "app.security.rate-limit.policies.api-default.account.limit=5",
         "app.security.rate-limit.policies.auth-login.email.limit=3",
         "spring.data.redis.database=7"
@@ -65,6 +72,7 @@ class RequestRateLimitFilterTests {
     @Autowired RateLimitPolicies policies;
     @Autowired MeterRegistry meters;
     @Autowired ObjectMapper mapper;
+    @SpyBean AuthService authService;
 
     @DynamicPropertySource
     static void sharedTestRedis(DynamicPropertyRegistry registry) {
@@ -156,6 +164,21 @@ class RequestRateLimitFilterTests {
         // The controller parsed the replayed body and checked the credentials (not a body-parsing error).
         assertThat(mapper.readTree(otherAccount.getResponse().getContentAsByteArray()).get("detail").asText())
                 .isEqualTo("Email hoặc mật khẩu không chính xác.");
+    }
+
+    @Test
+    void aRandomTokenFloodIsCutOffBeforeTheTokenLookup() throws Exception {
+        clearInvocations(authService);
+        List<Integer> statuses = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            statuses.add(status(get("/api/v1/leads/sent").header("Authorization", "Bearer " + UUID.randomUUID())
+                    .header("X-Real-IP", "203.0.113.99")
+                    .with(servletRequest -> { servletRequest.setRemoteAddr(NGINX); return servletRequest; })));
+        }
+
+        assertThat(statuses.subList(0, 5)).containsOnly(401);
+        assertThat(statuses.subList(5, 8)).containsOnly(429);
+        verify(authService, times(5)).findByToken(anyString());
     }
 
     @Test

@@ -7,15 +7,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Fixed windows in Redis. One Lua script counts every key of a request atomically: INCR, then PEXPIRE when the key
- * is new or has somehow lost its TTL (so no counter can live forever), then PTTL for an exact {@code Retry-After}.
- * Redis is the only clock involved, so instances with skewed clocks still share one window per key.
+ * Fixed windows in Redis. One Lua script counts the keys of a request atomically and in rule order: INCR, then PEXPIRE
+ * when the key is new or has somehow lost its TTL (so no counter can live forever), then PTTL for an exact
+ * {@code Retry-After}. It stops after the first key that is over its limit, so a request rejected for its IP neither
+ * spends nor creates the e-mail/account counters. Redis is the only clock involved, so instances with skewed clocks
+ * still share one window per key.
  */
 final class RedisRateLimitStore {
     private static final String LUA = """
             local out = {}
             for i, key in ipairs(KEYS) do
-              local window = tonumber(ARGV[i])
+              local window = tonumber(ARGV[2 * i - 1])
+              local limit = tonumber(ARGV[2 * i])
               local count = redis.call('INCR', key)
               local ttl = redis.call('PTTL', key)
               if count == 1 or ttl < 0 then
@@ -24,6 +27,7 @@ final class RedisRateLimitStore {
               end
               out[#out + 1] = count
               out[#out + 1] = ttl
+              if count > limit then break end
             end
             return out
             """;
@@ -34,19 +38,21 @@ final class RedisRateLimitStore {
 
     RedisRateLimitStore(StringRedisTemplate redis) { this.redis = redis; }
 
+    /** Counters for the keys that were counted, in order; shorter than {@code keys} when a key was over its limit. */
     List<RateLimitCounter> increment(List<RateLimitKey> keys) {
         List<String> redisKeys = new ArrayList<>(keys.size());
-        Object[] windows = new Object[keys.size()];
+        Object[] arguments = new Object[keys.size() * 2];
         for (int i = 0; i < keys.size(); i++) {
             redisKeys.add(keys.get(i).redisKey());
-            windows[i] = Long.toString(keys.get(i).windowMillis());
+            arguments[2 * i] = Long.toString(keys.get(i).windowMillis());
+            arguments[2 * i + 1] = Integer.toString(keys.get(i).limit());
         }
-        List<?> reply = redis.execute(SCRIPT, redisKeys, windows);
-        if (reply == null || reply.size() != keys.size() * 2) {
+        List<?> reply = redis.execute(SCRIPT, redisKeys, arguments);
+        if (reply == null || reply.isEmpty() || reply.size() % 2 != 0 || reply.size() > keys.size() * 2) {
             throw new IllegalStateException("Redis trả kết quả giới hạn tần suất không hợp lệ");
         }
-        List<RateLimitCounter> counters = new ArrayList<>(keys.size());
-        for (int i = 0; i < keys.size(); i++) {
+        List<RateLimitCounter> counters = new ArrayList<>(reply.size() / 2);
+        for (int i = 0; i < reply.size() / 2; i++) {
             counters.add(RateLimitCounter.counted(toLong(reply.get(2 * i)), Math.max(0, toLong(reply.get(2 * i + 1)))));
         }
         return counters;

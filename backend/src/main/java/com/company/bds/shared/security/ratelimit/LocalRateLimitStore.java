@@ -75,7 +75,7 @@ final class LocalRateLimitStore {
                     if (now >= nextSweepAt) sweep(now);
                     if (windows.size() >= capacity) {
                         if (mode == RateLimitFailureMode.FAIL_CLOSED) {
-                            return RateLimitCounter.noCapacity(Math.max(MIN_RETRY_MILLIS, earliestExpiry - now));
+                            return RateLimitCounter.noCapacity(retryWhenFull(now, windowMillis));
                         }
                         Iterator<Map.Entry<Slot, Window>> eldest = windows.entrySet().iterator();
                         eldest.next();
@@ -84,9 +84,19 @@ final class LocalRateLimitStore {
                 }
                 window = new Window(now + windowMillis);
                 windows.put(slot, window);
+                earliestExpiry = Math.min(earliestExpiry, window.expiresAt);
             }
             window.count++;
             return RateLimitCounter.counted(window.count, window.expiresAt - now);
+        }
+
+        /** When a slot will free up: the earliest live window, or the next sweep if that window already expired. */
+        private long retryWhenFull(long now, long windowMillis) {
+            long retry;
+            if (earliestExpiry == Long.MAX_VALUE) retry = windowMillis;
+            else if (earliestExpiry <= now) retry = nextSweepAt - now;
+            else retry = earliestExpiry - now;
+            return Math.max(MIN_RETRY_MILLIS, retry);
         }
 
         private void sweep(long now) {

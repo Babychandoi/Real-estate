@@ -46,6 +46,24 @@ class ClientIpResolverTests {
     }
 
     @Test
+    void aClientSuppliedRealIpPassedThroughByAProxyLosesToForwardedFor() {
+        // Caddy (compose.production-overlay.yaml) forwards a client's X-Real-IP untouched but appends to X-Forwarded-For.
+        MockHttpServletRequest request = fromPeer("172.18.0.9");
+        request.addHeader("X-Real-IP", "198.51.100.66");
+        request.addHeader("X-Forwarded-For", "198.51.100.66, 203.0.113.9");
+
+        assertThat(resolver.resolve(request)).isEqualTo("203.0.113.9");
+    }
+
+    @Test
+    void requestsWhoseEveryHopIsInternalAreAttributedToTheOriginatingHop() {
+        MockHttpServletRequest request = fromPeer("172.18.0.2");
+        request.addHeader("X-Forwarded-For", "192.168.65.1");
+
+        assertThat(resolver.resolve(request)).isEqualTo("192.168.65.1");
+    }
+
+    @Test
     void malformedForwardingValuesFallBackToThePeer() {
         assertThat(resolver.resolve(withRealIp(fromPeer("172.18.0.5"), "evil.example.com"))).isEqualTo("172.18.0.5");
         assertThat(resolver.resolve(withRealIp(fromPeer("172.18.0.5"), "203.0.113.9, 198.51.100.1"))).isEqualTo("172.18.0.5");

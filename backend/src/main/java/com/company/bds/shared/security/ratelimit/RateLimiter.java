@@ -95,7 +95,13 @@ public class RateLimiter {
             fallbackCounter(policy.name()).increment();
             LocalRateLimitStore table = policy.failureMode() == RateLimitFailureMode.FAIL_CLOSED ? strictTable : generalTable;
             counters = new ArrayList<>(keys.size());
-            for (RateLimitKey key : keys) counters.add(table.increment(key, policy.failureMode()));
+            for (RateLimitKey key : keys) {
+                RateLimitCounter counter = table.increment(key, policy.failureMode());
+                counters.add(counter);
+                // Same rule order and early stop as the Redis script: a rejected request allocates no further slots,
+                // so one address rotating e-mails cannot fill the fail-closed table.
+                if (counter.capacityExceeded() || counter.count() > key.limit()) break;
+            }
         }
         return decide(policy, keys, counters, local);
     }
@@ -133,7 +139,7 @@ public class RateLimiter {
         RateLimitDimension violated = null;
         boolean capacity = false;
         long retryMillis = 0;
-        for (int i = 0; i < keys.size(); i++) {
+        for (int i = 0; i < counters.size(); i++) {
             RateLimitCounter counter = counters.get(i);
             RateLimitKey key = keys.get(i);
             if (counter.capacityExceeded()) {
