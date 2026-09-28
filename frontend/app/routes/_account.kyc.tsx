@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Eye, FileImage, LockKeyhole, ShieldCheck, Upload } from 'lucide-react';
 import type { UserKycProfile } from '@/entities/verification/model/types';
 import { apiClient, apiFetch } from '@/shared/api/client';
@@ -38,6 +39,10 @@ const STATUS_TEXT = {
 
 export function KycPage() {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const rawReturn = searchParams.get('returnTo') ?? '';
+  // Only same-site paths (no protocol-relative "//host" or absolute URLs): an open redirect is not possible.
+  const returnTo = /^\/(?![/\\])[^\s]*$/.test(rawReturn) ? rawReturn : null;
   const [profile, setProfile] = useState<UserKycProfile | null>(null);
   const [myStatus, setMyStatus] = useState<MyKycStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -324,6 +329,15 @@ export function KycPage() {
       {profile?.status === 'REJECTED' && (
         <p className="mt-6 rounded-xl bg-rose-50 p-4 text-rose-900">
           <strong>Hồ sơ cần gửi lại:</strong> {profile.rejectionReason || 'Ảnh hoặc thông tin chưa đủ rõ để đối chiếu.'}
+        </p>
+      )}
+      {returnTo && (
+        <p className="mt-6 rounded-xl bg-surface-container-low p-4 text-body-sm text-on-surface">
+          Bạn đang xác minh để gửi yêu cầu liên hệ. Khi hồ sơ được duyệt,{' '}
+          <Link className="font-semibold text-primary underline" to={returnTo}>
+            quay lại tin đăng
+          </Link>{' '}
+          để gửi yêu cầu; biểu mẫu sẽ tự mở.
         </p>
       )}
       <KycScopePanel status={myStatus} />

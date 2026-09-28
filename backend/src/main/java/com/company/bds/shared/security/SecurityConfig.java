@@ -84,6 +84,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/billing/**").hasAnyRole(posters)
                         .requestMatchers("/api/v1/moderation/**", "/api/v1/analytics/**").hasAnyRole(staff)
                         .requestMatchers(HttpMethod.GET, "/api/v1/leads/sent").authenticated()
+                        // S3b: requester side of inquiries and appointment actions; services check the actor is a party.
+                        .requestMatchers("/api/v1/me/inquiries", "/api/v1/me/inquiries/**", "/api/v1/appointments/**").authenticated()
                         // Owner-side lead inbox; the services still restrict non-staff to leads of their own listings.
                         .requestMatchers("/api/v1/leads/**").hasAnyRole(leadInbox)
                         // The broker workspace stays broker-only; owners get the simplified dashboard in my-listings/my-leads.

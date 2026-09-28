@@ -1,477 +1,305 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { AlarmClock, CalendarClock, Inbox, RefreshCw, Search, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { fetchInbox, fetchTeam, type InboxFilters } from '@/entities/lead/api/leadApi';
 import {
-  ArrowLeft,
-  Building2,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  MapPin,
-  Phone,
-  RefreshCw,
-  Search,
-  ShieldCheck,
-  X,
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { fetchLeadListings, revealLeadContact, searchLeads, updateLeadStatus } from '@/entities/lead/api/leadApi';
-import type { LeadItem, LeadListingItem, LeadListingPage, LeadPage, LeadStatus } from '@/entities/lead/model/types';
+  APPOINTMENT_STATUS_LABELS,
+  LEAD_STATUS_LABELS,
+  formatDateTime,
+  formatSlot,
+  problemMessage,
+  responseTime,
+} from '@/entities/lead/model/labels';
+import type { LeadItem, LeadPage, LeadStatus, TeamMember } from '@/entities/lead/model/types';
+import { useAuth } from '@/shared/auth/AuthContext';
+import { Badge, type BadgeVariant } from '@/shared/ui/Badge';
+import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { ErrorState } from '@/shared/ui/ErrorState';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Select } from '@/shared/ui/Select';
+import { Skeleton } from '@/shared/ui/Skeleton';
+import { Tabs } from '@/shared/ui/Tabs';
+import { TextInput } from '@/shared/ui/TextInput';
 
-const STATUS_LABELS: Record<LeadStatus, string> = {
-  NEW: 'Mới nhận',
-  CONTACTED: 'Đã liên hệ',
-  APPOINTED: 'Đã hẹn xem',
-  CLOSED: 'Hoàn tất',
-  SPAM: 'Không hợp lệ',
-  WITHDRAWN: 'Khách đã rút yêu cầu',
-};
-const STATUS_STYLES: Record<LeadStatus, string> = {
-  NEW: 'bg-amber-50 text-amber-800',
-  CONTACTED: 'bg-blue-50 text-blue-800',
-  APPOINTED: 'bg-violet-50 text-violet-800',
-  CLOSED: 'bg-emerald-50 text-emerald-800',
-  SPAM: 'bg-slate-100 text-slate-700',
-  WITHDRAWN: 'bg-slate-100 text-slate-700',
-};
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('vi-VN', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(value));
+// Loaded on demand: the sheet (with appointments/history) opens on click, the report on its tab (bundle budget F15.2).
+const LeadDetailSheet = lazy(() =>
+  import('@/features/lead/ui/LeadDetailSheet').then((m) => ({ default: m.LeadDetailSheet })),
+);
+const LeadReportView = lazy(() =>
+  import('@/features/lead/ui/LeadReportView').then((m) => ({ default: m.LeadReportView })),
+);
 
-function Pagination({
-  page,
-  totalPages,
-  onPage,
-}: {
-  page: number;
-  totalPages: number;
-  onPage: (page: number) => void;
-}) {
-  if (totalPages <= 1) return null;
+const PAGE_SIZE = 20;
+const STATUS_VARIANT: Record<LeadStatus, BadgeVariant> = {
+  NEW: 'warning',
+  CONTACTED: 'info',
+  APPOINTED: 'primary',
+  CLOSED: 'success',
+  SPAM: 'neutral',
+  WITHDRAWN: 'neutral',
+};
+
+function LeadCard({ lead, onOpen }: { lead: LeadItem; onOpen: () => void }) {
+  const responded = responseTime(lead.createdAt, lead.firstResponseAt);
   return (
-    <nav aria-label="Phân trang" className="mt-7 flex items-center justify-between border-t border-slate-200 pt-5">
-      <span className="text-sm text-slate-600">
-        Trang {page + 1}/{totalPages}
-      </span>
-      <span className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => onPage(page - 1)}
-          disabled={page === 0}
-          className="grid min-h-10 min-w-10 place-items-center rounded-lg border border-slate-300 disabled:opacity-40"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          onClick={() => onPage(page + 1)}
-          disabled={page + 1 >= totalPages}
-          className="grid min-h-10 min-w-10 place-items-center rounded-lg border border-slate-300 disabled:opacity-40"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </span>
-    </nav>
+    <article className="flex flex-col gap-3 rounded-lg border border-outline-variant bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-body font-semibold text-on-surface">{lead.fullName}</h3>
+          <Badge variant={STATUS_VARIANT[lead.status]}>{LEAD_STATUS_LABELS[lead.status]}</Badge>
+          {lead.overdue && (
+            <Badge variant="error" icon={<AlarmClock className="h-3.5 w-3.5" />}>
+              Quá hạn phản hồi
+            </Badge>
+          )}
+          {lead.qualification && (
+            <Badge variant={lead.qualification === 'QUALIFIED' ? 'success' : 'neutral'}>
+              {lead.qualification === 'QUALIFIED' ? 'Đủ điều kiện' : 'Không đủ điều kiện'}
+            </Badge>
+          )}
+        </div>
+        <p className="mt-1 truncate text-body-sm text-on-surface-variant">
+          {lead.requestType === 'VIEWING' ? 'Muốn hẹn xem' : 'Cần tư vấn'} · {lead.listingTitle}
+        </p>
+        <p className="text-label font-normal text-on-surface-variant">
+          Gửi {formatDateTime(lead.createdAt)}
+          {responded
+            ? ` · phản hồi sau ${responded}`
+            : lead.status === 'NEW'
+              ? ` · hạn ${formatDateTime(lead.responseDueAt)}`
+              : ''}
+          {lead.assigneeName ? ` · phụ trách: ${lead.assigneeName}` : ''}
+        </p>
+        {lead.openAppointment && (
+          <p className="mt-1 flex items-center gap-1 text-label text-on-surface">
+            <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
+            {APPOINTMENT_STATUS_LABELS[lead.openAppointment.status]}
+            {lead.openAppointment.startsAt && lead.openAppointment.endsAt
+              ? `: ${formatSlot(lead.openAppointment.startsAt, lead.openAppointment.endsAt)}`
+              : ''}
+          </p>
+        )}
+      </div>
+      <Button size="sm" onClick={onOpen} className="shrink-0" aria-label={`Xử lý yêu cầu của ${lead.fullName}`}>
+        Xử lý
+      </Button>
+    </article>
   );
 }
 
-export function MyLeadsPage() {
-  const [listingPage, setListingPage] = useState<LeadListingPage>({
-    items: [],
-    totalElements: 0,
-    page: 0,
-    size: 9,
-    totalPages: 0,
+function LeadInbox() {
+  const { user } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const listingId = params.get('listingId') ?? undefined;
+  const [filters, setFilters] = useState<InboxFilters>({
+    status: '',
+    requestType: '',
+    qualification: '',
+    overdue: false,
+    q: '',
   });
-  const [leadPage, setLeadPage] = useState<LeadPage>({
-    items: [],
-    totalElements: 0,
-    page: 0,
-    size: 10,
-    totalPages: 0,
-    statusCounts: {},
-  });
-  const [selectedListing, setSelectedListing] = useState<LeadListingItem | null>(null);
-  const [listingInput, setListingInput] = useState('');
-  const [listingQuery, setListingQuery] = useState('');
-  const [leadInput, setLeadInput] = useState('');
-  const [leadQuery, setLeadQuery] = useState('');
-  const [leadStatus, setLeadStatus] = useState('');
-  const [phones, setPhones] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState('');
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [result, setResult] = useState<LeadPage | null>(null);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<string | null>(params.get('lead'));
+  const [team, setTeam] = useState<TeamMember[]>([]);
 
-  const loadListings = useCallback(
-    async (page = 0) => {
-      setLoading(true);
-      setError('');
-      try {
-        setListingPage(await fetchLeadListings(page, 9, listingQuery));
-      } catch {
-        setError('Không thể tải các bài đăng có yêu cầu liên hệ. Vui lòng thử lại.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [listingQuery],
-  );
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      setResult(await fetchInbox({ ...filters, listingId }, page, PAGE_SIZE));
+    } catch (caught) {
+      setError(problemMessage(caught, 'Không tải được hộp thư. Vui lòng thử lại.'));
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, listingId, page]);
   useEffect(() => {
-    void loadListings();
-  }, [loadListings]);
+    void load();
+  }, [load]);
+  useEffect(() => {
+    if (user?.role === 'BROKER' || user?.role === 'ADMIN')
+      fetchTeam()
+        .then(setTeam)
+        .catch(() => setTeam([]));
+  }, [user?.role]);
 
-  const loadLeads = useCallback(
-    async (listing: LeadListingItem, page = 0, query = leadQuery, status = leadStatus) => {
-      setLoading(true);
-      setError('');
-      try {
-        setLeadPage(await searchLeads(listing.listingId, page, 10, query, status));
-      } catch {
-        setError('Không thể tải danh sách người đã yêu cầu liên hệ cho tin này.');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [leadQuery, leadStatus],
-  );
-  const openListing = async (listing: LeadListingItem) => {
-    setSelectedListing(listing);
-    setLeadInput('');
-    setLeadQuery('');
-    setLeadStatus('');
-    await loadLeads(listing, 0, '', '');
+  const update = (patch: Partial<InboxFilters>) => {
+    setPage(0);
+    setFilters((current) => ({ ...current, ...patch }));
   };
-  const revealPhone = async (lead: LeadItem) => {
-    setBusyId(lead.id);
-    setError('');
-    try {
-      const result = await revealLeadContact(lead.id);
-      setPhones((current) => ({ ...current, [lead.id]: result.phone }));
-    } catch {
-      setError('Không thể xem số liên hệ. Kiểm tra quyền truy cập rồi thử lại.');
-    } finally {
-      setBusyId('');
-    }
-  };
-  const changeStatus = async (lead: LeadItem, status: LeadStatus) => {
-    setBusyId(lead.id);
-    setError('');
-    try {
-      await updateLeadStatus(lead.id, status);
-      if (selectedListing) await loadLeads(selectedListing, leadPage.page);
-    } catch {
-      setError('Không thể cập nhật trạng thái chăm sóc. Dữ liệu chưa được thay đổi.');
-    } finally {
-      setBusyId('');
-    }
-  };
+  const listingTitle = listingId ? result?.items[0]?.listingTitle : undefined;
 
   return (
-    <section className="min-h-full bg-white px-4 py-8 md:px-8 lg:py-10">
-      <div className="mx-auto max-w-6xl">
-        <header className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-7 md:flex-row md:items-end">
-          <div className="max-w-3xl">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">Hộp thư khách quan tâm</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-600 md:text-base">
-              Theo dõi yêu cầu liên hệ theo từng bài đăng để không lẫn khách của các tin khác nhau.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              selectedListing ? void loadLeads(selectedListing, leadPage.page) : void loadListings(listingPage.page)
-            }
-            disabled={loading}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+    <div className="flex flex-col gap-4">
+      <form
+        className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          update({ q: query.trim() });
+        }}
+      >
+        <TextInput
+          aria-label="Tìm theo tên hoặc lời nhắn"
+          placeholder="Tìm theo tên hoặc lời nhắn"
+          leadingIcon={<Search className="h-4 w-4" />}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <Select
+          aria-label="Trạng thái"
+          options={[
+            { value: '', label: 'Mọi trạng thái' },
+            ...Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => ({ value, label })),
+          ]}
+          value={filters.status}
+          onChange={(event) => update({ status: event.target.value as LeadStatus | '' })}
+        />
+        <Select
+          aria-label="Nhu cầu"
+          options={[
+            { value: '', label: 'Mọi nhu cầu' },
+            { value: 'VIEWING', label: 'Muốn hẹn xem' },
+            { value: 'CONSULTATION', label: 'Cần tư vấn' },
+          ]}
+          value={filters.requestType}
+          onChange={(event) => update({ requestType: event.target.value as InboxFilters['requestType'] })}
+        />
+        <Select
+          aria-label="Đánh giá"
+          options={[
+            { value: '', label: 'Mọi đánh giá' },
+            { value: 'QUALIFIED', label: 'Đủ điều kiện' },
+            { value: 'UNQUALIFIED', label: 'Không đủ điều kiện' },
+            { value: 'UNSET', label: 'Chưa đánh giá' },
+          ]}
+          value={filters.qualification}
+          onChange={(event) => update({ qualification: event.target.value as InboxFilters['qualification'] })}
+        />
+        <Button type="submit" variant="outline">
+          Tìm
+        </Button>
+      </form>
+      <div className="flex flex-wrap items-center gap-3">
+        <Checkbox
+          label="Chỉ lead quá hạn phản hồi"
+          checked={Boolean(filters.overdue)}
+          onChange={(event) => update({ overdue: event.target.checked })}
+        />
+        {listingId && (
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<X className="h-4 w-4" />}
+            onClick={() => {
+              params.delete('listingId');
+              setParams(params);
+            }}
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            Làm mới
-          </button>
-        </header>
-        {error && (
-          <div
-            role="alert"
-            className="mt-6 flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-rose-800"
-          >
-            <X className="mt-0.5 h-4 w-4 shrink-0" />
-            <p className="text-sm font-medium">{error}</p>
-          </div>
+            Đang lọc theo tin{listingTitle ? `: ${listingTitle}` : ''} — bỏ lọc
+          </Button>
         )}
-        {loading ? (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }, (_, index) => (
-              <div key={index} className="h-80 animate-pulse rounded-xl bg-slate-100" />
-            ))}
-          </div>
-        ) : !selectedListing ? (
-          <section className="mt-7" aria-labelledby="listing-leads-title">
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
-                  <ShieldCheck className="h-4 w-4 text-blue-700" />
-                  {listingPage.totalElements} bài đăng có yêu cầu liên hệ
-                </div>
-                <h2 id="listing-leads-title" className="mt-2 text-xl font-bold text-slate-950">
-                  Chọn bài đăng để xem khách quan tâm
-                </h2>
-              </div>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  setListingQuery(listingInput.trim());
-                }}
-                className="flex w-full max-w-md gap-2"
-              >
-                <label className="relative min-w-0 flex-1">
-                  <span className="sr-only">Tìm bài đăng</span>
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                  <input
-                    value={listingInput}
-                    onChange={(event) => setListingInput(event.target.value)}
-                    placeholder="Tìm tiêu đề hoặc địa điểm"
-                    className="min-h-11 w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                  />
-                </label>
-                <button
-                  type="submit"
-                  className="min-h-11 rounded-lg bg-blue-800 px-4 text-sm font-bold text-white hover:bg-blue-900"
-                >
-                  Tìm
-                </button>
-              </form>
-            </div>
-            {listingPage.items.length === 0 ? (
-              <div className="grid min-h-72 place-items-center text-center">
-                <div>
-                  <Building2 className="mx-auto h-10 w-10 text-slate-400" />
-                  <h2 className="mt-4 text-lg font-bold text-slate-950">Chưa có bài đăng nào có yêu cầu liên hệ</h2>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Khi có người gửi yêu cầu, bài đăng sẽ xuất hiện tại đây.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {listingPage.items.map((listing) => (
-                    <button
-                      key={listing.listingId}
-                      type="button"
-                      onClick={() => void openListing(listing)}
-                      className="group overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-500 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                    >
-                      <div className="relative">
-                        {listing.imageUrl ? (
-                          <img src={listing.imageUrl} alt="" className="h-40 w-full object-cover" />
-                        ) : (
-                          <span className="grid h-40 place-items-center bg-slate-100">
-                            <Building2 className="h-8 w-8 text-slate-400" />
-                          </span>
-                        )}
-                        <span className="absolute right-3 top-3 rounded-md bg-white px-2.5 py-1 text-xs font-bold text-slate-950 shadow-sm">
-                          {listing.totalLeads} yêu cầu
-                        </span>
-                      </div>
-                      <span className="block p-4">
-                        <span className="line-clamp-2 text-base font-bold text-slate-950 group-hover:text-blue-800">
-                          {listing.title}
-                        </span>
-                        {listing.address && (
-                          <span className="mt-2 flex line-clamp-1 items-center gap-1 text-sm text-slate-600">
-                            <MapPin className="h-4 w-4 shrink-0" />
-                            {listing.address}
-                          </span>
-                        )}
-                        <span className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-center text-xs">
-                          <span>
-                            <strong className="block text-lg text-amber-700">{listing.newLeads}</strong>
-                            Mới
-                          </span>
-                          <span>
-                            <strong className="block text-lg text-blue-700">{listing.activeLeads}</strong>
-                            Đang xử lý
-                          </span>
-                          <span>
-                            <strong className="block text-lg text-emerald-700">{listing.closedLeads}</strong>
-                            Hoàn tất
-                          </span>
-                        </span>
-                        <span className="mt-3 flex items-center gap-1 text-xs text-slate-500">
-                          <CalendarDays className="h-3.5 w-3.5" />
-                          Yêu cầu gần nhất: {formatDate(listing.lastLeadAt)}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <Pagination
-                  page={listingPage.page}
-                  totalPages={listingPage.totalPages}
-                  onPage={(page) => void loadListings(page)}
-                />
-              </>
-            )}
-          </section>
-        ) : (
-          <section className="mt-7" aria-labelledby="customer-leads-title">
-            <button
-              type="button"
-              onClick={() => setSelectedListing(null)}
-              className="inline-flex min-h-10 items-center gap-2 text-sm font-bold text-blue-800 hover:underline"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Quay lại các bài đăng
-            </button>
-            <div className="mt-3 flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 id="customer-leads-title" className="text-xl font-bold text-slate-950">
-                  {selectedListing.title}
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  {selectedListing.address || 'Chưa có địa điểm hiển thị'} · {leadPage.totalElements} yêu cầu phù hợp
-                </p>
-              </div>
-              <Link
-                to={`/listings/${selectedListing.slug || selectedListing.listingId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-bold text-slate-800 hover:bg-slate-50"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Xem tin
-              </Link>
-            </div>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                const query = leadInput.trim();
-                setLeadQuery(query);
-                void loadLeads(selectedListing, 0, query, leadStatus);
-              }}
-              className="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px_auto]"
-            >
-              <label className="relative">
-                <span className="sr-only">Tìm người liên hệ</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <input
-                  value={leadInput}
-                  onChange={(event) => setLeadInput(event.target.value)}
-                  placeholder="Tìm tên hoặc nội dung yêu cầu"
-                  className="min-h-11 w-full rounded-lg border border-slate-300 py-2 pl-10 pr-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                />
-              </label>
-              <select
-                value={leadStatus}
-                onChange={(event) => {
-                  const status = event.target.value;
-                  setLeadStatus(status);
-                  void loadLeads(selectedListing, 0, leadQuery, status);
-                }}
-                className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
-              >
-                <option value="">Tất cả trạng thái</option>
-                {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                className="min-h-11 rounded-lg bg-blue-800 px-4 text-sm font-bold text-white hover:bg-blue-900"
-              >
-                Tìm
-              </button>
-            </form>
-            <div className="mt-5 grid gap-3">
-              {leadPage.items.length === 0 ? (
-                <div className="grid min-h-52 place-items-center rounded-xl border border-dashed border-slate-300 text-center">
-                  <p className="text-sm text-slate-600">Không có yêu cầu liên hệ phù hợp.</p>
-                </div>
-              ) : (
-                leadPage.items.map((lead) => (
-                  <article key={lead.id} className="rounded-xl border border-slate-200 bg-white p-5">
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-bold text-slate-950">{lead.fullName}</h3>
-                          <span className={`rounded-md px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[lead.status]}`}>
-                            {STATUS_LABELS[lead.status]}
-                          </span>
-                          <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800">
-                            {lead.requestType === 'VIEWING' ? 'Muốn hẹn xem' : 'Cần tư vấn'}
-                          </span>
-                        </div>
-                        <p className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                          <CalendarDays className="h-4 w-4" />
-                          Gửi lúc {formatDate(lead.createdAt)}
-                        </p>
-                        {lead.note && (
-                          <div className="mt-4 rounded-lg bg-slate-50 px-4 py-3">
-                            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Nội dung để lại</p>
-                            <p className="mt-1.5 break-words text-sm leading-6 text-slate-800">{lead.note}</p>
-                          </div>
-                        )}
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2 lg:w-52 lg:grid-cols-1">
-                        {phones[lead.id] ? (
-                          <a
-                            href={`tel:${phones[lead.id]}`}
-                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-blue-800 px-4 text-sm font-bold text-blue-900"
-                          >
-                            <Phone className="h-4 w-4" />
-                            {phones[lead.id]}
-                          </a>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={busyId === lead.id || !lead.consentPolicy}
-                            onClick={() => void revealPhone(lead)}
-                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            <Phone className="h-4 w-4" />
-                            {lead.consentPolicy ? 'Xem số liên hệ' : 'Chưa đồng ý liên hệ'}
-                          </button>
-                        )}
-                        <label className="text-sm font-semibold text-slate-700">
-                          Tiến độ chăm sóc
-                          <select
-                            value={lead.status}
-                            // WITHDRAWN is terminal and requester-only (NIT): once the requester withdraws, the
-                            // owner cannot move it to any other status, so the whole control is disabled instead
-                            // of merely hiding "WITHDRAWN" from the option list (which still let every other
-                            // status through).
-                            disabled={busyId === lead.id || lead.status === 'WITHDRAWN'}
-                            onChange={(event) => void changeStatus(lead, event.target.value as LeadStatus)}
-                            className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
-                          >
-                            <option value={lead.status}>{STATUS_LABELS[lead.status]}</option>
-                            {(Object.entries(STATUS_LABELS) as [LeadStatus, string][])
-                              // Only the requester withdraws a request; the owner cannot pick WITHDRAWN.
-                              .filter(([value]) => value !== lead.status && value !== 'WITHDRAWN')
-                              .map(([value, label]) => (
-                                <option key={value} value={value}>
-                                  {label}
-                                </option>
-                              ))}
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-            <Pagination
-              page={leadPage.page}
-              totalPages={leadPage.totalPages}
-              onPage={(page) => void loadLeads(selectedListing, page)}
-            />
-          </section>
-        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          leftIcon={<RefreshCw className="h-4 w-4" />}
+          onClick={() => void load()}
+          disabled={loading}
+        >
+          Làm mới
+        </Button>
       </div>
-    </section>
+      {result && (
+        <p className="text-body-sm text-on-surface-variant" aria-live="polite">
+          {result.totalElements} yêu cầu phù hợp
+          {Object.entries(result.statusCounts)
+            .filter(([, count]) => count)
+            .map(([status, count]) => ` · ${LEAD_STATUS_LABELS[status as LeadStatus]}: ${count}`)
+            .join('')}
+        </p>
+      )}
+      {error ? (
+        <ErrorState title="Không tải được hộp thư" description={error} onRetry={() => void load()} />
+      ) : loading && !result ? (
+        <div className="flex flex-col gap-3" role="status" aria-label="Đang tải">
+          {[0, 1, 2].map((index) => (
+            <Skeleton key={index} className="h-24" />
+          ))}
+        </div>
+      ) : result && result.items.length === 0 ? (
+        <EmptyState
+          icon={Inbox}
+          title="Không có yêu cầu phù hợp"
+          description="Khi có người gửi yêu cầu liên hệ cho tin của bạn, yêu cầu sẽ xuất hiện tại đây."
+        />
+      ) : (
+        <div className="flex flex-col gap-3">
+          {result?.items.map((lead) => (
+            <LeadCard key={lead.id} lead={lead} onOpen={() => setSelected(lead.id)} />
+          ))}
+        </div>
+      )}
+      {result && result.totalPages > 1 && (
+        <Pagination
+          page={page + 1}
+          pageCount={result.totalPages}
+          onPageChange={(next) => setPage(next - 1)}
+          label="Phân trang hộp thư"
+        />
+      )}
+      {selected && (
+        <Suspense fallback={null}>
+          <LeadDetailSheet
+            leadId={selected}
+            onClose={() => setSelected(null)}
+            onChanged={() => void load()}
+            team={team}
+            currentUserId={user?.id ?? ''}
+          />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
+/** `/my-leads` (UI-09): one server-filtered inbox over every listing of the owner, plus the qualified-lead report. */
+export function MyLeadsPage() {
+  const [tab, setTab] = useState<'inbox' | 'report'>('inbox');
+  return (
+    <div className="min-h-full bg-surface px-4 py-8 md:px-8 lg:py-10">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+        <header>
+          <h1 className="text-headline-lg text-on-surface">Hộp thư khách quan tâm</h1>
+          <p className="mt-2 max-w-3xl text-body-sm text-on-surface-variant">
+            Mọi yêu cầu liên hệ cho các tin của bạn và các lead được giao cho bạn. Số điện thoại của khách chỉ hiện khi
+            bạn bấm xem và khách đã đồng ý; thông tin liên hệ của bạn không được gửi cho khách.
+          </p>
+        </header>
+        <Tabs
+          label="Hộp thư khách quan tâm"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: 'inbox', label: 'Yêu cầu', content: <LeadInbox /> },
+            {
+              id: 'report',
+              label: 'Hiệu quả',
+              content:
+                tab === 'report' ? (
+                  <Suspense fallback={<p className="text-body-sm">Đang tải báo cáo…</p>}>
+                    <LeadReportView />
+                  </Suspense>
+                ) : null,
+            },
+          ]}
+        />
+      </div>
+    </div>
   );
 }
 

@@ -1,3 +1,4 @@
+import { isVersionConflict } from '@/entities/lead/model/labels';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
@@ -161,14 +162,20 @@ export default function LeadsAndReportsPage() {
     await loadListingLeads(listing, 0, '', '');
   };
 
-  const changeLead = async (id: string, status: LeadStatus) => {
+  const changeLead = async (id: string, status: LeadStatus, version: number) => {
     setBusyId(id);
     setError('');
     try {
-      await updateLeadStatus(id, status);
+      // Compare-and-set with the version shown: a lead the owner changed meanwhile answers 409 and is reloaded.
+      await updateLeadStatus(id, status, version);
       if (selectedListing) await loadListingLeads(selectedListing, leadPage.page);
-    } catch {
-      setError('Không thể cập nhật trạng thái khách quan tâm. Vui lòng thử lại.');
+    } catch (caught) {
+      setError(
+        isVersionConflict(caught)
+          ? 'Yêu cầu vừa được người phụ trách cập nhật. Đã tải lại dữ liệu mới nhất.'
+          : 'Không thể cập nhật trạng thái khách quan tâm. Vui lòng thử lại.',
+      );
+      if (selectedListing) await loadListingLeads(selectedListing, leadPage.page);
     } finally {
       setBusyId('');
     }
@@ -514,7 +521,9 @@ export default function LeadsAndReportsPage() {
                             // WITHDRAWN option from the list.
                             disabled={busyId === lead.id || lead.status === 'WITHDRAWN'}
                             value={lead.status}
-                            onChange={(event) => void changeLead(lead.id, event.target.value as LeadStatus)}
+                            onChange={(event) =>
+                              void changeLead(lead.id, event.target.value as LeadStatus, lead.version)
+                            }
                             className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-medium text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
                           >
                             {Object.entries(LEAD_LABELS)
