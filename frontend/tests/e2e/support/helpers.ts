@@ -119,3 +119,17 @@ export async function apiLogin(request: APIRequestContext, email: string): Promi
 export async function useSession(page: Page, token: string): Promise<void> {
   await page.addInitScript((value) => window.sessionStorage.setItem('bds_access_token', value), token);
 }
+
+/**
+ * A stable, distinct slot per Playwright project (0 for chromium-1440, 1 for chromium-320, …). Journeys that change
+ * shared seed data pick "their" row by this slot, so projects running in parallel against one stack never race for
+ * the same submission, order or account.
+ */
+export function projectSlot(projectName: string): number {
+  const known = ['chromium-1440', 'chromium-320', 'chromium-768', 'chromium-360', 'chromium-1024'];
+  const index = known.indexOf(projectName);
+  if (index >= 0) return index;
+  let hash = 0;
+  for (const char of projectName) hash = (hash * 31 + char.charCodeAt(0)) % 97;
+  return known.length + hash;
+}

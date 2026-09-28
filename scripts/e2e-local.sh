@@ -18,6 +18,7 @@
 #   --skip-build           reuse backend/target/*.jar and frontend/dist
 #   --skip-backend-build   reuse backend/target/*.jar, rebuild the frontend
 #   --keep-db              leave the database for inspection (prints its name)
+#   --serve                set the stack up, run no suite and keep serving until interrupted (authoring specs)
 # E2E_SQL_AFTER_SEED: SQL run on the seeded database before the suites (stream-specific fixtures).
 # Environment overrides: E2E_BACKEND_PORT (18111), E2E_FRONTEND_PORT (5311), E2E_REDIS_DB (2), E2E_DB_PREFIX
 # (s0fe_e2e), E2E_SEED_CLOCK (2026-09-01T03:00:00Z), E2E_JAVA_HOME (else $HOME/.local/opt/jdk17, else JAVA_HOME),
@@ -40,6 +41,7 @@ VISUAL_DETERMINISM=0
 SKIP_BUILD=0
 SKIP_BACKEND_BUILD=0
 KEEP_DB=0
+SERVE=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -49,7 +51,8 @@ while [ $# -gt 0 ]; do
     --skip-build) SKIP_BUILD=1; SKIP_BACKEND_BUILD=1; shift ;;
     --skip-backend-build) SKIP_BACKEND_BUILD=1; shift ;;
     --keep-db) KEEP_DB=1; shift ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    --serve) SERVE=1; shift ;;
+    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
@@ -205,6 +208,12 @@ for _ in $(seq 1 60); do
 done
 curl -fsS "http://127.0.0.1:$FRONTEND_PORT/api/v1/listings/search?size=1" >/dev/null \
   || { echo "frontend proxy to the backend failed" >&2; exit 1; }
+
+if [ "$SERVE" = 1 ]; then
+  log "serving http://127.0.0.1:$FRONTEND_PORT (backend :$BACKEND_PORT, database $DB_NAME); Ctrl-C to stop"
+  wait "$BACKEND_PID"
+  exit 0
+fi
 
 # --- Playwright ----------------------------------------------------------------------------------------------------
 PROJECT_ARGS=()
