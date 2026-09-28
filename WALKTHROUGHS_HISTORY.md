@@ -736,3 +736,8 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
   - **Thứ tự migration**: V090/V091 (S7) đứng trước V095 (S8) — ổn cho DB mới và cho production (đang ở V026).
 - **Known gaps carried forward** (chi tiết trong từng `streams/*.md`): chưa có Playwright E2E cho MFA/token pages/banner/trang public mới (S11); SSE stream không bị cắt ngay khi phiên bị thu hồi (S6/S9); `auth_security_events` chưa có retention job (S8); `/analytics/funnel`/`/overview` cũ còn tồn tại nhưng không dùng (S9 dọn); dashboard analytics chưa có Prometheus alert rule; thống kê khu vực/dự án là giá rao bán, không phải giá giao dịch; EXPLAIN ở 1M dòng cho sitemap/`areas()`/dashboard = S10.
 - Stream reports: `docs/audit-2026-09-27/streams/{s5b-sec,s7-seo,s8-analytics}.md`; matrix rows `DONE (W4)`/`PARTIAL (W4)` in `01_REQUIREMENTS.md`.
+
+
+## 2026-09-29 — CI gate diagnosis after main merge
+- The main CI run `36475584795` failed in backend tests because the OpenAPI and media integration contexts could not connect to test MinIO (`127.0.0.1:59000`); frontend checks and security scan passed. E2E stopped before build because `MEDIA_SIGNING_SECRET` was absent from `.env.demo.example`.
+- This patch starts disposable MinIO for backend tests and supplies a demo-only signing key to the E2E stack. CI on the resulting PR remains the acceptance evidence; no backend test pass or E2E pass is claimed until it runs.

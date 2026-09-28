@@ -401,3 +401,9 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - **Flyway order**: V090/V091 (S7) sort before V095 (S8) — fine for fresh databases and for production, which is at V026. V087–V089 (S5B) sit below both.
 - **Integration fixes** (on `audit-2026-09-27`, commits `b4669c5`, `40323a2`): the anonymous consent endpoint allowlisted in the access matrix; `web-vitals` installed; S7/S5B textual merge conflicts resolved keeping both sides in `SensitiveResponseCacheFilter`, `RateLimitPolicies` and `frontend/app/main.tsx`; bundle budgets for `/verify-email`, `/listings/new`, `/kyc`, `/account` raised to measured + margin (reduction owned by S10).
 - Test plan executed per stream (backend `mvnw verify` on isolated test infra, frontend lint/tsc/vitest/build/`check:bundle`, plus `promtool check/test rules` for S5B and `scripts/seo-smoke.sh`/`verify-prerender.sh`/`verify-headers.sh` for S7) and again on the integration branch after merge — see `docs/audit-2026-09-27/streams/{s5b-sec,s7-seo,s8-analytics}.md` §1, and `WALKTHROUGHS_HISTORY.md` for the merged-branch results.
+
+
+## 2026-09-29 — CI recovery after W1–W5 merge (F01)
+- Based on main `dcc63c3`: restore the backend integration environment by building and starting the project’s test MinIO at `127.0.0.1:59000`, with explicit `BDS_TEST_MINIO_*` settings and a readiness probe.
+- Add a disposable demo media signing key to `.env.demo.example` so E2E Docker Compose can interpolate the required backend setting. Production still uses separately managed secrets.
+- Validate both independent CI gates on the PR; inspect any subsequent test failures without hiding or skipping suites.
