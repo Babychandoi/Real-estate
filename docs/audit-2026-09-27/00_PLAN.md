@@ -37,6 +37,21 @@
 | W5 | S10-PERF | Dataset 100k/1M, EXPLAIN, k6 constant-arrival-rate, test sự cố/cạnh tranh/rebuild/khôi phục |
 | W5 | S11-UX | Rà soát UX/a11y/responsive cuối, E2E hành trình, baseline visual, alias admin |
 
+### Dải Flyway (phân lại sau W3)
+`spring.flyway.out-of-order` tắt, nên phiên bản mới phải lớn hơn phiên bản cao nhất đã áp dụng. Vì vậy dải trong
+`02_CONTRACTS.md` được phân lại (thay thế dải cũ cho các luồng chưa chạy):
+
+| Dải | Luồng |
+|---|---|
+| V085 | S1 (đã dùng; V086 trống) |
+| V087–V089 | S5B |
+| V090–V094 | S7 |
+| V095–V099 | S8 |
+| V100+ | S9/S10/S11 |
+
+V050–V052 của S3b nằm dưới V055+ (S4). Không sao với production (đang ở V026, nhận mọi migration audit cùng lúc); mọi
+DB đã áp dụng V055+ từ bản tích hợp trước cần DB mới hoặc chạy một lần với `spring.flyway.out-of-order=true`.
+
 ## Quyết định đã chốt (có thể đổi nếu chủ sản phẩm yêu cầu)
 - Giữ React + Spring Boot + PostgreSQL + modular monolith; Elasticsearch là chỉ mục dựng lại được.
 - Giữ yêu cầu KYC khi gửi liên hệ (F17 để product/security quyết định; hệ thống bổ sung đo tỷ lệ bỏ cuộc).

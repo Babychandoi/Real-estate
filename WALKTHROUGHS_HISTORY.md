@@ -214,6 +214,9 @@ S4-ADMIN), `mvnw verify` với hạ tầng test PostgreSQL/PostGIS/Elasticsearch
 0 skipped, BUILD SUCCESS** (S2 210 test, S3a 178 test, S4 192 test khi chạy độc lập ở Review 2, có trùng lặp giữa
 các nhánh trước khi gộp). Xem `docs/audit-2026-09-27/streams/{s2-search,s3a-supply,s4-admin}.md` §1.
 
+**Cập nhật sau đợt Audit W3 + UI merge (2026-09-28):** nhánh tích hợp sau merge S6 (đã gộp S1-MEDIA, UI redesign,
+S3b-LEADS, S6-ENGAGE): **332 test, 0 lỗi**. Xem `docs/audit-2026-09-27/streams/{s1-media,s3b-leads,s6-engage}.md`.
+
 ---
 
 ### 2. Kết quả kiểm thử đóng gói Frontend (TypeScript & Vite)
@@ -227,6 +230,9 @@ npm run build
 **Cập nhật sau đợt Audit W2 (2026-09-28):** trên nhánh tích hợp — `npm run lint` **0 cảnh báo**, `tsc` **0 lỗi**,
 `vitest` **19 file / 158 test**, `npm run build` **OK**, `npm run check:bundle` **OK** (mọi route trong ngân sách đo
 được + biên độ; xem bảng route bên dưới cho các route mới/được viết lại).
+
+**Cập nhật sau đợt Audit W3 + UI merge (2026-09-28):** lint **0**, `tsc` **0 lỗi**, `vitest` **24 file / 178 test**,
+`npm run build` **OK**, `npm run check:bundle` **OK**.
 
 ---
 
@@ -266,6 +272,22 @@ npm run build
 | Báo cáo admin | `/admin/reports` | S4-ADMIN | Hàng đợi báo xấu riêng, SLA theo mức độ nghiêm trọng |
 | Thẩm định admin | `/admin/verification` | S4-ADMIN | Quyết định trust có bốn mắt, không cache KYC |
 | Billing / KYC người dùng | `/billing`, `/kyc`, `GET/PUT /api/v1/billing/**` | S4-ADMIN | Idempotency-Key theo actor, đối soát ngoại lệ |
+
+**Cập nhật sau đợt Audit W3 (2026-09-28) — S1-MEDIA, S3b-LEADS, S6-ENGAGE:**
+
+| Nhóm chức năng | Đường dẫn Route / API | Luồng | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| Ảnh công khai | `GET /api/v1/public/media/{key}`, `{key}__w{n}.webp` | S1-MEDIA | Chỉ khi được tin ACTIVE/avatar/CMS công khai tham chiếu; `public, max-age=86400` |
+| Ảnh URL ký | `POST /api/v1/media/signed-urls`, `GET /api/v1/media/signed/{key}` | S1-MEDIA | HMAC ≤ 1 h, `no-store`, không áp dụng KYC |
+| Backfill ảnh (admin) | `GET/POST /api/v2/admin/media/backfill` | S1-MEDIA | ADMIN, lặp tới khi hết LEGACY |
+| Lead của tôi | `/my-leads`, `GET /api/v1/leads/inbox` | S3b-LEADS | JOIN owner, filter server, `expectedVersion` |
+| Yêu cầu của tôi | `/my-inquiries`, `/api/v1/me/inquiries/**`, `/api/v1/appointments/**` | S3b-LEADS | Lịch hẹn, đề xuất lại, rút yêu cầu |
+| Workspace môi giới | `/broker/workspace`, `GET /api/v1/leads/report` | S3b-LEADS | SLA đo thật, việc hôm nay, đội, ROI |
+| Tin đã lưu / tìm kiếm đã lưu | `/saved`, `/api/v1/me/saved-listings/**`, saved searches | S6-ENGAGE | Cảnh báo mới/giảm giá/còn hàng, tần suất |
+| Thông báo | `/notifications`, feed/unread-count/SSE | S6-ENGAGE | Cursor seq, Redis fan-out, `Last-Event-ID` |
+| Shortlist chia sẻ | `/shortlists/:token` | S6-ENGAGE | OWNER/EDITOR/VIEWER, tắt thông báo |
+| Hủy đăng ký | `/unsubscribe`, `POST /api/v1/public/unsubscribe` | S6-ENGAGE | RFC 8058 one-click |
+| Tài khoản | `/account` | S6-ENGAGE | Tùy chọn thông báo, quyền riêng tư |
 
 ---
 
@@ -651,3 +673,23 @@ Luồng đã kiểm tra: tìm mua/thuê → filter → trang 2 → refresh/back 
 | Redirect legacy | `/admin/*`, `/2026/nhadatchua/admin/*` |
 
 Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAGE_MATRIX.md`. Đây là bộ mã chạy được; chưa tạo file Figma native và chưa triển khai production.
+
+
+# 2026-09-28 - Audit W3 merged: media pipeline, leads/appointments, engagement (S1-MEDIA, S3b-LEADS, S6-ENGAGE) + UI merge
+
+- Merged into `audit-2026-09-27`: S1-MEDIA (`a1f5b7f`), product UI redesign + audit logic (`eb08ec4`, from `audit/ui-design-merge`), S3b-LEADS (`f634862`), S6-ENGAGE (`58ea814`). Follow-up fix: the flaky `MediaPipelineIntegrationTests.publicServingFollowsListingVisibility` (ConcurrentModificationException while security headers were written) — media is now streamed synchronously as a `Resource` instead of an async `StreamingResponseBody`, whose worker committed the response while the request thread was still in `HeaderWriterFilter` (both wrote the same header map); class green 10/10 runs; `SensitiveResponseCacheFilterTests` updated for the synchronous body (full backend re-run: 332 tests, 0 failures).
+- **Files/modules**: backend `com.company.bds.media` (processor, variant job, resolver, signer, backfill, V085), `com.company.bds.lead`/appointments/workspace (V050–V052), `com.company.bds.notification` + `com.company.bds.engagement` (V068–V070). Frontend lead sheet/appointment panel/workspace, saved/notifications/shortlist/unsubscribe pages, resilient SSE client, `useSignedMediaUrls`; shared UI shells from the redesign.
+- **Backend evidence**: integrated S6 merge — **332 tests, 0 failures** (stream runs: S1 289, S3b 296; new tests S1 22, S3b 24, S6 21).
+- **Frontend evidence**: integrated — lint **0**, `tsc` **0 errors**, `vitest` **24 files / 178 tests**, `npm run build` **OK**, `npm run check:bundle` **OK**.
+- **User flows**: chủ tin/môi giới xem inbox lead một truy vấn, lọc server, đổi trạng thái/đánh giá/phân công có chống ghi đè, đề xuất lịch hẹn; người tìm nhà chọn slot/đề xuất lại/hủy/rút yêu cầu ở `/my-inquiries`; workspace hiển thị SLA đo thật và việc hôm nay; người dùng lưu tin, lưu tìm kiếm với tần suất, nhận cảnh báo tin mới/giảm giá/còn hàng qua trung tâm thông báo (SSE) và e-mail, hủy đăng ký một chạm, chia sẻ shortlist theo vai trò; ảnh tin hiển thị WebP srcset + LQIP, ảnh nháp/ẩn chỉ qua URL ký.
+- **Production deploy notes**:
+  - `MEDIA_SIGNING_SECRET` **bắt buộc**, ≥ 32 ký tự, giống nhau trên mọi instance (server từ chối khởi động nếu thiếu); xoay vòng qua `MEDIA_PREVIOUS_SIGNING_SECRET`.
+  - **Backfill ảnh** ngay sau deploy: lặp `POST /api/v2/admin/media/backfill?limit=200` (ADMIN) cho tới khi `enqueued=0` và `states.LEGACY=0` (`s1-media.md` Production notes §4); ảnh LEGACY vẫn phục vụ thô (có thể còn EXIF/GPS) cho tới khi xử lý. Sau đó **purge CDN `/api/v1/public/media/*`** một lần (header cũ `immutable` 1 năm).
+  - **Kiểm tra thư viện native WebP trên Linux**: `docker logs <backend> | grep "WebP encoder unavailable"` phải rỗng; `PENDING` giảm về 0 sau một upload.
+  - `APP_JOBS_ENABLED=true` trên **ít nhất một** instance. Queue mới: `media-variants`, `appointment-reminder`, `lead-sla-reminder`, `engage-listing-change` (+ task khóa `idempotency-key-purge`, digest/retention của S6).
+  - **Redis bắt buộc khi chạy ≥ 2 instance** (`APP_NOTIFICATIONS_FANOUT=redis`, mặc định); một instance không Redis có thể dùng `local`.
+  - **Access log phải để private**: đường dẫn chứa token chia sẻ shortlist và token hủy đăng ký.
+  - Migrations V050–V052, V068–V070, V085 đều additive, `lock_timeout 5s`; DB đã áp dụng V055+ từ bản tích hợp cũ cần DB mới hoặc chạy một lần `spring.flyway.out-of-order=true`.
+- **Known E2E caveats**: E2E supply cần seed KYC cho tài khoản đăng tin; test claim admin va chạm khi chạy song song trên hai viewport (cùng dữ liệu claim). **Chưa có Playwright E2E cho các trang S3b và S6** (`/my-leads`, `/my-inquiries`, `/broker/workspace`, `/saved`, `/notifications`, `/shortlists/:token`, `/unsubscribe`) — bàn giao S11.
+- **UI merge — phần thiết kế bị bỏ/điều chỉnh**: phân trang offset (→ cursor v2), `searchState.ts` (→ `filterSchema`), `ListingGallery` (→ `Gallery` S2), MapLibre tải sớm trong wizard (→ lazy), điểm chất lượng tính ở client (→ checklist server); header giữ menu "Mở menu tài khoản", nút đăng nhập/đăng tin hiện ở 320–360 px.
+- Stream reports: `docs/audit-2026-09-27/streams/{s1-media,s3b-leads,s6-engage}.md`, UI: `docs/ui/`; matrix rows `DONE (W3)`/`PARTIAL (W3)` in `01_REQUIREMENTS.md`; Flyway ranges in `00_PLAN.md`.
