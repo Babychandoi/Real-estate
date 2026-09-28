@@ -37,24 +37,23 @@ public class ListingEntityMapper {
                 entity.getVersion() != null ? entity.getVersion() : 0L,
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
-        );
+        ).withLifecycle(ListingSource.valueOf(entity.getSource()), entity.getAvailabilityConfirmedAt(),
+                entity.getExpiresAt(), entity.getSoldCheckDueAt()).withSoldCheckClearedAt(entity.getSoldCheckClearedAt());
     }
 
     public ListingRevision toRevisionDomain(ListingRevisionJpaEntity revEntity) {
+        // Media are loaded in batches (@BatchSize) inside the adapter's transaction. Mapping outside a transaction is a
+        // bug and must fail loudly (F07.3): a swallowed LazyInitializationException used to return listings without images.
         List<ListingMedia> mediaList = new ArrayList<>();
-        try {
-            if (revEntity.getMediaList() != null) {
-                for (ListingMediaJpaEntity mediaEntity : revEntity.getMediaList()) {
-                    mediaList.add(new ListingMedia(
-                            mediaEntity.getId(),
-                            mediaEntity.getMediaUrl(),
-                            mediaEntity.isPrimary(),
-                            mediaEntity.getSortOrder()
-                    ));
-                }
+        if (revEntity.getMediaList() != null) {
+            for (ListingMediaJpaEntity mediaEntity : revEntity.getMediaList()) {
+                mediaList.add(new ListingMedia(
+                        mediaEntity.getId(),
+                        mediaEntity.getMediaUrl(),
+                        mediaEntity.isPrimary(),
+                        mediaEntity.getSortOrder()
+                ));
             }
-        } catch (org.hibernate.LazyInitializationException ignored) {
-            // Không trong active persistence context hoặc media chưa fetch
         }
 
         return new ListingRevision(
@@ -83,7 +82,12 @@ public class ListingEntityMapper {
                 revEntity.getSubmittedAt(),
                 revEntity.getModeratedAt(),
                 revEntity.getModerationNote()
-        );
+        ).withAttributes(new ListingAttributes(
+                revEntity.getMonthlyServiceFeeVnd(),
+                revEntity.getDepositVnd(),
+                revEntity.getFurnishing() == null ? null : Furnishing.valueOf(revEntity.getFurnishing()),
+                revEntity.getLegalStatusCode() == null ? null : LegalStatusCode.valueOf(revEntity.getLegalStatusCode()),
+                revEntity.getProjectId()));
     }
 
     public ListingJpaEntity toJpaEntity(Listing domain) {
@@ -100,6 +104,11 @@ public class ListingEntityMapper {
                 domain.getUpdatedAt()
         );
         entity.setVerifiedOwner(domain.isVerifiedOwner());
+        entity.setSource(domain.getSource().name());
+        entity.setAvailabilityConfirmedAt(domain.getAvailabilityConfirmedAt());
+        entity.setExpiresAt(domain.getExpiresAt());
+        entity.setSoldCheckDueAt(domain.getSoldCheckDueAt());
+        entity.setSoldCheckClearedAt(domain.getSoldCheckClearedAt());
 
         if (domain.getRevisions() != null) {
             for (ListingRevision revDomain : domain.getRevisions()) {
@@ -140,6 +149,12 @@ public class ListingEntityMapper {
         revEntity.setSubmittedAt(revDomain.getSubmittedAt());
         revEntity.setModeratedAt(revDomain.getModeratedAt());
         revEntity.setModerationNote(revDomain.getModerationNote());
+        ListingAttributes attributes = revDomain.getAttributes();
+        revEntity.setMonthlyServiceFeeVnd(attributes.monthlyServiceFeeVnd());
+        revEntity.setDepositVnd(attributes.depositVnd());
+        revEntity.setFurnishing(attributes.furnishing() == null ? null : attributes.furnishing().name());
+        revEntity.setLegalStatusCode(attributes.legalStatusCode() == null ? null : attributes.legalStatusCode().name());
+        revEntity.setProjectId(attributes.projectId());
 
         if (revDomain.getMediaList() != null) {
             for (ListingMedia mediaDomain : revDomain.getMediaList()) {

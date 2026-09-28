@@ -30,6 +30,7 @@ import { Button, ButtonLink } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { LoginModal } from '@/shared/auth/LoginModal';
 import { canOpen } from '@/shared/auth/routeAccess';
+import { ROLES } from '@/shared/auth/roles';
 import { useModal } from '@/shared/ui/useModal';
 
 const RootLayoutContent: React.FC = () => {
@@ -280,6 +281,16 @@ const RootLayoutContent: React.FC = () => {
             {isAuthenticated && isPoster ? (
               <ButtonLink
                 to="/listings/new"
+                variant="outline"
+                size="sm"
+                leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}
+                className="hidden sm:inline-flex whitespace-nowrap"
+              >
+                Đăng tin
+              </ButtonLink>
+            ) : isAuthenticated && role === ROLES.USER ? (
+              <ButtonLink
+                to="/become-owner"
                 variant="outline"
                 size="sm"
                 leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}

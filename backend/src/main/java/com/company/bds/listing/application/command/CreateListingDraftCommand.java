@@ -23,5 +23,6 @@ public record CreateListingDraftCommand(
         String addressSummary,
         Double publicLatitude,
         Double publicLongitude,
-        List<String> imageUrls
+        List<String> imageUrls,
+        com.company.bds.listing.domain.model.ListingAttributes attributes
 ) {}

@@ -29,6 +29,9 @@ app:
     quota-enforced: false
   listing:
     require-verified-kyc: false
+    freshness:
+      # Tests call ListingFreshnessService sweeps directly with a chosen instant.
+      scheduler-enabled: false
   mode: test
   security:
     rate-limit:

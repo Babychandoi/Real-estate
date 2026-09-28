@@ -45,6 +45,18 @@ public final class Roles {
         return PRIORITY.stream().filter(roles::contains).findFirst().orElse(USER);
     }
 
+    /** Vietnamese label shown next to the account (UI copy, P-09). */
+    public static String label(String role) {
+        if (role == null) return "Người dùng";
+        return switch (role) {
+            case OWNER -> "Chủ nhà";
+            case BROKER -> "Môi giới";
+            case MODERATOR -> "Kiểm duyệt viên";
+            case ADMIN -> "Quản trị viên";
+            default -> "Người dùng";
+        };
+    }
+
     public static boolean isStaff(String role) { return STAFF.contains(role); }
 
     public static boolean isPoster(String role) { return POSTERS.contains(role); }

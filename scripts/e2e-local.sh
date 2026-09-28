@@ -18,6 +18,7 @@
 #   --skip-build           reuse backend/target/*.jar and frontend/dist
 #   --skip-backend-build   reuse backend/target/*.jar, rebuild the frontend
 #   --keep-db              leave the database for inspection (prints its name)
+# E2E_SQL_AFTER_SEED: SQL run on the seeded database before the suites (stream-specific fixtures).
 # Environment overrides: E2E_BACKEND_PORT (18111), E2E_FRONTEND_PORT (5311), E2E_REDIS_DB (2), E2E_DB_PREFIX
 # (s0fe_e2e), E2E_SEED_CLOCK (2026-09-01T03:00:00Z), E2E_JAVA_HOME (else $HOME/.local/opt/jdk17, else JAVA_HOME),
 # E2E_BACKEND_JAR (run another build of the backend, e.g. an integration branch; skips the backend build).
@@ -182,6 +183,11 @@ CLOCK_APPLIED="$("${COMPOSE[@]}" exec -T postgres psql -U bds_test -d "$DB_NAME"
   -c "SELECT COALESCE(MAX(created_at) <= timestamptz '$SEED_CLOCK', false) FROM listings WHERE id::text LIKE 'ee5eed%'")"
 if [ "$CLOCK_APPLIED" != "t" ]; then
   echo "note: this backend ignores --app.uat-seed.clock (S0-BE adds it); seeded dates follow the real clock."
+fi
+
+if [ -n "${E2E_SQL_AFTER_SEED:-}" ]; then
+  log "extra fixture SQL (E2E_SQL_AFTER_SEED)"
+  "${COMPOSE[@]}" exec -T postgres psql -U bds_test -d "$DB_NAME" -v ON_ERROR_STOP=1 -qc "$E2E_SQL_AFTER_SEED"
 fi
 
 # --- frontend ------------------------------------------------------------------------------------------------------

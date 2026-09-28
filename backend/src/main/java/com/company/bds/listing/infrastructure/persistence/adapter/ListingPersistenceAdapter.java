@@ -34,7 +34,7 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
     @Transactional
     public Listing save(Listing listing) {
         ListingJpaEntity entity = mapper.toJpaEntity(listing);
-        ListingJpaEntity saved = listingRepository.save(entity);
+        ListingJpaEntity saved = listingRepository.saveAndFlush(entity);
         return mapper.toDomain(saved);
     }
 

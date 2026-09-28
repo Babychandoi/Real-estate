@@ -42,7 +42,8 @@ test.describe('buyer (demo.user)', () => {
     await useSession(page, buyerToken);
     await page.goto('/my-inquiries');
     await expect(page.getByRole('heading', { level: 1, name: 'Tin đã liên hệ' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Đăng tin' })).toHaveCount(0);
+    // A seeker is offered the owner upgrade instead of the posting page (S3a, P-09).
+    await expect(page.getByRole('link', { name: 'Đăng tin' })).toHaveAttribute('href', '/become-owner');
 
     await openAccountMenu(page);
     await expect(page.getByRole('link', { name: 'Kho tin của tôi' })).toHaveCount(0);
@@ -61,10 +62,10 @@ test.describe('broker (demo.broker)', () => {
   test('manages listings, leads and the broker workspace', async ({ page, brokerToken }) => {
     await useSession(page, brokerToken);
     await page.goto('/my-listings');
-    await expect(page.getByRole('heading', { level: 1, name: 'Quản lý kho tin đăng' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Tin đăng của tôi' })).toBeVisible();
 
     await openAccountMenu(page);
-    await page.getByRole('link', { name: 'Khách quan tâm' }).click();
+    await page.getByRole('link', { name: 'Khách quan tâm', exact: true }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Hộp thư khách quan tâm' })).toBeVisible();
 
     await navigateInApp(page, '/broker/workspace');
@@ -78,7 +79,7 @@ test.describe('broker (demo.broker)', () => {
     // create-listing wizard once the broker is eKYC-verified, or the eKYC gate otherwise. Either proves the route
     // actually rendered content instead of, say, a silent blank page or an unrelated error state.
     await expect(
-      page.getByRole('heading', { name: /Soạn thảo & Đăng tin|Xác minh danh tính trước khi đăng tin/ }),
+      page.getByRole('heading', { name: /Đăng tin mới|Xác minh danh tính trước khi đăng tin/ }),
     ).toBeVisible();
   });
 });

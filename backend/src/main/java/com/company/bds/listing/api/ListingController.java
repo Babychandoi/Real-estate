@@ -89,13 +89,17 @@ public class ListingController {
                 request.addressSummary(),
                 request.publicLatitude(),
                 request.publicLongitude(),
-                request.imageUrls()
+                request.imageUrls(),
+                new com.company.bds.listing.domain.model.ListingAttributes(request.monthlyServiceFeeVnd(),
+                        request.depositVnd(), request.furnishing(), request.legalStatusCode(), request.projectId())
         );
 
-        UUID listingId = createDraftUseCase.createDraft(command);
+        com.company.bds.listing.application.port.in.DraftSaved saved = createDraftUseCase.createDraft(command);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "listingId", listingId,
+        return ResponseEntity.status(HttpStatus.CREATED).eTag(etag(saved.version())).body(Map.of(
+                "listingId", saved.listingId(),
+                "revisionId", saved.revisionId(),
+                "version", saved.version(),
                 "status", "DRAFT",
                 "message", "Khởi tạo tin đăng nháp thành công."
         ));
@@ -105,6 +109,7 @@ public class ListingController {
     public ResponseEntity<Map<String, Object>> updateDraft(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateListingDraftRequest request,
+            @RequestHeader(value = "If-Match", required = false) String ifMatch,
             Authentication authentication) {
 
         UUID ownerId = CurrentUser.id(authentication);
@@ -128,16 +133,36 @@ public class ListingController {
                 request.addressSummary(),
                 request.publicLatitude(),
                 request.publicLongitude(),
-                request.imageUrls()
+                request.imageUrls(),
+                new com.company.bds.listing.domain.model.ListingAttributes(request.monthlyServiceFeeVnd(),
+                        request.depositVnd(), request.furnishing(), request.legalStatusCode(), request.projectId()),
+                expectedVersion(ifMatch, request.expectedVersion())
         );
 
-        UUID revisionId = updateDraftUseCase.updateDraft(command);
+        com.company.bds.listing.application.port.in.DraftSaved saved = updateDraftUseCase.updateDraft(command);
 
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok().eTag(etag(saved.version())).body(Map.of(
                 "listingId", id,
-                "revisionId", revisionId,
+                "revisionId", saved.revisionId(),
+                "version", saved.version(),
                 "message", "Cập nhật bản nháp thành công."
         ));
+    }
+
+    public static String etag(long version) { return "\"v" + version + "\""; }
+
+    /** If-Match {@code "v<version>"} (or a bare number) wins over the body's {@code expectedVersion}. */
+    public static Long expectedVersion(String ifMatch, Long bodyVersion) {
+        if (ifMatch == null || ifMatch.isBlank() || ifMatch.trim().equals("*")) return bodyVersion;
+        String value = ifMatch.trim();
+        if (value.startsWith("W/")) value = value.substring(2);
+        value = value.replace("\"", "");
+        if (value.startsWith("v")) value = value.substring(1);
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("If-Match không hợp lệ.");
+        }
     }
 
     private void validateMedia(UUID ownerId, List<String> imageUrls) {
@@ -150,10 +175,12 @@ public class ListingController {
     public ResponseEntity<Map<String, Object>> submitRevision(@PathVariable UUID id, Authentication authentication) {
         SubmitListingRevisionCommand command = new SubmitListingRevisionCommand(id, CurrentUser.id(authentication));
         submitRevisionUseCase.submitRevision(command);
+        String status = persistencePort.findById(id).map(l -> l.getStatus().name()).orElse("PENDING_REVIEW");
 
         return ResponseEntity.ok(Map.of(
                 "listingId", id,
-                "status", "PENDING_REVIEW",
+                "status", status,
+                "revisionStatus", "SUBMITTED",
                 "message", "Nộp duyệt tin đăng thành công. Hồ sơ đang được chuyển tới hội đồng thẩm định."
         ));
     }

@@ -42,5 +42,11 @@ public record UpdateListingDraftRequest(
         String addressSummary,
         Double publicLatitude,
         Double publicLongitude,
-        List<String> imageUrls
+        List<String> imageUrls,
+        @Min(value = 0, message = "Phí dịch vụ không được âm") Long monthlyServiceFeeVnd,
+        @Min(value = 0, message = "Tiền đặt cọc không được âm") Long depositVnd,
+        com.company.bds.listing.domain.model.Furnishing furnishing,
+        com.company.bds.listing.domain.model.LegalStatusCode legalStatusCode,
+        java.util.UUID projectId,
+        Long expectedVersion
 ) {}
