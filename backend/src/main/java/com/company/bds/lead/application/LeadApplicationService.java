@@ -10,6 +10,7 @@ import com.company.bds.listing.application.port.out.ListingPersistencePort;
 import com.company.bds.listing.domain.model.Listing;
 import com.company.bds.notification.RealtimeNotificationService;
 import com.company.bds.shared.error.ApiException;
+import com.company.bds.shared.jobs.JobQueue;
 import com.company.bds.shared.outbox.OutboxEventWriter;
 import com.company.bds.shared.security.PiiProtectionService;
 import org.springframework.beans.factory.ObjectProvider;
@@ -60,6 +61,7 @@ public class LeadApplicationService {
     private final LeadAccessService access;
     private final ObjectProvider<RealtimeNotificationService> notifications;
     private final Clock clock;
+    private final JobQueue jobs;
 
     public LeadApplicationService(
             LeadPersistencePort leadPersistencePort,
@@ -70,7 +72,8 @@ public class LeadApplicationService {
             AnalyticsRecorder analytics,
             LeadAccessService access,
             ObjectProvider<RealtimeNotificationService> notifications,
-            Clock clock) {
+            Clock clock,
+            JobQueue jobs) {
         this.leadPersistencePort = leadPersistencePort;
         this.listingPersistencePort = listingPersistencePort;
         this.piiProtection = piiProtection;
@@ -80,6 +83,7 @@ public class LeadApplicationService {
         this.access = access;
         this.notifications = notifications;
         this.clock = clock;
+        this.jobs = jobs;
     }
 
     /** Backward-compatible entry point (returns only the lead). */
@@ -186,6 +190,7 @@ public class LeadApplicationService {
             writer.append("LEAD", saved.getId(), "LEAD_CREATED", Map.of(
                     "leadId", saved.getId(), "listingId", saved.getListingId(), "createdAt", saved.getCreatedAt()));
         }
+        LeadSlaReminderHandler.schedule(jdbc, jobs, saved.getId(), ownerId, now);
         RealtimeNotificationService notifier = notifications.getIfAvailable();
         if (notifier != null) {
             notifier.notify(ownerId, "LEAD_RECEIVED", "Có yêu cầu liên hệ mới",

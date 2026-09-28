@@ -202,6 +202,14 @@ public class LeadInboxQuery {
         return rows.get(0);
     }
 
+    /** One inquiry of the requester, or 404. */
+    public InquiryItem inquiry(UUID requesterId, UUID leadId) {
+        List<InquiryItem> rows = jdbc.query(INQUIRY_SELECT + " WHERE l.requester_id = ? AND l.id = ?",
+                (rs, row) -> mapInquiry(rs), requesterId, leadId);
+        if (rows.isEmpty()) throw ApiException.notFound("LEAD_NOT_FOUND", "Không tìm thấy yêu cầu liên hệ.");
+        return rows.get(0);
+    }
+
     public PageResult<InquiryItem> inquiries(UUID requesterId, @Nullable LeadStatus status, int page, int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(MAX_SIZE, size));
@@ -217,21 +225,8 @@ public class LeadInboxQuery {
         }
         args.add(safeSize);
         args.add((long) safePage * safeSize);
-        List<InquiryItem> items = jdbc.query("""
-                SELECT l.id, l.listing_id, l.request_type, l.note, l.status, l.created_at, l.version, l.updated_at,
-                       l.first_response_at, l.withdrawn_at, rv.title, s.slug, rv.address_summary, img.media_url,
-                       (s.status = 'ACTIVE' AND s.public_revision_id IS NOT NULL) AS available,
-                       va.id AS appt_id, va.status AS appt_status, va.starts_at AS appt_start, va.ends_at AS appt_end,
-                       va.proposed_by_side AS appt_side, va.version AS appt_version
-                FROM leads l JOIN listings s ON s.id = l.listing_id
-                """ + LISTING_CONTEXT + " WHERE l.requester_id = ?" + statusClause
-                + " ORDER BY l.created_at DESC, l.id DESC LIMIT ? OFFSET ?", (rs, row) -> new InquiryItem(
-                rs.getObject("id", UUID.class), rs.getObject("listing_id", UUID.class),
-                LeadRequestType.valueOf(rs.getString("request_type")), rs.getString("note"),
-                LeadStatus.valueOf(rs.getString("status")), instant(rs, "created_at"), rs.getLong("version"),
-                instant(rs, "updated_at"), instant(rs, "first_response_at"), instant(rs, "withdrawn_at"),
-                title(rs), rs.getString("slug"), rs.getString("address_summary"), rs.getString("media_url"),
-                rs.getBoolean("available"), appointment(rs)), args.toArray());
+        List<InquiryItem> items = jdbc.query(INQUIRY_SELECT + " WHERE l.requester_id = ?" + statusClause
+                + " ORDER BY l.created_at DESC, l.id DESC LIMIT ? OFFSET ?", (rs, row) -> mapInquiry(rs), args.toArray());
         long total = status != null ? counts.get(status) : counts.values().stream().mapToLong(Long::longValue).sum();
         return new PageResult<>(items, total, safePage, safeSize, totalPages(total, safeSize), counts);
     }
@@ -262,6 +257,24 @@ public class LeadInboxQuery {
     static String maskedPhone(String encrypted) {
         if (encrypted != null && encrypted.startsWith("v1:")) return encrypted.split(":", 4)[1];
         return "***";
+    }
+
+    private static final String INQUIRY_SELECT = """
+            SELECT l.id, l.listing_id, l.request_type, l.note, l.status, l.created_at, l.version, l.updated_at,
+                   l.first_response_at, l.withdrawn_at, rv.title, s.slug, rv.address_summary, img.media_url,
+                   (s.status = 'ACTIVE' AND s.public_revision_id IS NOT NULL) AS available,
+                   va.id AS appt_id, va.status AS appt_status, va.starts_at AS appt_start, va.ends_at AS appt_end,
+                   va.proposed_by_side AS appt_side, va.version AS appt_version
+            FROM leads l JOIN listings s ON s.id = l.listing_id
+            """ + LISTING_CONTEXT;
+
+    private static InquiryItem mapInquiry(ResultSet rs) throws SQLException {
+        return new InquiryItem(rs.getObject("id", UUID.class), rs.getObject("listing_id", UUID.class),
+                LeadRequestType.valueOf(rs.getString("request_type")), rs.getString("note"),
+                LeadStatus.valueOf(rs.getString("status")), instant(rs, "created_at"), rs.getLong("version"),
+                instant(rs, "updated_at"), instant(rs, "first_response_at"), instant(rs, "withdrawn_at"),
+                title(rs), rs.getString("slug"), rs.getString("address_summary"), rs.getString("media_url"),
+                rs.getBoolean("available"), appointment(rs));
     }
 
     private static LeadItem mapItem(ResultSet rs) throws SQLException {

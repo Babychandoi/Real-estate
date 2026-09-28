@@ -191,9 +191,7 @@ public class LeadCommandService {
             notifier.notify(handler, "LEAD_WITHDRAWN", "Khách đã rút yêu cầu liên hệ",
                     "Một yêu cầu liên hệ đã được người gửi rút lại" + (cancelled.isEmpty() ? "." : "; lịch hẹn liên quan đã hủy."));
         }
-        return query.inquiries(requesterId, null, 0, LeadInboxQuery.MAX_SIZE).items().stream()
-                .filter(item -> item.id().equals(leadId)).findFirst()
-                .orElseThrow(() -> ApiException.notFound("LEAD_NOT_FOUND", "Không tìm thấy yêu cầu liên hệ."));
+        return query.inquiry(requesterId, leadId);
     }
 
     private void compareAndSet(LeadAccess lead, String assignments, Object... values) {

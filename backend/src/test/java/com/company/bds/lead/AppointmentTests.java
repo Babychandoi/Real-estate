@@ -210,6 +210,19 @@ class AppointmentTests {
         assertThat(reminders.send(proposal.id(), confirmed.version(), "H2")).as("cancelled").isFalse();
     }
 
+    @Test
+    void ownerSideTextSeenByTheRequesterCannotCarryDirectContactDetails() {
+        Fixture f = fixture();
+        Instant start = Instant.now().plus(Duration.ofDays(3)).truncatedTo(ChronoUnit.HOURS);
+        List<AppointmentService.SlotInput> slots = List.of(new AppointmentService.SlotInput(start, start.plus(Duration.ofHours(1))));
+        assertThatThrownBy(() -> appointments.propose(f.leadId(), f.owner().id(), false, slots, "Gọi tôi 0912 345 678", null))
+                .isInstanceOf(IllegalArgumentException.class);
+        AppointmentService.AppointmentView proposal = appointments.propose(f.leadId(), f.owner().id(), false, slots, "Gặp ở sảnh", null);
+        assertThatThrownBy(() -> appointments.cancel(proposal.id(), f.owner().id(), "Liên hệ zalo 0912345678", proposal.version()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject("SELECT status FROM viewing_appointments WHERE id = ?", String.class, proposal.id())).isEqualTo("PROPOSED");
+    }
+
     private Fixture fixture() {
         TestData.TestUser owner = data.user().role("BROKER").create();
         TestData.TestUser buyer = data.user().create();

@@ -2,6 +2,7 @@ package com.company.bds.lead;
 
 import com.company.bds.lead.application.IdempotencyKeyPurgeTask;
 import com.company.bds.lead.application.LeadApplicationService;
+import com.company.bds.lead.application.LeadSlaReminderHandler;
 import com.company.bds.lead.domain.model.LeadRequestType;
 import com.company.bds.testsupport.BdsIntegrationTest;
 import com.company.bds.testsupport.TestData;
@@ -43,6 +44,7 @@ class LeadSubmissionConcurrencyTests {
     @Autowired LeadApplicationService leads;
     @Autowired IdempotencyKeyPurgeTask purge;
     @Autowired PlatformTransactionManager txManager;
+    @Autowired LeadSlaReminderHandler slaReminder;
 
     @Test
     void twentyParallelRequestsWithOneKeyCreateOneLeadAndEveryRetryGetsItsId() throws Exception {
@@ -197,6 +199,25 @@ class LeadSubmissionConcurrencyTests {
         assertThat(eligibility.get("ownerKycVerified").asBoolean()).isTrue();
         assertThat(eligibility.get("listingAcceptsLeads").asBoolean()).isTrue();
         assertThat(eligibility.toString()).doesNotContain("@").doesNotContain("phone");
+    }
+
+    @Test
+    void aNewLeadQueuesOneSlaReminderThatFiresOnlyWhileUnanswered() throws Exception {
+        TestData.TestUser owner = data.user().role("BROKER").verifiedKyc().create();
+        jdbc.update("INSERT INTO broker_sla_settings(user_id, first_response_minutes) VALUES (?, 45)", owner.id());
+        TestData.TestListing listing = data.listing(owner.id()).create();
+        TestData.TestUser buyer = data.user().verifiedKyc().create();
+        UUID leadId = UUID.fromString(json.readTree(submit("Bearer " + data.sessionFor(buyer.id()), "sla-" + UUID.randomUUID(),
+                body(listing.id(), "0911000060")).getContentAsString()).get("leadId").asText());
+        Map<String, Object> job = jdbc.queryForMap(
+                "SELECT EXTRACT(EPOCH FROM (j.run_at - l.created_at))::int AS delay FROM background_jobs j JOIN leads l ON l.id = ?::uuid WHERE j.queue = ? AND j.dedupe_key = ?",
+                leadId.toString(), LeadSlaReminderHandler.QUEUE, "lead-sla:" + leadId);
+        assertThat(((Number) job.get("delay")).intValue()).isEqualTo(45 * 60);
+        assertThat(slaReminder.remind(leadId)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_notifications WHERE user_id = ? AND type = 'LEAD_SLA_OVERDUE'",
+                Long.class, owner.id())).isEqualTo(1);
+        jdbc.update("UPDATE leads SET status = 'CONTACTED' WHERE id = ?", leadId);
+        assertThat(slaReminder.remind(leadId)).as("answered leads are not reminded").isFalse();
     }
 
     private TestData.TestListing listing() {

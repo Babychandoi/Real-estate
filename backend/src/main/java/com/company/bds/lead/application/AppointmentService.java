@@ -7,6 +7,7 @@ import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.notification.RealtimeNotificationService;
 import com.company.bds.shared.error.ApiException;
 import com.company.bds.shared.jobs.JobQueue;
+import com.company.bds.shared.security.ContactInfoGuard;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -91,6 +92,8 @@ public class AppointmentService {
         Instant now = clock.instant();
         List<SlotInput> ordered = validateSlots(slots, now);
         String cleanNote = LeadCommandService.clean(note, 500);
+        // The requester sees owner-side notes: contact goes through the platform, never the seller's phone/e-mail.
+        if (side == Side.OWNER_SIDE) ContactInfoGuard.requireNoContact(cleanNote);
 
         Map<String, Object> open = openAppointment(leadId);
         UUID newId = UUID.randomUUID();
@@ -193,6 +196,7 @@ public class AppointmentService {
         if (cleanReason == null || cleanReason.length() < 3) {
             throw ApiException.badRequest("CANCEL_REASON_REQUIRED", "Vui lòng cho biết lý do hủy lịch hẹn.");
         }
+        if (side == Side.OWNER_SIDE) ContactInfoGuard.requireNoContact(cleanReason);
         Instant now = clock.instant();
         jdbc.update("""
                 UPDATE viewing_appointments SET status = 'CANCELLED', cancelled_by = ?, cancelled_at = ?, cancel_reason = ?,
@@ -231,6 +235,7 @@ public class AppointmentService {
             throw ApiException.badRequest("OUTCOME_INVALID", "Kết quả phải là COMPLETED hoặc NO_SHOW.");
         }
         String cleanNote = LeadCommandService.clean(note, 500);
+        ContactInfoGuard.requireNoContact(cleanNote);
         jdbc.update("""
                 UPDATE viewing_appointments SET status = ?, outcome_by = ?, outcome_at = ?, no_show_party = ?,
                        note = COALESCE(?, note), version = version + 1, updated_at = ? WHERE id = ?
