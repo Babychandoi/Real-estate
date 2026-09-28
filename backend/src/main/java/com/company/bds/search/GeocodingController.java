@@ -37,16 +37,34 @@ public class GeocodingController {
     private final String providerUrl;
     private final String contact;
     private final ObjectMapper objectMapper;
+    private final java.time.Clock clock;
+    private final Duration positiveTtl;
+    private final Duration negativeTtl;
 
     public GeocodingController(JdbcTemplate jdbc, ObjectProvider<StringRedisTemplate> redisProvider,
-            ObjectMapper objectMapper,
+            ObjectMapper objectMapper, java.time.Clock clock,
             @Value("${app.geocoding.provider-url:https://photon.komoot.io}") String providerUrl,
-            @Value("${app.geocoding.contact:}") String contact) {
+            @Value("${app.geocoding.contact:}") String contact,
+            @Value("${app.geocoding.cache-ttl:P14D}") Duration positiveTtl,
+            @Value("${app.geocoding.negative-cache-ttl:PT1H}") Duration negativeTtl) {
         this.jdbc = jdbc;
         this.redis = redisProvider.getIfAvailable();
         this.providerUrl = providerUrl.replaceAll("/+$", "");
         this.contact = contact;
         this.objectMapper = objectMapper;
+        this.clock = clock;
+        this.positiveTtl = positiveTtl;
+        this.negativeTtl = negativeTtl;
+    }
+
+    /**
+     * Cache key text (audit F10.3): NFC, lower case (vi), whitespace collapsed, surrounding punctuation trimmed.
+     * Diacritics are kept on purpose: the provider answers "Hà Nam" and "Hà Nậm" differently.
+     */
+    static String normalizedKey(String query) {
+        String nfc = java.text.Normalizer.normalize(query, java.text.Normalizer.Form.NFC)
+                .toLowerCase(java.util.Locale.forLanguageTag("vi"));
+        return nfc.replaceAll("\\s+", " ").replaceAll("^[\\p{Punct}\\s]+|[\\p{Punct}\\s]+$", "");
     }
 
     @GetMapping
@@ -55,8 +73,13 @@ public class GeocodingController {
         if (query.length() < 3 || query.length() > 250) {
             throw new IllegalArgumentException("Địa chỉ phải dài từ 3 đến 250 ký tự.");
         }
-        String hash = AuthService.sha256("v2:" + query.toLowerCase());
-        var cached = jdbc.queryForList("SELECT response_json FROM geocode_cache WHERE query_hash=?", String.class, hash);
+        String normalized = normalizedKey(query);
+        if (normalized.length() < 3) throw new IllegalArgumentException("Địa chỉ phải dài từ 3 đến 250 ký tự.");
+        String provider = providerUrl.contains("photon.komoot.io") ? "photon" : providerUrl;
+        String hash = AuthService.sha256("v3|" + provider + "|vi|" + normalized);
+        var now = java.sql.Timestamp.from(clock.instant());
+        var cached = jdbc.queryForList("SELECT response_json FROM geocode_cache WHERE query_hash=? AND expires_at > ?",
+                String.class, hash, now);
         if (!cached.isEmpty()) return cached.get(0);
         if (!claimProviderSlot()) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
@@ -80,8 +103,16 @@ public class GeocodingController {
         }
         if (response.statusCode() != 200) throw new IllegalStateException("Dịch vụ định vị đang bận.");
         String body = photon ? normalizePhoton(response.body()) : response.body();
-        jdbc.update("INSERT INTO geocode_cache(query_hash,query_text,response_json) VALUES(?,?,?) ON CONFLICT(query_hash) DO NOTHING",
-                hash, query, body);
+        boolean negative = objectMapper.readTree(body).isEmpty();
+        var expires = java.sql.Timestamp.from(clock.instant().plus(negative ? negativeTtl : positiveTtl));
+        String stored = query.length() > 300 ? query.substring(0, 300) : query;
+        jdbc.update("""
+                INSERT INTO geocode_cache(query_hash, query_text, response_json, normalized_query, provider, negative, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (query_hash) DO UPDATE SET response_json = EXCLUDED.response_json, negative = EXCLUDED.negative,
+                    created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at
+                """, hash, stored, body, normalized.length() > 300 ? normalized.substring(0, 300) : normalized, provider,
+                negative, now, expires);
         return body;
     }
 

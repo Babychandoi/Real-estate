@@ -3,7 +3,6 @@ package com.company.bds.listing.api;
 import com.company.bds.listing.api.request.CreateListingDraftRequest;
 import com.company.bds.listing.api.request.UpdateListingDraftRequest;
 import com.company.bds.listing.api.response.ListingDetailResponse;
-import com.company.bds.listing.api.response.ListingSummaryResponse;
 import com.company.bds.listing.application.command.CreateListingDraftCommand;
 import com.company.bds.listing.application.command.SubmitListingRevisionCommand;
 import com.company.bds.listing.application.command.UpdateListingDraftCommand;
@@ -26,7 +25,6 @@ import com.company.bds.shared.security.MediaUrlPolicy;
 import com.company.bds.media.MediaStorageService;
 import org.springframework.beans.factory.ObjectProvider;
 
-import java.math.BigDecimal;
 import com.company.bds.shared.security.ContactInfoGuard;
 import java.util.ArrayList;
 import java.util.List;
@@ -212,74 +210,7 @@ public class ListingController {
 
     public record VisibilityRequest(boolean hidden) {}
 
-    @GetMapping("/search")
-    public ResponseEntity<List<ListingSummaryResponse>> searchListings(
-            @RequestParam(required = false) String purpose,
-            @RequestParam(required = false) String propertyType,
-            @RequestParam(required = false) Long minPrice,
-            @RequestParam(required = false) Long maxPrice,
-            @RequestParam(required = false) BigDecimal minArea,
-            @RequestParam(required = false) BigDecimal maxArea,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Double minLat,
-            @RequestParam(required = false) Double maxLat,
-            @RequestParam(required = false) Double minLng,
-            @RequestParam(required = false) Double maxLng,
-            @RequestParam(required = false, defaultValue = "LATEST") String sortBy,
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "20") int size) {
-
-        com.company.bds.listing.domain.model.ListingSearchCriteria criteria =
-                com.company.bds.listing.domain.model.ListingSearchCriteria.of(
-                        purpose, propertyType, minPrice, maxPrice, minArea, maxArea,
-                        keyword, minLat, maxLat, minLng, maxLng, sortBy
-                );
-
-        int safePage = Math.max(0, page);
-        int safeSize = Math.max(1, Math.min(size, 100));
-        List<Listing> activeListings = persistencePort.searchListings(criteria, safePage, safeSize);
-
-        if (!activeListings.isEmpty()) {
-            Map<UUID, SellerSummaryQuery.SellerSummary> sellers = sellerSummaryQuery.byOwnerIds(
-                    activeListings.stream().map(Listing::getOwnerId).toList());
-            List<ListingSummaryResponse> results = activeListings.stream()
-                    .map(listing -> {
-                        ListingRevision rev = listing.getPublicRevision().orElseThrow(() ->
-                                new IllegalStateException("ACTIVE listing has no approved public revision: " + listing.getId()));
-                        String imgUrl = "";
-                        if (rev != null && !rev.getMediaList().isEmpty()) {
-                            imgUrl = rev.getMediaList().get(0).mediaUrl();
-                        }
-                            return new ListingSummaryResponse(
-                                listing.getId(),
-                                listing.getSlug(),
-                                ContactInfoGuard.redact(rev.getTitle()),
-                                rev.getPurpose().name(),
-                                rev.getPropertyType().name(),
-                                rev.getPriceVnd(),
-                                rev.getAreaM2(),
-                                ContactInfoGuard.redact(rev.getAddressSummary()),
-                                rev.getPublicLatitude(),
-                                rev.getPublicLongitude(),
-                                listing.isVerifiedOwner(),
-                                false,
-                                imgUrl,
-                                listing.getCreatedAt(),
-                                listing.getOwnerId(),
-                                ContactInfoGuard.redact(seller(sellers, listing).displayName()),
-                                seller(sellers, listing).avatarMediaUrl()
-                        );
-                    })
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(results);
-        }
-
-        return ResponseEntity.ok(List.of());
-    }
-
-    private static SellerSummaryQuery.SellerSummary seller(Map<UUID, SellerSummaryQuery.SellerSummary> sellers, Listing listing) {
-        return sellers.getOrDefault(listing.getOwnerId(), new SellerSummaryQuery.SellerSummary(null, null));
-    }
+    // GET /api/v1/listings/search moved to search.api.LegacySearchV1Controller (deprecated wrapper over API v2).
 
     private ListingDetailResponse mapToDetailResponse(Listing listing) {
         ListingRevision rev = listing.getPublicRevision().or(listing::getLatestRevision).orElseThrow(() ->

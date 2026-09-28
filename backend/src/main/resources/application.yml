@@ -178,7 +178,23 @@ app:
   search:
     elasticsearch:
       enabled: ${APP_SEARCH_ELASTICSEARCH_ENABLED:true}
+    # Alias the application reads/writes through; concrete indices are <alias>-v2-<timestamp> (stream S2).
     index-name: ${APP_SEARCH_INDEX_NAME:bds-listings}
+    index-replicas: ${APP_SEARCH_INDEX_REPLICAS:0}
+    # HMAC key of page cursors; required (>= 32 chars) when app.mode=production. Same value on every instance.
+    cursor-secret: ${SEARCH_CURSOR_SECRET:}
+    # Time budget of one Elasticsearch search call; slower answers count as failures for the circuit breaker.
+    timeout: ${APP_SEARCH_TIMEOUT:PT0.8S}
+    breaker:
+      window: 20
+      min-calls: 5
+      failure-rate: 0.5
+      open-for: ${APP_SEARCH_BREAKER_OPEN_FOR:PT30S}
+    bootstrap-on-startup: ${APP_SEARCH_BOOTSTRAP_ON_STARTUP:true}
+    trust-expiry-cron: ${APP_SEARCH_TRUST_EXPIRY_CRON:0 40 3 * * *}
+    cache:
+      enabled: ${APP_SEARCH_CACHE_ENABLED:true}
+      first-page: true
   analytics:
     ingestion:
       # POST /api/v1/events writes rows for anonymous callers: keep it off until the rate-limit policy for that path

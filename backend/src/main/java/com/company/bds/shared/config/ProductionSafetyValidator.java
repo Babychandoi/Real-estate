@@ -21,6 +21,7 @@ public class ProductionSafetyValidator implements ApplicationRunner {
     private final String mediaAccessKey;
     private final String mediaSecretKey;
     private final String mediaBucket;
+    private final String searchCursorSecret;
 
     public ProductionSafetyValidator(@Value("${app.mode:demo}") String mode,
                                      @Value("${spring.datasource.password:}") String databasePassword,
@@ -35,7 +36,8 @@ public class ProductionSafetyValidator implements ApplicationRunner {
                                      @Value("${app.media.storage-enabled:false}") boolean mediaStorageEnabled,
                                      @Value("${app.media.access-key:}") String mediaAccessKey,
                                      @Value("${app.media.secret-key:}") String mediaSecretKey,
-                                     @Value("${app.media.bucket:}") String mediaBucket) {
+                                     @Value("${app.media.bucket:}") String mediaBucket,
+                                     @Value("${app.search.cursor-secret:}") String searchCursorSecret) {
         this.mode = mode;
         this.databasePassword = databasePassword;
         this.redisPassword = redisPassword;
@@ -50,6 +52,7 @@ public class ProductionSafetyValidator implements ApplicationRunner {
         this.mediaAccessKey = mediaAccessKey;
         this.mediaSecretKey = mediaSecretKey;
         this.mediaBucket = mediaBucket;
+        this.searchCursorSecret = searchCursorSecret;
     }
 
     @Override public void run(ApplicationArguments args) {
@@ -73,6 +76,9 @@ public class ProductionSafetyValidator implements ApplicationRunner {
         }
         if (!mediaStorageEnabled || mediaAccessKey.isBlank() || mediaSecretKey.length() < 16 || mediaBucket.isBlank()) {
             throw new IllegalStateException("Production yêu cầu MinIO và credential an toàn.");
+        }
+        if (searchCursorSecret == null || searchCursorSecret.length() < 32) {
+            throw new IllegalStateException("Production từ chối khởi động: SEARCH_CURSOR_SECRET (app.search.cursor-secret) phải là secret tối thiểu 32 ký tự.");
         }
         if (mediaAllowedHosts.contains("unsplash.com") || mediaAllowedHosts.contains("googleusercontent.com")) {
             throw new IllegalStateException("Production từ chối khởi động: phải cấu hình hostname object storage/CDN do dự án kiểm soát.");
