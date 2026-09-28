@@ -30,6 +30,7 @@ import { Button, ButtonLink } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { LoginModal } from '@/shared/auth/LoginModal';
 import { canOpen } from '@/shared/auth/routeAccess';
+import { useModal } from '@/shared/ui/useModal';
 
 const RootLayoutContent: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -42,33 +43,9 @@ const RootLayoutContent: React.FC = () => {
   const role = user?.role;
   const closeMobileMenu = () => setIsMobileOpen(false);
 
-  useEffect(() => {
-    if (!isMobileOpen) return;
-    const menuButton = menuButtonRef.current;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const first = mobilePanelRef.current?.querySelector<HTMLElement>('button,a');
-    first?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsMobileOpen(false);
-      if (event.key !== 'Tab' || !mobilePanelRef.current) return;
-      const items = Array.from(mobilePanelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),a[href]'));
-      if (!items.length) return;
-      if (event.shiftKey && document.activeElement === items[0]) {
-        event.preventDefault();
-        items[items.length - 1].focus();
-      } else if (!event.shiftKey && document.activeElement === items[items.length - 1]) {
-        event.preventDefault();
-        items[0].focus();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKey);
-      menuButton?.focus();
-    };
-  }, [isMobileOpen]);
+  // Shared modal stack (M2): joins the same stack as the kit Dialog/Sheet and the login dialog, so Escape and the
+  // Tab trap only ever apply to whichever is on top.
+  useModal({ open: isMobileOpen, onClose: () => setIsMobileOpen(false), panelRef: mobilePanelRef });
 
   useEffect(() => {
     if (!isUserMenuOpen) return;
@@ -463,12 +440,14 @@ const RootLayoutContent: React.FC = () => {
         <div
           className="fixed inset-0 z-50 bg-black/50 xl:hidden"
           role="presentation"
-          onMouseDown={(event) => {
+          // click (not mousedown): see shared/ui/Dialog.tsx for why mousedown races focus-return on close (m1).
+          onClick={(event) => {
             if (event.target === event.currentTarget) setIsMobileOpen(false);
           }}
         >
           <div
             ref={mobilePanelRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-label="Menu chính"

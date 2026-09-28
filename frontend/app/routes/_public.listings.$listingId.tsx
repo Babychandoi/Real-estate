@@ -24,6 +24,7 @@ import {
 import { Button, ButtonLink } from '@/shared/ui/Button';
 import { Badge } from '@/shared/ui/Badge';
 import { Card } from '@/shared/ui/Card';
+import { Dialog } from '@/shared/ui/Dialog';
 import { apiClient } from '@/shared/api/client';
 import {
   type ListingDetail,
@@ -482,60 +483,60 @@ export const ListingDetailPage: React.FC = () => {
           }}
         />
       )}
-      {isReportOpen && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="report-title"
-        >
-          <form onSubmit={submitReport} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6">
-            <h2 id="report-title" className="text-xl font-bold">
-              Báo cáo tin vi phạm
-            </h2>
-            <label className="block text-sm font-semibold">
-              Loại vi phạm
-              <select
-                value={reportCategory}
-                onChange={(event) => setReportCategory(event.target.value)}
-                className="mt-1 min-h-11 w-full rounded-lg border px-3"
-              >
-                <option value="SCAM_DEPOSIT">Có dấu hiệu lừa cọc</option>
-                <option value="FAKE_SOLD">Tin không còn đúng hiện trạng</option>
-                <option value="INCORRECT_PRICE">Giá không chính xác</option>
-                <option value="OTHER">Khác</option>
-              </select>
-            </label>
-            <label className="block text-sm font-semibold">
-              Mô tả
-              <textarea
-                required
-                minLength={10}
-                value={reportDescription}
-                onChange={(event) => setReportDescription(event.target.value)}
-                rows={4}
-                className="mt-1 w-full rounded-lg border p-3"
-              />
-            </label>
-            {reportFeedback && (
-              <p role="status" className="text-sm">
-                {reportFeedback}
-              </p>
-            )}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setIsReportOpen(false)} className="min-h-11 rounded-lg border px-4">
-                Đóng
-              </button>
-              <button
-                disabled={reportBusy || reportDescription.trim().length < 10}
-                className="min-h-11 rounded-lg bg-rose-700 px-4 font-bold text-white disabled:opacity-50"
-              >
-                {reportBusy ? 'Đang gửi…' : 'Gửi báo cáo'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {/* Kit Dialog (M2): joins the shared modal stack instead of hand-rolling its own focus trap. */}
+      <Dialog
+        open={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        title="Báo cáo tin vi phạm"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsReportOpen(false)}>
+              Đóng
+            </Button>
+            <Button
+              type="submit"
+              form="listing-report-form"
+              isLoading={reportBusy}
+              disabled={reportDescription.trim().length < 10}
+              className="bg-error hover:bg-error-on-container"
+            >
+              Gửi báo cáo
+            </Button>
+          </>
+        }
+      >
+        <form id="listing-report-form" onSubmit={submitReport} className="space-y-4">
+          <label className="block text-sm font-semibold">
+            Loại vi phạm
+            <select
+              value={reportCategory}
+              onChange={(event) => setReportCategory(event.target.value)}
+              className="mt-1 min-h-11 w-full rounded-lg border px-3"
+            >
+              <option value="SCAM_DEPOSIT">Có dấu hiệu lừa cọc</option>
+              <option value="FAKE_SOLD">Tin không còn đúng hiện trạng</option>
+              <option value="INCORRECT_PRICE">Giá không chính xác</option>
+              <option value="OTHER">Khác</option>
+            </select>
+          </label>
+          <label className="block text-sm font-semibold">
+            Mô tả
+            <textarea
+              required
+              minLength={10}
+              value={reportDescription}
+              onChange={(event) => setReportDescription(event.target.value)}
+              rows={4}
+              className="mt-1 w-full rounded-lg border p-3"
+            />
+          </label>
+          {reportFeedback && (
+            <p role="status" className="text-sm">
+              {reportFeedback}
+            </p>
+          )}
+        </form>
+      </Dialog>
     </div>
   );
 };

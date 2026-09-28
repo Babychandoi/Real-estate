@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, Lock, Phone, User, X } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { formatPriceVnd } from '@/entities/listing/model/types';
+import { useModal } from '@/shared/ui/useModal';
 
 interface Props {
   isOpen: boolean;
@@ -27,46 +28,18 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
   const [error, setError] = useState('');
   const idempotencyKeyRef = useRef(crypto.randomUUID());
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const oldOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    closeRef.current?.focus();
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-      const items = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]),input:not([disabled]),textarea:not([disabled])',
-        ),
-      );
-      if (!items.length) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => {
-      document.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = oldOverflow;
-      previous?.focus();
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
   const close = () => {
     setResult(null);
     setError('');
     idempotencyKeyRef.current = crypto.randomUUID();
     onClose();
   };
+
+  // Shared modal stack (M2): joins the same stack as the kit Dialog/Sheet, so Escape and the Tab trap only ever
+  // apply to whichever modal is on top, whether this one is opened from a page or from inside a kit Sheet.
+  useModal({ open: isOpen, onClose: close, panelRef: dialogRef, initialFocusRef: closeRef });
+
+  if (!isOpen) return null;
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
@@ -105,7 +78,8 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
     <div
       className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
       role="presentation"
-      onMouseDown={(e) => {
+      // click (not mousedown): see shared/ui/Dialog.tsx for why mousedown races the focus-return on close (m1).
+      onClick={(e) => {
         if (e.target === e.currentTarget) close();
       }}
     >
@@ -114,6 +88,7 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
         role="dialog"
         aria-modal="true"
         aria-labelledby="lead-title"
+        tabIndex={-1}
         className="w-full max-w-lg bg-surface rounded-2xl shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col"
       >
         <div className="p-5 flex items-center justify-between bg-surface-container-low border-b border-outline-variant/30">

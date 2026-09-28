@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '@/shared/api/client';
+import { useModal } from '@/shared/ui/useModal';
 import {
   FileText,
   PlusCircle,
@@ -152,6 +153,12 @@ export const CmsManagementPage: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const rejectPanelRef = useRef<HTMLDivElement>(null);
+  const createPanelRef = useRef<HTMLDivElement>(null);
+  // Shared modal stack (M2): both dialogs had no focus trap, no Escape handling, no backdrop-close and no focus
+  // return at all.
+  useModal({ open: Boolean(rejectingId), onClose: () => setRejectingId(null), panelRef: rejectPanelRef });
+  useModal({ open: isCreateModalOpen, onClose: () => setIsCreateModalOpen(false), panelRef: createPanelRef });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -719,9 +726,22 @@ export const CmsManagementPage: React.FC = () => {
 
       {/* Modal Trả Về Sửa */}
       {rejectingId && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-fade-in p-5 space-y-4">
-            <h3 className="text-base font-bold text-rose-700 flex items-center gap-2">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setRejectingId(null);
+          }}
+        >
+          <div
+            ref={rejectPanelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cms-reject-title"
+            className="w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-fade-in p-5 space-y-4"
+          >
+            <h3 id="cms-reject-title" className="text-base font-bold text-rose-700 flex items-center gap-2">
               <RotateCcw className="w-5 h-5" /> Trả về yêu cầu sửa đổi
             </h3>
             <p className="text-xs text-on-surface-variant">
@@ -754,12 +774,27 @@ export const CmsManagementPage: React.FC = () => {
 
       {/* Modal Soạn Bài Viết Mới Chuẩn ERD04 */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsCreateModalOpen(false);
+          }}
+        >
+          <div
+            ref={createPanelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cms-create-title"
+            className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-fade-in flex flex-col max-h-[90vh]"
+          >
             <div className="p-5 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-low">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-base text-on-surface">Soạn thảo bài viết CMS (Chuẩn ERD04 & FR32)</h3>
+                <h3 id="cms-create-title" className="font-bold text-base text-on-surface">
+                  Soạn thảo bài viết CMS (Chuẩn ERD04 & FR32)
+                </h3>
               </div>
               <button
                 onClick={() => setIsCreateModalOpen(false)}

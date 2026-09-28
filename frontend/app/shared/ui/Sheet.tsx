@@ -46,7 +46,8 @@ export function Sheet({
       className="fixed inset-0 z-overlay flex items-end justify-center sm:items-stretch sm:justify-end"
       role="presentation"
     >
-      <div className="absolute inset-0 bg-inverse-surface/60" aria-hidden="true" onMouseDown={onClose} />
+      {/* click (not mousedown): see Dialog.tsx for why mousedown races the focus-return on close (m1). */}
+      <div className="absolute inset-0 bg-inverse-surface/60" aria-hidden="true" onClick={onClose} />
       <div
         ref={panelRef}
         role="dialog"

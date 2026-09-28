@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { ArrowRight, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowRight, CircleDot, X } from 'lucide-react';
 import { moderationApi } from '../entities/moderation/api/moderationApi';
 import type { FieldDiff, ListingDiff, ModerationQueueItem, StandardReason } from '../entities/moderation/model/types';
 import { formatPriceVnd, formatPropertyType } from '../entities/listing/model/types';
 import { errorMessage } from '@/shared/api/errors';
+import { useModal } from '@/shared/ui/useModal';
 
 export default function ModerationWorkspacePage() {
   const [queue, setQueue] = useState<ModerationQueueItem[]>([]);
@@ -19,6 +20,9 @@ export default function ModerationWorkspacePage() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [selectedReasonCode, setSelectedReasonCode] = useState('');
   const [rejectionDetail, setRejectionDetail] = useState('');
+  const rejectPanelRef = useRef<HTMLDivElement>(null);
+  // Shared modal stack (M2): this dialog had no focus trap, no backdrop-close and no focus return at all.
+  useModal({ open: isRejectModalOpen, onClose: () => setIsRejectModalOpen(false), panelRef: rejectPanelRef });
 
   // Approval note
   const [approvalNote, setApprovalNote] = useState('');
@@ -451,8 +455,8 @@ export default function ModerationWorkspacePage() {
                           <span className="text-sm font-medium text-slate-200">{d.fieldLabel}</span>
                           <span className="text-xs font-mono text-slate-500">{d.fieldName}</span>
                           {d.isChanged && (
-                            <span className="inline-block mt-1 text-xs font-semibold text-amber-400">
-                              ● ĐÃ THAY ĐỔI
+                            <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-400">
+                              <CircleDot className="h-3 w-3" aria-hidden="true" /> ĐÃ THAY ĐỔI
                             </span>
                           )}
                         </div>
@@ -546,11 +550,26 @@ export default function ModerationWorkspacePage() {
 
       {/* Modal từ chối kiểm duyệt */}
       {isRejectModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5">
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsRejectModalOpen(false);
+          }}
+        >
+          <div
+            ref={rejectPanelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="moderation-reject-title"
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
-                <h3 className="font-bold text-lg text-white">Từ Chối Phê Duyệt Tin Đăng</h3>
+                <h3 id="moderation-reject-title" className="font-bold text-lg text-white">
+                  Từ Chối Phê Duyệt Tin Đăng
+                </h3>
                 <p className="text-xs text-slate-400 mt-0.5">Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}</p>
               </div>
               <button

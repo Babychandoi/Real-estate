@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Building2, Check, MapPin, Plus, Scale, Search, ShieldCheck, Trophy, X } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listingApi } from '@/entities/listing/api/listingApi';
@@ -11,6 +11,7 @@ import {
 } from '@/entities/listing/model/types';
 import { Button, ButtonLink } from '@/shared/ui/Button';
 import { listingPath } from '@/entities/listing/model/seo';
+import { useModal } from '@/shared/ui/useModal';
 import { MAX_COMPARE, compareStore, useCompareItems, type CompareItem } from '@/features/compare/compareStore';
 
 type Detail = ListingDetail & { publishedAt?: string };
@@ -113,6 +114,12 @@ function ListingPicker({
   const [results, setResults] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Shared modal stack (M2): previously this picker only closed on Escape, had no Tab trap, no scroll lock and
+  // no focus return; now it joins the same stack as every other kit modal.
+  useModal({ open: true, onClose, panelRef, initialFocusRef: searchRef });
 
   useEffect(() => {
     const timer = window.setTimeout(() => setQuery(keyword.trim()), 350);
@@ -139,14 +146,6 @@ function ListingPicker({
     };
   }, [activePurpose, query]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-0 sm:items-center sm:p-4"
@@ -156,6 +155,8 @@ function ListingPicker({
       }}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
@@ -204,9 +205,7 @@ function ListingPicker({
           <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:ring-2 focus-within:ring-primary/20">
             <Search className="h-4 w-4 text-slate-400" aria-hidden="true" />
             <input
-              // Initial focus of the picker dialog: the filter field is the first thing people use.
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
+              ref={searchRef}
               value={keyword}
               onChange={(event) => setKeyword(event.target.value)}
               placeholder="Lọc theo tiêu đề, khu vực, dự án…"

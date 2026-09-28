@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { canOpen, type ProtectedPage } from '@/shared/auth/routeAccess';
+import { useModal } from '@/shared/ui/useModal';
 import './admin-light.css';
 
 const navigation: Array<{ to: string; label: string; icon: typeof FileCheck2; page: ProtectedPage }> = [
@@ -46,6 +47,9 @@ const AdminShellContent: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const close = () => setMobileOpen(false);
+  const mobilePanelRef = useRef<HTMLElement>(null);
+  // Shared modal stack (M2): this drawer had no focus trap and no Escape handling at all.
+  useModal({ open: mobileOpen, onClose: close, panelRef: mobilePanelRef });
   const visibleNavigation = navigation.filter((item) => canOpen(user?.role, item.page));
   const sideNav = (
     <nav className="flex h-full flex-col bg-slate-950 px-3 py-4 text-slate-200" aria-label="Điều hướng quản trị">
@@ -95,11 +99,19 @@ const AdminShellContent: React.FC = () => {
         <div
           role="presentation"
           className="fixed inset-0 z-50 bg-slate-950/45 lg:hidden"
-          onMouseDown={(event) => {
+          // click (not mousedown): see shared/ui/Dialog.tsx for why mousedown races focus-return on close (m1).
+          onClick={(event) => {
             if (event.target === event.currentTarget) close();
           }}
         >
-          <aside className="h-full w-72 shadow-2xl">
+          <aside
+            ref={mobilePanelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Điều hướng quản trị"
+            className="h-full w-72 shadow-2xl"
+          >
             {sideNav}
             <button
               type="button"

@@ -17,6 +17,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { useModal } from '@/shared/ui/useModal';
 import type { SelfServiceRole } from './roles';
 
 type ModalTab = 'login' | 'register';
@@ -67,43 +68,26 @@ export const LoginModal: React.FC = () => {
   const loginEmailRef = useRef<HTMLInputElement>(null);
   const loginPasswordRef = useRef<HTMLInputElement>(null);
 
+  // Shared modal stack (M2): the same hook Dialog/Sheet use, so this dialog and any kit Sheet/Dialog open at the
+  // same time cooperate — Escape and the Tab trap only ever apply to whichever is on top, and closing this one
+  // returns focus to whatever opened it.
+  useModal({
+    open: isLoginModalOpen,
+    onClose: () => setIsLoginModalOpen(false),
+    panelRef: dialogRef,
+    initialFocusRef: loginEmailRef,
+  });
+
   useEffect(() => {
-    if (!isLoginModalOpen) return;
+    if (!isLoginModalOpen) return undefined;
     setLoginEmail('');
     setLoginPassword('');
     const clearAutofill = window.requestAnimationFrame(() => {
       if (loginEmailRef.current) loginEmailRef.current.value = '';
       if (loginPasswordRef.current) loginPasswordRef.current.value = '';
     });
-    // The element that opened the dialog gets focus back on close; initial focus is set here (not with
-    // autoFocus) so that `previous` is still the opener.
-    const previous = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    (loginEmailRef.current ?? closeRef.current)?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsLoginModalOpen(false);
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-      const items = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),summary'),
-      );
-      if (!items.length) return;
-      if (event.shiftKey && document.activeElement === items[0]) {
-        event.preventDefault();
-        items[items.length - 1].focus();
-      } else if (!event.shiftKey && document.activeElement === items[items.length - 1]) {
-        event.preventDefault();
-        items[0].focus();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      window.cancelAnimationFrame(clearAutofill);
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
-      previous?.focus();
-    };
-  }, [isLoginModalOpen, setIsLoginModalOpen]);
+    return () => window.cancelAnimationFrame(clearAutofill);
+  }, [isLoginModalOpen]);
 
   const resetForms = () => {
     setLoginEmail('');
@@ -176,7 +160,9 @@ export const LoginModal: React.FC = () => {
     <div
       role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-      onMouseDown={(event) => {
+      // click (not mousedown): mousedown fires before React finishes closing, so the browser's default focus
+      // move to <body> would race useModal's focus-return to the opener (m1).
+      onClick={(event) => {
         if (event.target === event.currentTarget) handleClose();
       }}
     >

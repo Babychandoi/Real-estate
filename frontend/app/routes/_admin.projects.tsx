@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
+import { useModal } from '@/shared/ui/useModal';
 
 interface Project {
   id: string;
@@ -39,6 +40,9 @@ export function ProjectCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const formPanelRef = useRef<HTMLFormElement>(null);
+  // Shared modal stack (M2): this dialog had no focus trap, no Escape handling and no focus return at all.
+  useModal({ open: showForm, onClose: () => setShowForm(false), panelRef: formPanelRef });
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -150,11 +154,24 @@ export function ProjectCatalogPage() {
       {showForm && (
         <div
           className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 p-4"
-          role="dialog"
-          aria-modal="true"
+          role="presentation"
+          // click (not mousedown): see shared/ui/Dialog.tsx for why mousedown races focus-return on close (m1).
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setShowForm(false);
+          }}
         >
-          <form onSubmit={create} className="grid w-full max-w-2xl gap-3 rounded-2xl bg-white p-6">
-            <h2 className="text-xl font-bold">Tạo dự án mới</h2>
+          <form
+            ref={formPanelRef}
+            tabIndex={-1}
+            aria-modal="true"
+            role="dialog"
+            aria-labelledby="project-form-title"
+            onSubmit={create}
+            className="grid w-full max-w-2xl gap-3 rounded-2xl bg-white p-6"
+          >
+            <h2 id="project-form-title" className="text-xl font-bold">
+              Tạo dự án mới
+            </h2>
             {(Object.keys(labels) as Array<keyof typeof labels>).map((key) => (
               <label key={key} className="text-sm font-semibold">
                 {labels[key]}

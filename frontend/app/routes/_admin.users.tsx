@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Ban,
   CheckCircle2,
@@ -17,6 +17,7 @@ import { Button } from '@/shared/ui/Button';
 import { approveKyc, fetchKycByUserId, rejectKyc } from '@/entities/verification/api/verificationApi';
 import type { UserKycProfile } from '@/entities/verification/model/types';
 import { PrivateMediaImage } from '@/shared/ui/PrivateMediaImage';
+import { useModal } from '@/shared/ui/useModal';
 
 interface UserItem {
   id: string;
@@ -75,6 +76,9 @@ export function AdminUsersPage() {
   const [selectedKyc, setSelectedKyc] = useState<UserKycProfile | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const kycPanelRef = useRef<HTMLElement>(null);
+  // Shared modal stack (M2): this panel had no focus trap, no Escape handling and no focus return at all.
+  useModal({ open: Boolean(selectedKyc), onClose: () => setSelectedKyc(null), panelRef: kycPanelRef });
 
   const load = useCallback(
     async (page = 0) => {
@@ -357,11 +361,14 @@ export function AdminUsersPage() {
         <div
           role="presentation"
           className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-6"
-          onMouseDown={(event) => {
+          // click (not mousedown): see shared/ui/Dialog.tsx for why mousedown races focus-return on close (m1).
+          onClick={(event) => {
             if (event.target === event.currentTarget) setSelectedKyc(null);
           }}
         >
           <section
+            ref={kycPanelRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="kyc-detail-title"

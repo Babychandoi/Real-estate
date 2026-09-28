@@ -53,7 +53,9 @@ export function Dialog({
       <div
         className="absolute inset-0 bg-inverse-surface/60"
         aria-hidden="true"
-        onMouseDown={closeOnBackdrop ? onClose : undefined}
+        // click (not mousedown): mousedown fires before useModal's cleanup returns focus to the opener, so a
+        // mousedown-triggered close raced it and focus landed on <body> instead (m1).
+        onClick={closeOnBackdrop ? onClose : undefined}
       />
       <div
         ref={panelRef}
