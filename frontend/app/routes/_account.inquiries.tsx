@@ -205,7 +205,10 @@ export function MyInquiriesPage() {
   }, [load]);
 
   return (
-    <div className="min-h-full bg-surface px-4 py-8 md:px-8 lg:py-10">
+    <div
+      className="min-h-full bg-surface px-4 py-8 md:px-8 lg:py-10"
+      data-ready={loading && !result ? undefined : 'true'}
+    >
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>

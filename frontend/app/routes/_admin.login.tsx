@@ -178,7 +178,7 @@ export const AdminLoginPage: React.FC = () => {
           : 'Hoàn tất thiết lập';
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-16rem)] w-full max-w-md items-center px-4 py-10">
+    <main className="mx-auto flex min-h-[calc(100dvh-16rem)] w-full max-w-md items-center px-4 py-10" data-ready="true">
       <div className="w-full rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-on">

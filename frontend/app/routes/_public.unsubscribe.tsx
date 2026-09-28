@@ -61,7 +61,10 @@ export function UnsubscribePage() {
       : `email về “${target?.category ? CATEGORY_LABELS[target.category].title : 'mục này'}”`;
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-12">
+    <div
+      className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-12"
+      data-ready={status === 'loading' ? undefined : 'true'}
+    >
       {status === 'loading' ? (
         <Skeleton className="h-40 rounded-card" />
       ) : status === 'invalid' ? (

@@ -271,7 +271,7 @@ function LeadInbox() {
 export function MyLeadsPage() {
   const [tab, setTab] = useState<'inbox' | 'report'>('inbox');
   return (
-    <div className="min-h-full bg-surface px-4 py-8 md:px-8 lg:py-10">
+    <div className="min-h-full bg-surface px-4 py-8 md:px-8 lg:py-10" data-ready="true">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <header>
           <h1 className="text-headline-lg text-on-surface">Hộp thư khách quan tâm</h1>

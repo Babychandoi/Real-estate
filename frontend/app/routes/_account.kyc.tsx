@@ -223,7 +223,7 @@ export function KycPage() {
     );
   if (profile && profile.status !== 'REJECTED' && !(myStatus?.status === 'EXPIRED'))
     return (
-      <section className="mx-auto max-w-3xl px-4 py-10">
+      <section className="mx-auto max-w-3xl px-4 py-10" data-ready="true">
         <section className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
           <ShieldCheck className="h-10 w-10 text-emerald-700" />
           <h1 className="mt-4 text-3xl font-extrabold text-on-surface">{STATUS_TEXT[profile.status]}</h1>
@@ -315,7 +315,7 @@ export function KycPage() {
     );
 
   return (
-    <section className="mx-auto max-w-5xl px-4 py-8 md:px-8">
+    <section className="mx-auto max-w-5xl px-4 py-8 md:px-8" data-ready="true">
       <header>
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-8 w-8 text-emerald-700" />

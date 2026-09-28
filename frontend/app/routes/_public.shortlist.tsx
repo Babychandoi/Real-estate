@@ -61,7 +61,10 @@ export function SharedShortlistPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-8">
+    <div
+      className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-8"
+      data-ready={status === 'loading' ? undefined : 'true'}
+    >
       {status === 'loading' ? (
         <Skeleton className="h-64 rounded-card" />
       ) : status === 'gone' ? (
