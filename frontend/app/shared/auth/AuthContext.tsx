@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiClient, clearAccessToken, setAccessToken } from '@/shared/api/client';
+import { apiClient, clearAccessToken, SESSION_ENDED_EVENT, setAccessToken } from '@/shared/api/client';
 import {
   canUseBrokerWorkspace,
   hasRole as roleIn,
@@ -35,11 +35,27 @@ interface ServerUser {
   listingQuotaRemaining: number;
   avatarMediaUrl?: string;
 }
-interface AuthResult {
+export interface AuthResult {
   accessToken: string;
   expiresAt: string;
+  /** Staff sessions end after this much inactivity (sliding); null for members. */
+  idleExpiresAt?: string | null;
   user: ServerUser;
 }
+/** Second step of the staff login: verify a code, or enrol an authenticator first. */
+export interface MfaChallenge {
+  state: 'VERIFY' | 'ENROLL';
+  challengeToken: string;
+  challengeExpiresAt: string;
+}
+interface AdminLoginResponse extends Partial<AuthResult> {
+  mfaRequired: boolean;
+  mfaState?: 'VERIFY' | 'ENROLL' | null;
+  challengeToken?: string | null;
+  challengeExpiresAt?: string | null;
+}
+export type AdminLoginOutcome =
+  { success: true; mfa?: undefined } | { success: true; mfa: MfaChallenge } | { success: false; error: string };
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
@@ -52,13 +68,18 @@ interface AuthContextType {
   isPoster: boolean;
   hasRole: (allowed: readonly Role[]) => boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  adminLogin: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  adminLogin: (email: string, password: string) => Promise<AdminLoginOutcome>;
+  /** Signs the tab in with a session obtained from the MFA step. */
+  acceptSession: (result: AuthResult) => void;
   register: (
     email: string,
     password: string,
     name: string,
     accountType: SelfServiceRole,
+    returnTo?: string,
   ) => Promise<{ success: boolean; email?: string; error?: string }>;
+  /** Set when the server ended the session (idle timeout, revoked elsewhere); cleared at the next sign-in. */
+  sessionEnded: boolean;
   resendVerification: (email: string) => Promise<{ success: boolean; error?: string }>;
   refreshUser: () => Promise<void>;
   logout: () => void;
@@ -87,6 +108,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   // Bumped at every sign-in: a stream stopped by an expired session restarts even for the same account.
   const [sessionKey, setSessionKey] = useState(0);
+  const [sessionEnded, setSessionEnded] = useState(false);
+
+  useEffect(() => {
+    const ended = () => {
+      setUser((current) => {
+        if (current) setSessionEnded(true);
+        return null;
+      });
+    };
+    window.addEventListener(SESSION_ENDED_EVENT, ended);
+    return () => window.removeEventListener(SESSION_ENDED_EVENT, ended);
+  }, []);
 
   useEffect(() => {
     if (!sessionStorage.getItem('bds_access_token')) {
@@ -128,6 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAccessToken(result.accessToken);
     setUser(toUser(result.user));
     setSessionKey((key) => key + 1);
+    setSessionEnded(false);
     setIsLoginModalOpen(false);
   }, []);
   const login = useCallback(
@@ -144,14 +178,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [accept],
   );
   const adminLogin = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string): Promise<AdminLoginOutcome> => {
       try {
-        accept(
-          await apiClient<AuthResult>('/auth/admin/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
-          }),
-        );
+        const result = await apiClient<AdminLoginResponse>('/auth/admin/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        });
+        if (result.mfaRequired && result.challengeToken && result.mfaState && result.challengeExpiresAt) {
+          return {
+            success: true,
+            mfa: {
+              state: result.mfaState,
+              challengeToken: result.challengeToken,
+              challengeExpiresAt: result.challengeExpiresAt,
+            },
+          };
+        }
+        if (!result.accessToken || !result.user || !result.expiresAt) {
+          return { success: false, error: 'Máy chủ trả về phản hồi đăng nhập không hợp lệ.' };
+        }
+        accept({
+          accessToken: result.accessToken,
+          expiresAt: result.expiresAt,
+          idleExpiresAt: result.idleExpiresAt,
+          user: result.user,
+        });
         return { success: true };
       } catch (error) {
         return { success: false, error: errorMessage(error) };
@@ -159,17 +210,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     },
     [accept],
   );
-  const register = useCallback(async (email: string, password: string, name: string, accountType: SelfServiceRole) => {
-    try {
-      const result = await apiClient<{ email: string; requiresEmailVerification: boolean }>('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ email, password, name, accountType }),
-      });
-      return { success: true, email: result.email };
-    } catch (error) {
-      return { success: false, error: errorMessage(error) };
-    }
-  }, []);
+  const register = useCallback(
+    async (email: string, password: string, name: string, accountType: SelfServiceRole, returnTo?: string) => {
+      try {
+        const result = await apiClient<{ email: string; requiresEmailVerification: boolean }>('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({ email, password, name, accountType, returnTo }),
+        });
+        return { success: true, email: result.email };
+      } catch (error) {
+        return { success: false, error: errorMessage(error) };
+      }
+    },
+    [],
+  );
   const logout = useCallback(() => {
     apiClient<void>('/auth/logout', { method: 'POST' }).catch(() => undefined);
     clearAccessToken();
@@ -199,14 +253,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hasRole: (allowed: readonly Role[]) => roleIn(user?.role, allowed),
       login,
       adminLogin,
+      acceptSession: accept,
       register,
+      sessionEnded,
       logout,
       resendVerification,
       refreshUser,
       isLoginModalOpen,
       setIsLoginModalOpen,
     }),
-    [user, isAuthLoading, isLoginModalOpen, login, adminLogin, register, logout, resendVerification, refreshUser],
+    [
+      user,
+      isAuthLoading,
+      isLoginModalOpen,
+      login,
+      adminLogin,
+      accept,
+      register,
+      sessionEnded,
+      logout,
+      resendVerification,
+      refreshUser,
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

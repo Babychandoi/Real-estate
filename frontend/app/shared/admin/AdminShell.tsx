@@ -7,6 +7,7 @@ import {
   FileCheck2,
   FileText,
   FolderKanban,
+  KeyRound,
   ListChecks,
   LogOut,
   Menu,
@@ -42,6 +43,7 @@ const navigation: Array<{ to: string; label: string; icon: typeof FileCheck2; pa
   { to: '/2026/nhadatchuan/admin/analytics', label: 'Phân tích', icon: BarChart3, page: 'adminAnalytics' },
   { to: '/2026/nhadatchuan/admin/projects', label: 'Dự án BĐS', icon: FolderKanban, page: 'adminProjects' },
   { to: '/2026/nhadatchuan/admin/cms', label: 'Nội dung CMS', icon: FileText, page: 'adminCms' },
+  { to: '/2026/nhadatchuan/admin/security', label: 'Bảo mật tài khoản', icon: KeyRound, page: 'adminSecurity' },
 ];
 
 const AdminShellContent: React.FC = () => {

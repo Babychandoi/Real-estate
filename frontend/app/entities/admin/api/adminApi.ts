@@ -106,6 +106,10 @@ export const adminUsersApi = {
   changeStatus: (id: string, status: 'ACTIVE' | 'SUSPENDED', reason: string) =>
     apiClient<void>(`/admin/users/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, reason }) }),
   history: (id: string) => apiClient<AdminAction[]>(`/admin/users/${id}/history`),
+  /** Lost authenticator: removes the second factor and signs the account out everywhere (reason required). */
+  resetMfa: (id: string, reason: string) => apiClient<void>(`/admin/users/${id}/mfa/reset`, json({ reason })),
+  revokeSessions: (id: string, reason: string) =>
+    apiClient<{ revokedSessions: number }>(`/admin/users/${id}/sessions/revoke`, json({ reason })),
   openKycDocuments: (id: string, password: string, reason: string) =>
     apiClient<KycDocumentAccess>(`/admin/users/${id}/kyc-documents`, json({ password, reason })),
   kycAccessLog: (id: string) => apiClient<KycAccessLogEntry[]>(`/admin/users/${id}/kyc-access-log`),

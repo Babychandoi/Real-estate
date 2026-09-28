@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { FileLock2, History, Lock, Search, ShieldCheck, Unlock, UserCog } from 'lucide-react';
+import { FileLock2, History, Lock, LogOut, Search, ShieldCheck, ShieldOff, Unlock, UserCog } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { adminUsersApi, trustApi } from '@/entities/admin/api/adminApi';
 import type {
@@ -40,6 +40,7 @@ interface UserItem {
   emailVerifiedAt: string | null;
   lastLoginAt: string | null;
   planExpiresAt: string | null;
+  mfaEnrolled?: boolean;
 }
 interface UserPage {
   items: UserItem[];
@@ -63,7 +64,10 @@ const ACTION_LABELS: Record<AdminAction['action'], string> = {
   ROLE_CHANGE: 'Đổi vai trò',
   LOCK: 'Khóa tài khoản',
   UNLOCK: 'Mở khóa',
+  MFA_RESET: 'Đặt lại xác thực hai lớp',
+  SESSIONS_REVOKE: 'Đăng xuất mọi thiết bị',
 };
+const isStaffRole = (role: string) => role === 'ADMIN' || role === 'MODERATOR';
 const roleLabel = (role: string | null) =>
   role ? ((ROLE_LABELS as Record<string, string>)[role] ?? role) : 'Không rõ';
 
@@ -80,6 +84,7 @@ export function AdminUsersPage() {
   const [statusTarget, setStatusTarget] = useState<{ user: UserItem; next: 'ACTIVE' | 'SUSPENDED' } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<UserItem | null>(null);
   const [kycTarget, setKycTarget] = useState<UserItem | null>(null);
+  const [securityTarget, setSecurityTarget] = useState<{ user: UserItem; action: 'mfa' | 'sessions' } | null>(null);
 
   const load = useCallback(async () => {
     setTableStatus((s) => (s === 'loading' ? 'loading' : 'refreshing'));
@@ -112,7 +117,21 @@ export function AdminUsersPage() {
         </div>
       ),
     },
-    { key: 'role', header: 'Vai trò', cell: (u) => roleLabel(u.role) },
+    {
+      key: 'role',
+      header: 'Vai trò',
+      cell: (u) => (
+        <div className="flex flex-col items-start gap-1">
+          <span>{roleLabel(u.role)}</span>
+          {isStaffRole(u.role) && (
+            <StatusBadge
+              label={u.mfaEnrolled ? 'Đã bật MFA' : 'Chưa bật MFA'}
+              variant={u.mfaEnrolled ? 'success' : 'warning'}
+            />
+          )}
+        </div>
+      ),
+    },
     {
       key: 'status',
       header: 'Trạng thái',
@@ -169,6 +188,28 @@ export function AdminUsersPage() {
                 Đổi vai trò
               </Button>
             )}
+            {!self && (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<LogOut className="h-4 w-4" />}
+                onClick={() => setSecurityTarget({ user: u, action: 'sessions' })}
+                aria-label={`Đăng xuất mọi thiết bị của ${u.fullName}`}
+              >
+                Đăng xuất mọi nơi
+              </Button>
+            )}
+            {!self && u.mfaEnrolled && (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<ShieldOff className="h-4 w-4" />}
+                onClick={() => setSecurityTarget({ user: u, action: 'mfa' })}
+                aria-label={`Đặt lại xác thực hai lớp của ${u.fullName}`}
+              >
+                Đặt lại MFA
+              </Button>
+            )}
             {!self && u.role !== 'ADMIN' && u.status === 'ACTIVE' && (
               <Button
                 size="sm"
@@ -208,8 +249,8 @@ export function AdminUsersPage() {
       <header>
         <h1 className="text-2xl font-bold">Quản lý người dùng</h1>
         <p className="mt-1 text-sm text-on-surface-variant">
-          Danh sách không hiển thị số điện thoại. Đổi vai trò, khóa hay xem giấy tờ định danh đều cần lý do và được ghi
-          lịch sử.
+          Danh sách không hiển thị số điện thoại. Đổi vai trò, khóa, đăng xuất mọi nơi, đặt lại xác thực hai lớp hay xem
+          giấy tờ định danh đều cần lý do và được ghi lịch sử. Đổi vai trò cũng đăng xuất tài khoản đó.
         </p>
       </header>
       <form
@@ -318,6 +359,35 @@ export function AdminUsersPage() {
           if (!statusTarget) return;
           await adminUsersApi.changeStatus(statusTarget.user.id, statusTarget.next, reason);
           setFeedback(`Đã ${statusTarget.next === 'SUSPENDED' ? 'khóa' : 'mở khóa'} ${statusTarget.user.fullName}`);
+          await load();
+        }}
+      />
+      <ReasonDialog
+        open={securityTarget !== null}
+        title={
+          securityTarget
+            ? `${securityTarget.action === 'mfa' ? 'Đặt lại xác thực hai lớp' : 'Đăng xuất mọi thiết bị'}: ${securityTarget.user.fullName}`
+            : ''
+        }
+        description={
+          securityTarget?.action === 'mfa'
+            ? 'Chỉ làm khi đã xác minh chính chủ qua kênh khác (gọi điện, gặp trực tiếp). Ứng dụng xác thực và mã khôi phục cũ ngừng hoạt động, mọi phiên bị đăng xuất; lần đăng nhập sau phải thiết lập lại.'
+            : 'Mọi phiên đăng nhập của tài khoản trên mọi thiết bị bị thu hồi ngay. Dùng khi nghi tài khoản bị lộ.'
+        }
+        noteLabel="Lý do"
+        noteMinLength={5}
+        confirmLabel={securityTarget?.action === 'mfa' ? 'Đặt lại MFA' : 'Đăng xuất mọi nơi'}
+        confirmVariant="danger"
+        onClose={() => setSecurityTarget(null)}
+        onConfirm={async (_code, reason) => {
+          if (!securityTarget) return;
+          if (securityTarget.action === 'mfa') {
+            await adminUsersApi.resetMfa(securityTarget.user.id, reason);
+            setFeedback(`Đã đặt lại xác thực hai lớp của ${securityTarget.user.fullName}`);
+          } else {
+            const result = await adminUsersApi.revokeSessions(securityTarget.user.id, reason);
+            setFeedback(`Đã đăng xuất ${result.revokedSessions} phiên của ${securityTarget.user.fullName}`);
+          }
           await load();
         }}
       />

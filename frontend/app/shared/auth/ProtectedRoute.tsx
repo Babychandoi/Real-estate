@@ -19,7 +19,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   moduleName = 'Phân hệ Nội bộ',
   loginPath,
 }) => {
-  const { user, isAuthenticated, isAuthLoading, setIsLoginModalOpen } = useAuth();
+  const { user, isAuthenticated, isAuthLoading, setIsLoginModalOpen, sessionEnded } = useAuth();
 
   // A stored session is still being checked: do not flash "please log in" to a signed-in person.
   if (isAuthLoading) {
@@ -63,6 +63,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
                 </>
               ) : (
                 <>
+                  {sessionEnded && (
+                    <span role="status" className="mb-2 block font-semibold text-on-surface">
+                      Phiên đăng nhập đã kết thúc (không hoạt động quá lâu, hết hạn hoặc đã được đăng xuất ở thiết bị
+                      khác).
+                    </span>
+                  )}
                   Bạn cần đăng nhập để truy cập phân hệ <strong className="text-on-surface">"{moduleName}"</strong>.
                 </>
               )}
@@ -74,7 +80,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
             <div className="flex justify-between">
               <span>Trạng thái phiên:</span>
               <strong className={isAuthenticated ? 'text-blue-600' : 'text-rose-600'}>
-                {isAuthenticated ? `Đã đăng nhập` : 'Chưa đăng nhập'}
+                {isAuthenticated ? `Đã đăng nhập` : sessionEnded ? 'Đã kết thúc' : 'Chưa đăng nhập'}
               </strong>
             </div>
             {isLoggedInButNoPermission && (

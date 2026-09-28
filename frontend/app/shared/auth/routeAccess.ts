@@ -26,6 +26,7 @@ export const ROUTE_ACCESS = {
   adminAnalytics: STAFF,
   adminProjects: STAFF,
   adminCms: STAFF,
+  adminSecurity: STAFF,
 } as const satisfies Record<string, readonly Role[]>;
 
 export type ProtectedPage = keyof typeof ROUTE_ACCESS;

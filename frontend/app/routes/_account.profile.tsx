@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Camera, CheckCircle2, Mail, Phone, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
@@ -6,10 +6,15 @@ import { rememberSignedMediaUrl, useSignedMediaUrls } from '@/shared/media/useSi
 import { validationMessage } from '@/shared/types/problem-details';
 import { NotificationPreferencesSection, PrivacySection } from '@/features/engagement/ui/AccountEngagementSections';
 
+// Below the fold and not needed to edit the profile: loaded after the page (keeps /account within its JS budget).
+const AccountSecuritySections = lazy(() =>
+  import('@/features/account-security/AccountSecuritySections').then((m) => ({ default: m.AccountSecuritySections })),
+);
+
 type UploadedImage = { url: string; previewUrl?: string | null; previewExpiresAt?: string | null };
 
 export function AccountProfilePage() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, isAdminOrModerator } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [avatarMediaUrl, setAvatarMediaUrl] = useState(user?.avatarMediaUrl ?? '');
@@ -253,6 +258,15 @@ export function AccountProfilePage() {
           {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
         </button>
       </form>
+      <Suspense
+        fallback={
+          <p role="status" className="mt-6 text-sm text-on-surface-variant">
+            Đang tải mục bảo mật tài khoản…
+          </p>
+        }
+      >
+        <AccountSecuritySections staff={isAdminOrModerator} />
+      </Suspense>
       <NotificationPreferencesSection />
       <PrivacySection />
     </section>
