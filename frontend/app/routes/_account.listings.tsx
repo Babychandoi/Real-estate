@@ -26,6 +26,7 @@ import {
   type VersionSummary,
 } from '@/features/my-listings/api';
 import { ImportDialog } from '@/features/my-listings/ImportDialog';
+import { useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 
 const TABS: Array<{ id: StatusTab; label: string }> = [
   { id: 'ALL', label: 'Tất cả' },
@@ -62,9 +63,11 @@ function isTab(value: string | null): value is StatusTab {
 function ListingRow({
   item,
   onAction,
+  displayMedia,
 }: {
   item: MyListingItem;
   onAction: (run: () => Promise<unknown>, done: string) => void;
+  displayMedia: (url: string | null | undefined) => string | undefined;
 }) {
   const shown = item.publicVersion ?? item.pendingEdit;
   const badge = STATUS_BADGE[item.status];
@@ -79,7 +82,7 @@ function ListingRow({
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="aspect-video w-full shrink-0 overflow-hidden rounded-lg bg-surface-container sm:w-40">
           {item.thumbnailUrl ? (
-            <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+            <img src={displayMedia(item.thumbnailUrl)} alt="" className="h-full w-full object-cover" loading="lazy" />
           ) : (
             <div className="flex h-full items-center justify-center text-on-surface-variant">
               <ImageOff className="h-6 w-6" aria-hidden="true" />
@@ -235,6 +238,8 @@ export const MyListingsPage: React.FC = () => {
   const tab: StatusTab = isTab(params.get('status')) ? (params.get('status') as StatusTab) : 'ALL';
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0);
   const [data, setData] = useState<Page | null>(null);
+  // Images of drafts/hidden listings are not public (S1): the owner sees them through signed URLs (one batch per page).
+  const displayMedia = useSignedMediaUrls(data?.items.map((item) => item.thumbnailUrl) ?? []);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -316,7 +321,7 @@ export const MyListingsPage: React.FC = () => {
       <>
         <ul className="mt-4 flex flex-col gap-3" aria-busy={loading || undefined}>
           {data.items.map((item) => (
-            <ListingRow key={item.id} item={item} onAction={onAction} />
+            <ListingRow key={item.id} item={item} onAction={onAction} displayMedia={displayMedia} />
           ))}
         </ul>
         {data.totalPages > 1 && (

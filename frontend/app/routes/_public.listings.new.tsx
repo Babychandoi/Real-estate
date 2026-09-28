@@ -43,6 +43,7 @@ import {
 } from '@/features/listing-editor/api';
 import { useDraftAutosave, type SaveState } from '@/features/listing-editor/useDraftAutosave';
 import { QualityChecklist } from '@/features/listing-editor/QualityChecklist';
+import { rememberSignedMediaUrl, useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 
 const LocationPicker = lazy(() => import('@/features/listing-editor/LocationPicker'));
 
@@ -180,6 +181,8 @@ export const CreateListingPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Draft images are never public (S1, F14.4): the owner sees them through short-lived signed URLs.
+  const displayMedia = useSignedMediaUrls([...fields.imageUrls, preview?.images[0]?.url]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [mapOpen, setMapOpen] = useState(false);
   const stepHeading = useRef<HTMLHeadingElement>(null);
@@ -310,11 +313,11 @@ export const CreateListingPage: React.FC = () => {
 
   const handleUpload = async (files: FileList | null) => {
     if (!files?.length) return;
-    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
     const selected = Array.from(files).slice(0, Math.max(0, 20 - fields.imageUrls.length));
     const invalid = selected.find((file) => !allowed.has(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024);
     if (invalid) {
-      setUploadError(`Ảnh “${invalid.name}” không hợp lệ: chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.`);
+      setUploadError(`Ảnh “${invalid.name}” không hợp lệ: chỉ nhận JPEG, PNG hoặc WebP, tối đa 10 MB.`);
       return;
     }
     setUploadError(selected.length < files.length ? 'Mỗi tin tối đa 20 ảnh.' : null);
@@ -323,7 +326,11 @@ export const CreateListingPage: React.FC = () => {
       for (const file of selected) {
         const form = new FormData();
         form.append('file', file);
-        const result = await apiClient<{ url: string }>('/media/images', { method: 'POST', body: form });
+        const result = await apiClient<{ url: string; previewUrl?: string | null; previewExpiresAt?: string | null }>(
+          '/media/images',
+          { method: 'POST', body: form },
+        );
+        rememberSignedMediaUrl(result.url, result.previewUrl, result.previewExpiresAt);
         setFields((current) => ({ ...current, imageUrls: [...current.imageUrls, result.url] }));
       }
     } catch {
@@ -822,7 +829,7 @@ export const CreateListingPage: React.FC = () => {
                 {fields.imageUrls.map((url, index) => (
                   <li key={url} className="relative overflow-hidden rounded-lg border border-outline-variant">
                     <img
-                      src={url}
+                      src={displayMedia(url)}
                       alt={`Ảnh ${index + 1}`}
                       className="aspect-video w-full object-cover"
                       loading="lazy"
@@ -872,7 +879,7 @@ export const CreateListingPage: React.FC = () => {
                 <input
                   type="file"
                   multiple
-                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  accept="image/jpeg,image/png,image/webp"
                   className="sr-only"
                   disabled={uploading || fields.imageUrls.length >= 20}
                   onChange={(event) => {
@@ -888,9 +895,7 @@ export const CreateListingPage: React.FC = () => {
                 <span className="text-body-sm font-semibold">
                   {uploading ? 'Đang tải ảnh…' : 'Chọn ảnh từ thiết bị'}
                 </span>
-                <span className="text-label text-on-surface-variant">
-                  JPEG, PNG, WebP, AVIF · tối đa 10 MB/ảnh · 20 ảnh
-                </span>
+                <span className="text-label text-on-surface-variant">JPEG, PNG, WebP · tối đa 10 MB/ảnh · 20 ảnh</span>
               </label>
             </section>
           )}
@@ -908,7 +913,11 @@ export const CreateListingPage: React.FC = () => {
               ) : (
                 <article className="overflow-hidden rounded-xl border border-outline-variant bg-surface">
                   {preview.images[0] ? (
-                    <img src={preview.images[0].url} alt="Ảnh bìa" className="aspect-video w-full object-cover" />
+                    <img
+                      src={displayMedia(preview.images[0].url)}
+                      alt="Ảnh bìa"
+                      className="aspect-video w-full object-cover"
+                    />
                   ) : (
                     <div className="flex aspect-video items-center justify-center bg-surface-container text-on-surface-variant">
                       <ImageIcon className="h-8 w-8" aria-hidden="true" /> Chưa có ảnh
