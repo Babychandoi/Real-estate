@@ -170,3 +170,51 @@ fa6ada4 feat(format): shared money formatter per contract §4, with Vitest
 
 History files (`IMPLEMENTATION_PLANS_HISTORY.md`, `WALKTHROUGHS_HISTORY.md`) and `01_REQUIREMENTS.md` are left to the
 orchestrator as `03_AGENT_RULES.md` requires.
+
+## 9. Review 2 fixes
+
+All commits below are on `audit/s0-fe`, after `d423b9e`. Every finding got its own commit and, where the finding is
+about behaviour, its own test; the two exceptions are the format-only fixup (`005ea99`) and the E2E-fixture
+adjustment (`15f3d4c`) needed after the `NIT` broker smoke test met the actual seed data.
+
+| Finding | What changed | Commit | Test |
+| --- | --- | --- | --- |
+| **M1** | `Button` defaults to `type="button"`; every explicit submit button already had `type="submit"`. | `5c76bfa` | `app/shared/ui/controls.test.tsx` — a `Button` inside a `<form onSubmit>` does not submit it; `type="submit"` still does. |
+| **M2** | `LoginModal`, the listing report `Dialog`, `LeadConsultationModal`, the compare `ListingPicker`, and every admin hand-rolled modal (`_admin.projects`, `_admin.users`, `_admin.cms` ×2, `_admin.moderation`) and both mobile nav drawers (`root.tsx`, `AdminShell.tsx`) now join the one shared `useModal` stack (exposed publicly via `app/shared/ui/useModal.ts`) instead of each having its own ad hoc focus-trap/Escape effect; Escape/Tab-trap apply only to the top-most modal. | `2204246` | `app/shared/ui/modal-stack.test.tsx` — Sheet opened, then a login `Dialog` opened over it: the login dialog takes focus, one Escape closes only it (the Sheet stays), Tab stays trapped inside it; a Sheet opened after the dialog becomes the new top. |
+| **m1** | Every migrated backdrop closes on `click`, not `mousedown` (mousedown raced `useModal`'s focus-return-to-opener cleanup and left focus on `<body>`). | `2204246` | Covered by the same `modal-stack.test.tsx` suite (focus returns to the opener after Escape) and the pre-existing `overlays.test.tsx` Escape/focus-return case. |
+| **m2** | `sanitizeCatalogProperties` in `app/shared/analytics/catalog.ts` was rewritten to mirror the backend `EventCatalog`/`EventValidation` rules exactly (anchored regexes for page path, hash, district, UUIDs; `oneOf`/integer/finite-number predicates) and drops only the one invalid event (with a dev warning), never the whole batch. | `0619d20` | `app/shared/analytics/track.test.ts` → `'property validation matches the server (m2)'`. |
+| **m3** | `takeBatch()` now also caps by `MAX_BATCH_BYTES` (60 000 B, under the ~64 KB `sendBeacon`/`fetch(keepalive)` limit), splitting an over-size batch across flushes; always includes at least one event even if it alone exceeds the cap. | `0619d20` | `track.test.ts` → `'batching stays under the byte cap (m3)'`. |
+| **m4** | `captureLandingContext()` runs once at module load, imported for its side effect from `main.tsx` before the router/any route effect can rewrite the URL and drop the UTM query string; idempotent via a `sessionStorage` guard. | `0619d20` | `track.test.ts` → `'landing UTM is captured once, early (m4)'`. |
+| **m5** | `track()` (both the client method and the module-level helper) is wrapped in try/catch and never throws on null/undefined props or an unknown event name; warns via the injectable `warn` option instead. | `0619d20` | `track.test.ts` → `'track() never throws (m5)'`. |
+| **m6** | Widened the ESLint emoji guard to scan `JSXText`, `Literal` and `TemplateElement` across the relevant Unicode ranges (incl. bullet-style symbols like `●`); added two custom rules (`local/no-tiny-text`, `local/no-tiny-inline-font-size`) that compute rem/em/px below 12px, replacing the old regex-only, px-literal-only checks; fixed the last `●` in `_admin.moderation.tsx:455` (now a `CircleDot` icon). | `d51c94a`, `2204246` | `frontend/eslint-design-system-plugin.test.mjs` (6 cases); `npm run lint` is clean. |
+| **m7** | `initialJsFiles()` also counts a reachable chunk's own `assets` entries that are themselves `.js` (e.g. MapLibre's worker script), not just statically-imported chunks; default gzip level changed from the old (wrong) 9 to 1, matching nginx's compiled-in default since `frontend/nginx.conf` never sets `gzip_comp_level`. `bundle-budget.json` fully regenerated at the corrected metric. | `dbe1fb7` | `scripts/check-bundle-budget.test.mjs` — worker-asset counting, and 3 cases proving level 1 vs 9 vs 0 differ as expected; `npm run check:bundle` passes at the new numbers. |
+| **m8** | Unknown/future status values fall back to that *same kind's* "not submitted" copy (`UNKNOWN_STATUS_FALLBACK`), never another kind's text; `REJECTED` no longer prints `checkedAt`/`expiresAt` dates. | `cd55119` | `app/shared/ui/content.test.tsx` — unrecognised status per kind; no dates on `REJECTED`. |
+| **m9** | `currency()` wraps `Intl.NumberFormat` in try/catch, falling back to VND with a dev warning instead of throwing on an invalid ISO code; `formatVndCompact` rounds the absolute amount to the nearest đồng *before* picking triệu/tỷ/plain, fixing a bug where a fractional amount just under a threshold rendered in the wrong unit; `Money` (UI) treats `amount <= 0` as "no usable price," distinct from a missing price object, and renders a `zeroFallback` (**"Thỏa thuận" chosen and documented in the component's JSDoc**, overridable per call site) instead of "0 ₫"/"0 ₫/tháng". | `9c63f1a` | `app/shared/format/money.test.ts` (invalid-currency, boundary-rounding cases); `content.test.tsx` (zero/negative price fallback). |
+| **m10** | `ResponsiveImage` always reserves space: explicit `aspectRatio` prop, else the image's own intrinsic `width`/`height`, else a neutral `4 / 3` default — never zero height, so a missing/failed image (or the null-image tile) cannot collapse the layout or shift what is around it. | `1b2a354` | `content.test.tsx` — asserts the reserved `aspectRatio` in all three cases (no dims, intrinsic dims, null image). |
+| **m11** | A toast with an `action` is no longer auto-dismissed by default (WCAG 2.2.1); an explicit `duration` on an actionable toast is floored at 10 000 ms. Pause-on-hover/focus was already correct and is unchanged. | `e70664c` | New `app/shared/ui/toast.test.tsx` (3 cases: plain 6 s dismiss still works, actionable toast never auto-dismisses, explicit duration floored at 10 s). |
+| **m12** | Noted here: **S0-FE must merge after/with S0-BE.** It depends on S0-BE for OWNER self-registration (`accountType=OWNER`), the `WITHDRAWN` lead status, and the `/api/v1/events` ingestion endpoint `track()` posts to — none of those exist on `main` without S0-BE. | — (doc only) | n/a |
+| **m13** | `listingDocumentMeta` now formats price via `formatMoney(moneyFromLegacy(...))` instead of the purpose-agnostic `formatPriceVnd`, so RENT keeps `/tháng` in the meta description and OG description; JSON-LD `Offer` gets a `UnitPriceSpecification` (`unitCode: "MON"`, monthly `referenceQuantity`) for RENT only; `og:image` and JSON-LD `image` are resolved to absolute URLs against `origin`. | `9176548` | New `app/entities/listing/model/seo.test.ts` (5 cases: rent period kept, sale has no period, priceSpecification present only for rent, image made absolute, already-absolute image left alone). |
+| NIT — unbudgeted route fails the check | `unbudgetedRoutes()` fails `check:bundle` when a manifest route module has no `bundle-budget.json` entry, instead of passing silently. | `a9ea7a6` | `check-bundle-budget.test.mjs` — flags a missing route, passes once every route is budgeted. |
+| NIT — single frontend build | `npm run build` now always emits `--manifest`; `check:bundle` only runs the checker script, so CI builds the frontend exactly once. | `a9ea7a6` | Manual: `npm run build && npm run check:bundle` reuses the same `dist/`. |
+| NIT — WITHDRAWN is terminal | The lead status `<select>` (owner's `_account.leads.tsx`, staff's `_admin.leads-and-reports.tsx`) is fully disabled once `status === 'WITHDRAWN'`, not just missing "WITHDRAWN" from the option list — previously every *other* status was still selectable. | `a9ea7a6` | Manual verification (no existing lead-status test harness to extend cheaply in this pass). |
+| NIT — `Checkbox.tsx` comment | Fixed the comment claiming the whole 44px row is the click target; only the input and the label text are. | `a9ea7a6` | n/a (comment only). |
+| NIT — Dialog initial focus | `Dialog` defaults initial focus to its title heading (`tabIndex={-1}`) instead of the close button, which happened to be first in DOM order; explicit `initialFocusRef` callers are unaffected. | `530ecac` | `overlays.test.tsx` updated to assert the title has focus by default. |
+| NIT — `e2e-local.sh` SIGKILL fallback | Stopping `vite preview` now has the same bounded-wait-then-`kill -9` fallback the backend stop already had, instead of a plain `wait` that could hang forever. | `1804f8e` | Manual (shell script; `bash -n` syntax-checked, exercised by every local E2E run in this pass). |
+| NIT — broker `/listings/new` smoke | Strengthened to assert a real heading renders (the create wizard, or the eKYC gate the seeded `demo.broker` account actually hits), not just "no login prompt". | `f9bb5fa`, `15f3d4c` | `tests/e2e/authenticated.spec.ts`, run via `scripts/e2e-local.sh --suites authenticated`. |
+
+Not done in this pass (out of scope / lower priority, left for a future pass): the nested-modal-opened-in-the-same-
+commit stack-order edge case, and pushing secondary controls to a strict ≥44px touch target everywhere reasonably
+reachable (kit primitives already default to 44px controls; this would be a design-system-wide audit, not a
+targeted fix).
+
+### Full re-check after the fixes
+
+```
+npx vitest run                     15 files, 142 tests passed
+npx tsc --noEmit                   clean
+npm run lint                       clean (--max-warnings=0)
+npm run format:check                clean (prettier)
+npm run build && npm run check:bundle   28/28 routes + shell within budget (gzip level 1)
+scripts/e2e-local.sh --suites "navigation a11y auth-dialog authenticated"
+                                    46 tests passed (navigation ×10, a11y ×28, auth-dialog ×4, authenticated ×4)
+```
