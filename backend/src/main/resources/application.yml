@@ -101,6 +101,8 @@ springdoc:
   api-docs:
     enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
     path: /v3/api-docs
+  # S9 (F22.4): schemas are named by class first, then shortened uniquely by OpenApiSchemaNames
+  use-fqn: true
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method

@@ -15,7 +15,15 @@ const EMOJI_PATTERN =
 
 export default defineConfig(
   {
-    ignores: ['dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'node_modules/**'],
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+      'node_modules/**',
+      // S9 (F22.4): generated from the backend's OpenAPI snapshot (npm run gen:api); never hand-edited.
+      'app/shared/api/generated/**',
+    ],
   },
   {
     files: ['**/*.{js,mjs,cjs,ts,tsx}'],

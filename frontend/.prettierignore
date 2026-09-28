@@ -8,3 +8,5 @@ package-lock.json
 # Visual baselines are binary; nginx.conf is owned by S5-SEC and is not a Prettier language
 tests/e2e/**/*-snapshots/
 nginx.conf
+# S9 (F22.4): generated from the backend's OpenAPI snapshot (npm run gen:api); formatted by the generator itself
+app/shared/api/generated/

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -16,6 +17,12 @@ import java.util.List;
  */
 @Configuration
 public class OpenApiConfig {
+
+    /** F22.4: shortens the fully-qualified schema names ({@code springdoc.use-fqn=true}) back to unique simple names. */
+    @Bean
+    public OpenApiCustomizer schemaNames() {
+        return new OpenApiSchemaNames();
+    }
 
     @Bean
     public OpenAPI customOpenAPI() {
