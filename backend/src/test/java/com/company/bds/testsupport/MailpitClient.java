@@ -47,6 +47,13 @@ public final class MailpitClient {
         return get("/api/v1/message/" + id).path("Text").asText();
     }
 
+    /** Headers of the newest message sent to the address ({@code {"Name": ["value", …]}}). */
+    public JsonNode latestHeadersTo(String address) {
+        JsonNode messages = search("to:\"" + address + "\"").path("messages");
+        if (messages.isEmpty()) throw new AssertionError("No message delivered to " + address);
+        return get("/api/v1/message/" + messages.get(0).path("ID").asText() + "/headers");
+    }
+
     private JsonNode search(String query) {
         return get("/api/v1/search?limit=50&query=" + URLEncoder.encode(query, StandardCharsets.UTF_8));
     }
