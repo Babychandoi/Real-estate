@@ -74,5 +74,8 @@ test.describe('broker (demo.broker)', () => {
     await navigateInApp(page, '/listings/new');
     await expect(page).toHaveURL(/\/listings\/new$/);
     await expect(page.getByRole('heading', { name: 'Vui lòng đăng nhập' })).toHaveCount(0);
+    // The listing form itself renders (NIT), not just "no login prompt" — a broker who is verified sees the
+    // create-listing wizard, not (say) a silent blank page or an unrelated error state.
+    await expect(page.getByRole('heading', { name: /Soạn thảo & Đăng tin/ })).toBeVisible();
   });
 });
