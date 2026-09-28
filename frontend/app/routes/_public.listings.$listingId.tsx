@@ -56,7 +56,7 @@ import { TrustBadge, TrustPanel } from '@/shared/ui/TrustBadge';
 type LoadState =
   | { kind: 'loading' }
   | { kind: 'ready'; listing: ListingDetailV2 }
-  | { kind: 'gone'; slug: string; title: string }
+  | { kind: 'gone'; slug: string; title?: string }
   | { kind: 'missing' }
   | { kind: 'error' };
 
@@ -91,7 +91,7 @@ export const ListingDetailPage: React.FC = () => {
         const problem = error instanceof ApiProblemException ? error.problem : null;
         if (problem?.status === 410) {
           const gone = problem as unknown as GoneListingProblem;
-          setState({ kind: 'gone', slug: gone.slug, title: gone.title });
+          setState({ kind: 'gone', slug: gone.slug, title: gone.listingTitle });
         } else if (problem?.status === 404) setState({ kind: 'missing' });
         else setState({ kind: 'error' });
       });
@@ -177,7 +177,7 @@ export const ListingDetailPage: React.FC = () => {
         </h1>
         {state.kind === 'gone' ? (
           <p className="text-body-sm text-on-surface-variant">
-            “{state.title}” đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được. Bạn có thể tìm các tin tương tự đang
+            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được. Bạn có thể tìm các tin tương tự đang
             hiển thị.
           </p>
         ) : (

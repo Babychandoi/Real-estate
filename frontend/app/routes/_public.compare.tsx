@@ -8,6 +8,7 @@ import {
   formatArea,
   formatDate,
   propertyTypeLabel,
+  type GoneListingProblem,
   type ListingDetailV2,
   type ListingSummaryV2,
 } from '@/entities/listing/model/v2';
@@ -333,7 +334,9 @@ export const PropertyComparePage: React.FC = () => {
         else {
           const problem = result.reason instanceof ApiProblemException ? result.reason.problem : null;
           if (problem?.status === 410 || problem?.status === 404) {
-            next[id] = { id, kind: 'gone', title: (problem as unknown as { title?: string }).title };
+            // the listing's last public title (410 only, and only when the backend allows it), never the problem title
+            const title = problem.status === 410 ? (problem as unknown as GoneListingProblem).listingTitle : undefined;
+            next[id] = { id, kind: 'gone', title };
           } else next[id] = { id, kind: 'error' };
         }
       });

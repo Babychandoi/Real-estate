@@ -1,17 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Columns2, LayoutList, Map as MapIcon, SearchX, SlidersHorizontal } from 'lucide-react';
+import { Columns2, LayoutList, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
 import { listingV2Api } from '@/entities/listing/api/listingV2Api';
 import type { ListingSummaryV2, MapPoint } from '@/entities/listing/model/v2';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
 import {
   activeFilterCount,
-  DEFAULT_FILTERS,
   effectiveSort,
   parseSearchParams,
   serializeFilters,
   SORT_LABELS,
-  validateFilters,
   withoutParams,
   withPurpose,
   type SearchFilters,
@@ -23,31 +21,21 @@ import { PriceTypeChips } from '@/features/search/ui/PriceTypeChips';
 import { SearchBox } from '@/features/search/ui/SearchBox';
 import { Button } from '@/shared/ui/Button';
 import { Chip, ChipGroup } from '@/shared/ui/Chip';
-import { EmptyState } from '@/shared/ui/EmptyState';
-import { ErrorState } from '@/shared/ui/ErrorState';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { LoadMore } from '@/shared/ui/Pagination';
 import { Select } from '@/shared/ui/Select';
-import { Sheet } from '@/shared/ui/Sheet';
 import { Skeleton } from '@/shared/ui/Skeleton';
 import { cn } from '@/shared/ui/cn';
 import { useDocumentMeta } from '@/shared/seo/useDocumentMeta';
 
 /** MapLibre (≈ 470 kB) is fetched only when the map is shown (F15.1): list mode never downloads it. */
 const SearchMap = lazy(() => import('@/features/search/ui/SearchMap'));
-/** The full filter form is only needed once the sheet opens. */
-const FilterFields = lazy(() => import('@/features/search/ui/FilterFields').then((m) => ({ default: m.FilterFields })));
-
-const SUGGESTION_LABELS: Record<string, string> = {
-  REMOVE_KEYWORD: 'Bỏ từ khóa',
-  REMOVE_PRICE: 'Bỏ khoảng giá',
-  REMOVE_AREA: 'Bỏ khoảng diện tích',
-  REMOVE_BEDROOMS: 'Bỏ số phòng ngủ',
-  REMOVE_VERIFIED: 'Bỏ điều kiện xác minh',
-  REMOVE_ATTRIBUTES: 'Bỏ pháp lý và nội thất',
-  WIDEN_AREA: 'Tìm ở mọi khu vực',
-  REMOVE_TYPE: 'Mọi loại hình',
-};
+/** Filter sheet, zero-result state, error state and map point sheet: loaded on first use (F15.2). */
+const loadPanels = () => import('@/features/search/ui/SearchPanels');
+const FilterSheet = lazy(() => loadPanels().then((m) => ({ default: m.FilterSheet })));
+const NoResults = lazy(() => loadPanels().then((m) => ({ default: m.NoResults })));
+const SearchError = lazy(() => loadPanels().then((m) => ({ default: m.SearchError })));
+const MapPointSheet = lazy(() => loadPanels().then((m) => ({ default: m.MapPointSheet })));
 
 const NOTICE_TEXT: Record<string, string> = {
   SEARCH_ENGINE_UNAVAILABLE:
@@ -75,7 +63,6 @@ export function SearchAndMapPage() {
   const { filters, errors: urlErrors } = useMemo(() => parseSearchParams(searchParams), [searchParams]);
   const { state, loadMore, retry, saveScroll } = useListingSearch(filters, location.key);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draft, setDraft] = useState<SearchFilters>(filters);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
   const [pointListing, setPointListing] = useState<ListingSummaryV2 | null>(null);
@@ -107,11 +94,7 @@ export function SearchAndMapPage() {
   }, []);
   useLayoutEffect(() => () => saveScroll(window.scrollY), [saveScroll]);
 
-  const openFilters = () => {
-    setDraft(filters);
-    setFiltersOpen(true);
-  };
-  const draftErrors = validateFilters(draft);
+  const openFilters = () => setFiltersOpen(true);
   const view = filters.view;
   const showMap = view !== 'list';
   const sort = effectiveSort(filters);
@@ -159,17 +142,9 @@ export function SearchAndMapPage() {
           <InlineFeedback key={notice} kind="warning" title={NOTICE_TEXT[notice]} />
         ))}
       {state.status === 'error' && state.error ? (
-        state.error.errors.length ? (
-          <InlineFeedback kind="error" title={state.error.message}>
-            <ul className="list-disc pl-5">
-              {state.error.errors.map((error) => (
-                <li key={`${error.param}-${error.message}`}>{error.message}</li>
-              ))}
-            </ul>
-          </InlineFeedback>
-        ) : (
-          <ErrorState description={state.error.message} onRetry={retry} headingLevel={3} />
-        )
+        <Suspense fallback={null}>
+          <SearchError error={state.error} onRetry={retry} />
+        </Suspense>
       ) : state.status === 'loading' && state.items.length === 0 ? (
         <div
           className={cn('grid gap-4', view === 'split' ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3')}
@@ -181,34 +156,9 @@ export function SearchAndMapPage() {
           ))}
         </div>
       ) : state.items.length === 0 ? (
-        <EmptyState
-          icon={SearchX}
-          title="Chưa có tin phù hợp"
-          description={
-            state.suggestions.length
-              ? 'Thử nới một điều kiện dưới đây (số tin là số đang có với điều kiện đã nới):'
-              : 'Thử bỏ bớt bộ lọc hoặc tìm ở khu vực khác.'
-          }
-          actions={
-            state.suggestions.length ? (
-              state.suggestions.map((suggestion) => (
-                <Button
-                  key={suggestion.type}
-                  variant="outline"
-                  onClick={() => apply(withoutParams(filters, suggestion.drop))}
-                >
-                  {SUGGESTION_LABELS[suggestion.type] ?? 'Nới điều kiện'} (
-                  {suggestion.total.relation === 'gte' ? 'hơn ' : ''}
-                  {suggestion.total.value.toLocaleString('vi-VN')} tin)
-                </Button>
-              ))
-            ) : (
-              <Button variant="outline" onClick={() => apply({ ...DEFAULT_FILTERS, purpose: filters.purpose })}>
-                Xóa bộ lọc
-              </Button>
-            )
-          }
-        />
+        <Suspense fallback={null}>
+          <NoResults filters={filters} suggestions={state.suggestions} onApply={(next) => apply(next)} />
+        </Suspense>
       ) : (
         <>
           <ul
@@ -311,6 +261,8 @@ export function SearchAndMapPage() {
           <Button
             variant="outline"
             onClick={openFilters}
+            onPointerEnter={() => void loadPanels()}
+            onFocus={() => void loadPanels()}
             leftIcon={<SlidersHorizontal className="h-4 w-4" />}
             aria-haspopup="dialog"
           >
@@ -379,64 +331,22 @@ export function SearchAndMapPage() {
         results
       )}
 
-      <Sheet
-        open={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        title="Bộ lọc"
-        description={filters.purpose === 'RENT' ? 'Giá thuê tính theo tháng.' : 'Giá bán tính theo tổng giá.'}
-        footer={
-          <div className="flex w-full gap-3">
-            <Button
-              variant="ghost"
-              onClick={() =>
-                setDraft({
-                  ...DEFAULT_FILTERS,
-                  purpose: draft.purpose,
-                  q: draft.q,
-                  bbox: draft.bbox,
-                  place: draft.place,
-                  view: draft.view,
-                })
-              }
-            >
-              Xóa lọc
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={draftErrors.length > 0}
-              onClick={() => {
-                setFiltersOpen(false);
-                apply(draft);
-              }}
-            >
-              Xem kết quả
-            </Button>
-          </div>
-        }
-      >
-        <Suspense fallback={<Skeleton className="h-96 rounded-card" />}>
-          <FilterFields key={draft.purpose} draft={draft} onChange={setDraft} />
+      {filtersOpen && (
+        <Suspense fallback={null}>
+          <FilterSheet filters={filters} onClose={() => setFiltersOpen(false)} onApply={(next) => apply(next)} />
         </Suspense>
-      </Sheet>
+      )}
 
-      <Sheet
-        open={Boolean(selectedPoint) && view === 'map'}
-        onClose={() => setSelectedPoint(null)}
-        title="Tin trên bản đồ"
-      >
-        {pointListing ? (
-          <ListingCard listing={pointListing} headingLevel="h2" />
-        ) : (
-          <Skeleton className="h-72 rounded-card" />
-        )}
-        <Button
-          variant="ghost"
-          className="mt-3 w-full"
-          onClick={() => selectedPoint && navigate(`/listings/${selectedPoint.slug}`)}
-        >
-          Mở trang chi tiết
-        </Button>
-      </Sheet>
+      {selectedPoint && view === 'map' && (
+        <Suspense fallback={null}>
+          <MapPointSheet
+            point={selectedPoint}
+            listing={pointListing}
+            onClose={() => setSelectedPoint(null)}
+            onOpen={(point) => navigate(`/listings/${point.slug}`)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

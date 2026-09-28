@@ -130,11 +130,12 @@ export interface SellerProfileV2 {
   responseStats: { sampleSize: number; medianFirstResponseMinutes: number } | null;
 }
 
-/** Body of `410 LISTING_GONE`: only what the "tin không còn hiển thị" page needs. */
+/** Body of `410 LISTING_GONE`: only what the "tin không còn hiển thị" page needs. `title` is the generic problem
+ * title; `listingTitle` (the last public title) is absent for moderation-locked listings and banned sellers. */
 export interface GoneListingProblem {
   code: 'LISTING_GONE';
   slug: string;
-  title: string;
+  listingTitle?: string;
 }
 
 const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
