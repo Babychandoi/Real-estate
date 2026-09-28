@@ -76,7 +76,7 @@ jobs:
         run: |
           docker build -t bds-minio:RELEASE.2025-10-15T17-29-55Z infra/minio
           docker compose -f infra/test/compose.yaml up -d minio
-          curl --fail --silent --show-error --retry 30 --retry-connrefused --retry-delay 2 http://127.0.0.1:59000/minio/health/ready
+          curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 http://127.0.0.1:59000/minio/health/ready
       - name: Backend tests
         working-directory: backend
         run: sh mvnw --batch-mode verify

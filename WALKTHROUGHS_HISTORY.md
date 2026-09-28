@@ -741,3 +741,5 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 ## 2026-09-29 — CI gate diagnosis after main merge
 - The main CI run `36475584795` failed in backend tests because the OpenAPI and media integration contexts could not connect to test MinIO (`127.0.0.1:59000`); frontend checks and security scan passed. E2E stopped before build because `MEDIA_SIGNING_SECRET` was absent from `.env.demo.example`.
 - This patch starts disposable MinIO for backend tests and supplies a demo-only signing key to the E2E stack. CI on the resulting PR remains the acceptance evidence; no backend test pass or E2E pass is claimed until it runs.
+
+- First PR CI run `36476964181` built the test MinIO image, but the immediate readiness request was reset during container startup (`curl` exit 56). Added `--retry-all-errors` so the health probe tolerates this startup race; backend tests remain pending the next run.
