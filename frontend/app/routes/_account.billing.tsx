@@ -75,9 +75,9 @@ export function BillingPage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-8" data-ready={plans ? 'true' : undefined}>
-      <header>
-        <h1 className="text-3xl font-bold">Gói đăng tin</h1>
+    <section className="mx-auto max-w-6xl space-y-8 px-4 py-10 md:px-8" data-ready={plans ? 'true' : undefined}>
+      <header className="border-b border-slate-200 pb-8">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">Gói đăng tin</h1>
         <InlineFeedback kind="info" title="Đây là phí dịch vụ đăng tin trên Nhà Đất Chuẩn" className="mt-3">
           Khoản thanh toán này chỉ mua lượt đăng tin. Không phải tiền đặt cọc hay thanh toán bất động sản — không chuyển
           tiền cọc qua trang này.
@@ -236,7 +236,7 @@ export function BillingPage() {
           </p>
         </Sheet>
       )}
-    </div>
+    </section>
   );
 }
 

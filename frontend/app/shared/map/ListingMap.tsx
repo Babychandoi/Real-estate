@@ -3,17 +3,27 @@ import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MlMap } from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { formatPriceVnd, type Listing } from '@/entities/listing/model/types';
+import { formatListingPrice, type Listing } from '@/entities/listing/model/types';
 import { listingPath } from '@/entities/listing/model/seo';
 import type { GeocodePlace } from '@/shared/api/geocodingApi';
 
-export type MapBounds = { minLat: number; maxLat: number; minLng: number; maxLng: number };
+export type MapBounds = {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+};
 /** A place to fly to; `key` changes on every new request so re-selecting the same place still moves the map. */
-export type MapFocus = GeocodePlace & { key: number };
+export type MapFocus = GeocodePlace & { key: string | number };
 
 const toBounds = (instance: MlMap): MapBounds => {
   const b = instance.getBounds();
-  return { minLat: b.getSouth(), maxLat: b.getNorth(), minLng: b.getWest(), maxLng: b.getEast() };
+  return {
+    minLat: b.getSouth(),
+    maxLat: b.getNorth(),
+    minLng: b.getWest(),
+    maxLng: b.getEast(),
+  };
 };
 
 const ZOOM_BY_TYPE: Record<string, number> = {
@@ -33,7 +43,10 @@ function applyFocus(
   onArrive: (bounds: MapBounds) => void,
 ) {
   marker.current?.remove();
-  const popup = new maplibregl.Popup({ offset: 28, closeButton: false }).setText(focus.label);
+  const popup = new maplibregl.Popup({
+    offset: 28,
+    closeButton: false,
+  }).setText(focus.label);
   marker.current = new maplibregl.Marker({ color: '#dc2626' })
     .setLngLat([focus.lon, focus.lat])
     .setPopup(popup)
@@ -53,9 +66,16 @@ function applyFocus(
       ],
       { padding: 60, maxZoom: 16, duration: 900 },
     );
-  else instance.flyTo({ center: [focus.lon, focus.lat], zoom: ZOOM_BY_TYPE[focus.type] ?? 14, duration: 900 });
+  else
+    instance.flyTo({
+      center: [focus.lon, focus.lat],
+      zoom: ZOOM_BY_TYPE[focus.type] ?? 14,
+      duration: 900,
+    });
 }
-type MapMouseEvent = maplibregl.MapMouseEvent & { features?: GeoJSON.Feature[] };
+type MapMouseEvent = maplibregl.MapMouseEvent & {
+  features?: GeoJSON.Feature[];
+};
 
 maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
@@ -66,7 +86,10 @@ const listingCollection = (items: Listing[]): GeoJSON.FeatureCollection => ({
     .map((item) => ({
       type: 'Feature' as const,
       properties: { id: item.id },
-      geometry: { type: 'Point' as const, coordinates: [item.publicLongitude!, item.publicLatitude!] },
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [item.publicLongitude!, item.publicLatitude!],
+      },
     })),
 });
 
@@ -82,7 +105,7 @@ function listingPopupContent(listing: Listing): HTMLDivElement {
   const body = document.createElement('div');
   body.style.cssText = 'padding:12px';
   const price = document.createElement('p');
-  price.textContent = formatPriceVnd(listing.priceVnd);
+  price.textContent = formatListingPrice(listing.priceVnd, listing.purpose);
   price.style.cssText = 'margin:0 0 4px;font-size:18px;font-weight:800;line-height:1.25;color:#004b7a';
   const title = document.createElement('a');
   title.href = listingPath(listing);
@@ -115,6 +138,8 @@ export function ListingMap({
   onSearchArea: (bounds: MapBounds) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
+  const onSearchAreaRef = useRef(onSearchArea);
+  onSearchAreaRef.current = onSearchArea;
   const map = useRef<MlMap>();
   const loaded = useRef(false);
   const marker = useRef<maplibregl.Marker>();
@@ -122,23 +147,35 @@ export function ListingMap({
   listingsRef.current = listings;
   const focusRef = useRef(focus);
   focusRef.current = focus;
-  const onSearchAreaRef = useRef(onSearchArea);
-  onSearchAreaRef.current = onSearchArea;
   const [bounds, setBounds] = useState<MapBounds>();
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!host.current || map.current) return;
     const initial = focusRef.current;
-    const instance = new maplibregl.Map({
-      container: host.current,
-      center: initial ? [initial.lon, initial.lat] : [105.82, 21.03],
-      zoom: 10,
-      style: 'https://tiles.openfreemap.org/styles/positron',
+    setFailed(false);
+    let instance: MlMap;
+    try {
+      instance = new maplibregl.Map({
+        container: host.current,
+        center: initial ? [initial.lon, initial.lat] : [105.82, 21.03],
+        zoom: 10,
+        style: 'https://tiles.openfreemap.org/styles/positron',
+      });
+    } catch {
+      setFailed(true);
+      return;
+    }
+    instance.on('error', () => {
+      if (!loaded.current) setFailed(true);
     });
     map.current = instance;
     instance.addControl(new maplibregl.NavigationControl(), 'top-right');
     instance.on('load', () => {
       loaded.current = true;
+      setFailed(false);
+      setBounds(toBounds(instance));
       instance.addSource('listings', {
         type: 'geojson',
         data: listingCollection(listingsRef.current),
@@ -163,7 +200,10 @@ export function ListingMap({
         type: 'symbol',
         source: 'listings',
         filter: ['has', 'point_count'],
-        layout: { 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 12 },
+        layout: {
+          'text-field': ['get', 'point_count_abbreviated'],
+          'text-size': 12,
+        },
         paint: { 'text-color': '#fff' },
       });
       instance.addLayer({
@@ -179,11 +219,16 @@ export function ListingMap({
         },
       });
       instance.on('click', 'clusters', async (event: MapMouseEvent) => {
-        const feature = instance.queryRenderedFeatures(event.point, { layers: ['clusters'] })[0];
+        const feature = instance.queryRenderedFeatures(event.point, {
+          layers: ['clusters'],
+        })[0];
         const zoom = await (instance.getSource('listings') as GeoJSONSource).getClusterExpansionZoom(
           Number(feature.properties?.cluster_id),
         );
-        instance.easeTo({ center: (feature.geometry as GeoJSON.Point).coordinates as [number, number], zoom });
+        instance.easeTo({
+          center: (feature.geometry as GeoJSON.Point).coordinates as [number, number],
+          zoom,
+        });
       });
       instance.on('click', 'points', (event: MapMouseEvent) => {
         const feature = event.features?.[0];
@@ -202,7 +247,7 @@ export function ListingMap({
       map.current = undefined;
       loaded.current = false;
     };
-  }, []);
+  }, [attempt]);
 
   useEffect(() => {
     if (!focus || !map.current || !loaded.current) return;
@@ -226,6 +271,17 @@ export function ListingMap({
       >
         Tìm trong khu vực này
       </button>
+      {failed && (
+        <div
+          className="absolute inset-0 z-40 grid content-center justify-items-center gap-3 bg-surface p-6 text-center"
+          role="status"
+        >
+          <p>Không tải được bản đồ. Bạn vẫn có thể xem danh sách tin.</p>
+          <button className="ndc-primary-link" type="button" onClick={() => setAttempt((value) => value + 1)}>
+            Thử tải bản đồ lại
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -167,7 +167,14 @@ export function KycPage() {
     } catch (reason: unknown) {
       const problem =
         reason && typeof reason === 'object' && 'problem' in reason
-          ? (reason as { problem?: { detail?: string; errors?: Array<{ message: string }> } }).problem
+          ? (
+              reason as {
+                problem?: {
+                  detail?: string;
+                  errors?: Array<{ message: string }>;
+                };
+              }
+            ).problem
           : undefined;
       const validationMessage = problem?.errors
         ?.map((item) => item.message)
@@ -205,13 +212,13 @@ export function KycPage() {
 
   if (loading)
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10" role="status">
+      <section className="mx-auto max-w-5xl px-4 py-10" role="status">
         Đang kiểm tra hồ sơ eKYC…
-      </div>
+      </section>
     );
   if (profile && profile.status !== 'REJECTED' && !(myStatus?.status === 'EXPIRED'))
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <section className="mx-auto max-w-3xl px-4 py-10">
         <section className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
           <ShieldCheck className="h-10 w-10 text-emerald-700" />
           <h1 className="mt-4 text-3xl font-extrabold text-on-surface">{STATUS_TEXT[profile.status]}</h1>
@@ -299,11 +306,11 @@ export function KycPage() {
             </p>
           )}
         </section>
-      </div>
+      </section>
     );
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 md:px-8">
+    <section className="mx-auto max-w-5xl px-4 py-8 md:px-8">
       <header>
         <div className="flex items-center gap-3">
           <ShieldCheck className="h-8 w-8 text-emerald-700" />
@@ -435,7 +442,7 @@ export function KycPage() {
           {submitting ? 'Đang gửi hồ sơ…' : 'Gửi hồ sơ để duyệt'}
         </button>
       </form>
-    </div>
+    </section>
   );
 }
 

@@ -69,82 +69,10 @@ interface ArticleItem {
   revisionsCount: number;
 }
 
-/* Historical visual fixture retained as design reference only; never loaded at runtime.
-const INITIAL_ARTICLES: ArticleItem[] = [
-  {
-    id: 'art-001',
-    slug: 'chinh-sach-bao-ve-du-lieu-bds-2026',
-    category: 'LEGAL_POLICY',
-    categoryLabel: 'Chính sách & Pháp lý (FR32)',
-    status: 'SUBMITTED',
-    revisionsCount: 2,
-    currentRevision: {
-      id: 'rev-2026-088',
-      articleId: 'art-001',
-      revisionNumber: 2,
-      title: 'Quy chuẩn bảo vệ dữ liệu cá nhân & Chống lừa đảo cọc BĐS 2026',
-      summary: 'Hướng dẫn chi tiết bộ quy tắc bảo vệ dữ liệu và xác minh cọc theo Luật BV Dữ liệu 91/2025/QH15 và Luật Kinh doanh BĐS 2024.',
-      contentHtml: '<p>Cơ chế ký số OTP hai bên cùng phong tỏa tiền cọc trong Escrow Vault loại trừ 100% rủi ro mất cọc...</p>',
-      coverImageUrl: '',
-      authorName: 'Lê Mai Hương (BTV Pháp chế)',
-      legalReference: 'Luật BV Dữ liệu 91/2025/QH15 & Luật KDBĐS 2024',
-      metaDescription: 'Hướng dẫn chi tiết bộ quy tắc bảo vệ dữ liệu và xác minh cọc an toàn',
-      canonicalUrl: '/chinh-sach-bao-ve-du-lieu-bds-2026',
-      status: 'SUBMITTED',
-      createdAt: '14:20 - Hôm nay',
-    },
-  },
-  {
-    id: 'art-002',
-    slug: 'cam-nang-kiem-tra-so-hong-va-quy-hoach-1-500',
-    category: 'KNOWLEDGE',
-    categoryLabel: 'Chuyên mục kiến thức',
-    status: 'PUBLISHED',
-    revisionsCount: 1,
-    currentRevision: {
-      id: 'rev-2026-042',
-      articleId: 'art-002',
-      revisionNumber: 1,
-      title: 'Cẩm nang 5 bước đối soát Sổ đỏ và Quyết định Quy hoạch 1/500 chính thống',
-      summary: 'Quy trình kiểm tra tính pháp lý của dự án và thửa đất thông qua Cổng Dịch vụ công và Giấy phép xây dựng Sở Xây Dựng.',
-      contentHtml: '<p>Tránh bẫy mua đất quy hoạch treo bằng cách kiểm tra bản đồ địa chính số hóa...</p>',
-      coverImageUrl: '',
-      authorName: 'Trần Đình Trọng (Chuyên gia Quy hoạch)',
-      legalReference: 'Luật Đất Đai 2024 số 31/2024/QH15',
-      metaDescription: '5 bước đối soát sổ đỏ và bản đồ quy hoạch 1/500 an toàn tuyệt đối',
-      canonicalUrl: '/cam-nang-kiem-tra-so-hong-va-quy-hoach-1-500',
-      status: 'PUBLISHED',
-      createdAt: '08/09/2026',
-      reviewedAt: '09/09/2026',
-      reviewedBy: 'Admin Tổng biên tập',
-    },
-  },
-  {
-    id: 'art-003',
-    slug: 'bao-cao-bien-dong-gia-chung-cu-tay-ha-noi-q3-2026',
-    category: 'MARKET_INSIGHTS',
-    categoryLabel: 'Cẩm nang thị trường',
-    status: 'DRAFT',
-    revisionsCount: 1,
-    currentRevision: {
-      id: 'rev-2026-095',
-      articleId: 'art-003',
-      revisionNumber: 1,
-      title: 'Báo cáo chỉ số giá và nguồn cung căn hộ khu Tây Hà Nội Quý 3/2026',
-      summary: 'Phân tích dữ liệu thực tế từ 12.000 tin đăng đối soát: Mức giá trung bình Nam Từ Liêm đạt 65.5 triệu/m2.',
-      contentHtml: '<p>Lượng tìm kiếm căn hộ 2 phòng ngủ chiếm 54% nhu cầu toàn thị trường...</p>',
-      coverImageUrl: '',
-      authorName: 'Nguyễn Văn Bình (Phân tích thị trường)',
-      legalReference: 'Dữ liệu Index BDS WF 2026',
-      metaDescription: 'Báo cáo chỉ số giá căn hộ Tây Hà Nội Q3/2026 minh bạch',
-      canonicalUrl: '/bao-cao-bien-dong-gia-chung-cu-tay-ha-noi-q3-2026',
-      status: 'DRAFT',
-      createdAt: 'Hôm qua, 17:30',
-    },
-  },
-]; */
-
 export const CmsManagementPage: React.FC = () => {
+  const [loadError, setLoadError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
   const [articles, setArticles] = useState<ArticleItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedTab, setSelectedTab] = useState<string>('SUBMITTED');
@@ -179,13 +107,16 @@ export const CmsManagementPage: React.FC = () => {
 
   // Load from backend if available
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError('');
     apiFetch('/cms/articles')
       .then((res) => {
         if (res.ok) return res.json();
-        return null;
+        throw new Error('Không thể tải nội dung CMS.');
       })
       .then((data) => {
-        if (data && Array.isArray(data) && data.length > 0) {
+        if (active && data && Array.isArray(data)) {
           const mapped: ArticleItem[] = data.map((d: ArticleResponse) => ({
             id: d.id,
             slug: d.slug,
@@ -237,8 +168,16 @@ export const CmsManagementPage: React.FC = () => {
           setArticles(mapped);
         }
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        if (active) setLoadError('Không thể tải nội dung CMS. Vui lòng thử lại.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [attempt]);
 
   const handleCreateArticle = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -417,13 +356,22 @@ export const CmsManagementPage: React.FC = () => {
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-primary text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in border border-primary-container">
           <ShieldCheck className="w-5 h-5 text-emerald-400" />
           <div className="text-sm">
-            <span className="font-semibold block text-emerald-300">CMS KIỂM DUYỆT ĐỘC LẬP (FR24 / FR32)</span>
+            <span className="font-semibold block text-white">Thông báo nội dung</span>
             <span>{toastMessage}</span>
           </div>
         </div>
       )}
 
       <div className="max-w-6xl mx-auto px-4 md:px-8 space-y-6">
+        {loading && <p role="status">Đang tải nội dung…</p>}
+        {loadError && (
+          <p role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-900">
+            {loadError}{' '}
+            <button type="button" className="underline" onClick={() => setAttempt((value) => value + 1)}>
+              Thử lại
+            </button>
+          </p>
+        )}
         {/* Header & Quick Action Bar */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/30 pb-4">
           <div>
@@ -431,12 +379,11 @@ export const CmsManagementPage: React.FC = () => {
               <span className="w-2 h-6 rounded-full bg-primary inline-block"></span>
               <h1 className="text-2xl font-bold text-primary">Biên tập & Xuất bản CMS</h1>
               <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase">
-                Waterfall 0.9.1 • FR24 & FR32
+                Quản lý bài viết
               </span>
             </div>
             <p className="text-sm text-on-surface-variant mt-1">
-              Quản lý ContentRevision (ED04/ERD04) theo quy chuẩn kiểm duyệt nội dung độc lập của Biên tập viên và Ban
-              biên tập.
+              Soạn bài, theo dõi phiên bản và duyệt nội dung trước khi xuất bản.
             </p>
           </div>
 
@@ -458,11 +405,9 @@ export const CmsManagementPage: React.FC = () => {
           </div>
           <div className="space-y-1 text-xs">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-primary text-sm">
-                Quy tắc Tuân thủ Kiểm duyệt Nội dung Độc lập (FR24 & FR32)
-              </span>
+              <span className="font-bold text-primary text-sm">Quy trình duyệt bài viết</span>
               <span className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-primary font-mono font-semibold text-xs">
-                Strict Mode Active
+                Kiểm duyệt độc lập
               </span>
             </div>
             <p className="text-on-surface-variant leading-relaxed">
@@ -477,9 +422,13 @@ export const CmsManagementPage: React.FC = () => {
         <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
           {[
             { key: 'ALL', label: 'Tất cả chuyên mục', icon: FileText },
-            { key: 'LEGAL_POLICY', label: 'Chính sách & Pháp lý (FR32)', icon: Gavel },
+            { key: 'LEGAL_POLICY', label: 'Chính sách & Pháp lý', icon: Gavel },
             { key: 'KNOWLEDGE', label: 'Chuyên mục kiến thức', icon: School },
-            { key: 'MARKET_INSIGHTS', label: 'Cẩm nang thị trường', icon: TrendingUp },
+            {
+              key: 'MARKET_INSIGHTS',
+              label: 'Cẩm nang thị trường',
+              icon: TrendingUp,
+            },
           ].map((cat) => {
             const Icon = cat.icon;
             const isSelected = selectedCategory === cat.key;
@@ -516,7 +465,7 @@ export const CmsManagementPage: React.FC = () => {
                 count: articles.filter(
                   (a) => a.currentRevision.status === 'DRAFT' || a.currentRevision.status === 'REJECTED',
                 ).length,
-                color: 'text-outline',
+                color: 'text-on-surface-variant',
               },
               {
                 key: 'PUBLISHED',
@@ -617,11 +566,11 @@ export const CmsManagementPage: React.FC = () => {
                       <span
                         className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm ${
                           isPending
-                            ? 'bg-amber-600 text-white animate-pulse'
+                            ? 'bg-amber-700 text-white animate-pulse'
                             : isRejected
                               ? 'bg-rose-600 text-white'
                               : art.status === 'PUBLISHED'
-                                ? 'bg-emerald-600 text-white'
+                                ? 'bg-emerald-700 text-white'
                                 : 'bg-slate-700 text-white'
                         }`}
                       >
@@ -895,7 +844,12 @@ export const CmsManagementPage: React.FC = () => {
                     type="text"
                     placeholder="VD: Luật KDBĐS 2024 số 29/2023/QH15"
                     value={formData.legalReference}
-                    onChange={(e) => setFormData({ ...formData, legalReference: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        legalReference: e.target.value,
+                      })
+                    }
                     className="w-full h-10 px-3 rounded-lg border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>

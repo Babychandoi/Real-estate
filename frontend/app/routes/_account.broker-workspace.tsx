@@ -6,8 +6,17 @@ import { apiClient } from '@/shared/api/client';
 type Data = {
   listingStats: { listings: number; active: number; pending: number };
   leadStats: { leads: number; new_leads: number; avg_wait_minutes: number };
-  sla: { firstResponseMinutes: number; reminderEnabled: boolean; dailyDigestEnabled: boolean };
-  listings: Array<{ id: string; status: string; created_at: string; updated_at: string }>;
+  sla: {
+    firstResponseMinutes: number;
+    reminderEnabled: boolean;
+    dailyDigestEnabled: boolean;
+  };
+  listings: Array<{
+    id: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+  }>;
 };
 
 export function BrokerWorkspacePage() {
@@ -37,7 +46,12 @@ export function BrokerWorkspacePage() {
     setMessage('');
     setError('');
     try {
-      setData(await apiClient<Data>('/broker/workspace/sla', { method: 'PUT', body: JSON.stringify(data.sla) }));
+      setData(
+        await apiClient<Data>('/broker/workspace/sla', {
+          method: 'PUT',
+          body: JSON.stringify(data.sla),
+        }),
+      );
       setMessage('Đã lưu mục tiêu phản hồi và lịch nhắc.');
     } catch {
       setError('Không thể lưu cấu hình phản hồi. Vui lòng thử lại.');
@@ -46,13 +60,13 @@ export function BrokerWorkspacePage() {
 
   if (loading)
     return (
-      <div className="p-10" role="status">
+      <section className="p-10" role="status">
         Đang tải dữ liệu không gian môi giới…
-      </div>
+      </section>
     );
   if (error || !data)
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+      <section className="mx-auto max-w-lg px-4 py-16 text-center">
         <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-800">
           {error || 'Không có dữ liệu để hiển thị.'}
         </p>
@@ -63,7 +77,7 @@ export function BrokerWorkspacePage() {
         >
           Tải lại
         </button>
-      </div>
+      </section>
     );
 
   const cards = [
@@ -73,7 +87,7 @@ export function BrokerWorkspacePage() {
     ['Lead mới', data.leadStats.new_leads],
   ];
   return (
-    <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+    <section className="max-w-6xl mx-auto px-4 py-10 space-y-8">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <p className="text-emerald-700 text-sm font-bold">KHÔNG GIAN MÔI GIỚI</p>
@@ -133,7 +147,13 @@ export function BrokerWorkspacePage() {
               max={1440}
               value={data.sla.firstResponseMinutes}
               onChange={(event) =>
-                setData({ ...data, sla: { ...data.sla, firstResponseMinutes: +event.target.value } })
+                setData({
+                  ...data,
+                  sla: {
+                    ...data.sla,
+                    firstResponseMinutes: +event.target.value,
+                  },
+                })
               }
               className="mt-1 w-full p-3 rounded-lg bg-slate-800 border border-slate-700"
             />
@@ -143,7 +163,12 @@ export function BrokerWorkspacePage() {
               <input
                 type="checkbox"
                 checked={data.sla[key]}
-                onChange={(event) => setData({ ...data, sla: { ...data.sla, [key]: event.target.checked } })}
+                onChange={(event) =>
+                  setData({
+                    ...data,
+                    sla: { ...data.sla, [key]: event.target.checked },
+                  })
+                }
               />
               {key === 'reminderEnabled' ? 'Nhắc lead quá hạn phản hồi' : 'Gửi tổng hợp hằng ngày'}
             </label>
@@ -157,7 +182,7 @@ export function BrokerWorkspacePage() {
           </button>
         </article>
       </section>
-    </div>
+    </section>
   );
 }
 

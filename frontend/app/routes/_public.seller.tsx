@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, CalendarDays, MessageSquareReply, ShieldQuestion } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Building2, CalendarDays, MessageSquareReply, ShieldQuestion } from 'lucide-react';
 import { listingV2Api } from '@/entities/listing/api/listingV2Api';
 import {
   sellerRoleLabel,
@@ -106,10 +106,10 @@ export function SellerProfilePage() {
     return (
       <div className="mx-auto max-w-xl px-4 py-16 text-center" data-ready="true">
         <ShieldQuestion className="mx-auto h-12 w-12 text-outline" aria-hidden="true" />
-        <h1 className="mt-3 text-headline-sm text-on-surface">
+        <h1 className="mt-3 text-xl font-bold text-on-surface">
           {state === 'missing' ? 'Không tìm thấy người đăng' : 'Không tải được trang người đăng'}
         </h1>
-        <p className="mt-2 text-body-sm text-on-surface-variant">
+        <p className="mt-2 text-sm text-on-surface-variant">
           {state === 'missing'
             ? 'Tài khoản này không tồn tại hoặc đã ngừng hoạt động.'
             : 'Vui lòng thử lại sau ít phút.'}
@@ -123,13 +123,21 @@ export function SellerProfilePage() {
 
   const isMe = user?.id === profile.id;
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8" data-ready="true">
-      <section className="flex flex-col gap-5 rounded-card border border-outline-variant bg-surface-container-lowest p-6 sm:flex-row sm:items-start">
-        <Avatar name={profile.name} src={profile.avatarUrl} size="xl" />
+    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 md:px-6" data-ready="true">
+      <button
+        type="button"
+        onClick={() => (window.history.length > 1 ? window.history.back() : undefined)}
+        className="inline-flex min-h-11 items-center gap-2 self-start text-sm font-medium text-on-surface-variant hover:text-on-surface"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Quay lại
+      </button>
+
+      <section className="flex flex-col gap-5 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-sm sm:flex-row sm:items-start">
+        <Avatar name={profile.name} src={profile.avatarUrl} size="xl" className="ring-4 ring-primary/10" />
         <div className="flex min-w-0 flex-1 flex-col gap-3">
           <div>
-            <h1 className="text-headline-md text-on-surface">{profile.name || 'Người đăng'}</h1>
-            <p className="text-body-sm font-semibold text-primary">{sellerRoleLabel(profile.role)}</p>
+            <h1 className="text-2xl font-bold text-on-surface">{profile.name || 'Người đăng'}</h1>
+            <p className="text-sm font-semibold text-primary">{sellerRoleLabel(profile.role)}</p>
           </div>
           <div className="flex flex-col gap-1">
             <TrustBadge
@@ -140,8 +148,9 @@ export function SellerProfilePage() {
               detailed
             />
           </div>
-          <dl className="grid gap-x-6 gap-y-2 text-body-sm sm:grid-cols-2">
+          <dl className="grid gap-x-6 gap-y-2 text-sm text-on-surface-variant sm:grid-cols-2">
             <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" aria-hidden="true" />
               <dt className="sr-only">Tin đang hiển thị</dt>
               <dd>
                 <strong className="text-on-surface">{profile.activeListingCount.toLocaleString('vi-VN')}</strong> tin
@@ -157,13 +166,13 @@ export function SellerProfilePage() {
               </dd>
             </div>
             <div className="flex items-center gap-2">
-              <CalendarDays className="h-4 w-4 text-outline" aria-hidden="true" />
+              <CalendarDays className="h-4 w-4" aria-hidden="true" />
               <dt className="sr-only">Tham gia</dt>
               <dd data-volatile="date">Tham gia từ {monthYear.format(new Date(profile.memberSince))}</dd>
             </div>
             {profile.responseStats && (
               <div className="flex items-center gap-2">
-                <MessageSquareReply className="h-4 w-4 text-outline" aria-hidden="true" />
+                <MessageSquareReply className="h-4 w-4" aria-hidden="true" />
                 <dt className="sr-only">Thời gian phản hồi</dt>
                 <dd>
                   Phản hồi yêu cầu đầu tiên sau khoảng {Math.round(profile.responseStats.medianFirstResponseMinutes)}{' '}
@@ -172,23 +181,35 @@ export function SellerProfilePage() {
               </div>
             )}
           </dl>
+          <p className="text-xs text-on-surface-variant">
+            Số điện thoại và email không hiển thị công khai. Hãy mở một tin đăng và gửi yêu cầu liên hệ để trao đổi trực
+            tiếp.
+          </p>
           {isMe && (
-            <p className="text-label font-normal text-on-surface-variant">
+            <p className="text-xs text-on-surface-variant">
               Đây là trang công khai của bạn; khách xem thấy đúng nội dung này.
             </p>
           )}
         </div>
+        {isMe && (
+          <Link
+            to="/account"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border border-primary/30 px-4 text-sm font-bold text-primary hover:bg-primary/5"
+          >
+            Chỉnh sửa trang cá nhân
+          </Link>
+        )}
       </section>
 
       <section aria-labelledby="seller-listings-heading" className="flex flex-col gap-4">
-        <h2 id="seller-listings-heading" className="text-headline-sm text-on-surface">
+        <h2 id="seller-listings-heading" className="text-lg font-bold text-on-surface">
           Tin đang hiển thị
         </h2>
         {items.length === 0 ? (
           <EmptyState title="Người đăng chưa có tin đang hiển thị" headingLevel={3} />
         ) : (
           <>
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 xl:grid-cols-3">
               {items.map((item) => (
                 <li key={item.id}>
                   <ListingCard listing={item} />

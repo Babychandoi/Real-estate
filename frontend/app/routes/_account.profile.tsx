@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Camera, CheckCircle2, Mail, Phone, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
-import { validationMessage } from '@/shared/types/problem-details';
 import { rememberSignedMediaUrl, useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
+import { validationMessage } from '@/shared/types/problem-details';
 
 type UploadedImage = { url: string; previewUrl?: string | null; previewExpiresAt?: string | null };
 
@@ -39,7 +39,10 @@ export function AccountProfilePage() {
 
   // The avatar is saved on its own right away, so it works even before a phone number is on file.
   const persistAvatar = async (url: string | null, done: string) => {
-    await apiClient('/auth/me/avatar', { method: 'PUT', body: JSON.stringify({ avatarMediaUrl: url }) });
+    await apiClient('/auth/me/avatar', {
+      method: 'PUT',
+      body: JSON.stringify({ avatarMediaUrl: url }),
+    });
     setAvatarMediaUrl(url ?? '');
     await refreshUser();
     setAvatarMessage(done);
@@ -52,7 +55,10 @@ export function AccountProfilePage() {
     try {
       const body = new FormData();
       body.append('file', file);
-      const uploaded = await apiClient<UploadedImage>('/media/images', { method: 'POST', body });
+      const uploaded = await apiClient<UploadedImage>('/media/images', {
+        method: 'POST',
+        body,
+      });
       rememberSignedMediaUrl(uploaded.url, uploaded.previewUrl, uploaded.previewExpiresAt);
       await persistAvatar(uploaded.url, 'Đã cập nhật ảnh đại diện.');
     } catch {
@@ -81,7 +87,11 @@ export function AccountProfilePage() {
     try {
       await apiClient('/auth/me', {
         method: 'PUT',
-        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), avatarMediaUrl: avatarMediaUrl || null }),
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          avatarMediaUrl: avatarMediaUrl || null,
+        }),
       });
       await refreshUser();
       setMessage('Đã lưu thông tin cá nhân.');
@@ -93,7 +103,7 @@ export function AccountProfilePage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
+    <section className="mx-auto max-w-3xl px-4 py-8 md:px-8">
       <header className="border-b border-outline-variant/40 pb-6">
         <h1 className="text-2xl font-bold text-on-surface">Thông tin cá nhân</h1>
         <p className="mt-2 text-sm text-on-surface-variant">
@@ -230,7 +240,7 @@ export function AccountProfilePage() {
           {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
         </button>
       </form>
-    </div>
+    </section>
   );
 }
 

@@ -19,8 +19,8 @@ const variants: Record<BadgeVariant, string> = {
   warning: 'bg-warning-container text-warning-on-container border border-warning/20',
   error: 'bg-error-container text-error-on-container',
   info: 'bg-info-container text-info-on-container',
-  verified: 'bg-secondary-container text-secondary-on-container border border-secondary/20',
-  vip: 'bg-tertiary-container text-tertiary-on-container border border-tertiary/20',
+  verified: 'bg-emerald-50 text-emerald-800 border border-secondary/20',
+  vip: 'bg-amber-50 text-amber-900 border border-tertiary/20',
 };
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {

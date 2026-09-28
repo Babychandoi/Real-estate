@@ -13,6 +13,7 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      '/__preview': { target: 'http://127.0.0.1:4174' },
       '/api': {
         target: process.env.API_INTERNAL_URL || 'http://localhost:8080',
         changeOrigin: true,

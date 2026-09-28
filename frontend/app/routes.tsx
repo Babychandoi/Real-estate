@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { RouteFailure } from '@/shared/ui/RouteFailure';
 import { RootLayout } from './root';
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
 import { ROUTE_ACCESS } from '@/shared/auth/routeAccess';
@@ -11,59 +12,103 @@ export const UI_CATALOG_ENABLED = import.meta.env.DEV || import.meta.env.VITE_EN
 const UiCatalogPage = UI_CATALOG_ENABLED ? lazy(() => import('./routes/__ui')) : null;
 
 const HomePage = lazy(() => import('./routes/_public.home').then((m) => ({ default: m.HomePage })));
-const SellerProfilePage = lazy(() => import('./routes/_public.seller').then((m) => ({ default: m.SellerProfilePage })));
-const SearchAndMapPage = lazy(() => import('./routes/_public.search').then((m) => ({ default: m.SearchAndMapPage })));
+const SellerProfilePage = lazy(() =>
+  import('./routes/_public.seller').then((m) => ({
+    default: m.SellerProfilePage,
+  })),
+);
+const SearchAndMapPage = lazy(() =>
+  import('./routes/_public.search').then((m) => ({
+    default: m.SearchAndMapPage,
+  })),
+);
 const ListingDetailPage = lazy(() =>
-  import('./routes/_public.listings.$listingId').then((m) => ({ default: m.ListingDetailPage })),
+  import('./routes/_public.listings.$listingId').then((m) => ({
+    default: m.ListingDetailPage,
+  })),
 );
 const CreateListingPage = lazy(() =>
-  import('./routes/_public.listings.new').then((m) => ({ default: m.CreateListingPage })),
+  import('./routes/_public.listings.new').then((m) => ({
+    default: m.CreateListingPage,
+  })),
 );
-const MyListingsPage = lazy(() => import('./routes/_account.listings').then((m) => ({ default: m.MyListingsPage })));
+const MyListingsPage = lazy(() =>
+  import('./routes/_account.listings').then((m) => ({
+    default: m.MyListingsPage,
+  })),
+);
 const ModerationWorkspacePage = lazy(() => import('./routes/_admin.moderation'));
 const AdminListingsPage = lazy(() =>
-  import('./routes/_admin.listings').then((m) => ({ default: m.AdminListingsPage })),
+  import('./routes/_admin.listings').then((m) => ({
+    default: m.AdminListingsPage,
+  })),
 );
 const AdminUsersPage = lazy(() => import('./routes/_admin.users').then((m) => ({ default: m.AdminUsersPage })));
 const LeadsAndReportsPage = lazy(() => import('./routes/_admin.leads-and-reports'));
 const ReportsQueuePage = lazy(() => import('./routes/_admin.reports').then((m) => ({ default: m.ReportsQueuePage })));
 const VerificationDeskPage = lazy(() => import('./routes/_admin.verification'));
 const BrokerWorkspacePage = lazy(() =>
-  import('./routes/_account.broker-workspace').then((m) => ({ default: m.BrokerWorkspacePage })),
+  import('./routes/_account.broker-workspace').then((m) => ({
+    default: m.BrokerWorkspacePage,
+  })),
 );
 const PropertyComparePage = lazy(() =>
-  import('./routes/_public.compare').then((m) => ({ default: m.PropertyComparePage })),
+  import('./routes/_public.compare').then((m) => ({
+    default: m.PropertyComparePage,
+  })),
 );
 const ProductAnalyticsPage = lazy(() =>
-  import('./routes/_admin.analytics').then((m) => ({ default: m.ProductAnalyticsPage })),
+  import('./routes/_admin.analytics').then((m) => ({
+    default: m.ProductAnalyticsPage,
+  })),
 );
 const ProjectCatalogPage = lazy(() =>
-  import('./routes/_admin.projects').then((m) => ({ default: m.ProjectCatalogPage })),
+  import('./routes/_admin.projects').then((m) => ({
+    default: m.ProjectCatalogPage,
+  })),
 );
 const CmsManagementPage = lazy(() => import('./routes/_admin.cms').then((m) => ({ default: m.CmsManagementPage })));
 const BillingPage = lazy(() => import('./routes/_account.billing').then((m) => ({ default: m.BillingPage })));
-const AdminBillingPage = lazy(() => import('./routes/_admin.billing').then((m) => ({ default: m.AdminBillingPage })));
+const AdminBillingPage = lazy(() =>
+  import('./routes/_admin.billing').then((m) => ({
+    default: m.AdminBillingPage,
+  })),
+);
 const MyLeadsPage = lazy(() => import('./routes/_account.leads').then((m) => ({ default: m.MyLeadsPage })));
 const BecomeOwnerPage = lazy(() => import('./features/owner-onboarding/BecomeOwner'));
 const MyInquiriesPage = lazy(() => import('./routes/_account.inquiries').then((m) => ({ default: m.MyInquiriesPage })));
 const KycPage = lazy(() => import('./routes/_account.kyc').then((m) => ({ default: m.KycPage })));
 const AccountProfilePage = lazy(() =>
-  import('./routes/_account.profile').then((m) => ({ default: m.AccountProfilePage })),
+  import('./routes/_account.profile').then((m) => ({
+    default: m.AccountProfilePage,
+  })),
 );
 const VerifyEmailPage = lazy(() =>
-  import('./routes/_public.verify-email').then((m) => ({ default: m.VerifyEmailPage })),
+  import('./routes/_public.verify-email').then((m) => ({
+    default: m.VerifyEmailPage,
+  })),
 );
 const ForgotPasswordPage = lazy(() =>
-  import('./routes/_public.forgot-password').then((m) => ({ default: m.ForgotPasswordPage })),
+  import('./routes/_public.forgot-password').then((m) => ({
+    default: m.ForgotPasswordPage,
+  })),
 );
 const ResetPasswordPage = lazy(() =>
-  import('./routes/_public.reset-password').then((m) => ({ default: m.ResetPasswordPage })),
+  import('./routes/_public.reset-password').then((m) => ({
+    default: m.ResetPasswordPage,
+  })),
 );
 const AdminLoginPage = lazy(() => import('./routes/_admin.login').then((m) => ({ default: m.AdminLoginPage })));
 const InformationPage = lazy(() =>
-  import('./routes/_public.information').then((m) => ({ default: m.InformationPage })),
+  import('./routes/_public.information').then((m) => ({
+    default: m.InformationPage,
+  })),
 );
-const NotFoundPage = lazy(() => import('./routes/_public.information').then((m) => ({ default: m.NotFoundPage })));
+const NotFoundPage = lazy(() =>
+  import('./routes/_public.information').then((m) => ({
+    default: m.NotFoundPage,
+  })),
+);
 
 const load = (node: ReactNode) => (
   <Suspense
@@ -91,6 +136,7 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: <RootLayout />,
+    errorElement: <RouteFailure />,
     children: [
       { index: true, element: load(<HomePage />) },
       { path: 'search', element: load(<SearchAndMapPage />) },
@@ -133,7 +179,9 @@ export const router = createBrowserRouter([
   {
     path: '/2026/nhadatchuan/admin',
     element: <AdminShell />,
+    errorElement: <RouteFailure />,
     children: [
+      { index: true, element: <Navigate to="moderation" replace /> },
       {
         path: 'moderation',
         element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ROUTE_ACCESS.adminModeration, true),

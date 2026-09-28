@@ -9,6 +9,7 @@ import {
   FileText,
   Flag,
   History,
+  Home,
   Lock,
   MapPin,
   Maximize2,
@@ -16,6 +17,7 @@ import {
   Route as RouteIcon,
   Ruler,
   Sofa,
+  Tag,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -47,6 +49,7 @@ import { useDocumentMeta } from '@/shared/seo/useDocumentMeta';
 import { ApiProblemException } from '@/shared/types/problem-details';
 import { Avatar } from '@/shared/ui/Avatar';
 import { Button, ButtonLink } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
 import { Dialog } from '@/shared/ui/Dialog';
 import { ErrorState } from '@/shared/ui/ErrorState';
 import { Money, UnitPriceText } from '@/shared/ui/Money';
@@ -177,8 +180,8 @@ export const ListingDetailPage: React.FC = () => {
         </h1>
         {state.kind === 'gone' ? (
           <p className="text-body-sm text-on-surface-variant">
-            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được. Bạn có thể tìm các tin tương tự đang
-            hiển thị.
+            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được.
+            Bạn có thể tìm các tin tương tự đang hiển thị.
           </p>
         ) : (
           <p className="text-body-sm text-on-surface-variant">
@@ -326,9 +329,9 @@ function ListingDetailView({
               {purposeLabel(listing.purpose)} · {propertyTypeLabel(listing.propertyType)}
               {listing.project && <> · Dự án {listing.project.name}</>}
             </p>
-            <h1 className="text-headline-md text-on-surface">{listing.title}</h1>
+            <h1 className="mt-1 text-xl font-bold leading-snug text-on-surface md:text-2xl">{listing.title}</h1>
             <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <Money price={listing.price} className="text-headline-lg text-primary" />
+              <Money price={listing.price} className="text-3xl font-extrabold tracking-tight text-primary" />
               <UnitPriceText
                 unitPrice={listing.unitPrice}
                 className="text-body-sm font-semibold text-on-surface-variant"
@@ -376,8 +379,26 @@ function ListingDetailView({
             </p>
           </header>
 
-          <section aria-labelledby="facts-heading" className="border-t border-outline-variant pt-6">
-            <h2 id="facts-heading" className="text-headline-sm text-on-surface">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <Card className="flex flex-col items-center p-3 text-center">
+              <Maximize2 className="mb-1 h-5 w-5 text-primary" aria-hidden="true" />
+              <span className="text-xs text-on-surface-variant">Diện tích</span>
+              <span className="text-sm font-bold text-on-surface">{formatArea(listing.areaM2)}</span>
+            </Card>
+            <Card className="flex flex-col items-center p-3 text-center">
+              <Home className="mb-1 h-5 w-5 text-primary" aria-hidden="true" />
+              <span className="text-xs text-on-surface-variant">Loại hình</span>
+              <span className="text-sm font-bold text-on-surface">{propertyTypeLabel(listing.propertyType)}</span>
+            </Card>
+            <Card className="flex flex-col items-center p-3 text-center">
+              <Tag className="mb-1 h-5 w-5 text-primary" aria-hidden="true" />
+              <span className="text-xs text-on-surface-variant">Nhu cầu</span>
+              <span className="text-sm font-bold text-on-surface">{purposeLabel(listing.purpose)}</span>
+            </Card>
+          </div>
+
+          <section aria-labelledby="facts-heading" className="border-t border-outline-variant/40 pt-6">
+            <h2 id="facts-heading" className="text-lg font-bold text-on-surface">
               Đặc điểm bất động sản
             </h2>
             <dl className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
@@ -394,10 +415,10 @@ function ListingDetailView({
           </section>
 
           <section aria-labelledby="description-heading" className="flex flex-col gap-3">
-            <h2 id="description-heading" className="text-headline-sm text-on-surface">
-              Mô tả
+            <h2 id="description-heading" className="text-lg font-bold text-on-surface">
+              Mô tả bất động sản
             </h2>
-            <div className="whitespace-pre-line rounded-card border border-outline-variant bg-surface-container-lowest p-5 text-body-sm leading-relaxed text-on-surface">
+            <div className="whitespace-pre-line rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-5 text-sm leading-relaxed text-on-surface">
               {listing.description?.trim() || 'Người đăng chưa cung cấp mô tả chi tiết.'}
             </div>
           </section>
@@ -406,12 +427,18 @@ function ListingDetailView({
 
           <PriceHistorySection history={history} />
 
-          <section aria-labelledby="seller-heading" className="border-t border-outline-variant pt-6">
-            <h2 id="seller-heading" className="text-headline-sm text-on-surface">
-              Người đăng
+          <section aria-labelledby="seller-heading" className="border-t border-outline-variant/40 pt-6">
+            <h2 id="seller-heading" className="text-lg font-bold text-on-surface">
+              Thông tin người đăng
             </h2>
-            <div className="mt-3 flex items-start gap-4 rounded-card border border-outline-variant bg-surface-container-lowest p-4">
-              <Avatar name={listing.seller.name} src={listing.seller.avatarUrl} size="lg" />
+            <div className="mt-3 flex items-start gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-4">
+              <Link
+                to={`/nguoi-dang/${listing.seller.id}`}
+                aria-label={`Xem trang người đăng ${listing.seller.name || ''}`.trim()}
+                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <Avatar name={listing.seller.name} src={listing.seller.avatarUrl} size="lg" />
+              </Link>
               <div className="flex min-w-0 flex-col gap-2">
                 <p className="font-semibold text-on-surface">
                   <Link to={`/nguoi-dang/${listing.seller.id}`} className="hover:text-primary hover:underline">
@@ -435,11 +462,30 @@ function ListingDetailView({
           </section>
         </div>
 
-        <aside ref={contactRef} aria-labelledby="contact-heading" className="flex flex-col gap-4 lg:sticky lg:top-20">
-          <div className="rounded-card border border-primary/30 bg-surface-container-lowest p-5 shadow-card">
-            <h2 id="contact-heading" className="text-body font-semibold text-on-surface">
-              {isOwn ? 'Đây là tin của bạn' : `Liên hệ ${listing.seller.name ?? 'người đăng'}`}
-            </h2>
+        <aside ref={contactRef} aria-labelledby="contact-heading" className="flex flex-col gap-4 lg:sticky lg:top-24">
+          <Card className="border border-primary/20 p-5 shadow-lg shadow-primary/5">
+            <div className="flex items-center gap-3 border-b border-outline-variant/40 pb-4">
+              <Avatar
+                name={isOwn ? user?.name : listing.seller.name}
+                src={isOwn ? user?.avatarMediaUrl : listing.seller.avatarUrl}
+                size="md"
+              />
+              <div className="min-w-0">
+                <h2 id="contact-heading" className="text-sm font-bold text-on-surface">
+                  {isOwn ? 'Đây là tin của bạn' : `Liên hệ ${listing.seller.name ?? 'người đăng'}`}
+                </h2>
+                {isOwn ? (
+                  <p className="text-xs text-on-surface-variant">Khách quan tâm sẽ gửi yêu cầu liên hệ tới bạn.</p>
+                ) : (
+                  <Link
+                    to={`/nguoi-dang/${listing.seller.id}`}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    Xem trang người đăng
+                  </Link>
+                )}
+              </div>
+            </div>
             {isOwn ? (
               <div className="mt-4 flex flex-col gap-2.5">
                 {isPoster && (
@@ -450,6 +496,9 @@ function ListingDetailView({
                     <ButtonLink to="/my-leads" variant="outline" className="w-full">
                       Xem khách quan tâm
                     </ButtonLink>
+                    <ButtonLink to="/my-listings" variant="outline" className="w-full">
+                      Quản lý kho tin
+                    </ButtonLink>
                   </>
                 )}
                 <ButtonLink to={`/nguoi-dang/${listing.seller.id}`} variant="ghost" className="w-full">
@@ -457,8 +506,8 @@ function ListingDetailView({
                 </ButtonLink>
               </div>
             ) : (
-              <div className="mt-3 flex flex-col gap-3">
-                <p className="text-body-sm text-on-surface-variant">
+              <div className="mt-4 flex flex-col gap-3">
+                <p className="text-sm text-on-surface-variant">
                   {!isAuthenticated
                     ? 'Đăng nhập để gửi yêu cầu hẹn xem. Số điện thoại chỉ được chia sẻ qua yêu cầu liên hệ.'
                     : kycStatus === 'VERIFIED'
@@ -469,23 +518,33 @@ function ListingDetailView({
                 </p>
                 {contactAction}
                 <CompareToggleButton variant="inline" listing={compareItemFromSummary(listing)} />
-                <p className="text-label font-normal text-on-surface-variant">
-                  Nhà Đất Chuẩn không nhận tiền cọc và không ký hợp đồng thay bạn.
-                </p>
+                <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                  <p className="text-xs">
+                    <span className="block font-bold text-emerald-900">Liên hệ và trao đổi trực tiếp</span>
+                    <span className="mt-0.5 block leading-snug text-emerald-800">
+                      Số điện thoại và email của người đăng không hiển thị công khai. Nhà Đất Chuẩn không nhận tiền cọc
+                      và không ký hợp đồng thay bạn.
+                    </span>
+                  </p>
+                </div>
               </div>
             )}
-          </div>
+          </Card>
         </aside>
       </div>
 
-      <section aria-labelledby="similar-heading" className="flex flex-col gap-4 border-t border-outline-variant pt-6">
-        <h2 id="similar-heading" className="text-headline-sm text-on-surface">
+      <section
+        aria-labelledby="similar-heading"
+        className="flex flex-col gap-4 border-t border-outline-variant/40 pt-6"
+      >
+        <h2 id="similar-heading" className="text-lg font-bold text-on-surface">
           Tin tương tự
         </h2>
         {similar === null ? (
           <Skeleton className="h-40 w-full rounded-card" />
         ) : similar.length ? (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="ndc-listing-grid">
             {similar.map((item) => (
               <li key={item.id}>
                 <ListingCard listing={item} />

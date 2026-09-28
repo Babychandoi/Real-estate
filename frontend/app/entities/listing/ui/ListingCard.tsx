@@ -27,6 +27,8 @@ interface ListingCardProps {
   onHoverChange?: (id: string | null) => void;
   /** Extra actions next to "So sánh" (e.g. favourite, stream S6); rendered as siblings of the title link. */
   actions?: React.ReactNode;
+  /** Alias of `actions` (UI-redesign card API). */
+  action?: React.ReactNode;
   /** First cards of a page: load the image eagerly. */
   priority?: boolean;
   headingLevel?: 'h2' | 'h3';
@@ -45,6 +47,7 @@ export function ListingCard({
   highlighted = false,
   onHoverChange,
   actions,
+  action,
   priority = false,
   headingLevel = 'h3',
   linkState,
@@ -59,7 +62,7 @@ export function ListingCard({
       onMouseLeave={onHoverChange ? () => onHoverChange(null) : undefined}
       onFocus={onHoverChange ? () => onHoverChange(listing.id) : undefined}
       className={cn(
-        'group relative flex h-full flex-col overflow-hidden rounded-card border bg-surface-container-lowest shadow-sm transition-shadow duration-fast',
+        'ndc-listing-card group relative flex h-full flex-col overflow-hidden rounded-card border bg-surface-container-lowest shadow-sm transition-shadow duration-fast',
         highlighted ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:shadow-md',
         inactive && 'opacity-70',
       )}
@@ -68,11 +71,11 @@ export function ListingCard({
         <ResponsiveImage
           image={listing.image}
           alt={`Ảnh đại diện: ${listing.title}`}
-          aspectRatio="16 / 10"
+          aspectRatio="4 / 3"
           sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
           priority={priority}
         />
-        <span className="absolute left-3 top-3 rounded-pill bg-surface-container-lowest/95 px-2.5 py-1 text-label font-semibold text-primary shadow-sm">
+        <span className="absolute left-3 top-3 rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-primary shadow-sm">
           {purposeLabel(listing.purpose)} · {propertyTypeLabel(listing.propertyType)}
         </span>
         {listing.imageCount > 1 && (
@@ -84,11 +87,12 @@ export function ListingCard({
       <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
         {!inactive && <CompareToggleButton listing={compareItemFromSummary(listing)} />}
         {actions}
+        {action}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-4">
+      <div className="flex flex-1 flex-col gap-2 p-5">
         <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <Money price={listing.price} className="text-lg font-bold text-primary" />
+          <Money price={listing.price} className="text-xl font-bold tracking-tight text-primary" />
           <UnitPriceText unitPrice={listing.unitPrice} className="text-label font-medium text-on-surface-variant" />
           {listing.priceChange?.direction === 'DOWN' && (
             <span className="inline-flex items-center gap-1 text-label font-semibold text-success">
