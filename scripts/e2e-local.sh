@@ -98,6 +98,10 @@ cleanup() {
   if [ -n "$PREVIEW_PID" ] && kill -0 "$PREVIEW_PID" 2>/dev/null; then
     log "stopping vite preview ($PREVIEW_PID)"
     kill "$PREVIEW_PID" 2>/dev/null
+    # Bounded wait, then SIGKILL (NIT): a plain `wait` blocks forever if the process ignores SIGTERM, hanging the
+    # whole script (and CI) instead of finishing cleanup, same as the backend stop below already does.
+    for _ in $(seq 1 30); do kill -0 "$PREVIEW_PID" 2>/dev/null || break; sleep 1; done
+    kill -9 "$PREVIEW_PID" 2>/dev/null
     wait "$PREVIEW_PID" 2>/dev/null
   fi
   if [ -n "$BACKEND_PID" ] && kill -0 "$BACKEND_PID" 2>/dev/null; then
