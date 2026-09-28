@@ -1,911 +1,709 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { apiFetch } from '@/shared/api/client';
-import { useModal } from '@/shared/ui/useModal';
+import { useCallback, useEffect, useState } from 'react';
+import { CalendarClock, Eye, FilePlus2, History, Pencil, Send, Undo2 } from 'lucide-react';
 import {
-  FileText,
-  PlusCircle,
-  Gavel,
-  School,
-  TrendingUp,
-  ShieldCheck,
-  CheckCircle2,
-  Clock,
-  RotateCcw,
-  Search,
-  X,
-} from 'lucide-react';
+  cmsAdminApi,
+  type AdminArticle,
+  type AdminRevision,
+  type ArticleInput,
+  type RevisionInput,
+} from '@/entities/content/adminApi';
+import {
+  ARTICLE_CATEGORIES,
+  articleCategoryLabel,
+  REVISION_STATUS_LABELS,
+  type ArticleCategory,
+} from '@/entities/content/model';
+import { errorMessage } from '@/shared/api/errors';
+import { ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import type { BadgeVariant } from '@/shared/ui/Badge';
+import { Button } from '@/shared/ui/Button';
+import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
+import { Dialog } from '@/shared/ui/Dialog';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { FormField } from '@/shared/ui/FormField';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Select } from '@/shared/ui/Select';
+import { Sheet } from '@/shared/ui/Sheet';
+import { TextArea, TextInput } from '@/shared/ui/TextInput';
 
-interface ArticleRevisionItem {
-  id: string;
-  articleId: string;
-  revisionNumber: number;
-  title: string;
-  summary: string;
-  contentHtml: string;
-  coverImageUrl: string;
-  authorName: string;
-  legalReference: string;
-  metaDescription: string;
-  canonicalUrl: string;
-  status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'ARCHIVED' | 'REJECTED';
-  rejectionReason?: string;
-  createdAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-}
+const PAGE_SIZE = 20;
 
-/** Shape of `/cms/articles` rows as read below (only the fields this page maps). */
-interface ArticleResponse {
-  id: string;
-  slug: string;
-  category: ArticleItem['category'];
-  status: ArticleItem['status'];
-  revisions?: unknown[];
-  currentRevision?: {
-    id: string;
-    revisionNumber: number;
-    title: string;
-    summary?: string;
-    contentHtml: string;
-    coverImageUrl?: string;
-    authorName: string;
-    legalReference?: string;
-    metaDescription?: string;
-    canonicalUrl?: string;
-    status: ArticleRevisionItem['status'];
-    createdAt?: string;
-    reviewedAt?: string;
-    reviewedBy?: string;
-  } | null;
-}
+const ARTICLE_STATUS: Record<AdminArticle['status'], { label: string; variant: BadgeVariant }> = {
+  DRAFT: { label: 'Bản nháp', variant: 'neutral' },
+  SUBMITTED: { label: 'Chờ duyệt', variant: 'warning' },
+  PUBLISHED: { label: 'Đang công khai', variant: 'success' },
+  ARCHIVED: { label: 'Đã gỡ', variant: 'neutral' },
+  REJECTED: { label: 'Bị từ chối', variant: 'error' },
+};
+const REVISION_VARIANT: Record<AdminRevision['status'], BadgeVariant> = {
+  DRAFT: 'neutral',
+  SUBMITTED: 'warning',
+  SCHEDULED: 'info',
+  PUBLISHED: 'success',
+  SUPERSEDED: 'neutral',
+  REJECTED: 'error',
+  ARCHIVED: 'neutral',
+};
 
-interface ArticleItem {
-  id: string;
-  slug: string;
-  category: 'LEGAL_POLICY' | 'KNOWLEDGE' | 'MARKET_INSIGHTS';
-  categoryLabel: string;
-  status: 'DRAFT' | 'SUBMITTED' | 'PUBLISHED' | 'ARCHIVED';
-  currentRevision: ArticleRevisionItem;
-  revisionsCount: number;
-}
+const EMPTY_REVISION: RevisionInput = {
+  title: '',
+  summary: '',
+  contentHtml: '',
+  coverImageUrl: '',
+  authorName: '',
+  legalReference: '',
+  metaDescription: '',
+  sourceName: '',
+  sourceUrl: '',
+};
 
-export const CmsManagementPage: React.FC = () => {
-  const [loadError, setLoadError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [attempt, setAttempt] = useState(0);
-  const [articles, setArticles] = useState<ArticleItem[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [selectedTab, setSelectedTab] = useState<string>('SUBMITTED');
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState('');
-  const rejectPanelRef = useRef<HTMLDivElement>(null);
-  const createPanelRef = useRef<HTMLDivElement>(null);
-  // Shared modal stack (M2): both dialogs had no focus trap, no Escape handling, no backdrop-close and no focus
-  // return at all.
-  useModal({ open: Boolean(rejectingId), onClose: () => setRejectingId(null), panelRef: rejectPanelRef });
-  useModal({ open: isCreateModalOpen, onClose: () => setIsCreateModalOpen(false), panelRef: createPanelRef });
-
-  // Form State
-  const [formData, setFormData] = useState({
-    title: '',
-    slug: '',
-    category: 'LEGAL_POLICY',
-    authorName: '',
-    legalReference: '',
-    summary: '',
-    contentHtml: '',
-    coverImageUrl: '',
-  });
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+function fromRevision(revision: AdminRevision | null | undefined): RevisionInput {
+  if (!revision) return EMPTY_REVISION;
+  return {
+    title: revision.title,
+    summary: revision.summary ?? '',
+    contentHtml: revision.contentHtml,
+    coverImageUrl: revision.coverImageUrl ?? '',
+    authorName: revision.authorName,
+    legalReference: revision.legalReference ?? '',
+    metaDescription: revision.metaDescription ?? '',
+    sourceName: revision.sourceName ?? '',
+    sourceUrl: revision.sourceUrl ?? '',
   };
+}
 
-  // Load from backend if available
+/** "2026-10-01T09:00" in the browser's zone → ISO instant. */
+function localToIso(value: string): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+type EditorMode =
+  | { kind: 'create' }
+  | { kind: 'revision'; article: AdminArticle }
+  | { kind: 'draft'; article: AdminArticle; revision: AdminRevision };
+
+/**
+ * Staff CMS (P-07, UI-25): articles with their workflow — draft → submitted → published now or at a set time, or
+ * rejected with a reason; edits of public content are new revisions (published ones never change); preview links for
+ * any revision; unpublishing takes the public page down (410). The public page is `/tin-tuc/<slug>`.
+ */
+export function CmsManagementPage() {
+  const [status, setStatus] = useState('');
+  const [category, setCategory] = useState('');
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<AdminArticle[]>([]);
+  const [total, setTotal] = useState(0);
+  const [tableStatus, setTableStatus] = useState<DataTableStatus>('loading');
+  const [reload, setReload] = useState(0);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [editor, setEditor] = useState<EditorMode | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
   useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setLoadError('');
-    apiFetch('/cms/articles')
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error('Không thể tải nội dung CMS.');
-      })
-      .then((data) => {
-        if (active && data && Array.isArray(data)) {
-          const mapped: ArticleItem[] = data.map((d: ArticleResponse) => ({
-            id: d.id,
-            slug: d.slug,
-            category: d.category,
-            categoryLabel:
-              d.category === 'LEGAL_POLICY'
-                ? 'Chính sách & Pháp lý (FR32)'
-                : d.category === 'KNOWLEDGE'
-                  ? 'Chuyên mục kiến thức'
-                  : 'Cẩm nang thị trường',
-            status: d.status,
-            revisionsCount: d.revisions ? d.revisions.length : 1,
-            currentRevision: d.currentRevision
-              ? {
-                  id: d.currentRevision.id,
-                  articleId: d.id,
-                  revisionNumber: d.currentRevision.revisionNumber,
-                  title: d.currentRevision.title,
-                  summary: d.currentRevision.summary || '',
-                  contentHtml: d.currentRevision.contentHtml,
-                  coverImageUrl: d.currentRevision.coverImageUrl || '',
-                  authorName: d.currentRevision.authorName,
-                  legalReference: d.currentRevision.legalReference || '',
-                  metaDescription: d.currentRevision.metaDescription || '',
-                  canonicalUrl: d.currentRevision.canonicalUrl || `/${d.slug}`,
-                  status: d.currentRevision.status,
-                  createdAt: d.currentRevision.createdAt
-                    ? new Date(d.currentRevision.createdAt).toLocaleString('vi-VN')
-                    : 'Chưa có thời gian',
-                  reviewedAt: d.currentRevision.reviewedAt,
-                  reviewedBy: d.currentRevision.reviewedBy,
-                }
-              : {
-                  id: '',
-                  articleId: d.id,
-                  revisionNumber: 0,
-                  title: '(Chưa có phiên bản)',
-                  summary: '',
-                  contentHtml: '',
-                  coverImageUrl: '',
-                  authorName: '',
-                  legalReference: '',
-                  metaDescription: '',
-                  canonicalUrl: `/${d.slug}`,
-                  status: 'DRAFT',
-                  createdAt: '',
-                },
-          }));
-          setArticles(mapped);
-        }
+    const abort = new AbortController();
+    setTableStatus('loading');
+    cmsAdminApi
+      .list({ status, category, page: page - 1, size: PAGE_SIZE }, abort.signal)
+      .then((result) => {
+        setRows(result.items);
+        setTotal(result.total);
+        setTableStatus('ready');
       })
       .catch(() => {
-        if (active) setLoadError('Không thể tải nội dung CMS. Vui lòng thử lại.');
-      })
-      .finally(() => {
-        if (active) setLoading(false);
+        if (!abort.signal.aborted) setTableStatus('error');
       });
-    return () => {
-      active = false;
-    };
-  }, [attempt]);
+    return () => abort.abort();
+  }, [status, category, page, reload]);
 
-  const handleCreateArticle = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.title || !formData.slug || !formData.contentHtml) {
-      showToast('Vui lòng điền đủ Tiêu đề, Slug và Nội dung bài viết');
-      return;
-    }
+  const refresh = useCallback(() => setReload((value) => value + 1), []);
 
-    try {
-      const payload = {
-        title: formData.title,
-        slug: formData.slug,
-        category: formData.category,
-        authorName: formData.authorName,
-        legalReference: formData.legalReference,
-        summary: formData.summary,
-        contentHtml: formData.contentHtml,
-        coverImageUrl: formData.coverImageUrl,
-        metaDescription: formData.summary,
-        canonicalUrl: `/${formData.slug}`,
-      };
-
-      const res = await apiFetch('/cms/articles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const created = await res.json();
-        const newItem: ArticleItem = {
-          id: created.id,
-          slug: created.slug,
-          category: created.category,
-          categoryLabel:
-            created.category === 'LEGAL_POLICY'
-              ? 'Chính sách & Pháp lý (FR32)'
-              : created.category === 'KNOWLEDGE'
-                ? 'Chuyên mục kiến thức'
-                : 'Cẩm nang thị trường',
-          status: 'DRAFT',
-          revisionsCount: 1,
-          currentRevision: {
-            id: created.currentRevision.id,
-            articleId: created.id,
-            revisionNumber: 1,
-            title: created.currentRevision.title,
-            summary: created.currentRevision.summary,
-            contentHtml: created.currentRevision.contentHtml,
-            coverImageUrl: created.currentRevision.coverImageUrl,
-            authorName: created.currentRevision.authorName,
-            legalReference: created.currentRevision.legalReference,
-            metaDescription: created.currentRevision.metaDescription,
-            canonicalUrl: created.currentRevision.canonicalUrl,
-            status: 'DRAFT',
-            createdAt: created.currentRevision.createdAt
-              ? new Date(created.currentRevision.createdAt).toLocaleString('vi-VN')
-              : 'Chưa có thời gian',
-          },
-        };
-        setArticles([newItem, ...articles]);
-        setIsCreateModalOpen(false);
-        showToast('Đã tạo bản nháp bài viết mới thành công (Revision 1)');
-      } else {
-        showToast('Lỗi máy chủ khi tạo bài viết');
-      }
-    } catch {
-      showToast('Không thể tạo bài viết. Dữ liệu chưa được lưu; vui lòng thử lại.');
-    }
-  };
-
-  const handleApprove = async (articleId: string, revisionId: string) => {
-    try {
-      const response = await apiFetch(`/cms/articles/${articleId}/revisions/${revisionId}/approve`, {
-        method: 'POST',
-      });
-      if (!response.ok) throw new Error('Máy chủ từ chối phê duyệt');
-      const approved = await response.json();
-      setArticles((current) =>
-        current.map((art) =>
-          art.id === articleId
-            ? {
-                ...art,
-                status: 'PUBLISHED',
-                currentRevision: {
-                  ...art.currentRevision,
-                  status: approved.status,
-                  reviewedBy: approved.reviewedBy,
-                  reviewedAt: approved.reviewedAt ? new Date(approved.reviewedAt).toLocaleString('vi-VN') : undefined,
-                },
-              }
-            : art,
-        ),
-      );
-    } catch {
-      showToast('Chưa thể phê duyệt. Vui lòng kiểm tra kết nối và thử lại.');
-      return;
-    }
-
-    showToast('Đã phê duyệt và xuất bản bài viết công khai thành công (FR24/FR32)');
-  };
-
-  const handleReject = async () => {
-    if (!rejectingId) return;
-    if (!rejectReason.trim()) {
-      showToast('Vui lòng nhập lý do trả bài trước khi xác nhận.');
-      return;
-    }
-    const targetArticle = articles.find((a) => a.id === rejectingId);
-    if (!targetArticle) return;
-
-    try {
-      const response = await apiFetch(
-        `/cms/articles/${rejectingId}/revisions/${targetArticle.currentRevision.id}/reject`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            reason: rejectReason.trim(),
-          }),
-        },
-      );
-      if (!response.ok) throw new Error('Máy chủ từ chối thao tác');
-    } catch {
-      showToast('Chưa thể từ chối bài viết. Dữ liệu vẫn được giữ để thử lại.');
-      return;
-    }
-
-    setArticles(
-      articles.map((art) => {
-        if (art.id === rejectingId) {
-          return {
-            ...art,
-            status: 'DRAFT',
-            currentRevision: {
-              ...art.currentRevision,
-              status: 'REJECTED',
-              rejectionReason: rejectReason.trim(),
-            },
-          };
-        }
-        return art;
-      }),
-    );
-
-    setRejectingId(null);
-    setRejectReason('');
-    showToast('Đã trả về bản thảo kèm lý do yêu cầu sửa đổi cho BTV');
-  };
-
-  // Filter
-  const filteredArticles = articles.filter((art) => {
-    const matchesCategory = selectedCategory === 'ALL' || art.category === selectedCategory;
-
-    const matchesTab =
-      selectedTab === 'ALL' ||
-      (selectedTab === 'SUBMITTED' && art.currentRevision.status === 'SUBMITTED') ||
-      (selectedTab === 'DRAFT' &&
-        (art.currentRevision.status === 'DRAFT' || art.currentRevision.status === 'REJECTED')) ||
-      (selectedTab === 'PUBLISHED' && art.status === 'PUBLISHED') ||
-      (selectedTab === 'ARCHIVED' && art.status === 'ARCHIVED');
-
-    const matchesSearch =
-      searchQuery === '' ||
-      art.currentRevision.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      art.slug.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      art.currentRevision.authorName.toLowerCase().includes(searchQuery.toLowerCase());
-
-    return matchesCategory && matchesTab && matchesSearch;
-  });
-
-  return (
-    <div className="min-h-screen bg-surface pb-20 pt-4 text-on-surface">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-primary text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-fade-in border border-primary-container">
-          <ShieldCheck className="w-5 h-5 text-emerald-400" />
-          <div className="text-sm">
-            <span className="font-semibold block text-white">Thông báo nội dung</span>
-            <span>{toastMessage}</span>
-          </div>
+  const columns: DataTableColumn<AdminArticle>[] = [
+    {
+      key: 'title',
+      header: 'Bài viết',
+      cell: (row) => (
+        <div className="min-w-0">
+          <p className="font-medium text-on-surface">{row.currentRevision?.title ?? row.slug}</p>
+          <p className="text-xs text-on-surface-variant">/tin-tuc/{row.slug}</p>
         </div>
-      )}
-
-      <div className="max-w-6xl mx-auto px-4 md:px-8 space-y-6">
-        {loading && <p role="status">Đang tải nội dung…</p>}
-        {loadError && (
-          <p role="alert" className="rounded-lg bg-rose-50 p-4 text-rose-900">
-            {loadError}{' '}
-            <button type="button" className="underline" onClick={() => setAttempt((value) => value + 1)}>
-              Thử lại
-            </button>
-          </p>
-        )}
-        {/* Header & Quick Action Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/30 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-6 rounded-full bg-primary inline-block"></span>
-              <h1 className="text-2xl font-bold text-primary">Biên tập & Xuất bản CMS</h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold uppercase">
-                Quản lý bài viết
-              </span>
-            </div>
-            <p className="text-sm text-on-surface-variant mt-1">
-              Soạn bài, theo dõi phiên bản và duyệt nội dung trước khi xuất bản.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-1.5 h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 shadow-sm transition-all"
-            >
-              <PlusCircle className="w-4 h-4" />
-              Soạn bài viết mới
-            </button>
-          </div>
-        </div>
-
-        {/* Compliance Alert Box (FR24 & FR32 Mandate) */}
-        <div className="p-4 rounded-xl bg-surface-container-high border border-outline-variant/30 shadow-sm flex items-start gap-3">
-          <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center shrink-0 mt-0.5">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-primary text-sm">Quy trình duyệt bài viết</span>
-              <span className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-primary font-mono font-semibold text-xs">
-                Kiểm duyệt độc lập
-              </span>
-            </div>
-            <p className="text-on-surface-variant leading-relaxed">
-              Biên tập viên (BTV) không thể tự ý xuất bản bài viết lên trang chủ. Mọi nội dung sửa đổi trên bài viết
-              đang công khai sẽ tự động sinh một <strong>Revision mới</strong>; bài viết cũ tiếp tục giữ nguyên hiệu lực
-              cho tới khi Admin Tổng biên tập đối soát và phê duyệt.
-            </p>
-          </div>
-        </div>
-
-        {/* Category Horizontal Filter Chips */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-          {[
-            { key: 'ALL', label: 'Tất cả chuyên mục', icon: FileText },
-            { key: 'LEGAL_POLICY', label: 'Chính sách & Pháp lý', icon: Gavel },
-            { key: 'KNOWLEDGE', label: 'Chuyên mục kiến thức', icon: School },
-            {
-              key: 'MARKET_INSIGHTS',
-              label: 'Cẩm nang thị trường',
-              icon: TrendingUp,
-            },
-          ].map((cat) => {
-            const Icon = cat.icon;
-            const isSelected = selectedCategory === cat.key;
-            return (
-              <button
-                key={cat.key}
-                onClick={() => setSelectedCategory(cat.key)}
-                className={`h-9 px-3.5 rounded-full font-medium transition-all flex items-center gap-1.5 shrink-0 ${
-                  isSelected
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container'
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{cat.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Lifecycle Revision Tabs & Search Toolbar */}
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-surface-container rounded-xl text-center">
-            {[
-              {
-                key: 'SUBMITTED',
-                label: 'Chờ duyệt',
-                count: articles.filter((a) => a.currentRevision.status === 'SUBMITTED').length,
-                color: 'text-amber-700',
-              },
-              {
-                key: 'DRAFT',
-                label: 'Đang soạn / Trả về',
-                count: articles.filter(
-                  (a) => a.currentRevision.status === 'DRAFT' || a.currentRevision.status === 'REJECTED',
-                ).length,
-                color: 'text-on-surface-variant',
-              },
-              {
-                key: 'PUBLISHED',
-                label: 'Đã công khai',
-                count: articles.filter((a) => a.status === 'PUBLISHED').length,
-                color: 'text-secondary font-semibold',
-              },
-              {
-                key: 'ALL',
-                label: 'Tất cả',
-                count: articles.length,
-                color: 'text-primary',
-              },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setSelectedTab(tab.key)}
-                className={`py-2 px-3 rounded-lg text-xs font-medium transition-all flex flex-col items-center justify-center ${
-                  selectedTab === tab.key
-                    ? 'bg-surface-container-lowest text-primary shadow-sm font-bold'
-                    : 'text-on-surface-variant hover:text-primary'
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span className={`text-xs ${tab.color}`}>{tab.count.toString().padStart(2, '0')}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Search Box */}
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-outline" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo tiêu đề bài viết, slug URL, tên tác giả biên tập viên..."
-              className="w-full h-10 pl-10 pr-10 rounded-xl bg-surface-container-lowest border border-outline-variant/30 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-primary"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Article Cards List */}
-        <div className="space-y-6">
-          {filteredArticles.length === 0 ? (
-            <div className="py-16 text-center bg-surface-container-lowest border border-dashed border-outline-variant rounded-xl p-8 space-y-3">
-              <FileText className="w-12 h-12 text-outline mx-auto" />
-              <div className="font-semibold text-base text-on-surface">Không tìm thấy bài viết phù hợp</div>
-              <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
-                Vui lòng thử điều chỉnh lại chuyên mục hoặc trạng thái vòng đời bài viết.
-              </p>
-              <button
-                onClick={() => {
-                  setSelectedCategory('ALL');
-                  setSelectedTab('ALL');
-                  setSearchQuery('');
-                }}
-                className="h-9 px-4 rounded-lg bg-primary text-white text-xs font-semibold"
-              >
-                Xóa bộ lọc
-              </button>
-            </div>
-          ) : (
-            filteredArticles.map((art) => {
-              const rev = art.currentRevision;
-              const isPending = rev.status === 'SUBMITTED';
-              const isRejected = rev.status === 'REJECTED';
-
-              return (
-                <div
-                  key={art.id}
-                  className={`rounded-xl bg-surface-container-lowest border border-outline-variant/30 shadow-sm overflow-hidden flex flex-col md:flex-row transition-all hover:shadow-md ${
-                    isPending ? 'ring-2 ring-amber-500/30' : ''
-                  }`}
-                >
-                  {/* Cover Image & Metadata Overlay */}
-                  <div className="md:w-80 h-48 md:h-auto relative shrink-0 overflow-hidden bg-surface-dim">
-                    {rev.coverImageUrl ? (
-                      <img src={rev.coverImageUrl} alt={rev.title} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="grid h-full place-items-center text-slate-500">
-                        <FileText className="h-10 w-10" />
-                        <span className="sr-only">Bài viết chưa có ảnh bìa</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"></div>
-
-                    {/* Status badge */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-sm ${
-                          isPending
-                            ? 'bg-amber-700 text-white animate-pulse'
-                            : isRejected
-                              ? 'bg-rose-600 text-white'
-                              : art.status === 'PUBLISHED'
-                                ? 'bg-emerald-700 text-white'
-                                : 'bg-slate-700 text-white'
-                        }`}
-                      >
-                        {isPending && <Clock className="w-3.5 h-3.5" />}
-                        {art.status === 'PUBLISHED' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                        {isPending
-                          ? 'CHỜ DUYỆT'
-                          : isRejected
-                            ? 'TRẢ VỀ SỬA'
-                            : art.status === 'PUBLISHED'
-                              ? 'ĐÃ XUẤT BẢN'
-                              : 'BẢN NHÁP'}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
-                        Rev #{rev.revisionNumber}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Body Content */}
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-xs px-2 py-0.5 rounded bg-surface-container text-primary font-semibold">
-                          {art.categoryLabel}
-                        </span>
-                        <span className="text-outline text-xs font-mono">ID: #{rev.id.slice(0, 12)}</span>
-                      </div>
-
-                      <h2 className="text-lg font-bold text-on-surface leading-snug">{rev.title}</h2>
-
-                      {/* Author & Legal Citation */}
-                      <div className="flex items-center gap-2 text-xs text-on-surface-variant flex-wrap">
-                        {rev.legalReference && (
-                          <span className="text-primary font-semibold flex items-center gap-1">
-                            <Gavel className="w-3 h-3" />
-                            {rev.legalReference}
-                          </span>
-                        )}
-                        <span>•</span>
-                        <span>BTV: {rev.authorName}</span>
-                        <span>•</span>
-                        <span className="text-outline">{rev.createdAt}</span>
-                      </div>
-
-                      <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2">{rev.summary}</p>
-
-                      {/* SEO Specs Accordion FR26 */}
-                      <div className="p-2.5 rounded-lg bg-surface-container-low text-xs space-y-1 font-mono">
-                        <div className="flex items-center justify-between">
-                          <span className="text-outline">Slug:</span>
-                          <span className="text-primary font-semibold">/{art.slug}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-outline">Canonical:</span>
-                          <span className="text-secondary font-medium">{rev.canonicalUrl || 'Chưa cấu hình'}</span>
-                        </div>
-                      </div>
-
-                      {/* Rejection notice if any */}
-                      {isRejected && rev.rejectionReason && (
-                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
-                          <strong>Lý do trả về sửa:</strong> {rev.rejectionReason}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions Dock */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-outline-variant/20 flex-wrap">
-                      {isPending ? (
-                        <>
-                          <button
-                            onClick={() => handleApprove(art.id, rev.id)}
-                            className="h-9 px-4 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 flex items-center gap-1.5 shadow-sm transition-all"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            PHÊ DUYỆT & XUẤT BẢN
-                          </button>
-                          <button
-                            onClick={() => setRejectingId(art.id)}
-                            className="h-9 px-3 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-rose-200"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            Trả về sửa (Lý do)
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-xs text-slate-500">
-                            Chưa có thao tác chỉnh sửa phiên bản đã xuất bản.
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+      ),
+    },
+    { key: 'category', header: 'Chuyên mục', cell: (row) => articleCategoryLabel(row.category) },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      cell: (row) => (
+        <div className="flex flex-col gap-1">
+          <StatusBadge label={ARTICLE_STATUS[row.status].label} variant={ARTICLE_STATUS[row.status].variant} />
+          {row.scheduledPublishAt && (
+            <span className="text-xs text-on-surface-variant">Hẹn giờ {formatDateTime(row.scheduledPublishAt)}</span>
           )}
         </div>
-      </div>
+      ),
+    },
+    {
+      key: 'latest',
+      header: 'Bản mới nhất',
+      cell: (row) =>
+        row.currentRevision
+          ? `#${row.currentRevision.revisionNumber} · ${REVISION_STATUS_LABELS[row.currentRevision.status]}`
+          : '—',
+    },
+    { key: 'updated', header: 'Cập nhật', cell: (row) => formatDateTime(row.updatedAt) },
+    {
+      key: 'open',
+      header: <span className="sr-only">Thao tác</span>,
+      align: 'end',
+      cell: (row) => (
+        <Button size="sm" variant="outline" onClick={() => setOpenId(row.id)}>
+          Mở
+        </Button>
+      ),
+    },
+  ];
 
-      {/* Modal Trả Về Sửa */}
-      {rejectingId && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          role="presentation"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setRejectingId(null);
-          }}
-        >
-          <div
-            ref={rejectPanelRef}
-            tabIndex={-1}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cms-reject-title"
-            className="w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-fade-in p-5 space-y-4"
-          >
-            <h3 id="cms-reject-title" className="text-base font-bold text-rose-700 flex items-center gap-2">
-              <RotateCcw className="w-5 h-5" /> Trả về yêu cầu sửa đổi
-            </h3>
-            <p className="text-xs text-on-surface-variant">
-              Ghi rõ nội dung điều khoản hoặc thông tư chưa đạt chuẩn để BTV tiến hành chỉnh sửa:
-            </p>
-            <textarea
-              rows={3}
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="VD: Cần bổ sung trích dẫn Nghị định 96/2024/NĐ-CP hướng dẫn Luật KDBĐS về mẫu hợp đồng cọc..."
-              className="w-full p-3 rounded-lg border border-outline-variant text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+  return (
+    <div className="ndc-admin-page flex flex-col gap-5" data-ready={tableStatus === 'loading' ? 'false' : 'true'}>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1>Quản trị nội dung</h1>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            Bài viết lên trang công khai chỉ sau khi được duyệt; mỗi lần sửa là một phiên bản mới, có thể hẹn giờ xuất
+            bản.
+          </p>
+        </div>
+        <Button leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={() => setEditor({ kind: 'create' })}>
+          Bài viết mới
+        </Button>
+      </header>
+      {notice && (
+        <InlineFeedback kind="success" title={notice}>
+          {null}
+        </InlineFeedback>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <FormField label="Trạng thái" className="min-w-48">
+          {(control) => (
+            <Select
+              {...control}
+              value={status}
+              placeholder="Tất cả trạng thái"
+              options={Object.entries(ARTICLE_STATUS).map(([value, item]) => ({ value, label: item.label }))}
+              onChange={(event) => {
+                setStatus(event.target.value);
+                setPage(1);
+              }}
             />
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setRejectingId(null)}
-                className="h-9 px-4 rounded-lg bg-surface-container text-xs font-medium"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleReject}
-                className="h-9 px-4 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 shadow-sm"
-              >
-                Gửi yêu cầu sửa
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+        </FormField>
+        <FormField label="Chuyên mục" className="min-w-48">
+          {(control) => (
+            <Select
+              {...control}
+              value={category}
+              placeholder="Tất cả chuyên mục"
+              options={ARTICLE_CATEGORIES}
+              onChange={(event) => {
+                setCategory(event.target.value);
+                setPage(1);
+              }}
+            />
+          )}
+        </FormField>
+      </div>
+      <DataTable
+        caption="Danh sách bài viết"
+        columns={columns}
+        rows={rows}
+        getRowId={(row) => row.id}
+        status={tableStatus}
+        onRetry={refresh}
+        empty={<EmptyState title="Chưa có bài viết" description="Tạo bài viết mới để bắt đầu." />}
+      />
+      {total > PAGE_SIZE && (
+        <Pagination
+          page={page}
+          pageCount={Math.ceil(total / PAGE_SIZE)}
+          onPageChange={setPage}
+          label="Trang bài viết"
+        />
       )}
-
-      {/* Modal Soạn Bài Viết Mới Chuẩn ERD04 */}
-      {isCreateModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-          role="presentation"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsCreateModalOpen(false);
-          }}
-        >
-          <div
-            ref={createPanelRef}
-            tabIndex={-1}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cms-create-title"
-            className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl shadow-2xl border border-outline-variant/30 overflow-hidden animate-fade-in flex flex-col max-h-[90vh]"
-          >
-            <div className="p-5 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container-low">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                <h3 id="cms-create-title" className="font-bold text-base text-on-surface">
-                  Soạn thảo bài viết CMS (Chuẩn ERD04 & FR32)
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsCreateModalOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-outline"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateArticle} className="p-6 overflow-y-auto space-y-4 text-sm">
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-xs text-blue-800">
-                <strong>Quy tắc FR24:</strong> Bài viết mới sẽ lưu dưới dạng <strong>Revision 1 (DRAFT)</strong>. Bạn
-                cần nộp duyệt để Ban biên tập thẩm định trước khi xuất bản.
-              </div>
-
-              <div>
-                <label htmlFor="cms-article-title" className="block text-xs font-semibold text-on-surface mb-1">
-                  Tiêu đề bài viết *
-                </label>
-                <input
-                  id="cms-article-title"
-                  type="text"
-                  required
-                  placeholder="VD: Hướng dẫn định giá căn hộ theo chỉ số thị trường"
-                  value={formData.title}
-                  onChange={(e) => {
-                    const title = e.target.value;
-                    const slug = title
-                      .toLowerCase()
-                      .normalize('NFD')
-                      .replace(/[\u0300-\u036f]/g, '')
-                      .replace(/[đĐ]/g, 'd')
-                      .replace(/[^a-z0-9\s-]/g, '')
-                      .replace(/\s+/g, '-')
-                      .slice(0, 80);
-                    setFormData({ ...formData, title, slug });
-                  }}
-                  className="w-full h-10 px-3 rounded-lg border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="cms-article-slug" className="block text-xs font-semibold text-on-surface mb-1">
-                    Slug URL (SEO FR26) *
-                  </label>
-                  <input
-                    id="cms-article-slug"
-                    type="text"
-                    required
-                    value={formData.slug}
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                    className="w-full h-10 px-3 rounded-lg border border-outline-variant text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="cms-article-category" className="block text-xs font-semibold text-on-surface mb-1">
-                    Chuyên mục *
-                  </label>
-                  <select
-                    id="cms-article-category"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full h-10 px-3 rounded-lg border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  >
-                    <option value="LEGAL_POLICY">Chính sách & Pháp lý (FR32)</option>
-                    <option value="KNOWLEDGE">Chuyên mục kiến thức</option>
-                    <option value="MARKET_INSIGHTS">Cẩm nang thị trường</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="cms-article-author" className="block text-xs font-semibold text-on-surface mb-1">
-                    Tác giả biên tập viên *
-                  </label>
-                  <input
-                    id="cms-article-author"
-                    type="text"
-                    required
-                    value={formData.authorName}
-                    onChange={(e) => setFormData({ ...formData, authorName: e.target.value })}
-                    className="w-full h-10 px-3 rounded-lg border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    htmlFor="cms-article-legal-reference"
-                    className="block text-xs font-semibold text-on-surface mb-1"
-                  >
-                    Luật / Pháp lý tham chiếu
-                  </label>
-                  <input
-                    id="cms-article-legal-reference"
-                    type="text"
-                    placeholder="VD: Luật KDBĐS 2024 số 29/2023/QH15"
-                    value={formData.legalReference}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        legalReference: e.target.value,
-                      })
-                    }
-                    className="w-full h-10 px-3 rounded-lg border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="cms-article-summary" className="block text-xs font-semibold text-on-surface mb-1">
-                  Đoạn tóm tắt mở đầu
-                </label>
-                <textarea
-                  id="cms-article-summary"
-                  rows={2}
-                  value={formData.summary}
-                  onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
-                  placeholder="Tóm tắt ngắn gọn 1-2 câu để làm meta description cho Google..."
-                  className="w-full p-2.5 rounded-lg border border-outline-variant text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="cms-article-content" className="block text-xs font-semibold text-on-surface mb-1">
-                  Nội dung chi tiết (Clean HTML) *
-                </label>
-                <textarea
-                  id="cms-article-content"
-                  rows={6}
-                  required
-                  value={formData.contentHtml}
-                  onChange={(e) => setFormData({ ...formData, contentHtml: e.target.value })}
-                  placeholder="<p>Nhập nội dung bài viết định dạng HTML an toàn...</p>"
-                  className="w-full p-3 rounded-lg border border-outline-variant text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-
-              <div className="p-3 border-t border-outline-variant/30 flex items-center justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setIsCreateModalOpen(false)}
-                  className="h-10 px-4 rounded-lg bg-surface-container text-on-surface-variant font-medium text-xs hover:bg-surface-container-high transition-colors"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="submit"
-                  className="h-10 px-5 rounded-lg bg-primary text-white font-semibold text-xs hover:bg-primary/90 transition-all shadow-sm flex items-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Lưu bản nháp Revision 1
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ArticleSheet
+        articleId={openId}
+        onClose={() => setOpenId(null)}
+        onChanged={(message) => {
+          setNotice(message);
+          refresh();
+        }}
+        onEdit={setEditor}
+      />
+      <ArticleEditor
+        mode={editor}
+        onClose={() => setEditor(null)}
+        onSaved={(article, message) => {
+          setEditor(null);
+          setNotice(message);
+          setOpenId(article.id);
+          refresh();
+        }}
+      />
     </div>
   );
-};
+}
+
+function ArticleSheet({
+  articleId,
+  onClose,
+  onChanged,
+  onEdit,
+}: {
+  articleId: string | null;
+  onClose: () => void;
+  onChanged: (message: string) => void;
+  onEdit: (mode: EditorMode) => void;
+}) {
+  const [article, setArticle] = useState<AdminArticle | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [rejecting, setRejecting] = useState<AdminRevision | null>(null);
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [confirmUnpublish, setConfirmUnpublish] = useState(false);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    if (!articleId) {
+      setArticle(null);
+      return undefined;
+    }
+    const abort = new AbortController();
+    setError(null);
+    setPreviewPath(null);
+    cmsAdminApi.detail(articleId, abort.signal).then(setArticle, (failure: unknown) => {
+      if (!abort.signal.aborted) setError(errorMessage(failure, 'Không tải được bài viết.'));
+    });
+    return () => abort.abort();
+  }, [articleId, version]);
+
+  const run = async (action: () => Promise<unknown>, message: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      setVersion((value) => value + 1);
+      onChanged(message);
+    } catch (failure) {
+      setError(errorMessage(failure, 'Thao tác không thành công.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const latest = article?.revisions?.[0] ?? null;
+  const live = article?.revisions?.find((revision) => revision.id === article.publishedRevisionId) ?? null;
+  return (
+    <Sheet
+      open={Boolean(articleId)}
+      onClose={onClose}
+      title={latest?.title ?? 'Bài viết'}
+      description={article ? `/tin-tuc/${article.slug} · ${articleCategoryLabel(article.category)}` : undefined}
+    >
+      {error && (
+        <InlineFeedback kind="error" title="Có lỗi">
+          {error}
+        </InlineFeedback>
+      )}
+      {!article ? (
+        !error && <p role="status">Đang tải…</p>
+      ) : (
+        <div className="flex flex-col gap-5 text-sm">
+          <section className="flex flex-col gap-2">
+            <StatusBadge
+              label={ARTICLE_STATUS[article.status].label}
+              variant={ARTICLE_STATUS[article.status].variant}
+            />
+            {article.publishedAt && <p>Công khai từ {formatDateTime(article.publishedAt)}</p>}
+            {article.status === 'PUBLISHED' && (
+              <a
+                className="font-medium text-primary underline"
+                href={article.publicPath}
+                target="_blank"
+                rel="noopener"
+              >
+                Xem trang công khai
+              </a>
+            )}
+            {article.scheduledPublishAt && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-info-container p-3 text-info-on-container">
+                <CalendarClock className="h-4 w-4" aria-hidden="true" />
+                Hẹn xuất bản lúc {formatDateTime(article.scheduledPublishAt)}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => run(() => cmsAdminApi.cancelSchedule(article.id), 'Đã hủy lịch xuất bản.')}
+                >
+                  Hủy lịch
+                </Button>
+              </div>
+            )}
+          </section>
+
+          {latest && (
+            <section
+              className="flex flex-col gap-3 rounded-xl border border-outline-variant/40 p-4"
+              aria-label="Bản mới nhất"
+            >
+              <p className="font-semibold">
+                Bản #{latest.revisionNumber} · {REVISION_STATUS_LABELS[latest.status]}
+              </p>
+              {latest.rejectionReason && <p className="text-error">Lý do từ chối: {latest.rejectionReason}</p>}
+              <div className="flex flex-wrap gap-2">
+                {latest.status === 'DRAFT' && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      leftIcon={<Pencil className="h-4 w-4" />}
+                      onClick={() => onEdit({ kind: 'draft', article, revision: latest })}
+                    >
+                      Sửa bản nháp
+                    </Button>
+                    <Button
+                      size="sm"
+                      leftIcon={<Send className="h-4 w-4" />}
+                      disabled={busy}
+                      onClick={() => run(() => cmsAdminApi.submit(article.id, latest.id), 'Đã nộp duyệt.')}
+                    >
+                      Nộp duyệt
+                    </Button>
+                  </>
+                )}
+                {latest.status === 'SUBMITTED' && (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => run(() => cmsAdminApi.approve(article.id, latest.id, null), 'Đã duyệt và xuất bản.')}
+                  >
+                    Duyệt và xuất bản ngay
+                  </Button>
+                )}
+                {(latest.status === 'SUBMITTED' || latest.status === 'SCHEDULED') && (
+                  <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting(latest)}>
+                    Từ chối
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  leftIcon={<Eye className="h-4 w-4" />}
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      const link = await cmsAdminApi.previewLink(article.id, latest.id);
+                      setPreviewPath(link.path);
+                    } catch (failure) {
+                      setError(errorMessage(failure, 'Không tạo được liên kết xem trước.'));
+                    }
+                  }}
+                >
+                  Liên kết xem trước
+                </Button>
+              </div>
+              {latest.status === 'SUBMITTED' && (
+                <div className="flex flex-wrap items-end gap-2">
+                  <FormField
+                    label="Hẹn giờ xuất bản"
+                    hint="Giờ theo máy của bạn; trang công khai hiện bài từ thời điểm này."
+                  >
+                    {(control) => (
+                      <TextInput
+                        {...control}
+                        type="datetime-local"
+                        value={scheduleAt}
+                        onChange={(event) => setScheduleAt(event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || !localToIso(scheduleAt)}
+                    onClick={() =>
+                      run(
+                        () => cmsAdminApi.approve(article.id, latest.id, localToIso(scheduleAt)),
+                        'Đã duyệt và hẹn giờ xuất bản.',
+                      )
+                    }
+                  >
+                    Duyệt và hẹn giờ
+                  </Button>
+                </div>
+              )}
+              {previewPath && (
+                <p className="break-all rounded-lg bg-surface-container-low p-3">
+                  Liên kết xem trước (24 giờ, không lập chỉ mục):{' '}
+                  <a className="text-primary underline" href={previewPath} target="_blank" rel="noopener">
+                    {window.location.origin}
+                    {previewPath}
+                  </a>
+                </p>
+              )}
+            </section>
+          )}
+
+          {latest && latest.status !== 'DRAFT' && (
+            <Button
+              variant="outline"
+              leftIcon={<Pencil className="h-4 w-4" />}
+              onClick={() => onEdit({ kind: 'revision', article })}
+            >
+              Tạo bản sửa mới {live ? 'từ bản đang công khai' : ''}
+            </Button>
+          )}
+          {article.status === 'PUBLISHED' && (
+            <Button
+              variant="danger"
+              leftIcon={<Undo2 className="h-4 w-4" />}
+              disabled={busy}
+              onClick={() => setConfirmUnpublish(true)}
+            >
+              Gỡ khỏi trang công khai
+            </Button>
+          )}
+
+          <section aria-labelledby="revision-history">
+            <h3 id="revision-history" className="flex items-center gap-2 font-semibold">
+              <History className="h-4 w-4" aria-hidden="true" /> Lịch sử phiên bản
+            </h3>
+            <ol className="mt-2 flex flex-col gap-2">
+              {(article.revisions ?? []).map((revision) => (
+                <li key={revision.id} className="rounded-lg border border-outline-variant/40 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">#{revision.revisionNumber}</span>
+                    <StatusBadge
+                      label={REVISION_STATUS_LABELS[revision.status]}
+                      variant={REVISION_VARIANT[revision.status]}
+                    />
+                  </div>
+                  <p className="mt-1">{revision.title}</p>
+                  <p className="text-xs text-on-surface-variant">
+                    Tạo {formatDateTime(revision.createdAt)} · tác giả {revision.authorName}
+                    {revision.reviewedAt ? ` · duyệt ${formatDateTime(revision.reviewedAt)}` : ''}
+                    {revision.sourceName ? ` · nguồn ${revision.sourceName}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+      )}
+      <ReasonDialog
+        open={Boolean(rejecting)}
+        title="Từ chối phiên bản"
+        description="Người viết sẽ thấy lý do này và tạo bản sửa mới."
+        noteLabel="Lý do từ chối"
+        noteMinLength={5}
+        confirmLabel="Từ chối"
+        confirmVariant="danger"
+        onClose={() => setRejecting(null)}
+        onConfirm={async (_code, note) => {
+          if (!article || !rejecting) return;
+          await cmsAdminApi.reject(article.id, rejecting.id, note);
+          setRejecting(null);
+          setVersion((value) => value + 1);
+          onChanged('Đã từ chối phiên bản.');
+        }}
+      />
+      <Dialog
+        open={confirmUnpublish}
+        onClose={() => setConfirmUnpublish(false)}
+        title="Gỡ bài viết khỏi trang công khai?"
+        description="Đường dẫn công khai sẽ trả về “không còn hiển thị” (410). Các phiên bản vẫn được giữ; có thể xuất bản lại bằng bản sửa mới."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmUnpublish(false)}>
+              Hủy
+            </Button>
+            <Button
+              variant="danger"
+              disabled={busy}
+              onClick={async () => {
+                setConfirmUnpublish(false);
+                if (article) await run(() => cmsAdminApi.unpublish(article.id), 'Đã gỡ bài viết khỏi trang công khai.');
+              }}
+            >
+              Gỡ bài viết
+            </Button>
+          </>
+        }
+      />
+    </Sheet>
+  );
+}
+
+function ArticleEditor({
+  mode,
+  onClose,
+  onSaved,
+}: {
+  mode: EditorMode | null;
+  onClose: () => void;
+  onSaved: (article: AdminArticle, message: string) => void;
+}) {
+  const [values, setValues] = useState<RevisionInput>(EMPTY_REVISION);
+  const [slug, setSlug] = useState('');
+  const [category, setCategory] = useState<ArticleCategory>('KNOWLEDGE');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setError(null);
+    if (!mode) return;
+    if (mode.kind === 'create') {
+      setValues(EMPTY_REVISION);
+      setSlug('');
+      setCategory('KNOWLEDGE');
+    } else if (mode.kind === 'draft') {
+      setValues(fromRevision(mode.revision));
+    } else {
+      const base =
+        mode.article.revisions?.find((revision) => revision.id === mode.article.publishedRevisionId) ??
+        mode.article.revisions?.[0];
+      setValues(fromRevision(base));
+    }
+  }, [mode]);
+
+  const set = (key: keyof RevisionInput) => (event: { target: { value: string } }) =>
+    setValues((previous) => ({ ...previous, [key]: event.target.value }));
+
+  const save = async () => {
+    if (!mode) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (mode.kind === 'create') {
+        const input: ArticleInput = { ...values, slug: slug.trim(), category };
+        onSaved(await cmsAdminApi.create(input), 'Đã tạo bản nháp.');
+      } else if (mode.kind === 'draft') {
+        onSaved(await cmsAdminApi.updateDraft(mode.article.id, mode.revision.id, values), 'Đã lưu bản nháp.');
+      } else {
+        onSaved(await cmsAdminApi.newRevision(mode.article.id, values), 'Đã tạo bản sửa mới (bản nháp).');
+      }
+    } catch (failure) {
+      setError(errorMessage(failure, 'Không lưu được bài viết.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const title = mode?.kind === 'create' ? 'Bài viết mới' : mode?.kind === 'draft' ? 'Sửa bản nháp' : 'Bản sửa mới';
+  return (
+    <Dialog
+      open={Boolean(mode)}
+      onClose={onClose}
+      size="lg"
+      title={title}
+      description="Nội dung HTML được lọc an toàn khi lưu (không script, không thuộc tính sự kiện). Ghi rõ tác giả và nguồn."
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Hủy
+          </Button>
+          <Button onClick={save} isLoading={busy}>
+            Lưu bản nháp
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {error && (
+          <InlineFeedback kind="error" title="Chưa lưu được">
+            {error}
+          </InlineFeedback>
+        )}
+        {mode?.kind === 'create' && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              label="Đường dẫn (slug)"
+              hint="Chữ thường không dấu, số, dấu gạch ngang. Không đổi được sau khi tạo."
+              required
+            >
+              {(control) => (
+                <TextInput
+                  {...control}
+                  value={slug}
+                  onChange={(event) => setSlug(event.target.value)}
+                  maxLength={200}
+                />
+              )}
+            </FormField>
+            <FormField label="Chuyên mục" required>
+              {(control) => (
+                <Select
+                  {...control}
+                  value={category}
+                  options={ARTICLE_CATEGORIES}
+                  onChange={(event) => setCategory(event.target.value as ArticleCategory)}
+                />
+              )}
+            </FormField>
+          </div>
+        )}
+        <FormField label="Tiêu đề" required>
+          {(control) => <TextInput {...control} value={values.title} onChange={set('title')} maxLength={500} />}
+        </FormField>
+        <FormField label="Tóm tắt">
+          {(control) => (
+            <TextArea {...control} rows={2} value={values.summary} onChange={set('summary')} maxLength={2000} />
+          )}
+        </FormField>
+        <FormField
+          label="Nội dung (HTML)"
+          required
+          hint="Cho phép tiêu đề, đoạn văn, danh sách, bảng, liên kết và ảnh."
+        >
+          {(control) => <TextArea {...control} rows={10} value={values.contentHtml} onChange={set('contentHtml')} />}
+        </FormField>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField label="Tác giả / ban biên tập" required>
+            {(control) => (
+              <TextInput {...control} value={values.authorName} onChange={set('authorName')} maxLength={255} />
+            )}
+          </FormField>
+          <FormField label="Ảnh bìa" hint="Ảnh đã tải lên (/api/v1/public/media/…) hoặc https://">
+            {(control) => <TextInput {...control} value={values.coverImageUrl} onChange={set('coverImageUrl')} />}
+          </FormField>
+          <FormField label="Tên nguồn">
+            {(control) => (
+              <TextInput {...control} value={values.sourceName} onChange={set('sourceName')} maxLength={255} />
+            )}
+          </FormField>
+          <FormField label="Đường dẫn nguồn" hint="https://…">
+            {(control) => <TextInput {...control} type="url" value={values.sourceUrl} onChange={set('sourceUrl')} />}
+          </FormField>
+          <FormField label="Căn cứ pháp lý">
+            {(control) => (
+              <TextInput {...control} value={values.legalReference} onChange={set('legalReference')} maxLength={500} />
+            )}
+          </FormField>
+          <FormField label="Mô tả SEO" hint="Tối đa 320 ký tự; để trống sẽ dùng tóm tắt.">
+            {(control) => (
+              <TextInput
+                {...control}
+                value={values.metaDescription}
+                onChange={set('metaDescription')}
+                maxLength={320}
+              />
+            )}
+          </FormField>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
 
 export default CmsManagementPage;

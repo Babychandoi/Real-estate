@@ -313,4 +313,63 @@
       @apply grid-cols-2;
     }
   }
+  /* CMS article bodies (HTML sanitised by the backend). */
+  .ndc-prose {
+    @apply text-base leading-8 text-on-surface;
+  }
+  .ndc-prose h2 {
+    @apply mt-8 text-xl font-semibold;
+  }
+  .ndc-prose h3 {
+    @apply mt-6 text-lg font-semibold;
+  }
+  .ndc-prose p,
+  .ndc-prose ul,
+  .ndc-prose ol,
+  .ndc-prose blockquote,
+  .ndc-prose table {
+    @apply mt-4;
+  }
+  .ndc-prose ul {
+    @apply list-disc pl-6;
+  }
+  .ndc-prose ol {
+    @apply list-decimal pl-6;
+  }
+  .ndc-prose a {
+    @apply text-primary underline;
+  }
+  .ndc-prose blockquote {
+    @apply border-l-4 border-outline-variant pl-4 text-on-surface-variant;
+  }
+  .ndc-prose img {
+    @apply my-4 h-auto max-w-full rounded-xl;
+  }
+  .ndc-prose table {
+    @apply block overflow-x-auto text-sm;
+  }
+  .ndc-prose th,
+  .ndc-prose td {
+    @apply border border-outline-variant/40 px-3 py-2 text-left;
+  }
+  /* Server-rendered main content (S7 prerender) shown until the SPA mounts over it. */
+  [data-prerender-content] {
+    @apply mx-auto w-full max-w-7xl px-4 py-8 text-base leading-7 sm:px-6 lg:px-8;
+  }
+  [data-prerender-content] h1 {
+    @apply text-2xl font-semibold;
+  }
+  [data-prerender-content] h2 {
+    @apply mt-6 text-lg font-semibold;
+  }
+  [data-prerender-content] ul,
+  [data-prerender-content] ol {
+    @apply mt-2 list-disc pl-6;
+  }
+  [data-prerender-content] a {
+    @apply text-primary underline;
+  }
+  [data-prerender-content] img {
+    @apply my-4 h-auto max-w-full rounded-xl;
+  }
 }

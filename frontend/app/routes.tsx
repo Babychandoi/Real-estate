@@ -114,6 +114,20 @@ const SharedShortlistPage = lazy(() =>
 const UnsubscribePage = lazy(() =>
   import('./routes/_public.unsubscribe').then((m) => ({ default: m.UnsubscribePage })),
 );
+// S7-SEO: public project, area and CMS pages (the backend prerenders the same routes, see nginx.conf @prerender).
+const ProjectListPage = lazy(() => import('./routes/_public.projects').then((m) => ({ default: m.ProjectListPage })));
+const ProjectDetailPage = lazy(() =>
+  import('./routes/_public.projects').then((m) => ({ default: m.ProjectDetailPage })),
+);
+const AreaListPage = lazy(() => import('./routes/_public.areas').then((m) => ({ default: m.AreaListPage })));
+const AreaDetailPage = lazy(() => import('./routes/_public.areas').then((m) => ({ default: m.AreaDetailPage })));
+const ArticleListPage = lazy(() => import('./routes/_public.articles').then((m) => ({ default: m.ArticleListPage })));
+const ArticleDetailPage = lazy(() =>
+  import('./routes/_public.articles').then((m) => ({ default: m.ArticleDetailPage })),
+);
+const ArticlePreviewPage = lazy(() =>
+  import('./routes/_public.articles').then((m) => ({ default: m.ArticlePreviewPage })),
+);
 const NotFoundPage = lazy(() =>
   import('./routes/_public.information').then((m) => ({
     default: m.NotFoundPage,
@@ -178,6 +192,13 @@ export const router = createBrowserRouter([
       { path: 'verify-email', element: load(<VerifyEmailPage />) },
       { path: 'forgot-password', element: load(<ForgotPasswordPage />) },
       { path: 'reset-password', element: load(<ResetPasswordPage />) },
+      { path: 'du-an', element: load(<ProjectListPage />) },
+      { path: 'du-an/:slug', element: load(<ProjectDetailPage />) },
+      { path: 'khu-vuc', element: load(<AreaListPage />) },
+      { path: 'khu-vuc/:slug', element: load(<AreaDetailPage />) },
+      { path: 'tin-tuc', element: load(<ArticleListPage />) },
+      { path: 'tin-tuc/xem-truoc/:token', element: load(<ArticlePreviewPage />) },
+      { path: 'tin-tuc/:slug', element: load(<ArticleDetailPage />) },
       { path: 'about', element: load(<InformationPage />) },
       { path: 'terms', element: load(<InformationPage />) },
       { path: 'privacy', element: load(<InformationPage />) },
