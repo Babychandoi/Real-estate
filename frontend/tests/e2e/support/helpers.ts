@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { createHmac } from 'node:crypto';
 
 /** WCAG 2.2 AA rule set used by every accessibility check. */
 export const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -121,6 +122,23 @@ export async function useSession(page: Page, token: string): Promise<void> {
 }
 
 /**
+ * Pre-grants analytics consent so the fixed, bottom-of-screen consent banner never covers a dialog's footer buttons
+ * (a real overlap other than in engagement.spec.ts's own consent test, which starts from no decision on purpose).
+ */
+export async function skipConsentBanner(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    try {
+      // Both keys: the stored decision is ignored (banner shows again) unless its policy version also matches
+      // (shared/analytics/consent.ts CONSENT_POLICY_VERSION) — keep this literal in step with that constant.
+      window.localStorage.setItem('bds.consent.analytics', 'granted');
+      window.localStorage.setItem('bds.consent.analytics.version', '2026-09-28');
+    } catch {
+      /* private mode: the banner may show once, which is fine for tests that do not touch its footer */
+    }
+  });
+}
+
+/**
  * A stable, distinct slot per Playwright project (0 for chromium-1440, 1 for chromium-320, …). Journeys that change
  * shared seed data pick "their" row by this slot, so projects running in parallel against one stack never race for
  * the same submission, order or account.
@@ -132,4 +150,39 @@ export function projectSlot(projectName: string): number {
   let hash = 0;
   for (const char of projectName) hash = (hash * 31 + char.charCodeAt(0)) % 97;
   return known.length + hash;
+}
+
+// TOTP (RFC 6238) for the MFA E2E: HMAC-SHA1, 6 digits, 30 s step — matching backend Totp.java. Computed with
+// Node's own crypto module; no third-party OTP library needed.
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function base32Decode(secret: string): Buffer {
+  const clean = secret.toUpperCase().replace(/=+$/, '').replace(/\s+/g, '');
+  let bits = '';
+  for (const char of clean) {
+    const value = BASE32_ALPHABET.indexOf(char);
+    if (value < 0) throw new Error(`invalid base32 character: ${char}`);
+    bits += value.toString(2).padStart(5, '0');
+  }
+  const bytes: number[] = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  return Buffer.from(bytes);
+}
+
+/** The 6-digit TOTP code for `secret` at `at` (default: now). */
+export function totpCode(secret: string, at: Date = new Date()): string {
+  const step = Math.floor(at.getTime() / 1000 / 30);
+  const high = Math.floor(step / 0x100000000);
+  const low = step >>> 0;
+  const counter = Buffer.alloc(8);
+  counter.writeUInt32BE(high, 0);
+  counter.writeUInt32BE(low, 4);
+  const hmac = createHmac('sha1', base32Decode(secret)).update(counter).digest();
+  const offset = hmac[hmac.length - 1] & 0x0f;
+  const binary =
+    ((hmac[offset] & 0x7f) << 24) |
+    ((hmac[offset + 1] & 0xff) << 16) |
+    ((hmac[offset + 2] & 0xff) << 8) |
+    (hmac[offset + 3] & 0xff);
+  return String(binary % 1000000).padStart(6, '0');
 }

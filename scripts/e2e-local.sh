@@ -20,6 +20,7 @@
 #   --keep-db              leave the database for inspection (prints its name)
 #   --serve                set the stack up, run no suite and keep serving until interrupted (authoring specs)
 # E2E_SQL_AFTER_SEED: SQL run on the seeded database before the suites (stream-specific fixtures).
+# E2E_MFA_REQUIRED=true: staff sign-in needs TOTP (only for the mfa suite; the other staff suites expect false).
 # Environment overrides: E2E_BACKEND_PORT (18111), E2E_FRONTEND_PORT (5311), E2E_REDIS_DB (2), E2E_DB_PREFIX
 # (s0fe_e2e), E2E_SEED_CLOCK (2026-09-01T03:00:00Z), E2E_JAVA_HOME (else $HOME/.local/opt/jdk17, else JAVA_HOME),
 # E2E_BACKEND_JAR (run another build of the backend, e.g. an integration branch; skips the backend build).
@@ -142,7 +143,10 @@ psql_admin "CREATE DATABASE \"$DB_NAME\""
 
 export APP_MODE=demo SPRING_PROFILES_ACTIVE=local SERVER_PORT="$BACKEND_PORT" SPRINGDOC_API_DOCS_ENABLED=false
 # Demo staff accounts have no authenticator: the staff API login in the specs gets a session directly.
-export APP_SECURITY_MFA_REQUIRED=false
+# E2E_MFA_REQUIRED=true runs the stack like production (staff must enrol TOTP): the mfa suite needs it (S11).
+export APP_SECURITY_MFA_REQUIRED="${E2E_MFA_REQUIRED:-false}"
+# Every browser shares 127.0.0.1: limits scaled like the CI demo stack (.env.demo.example RATE_LIMIT_LIMIT_MULTIPLIER).
+export APP_SECURITY_RATELIMIT_LIMITMULTIPLIER="$(grep '^RATE_LIMIT_LIMIT_MULTIPLIER=' "$ROOT/.env.demo.example" | cut -d= -f2-)"
 export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:55432/$DB_NAME"
 export SPRING_DATASOURCE_USERNAME="$BDS_TEST_PG_USER" SPRING_DATASOURCE_PASSWORD="$BDS_TEST_PG_PASSWORD"
 export SPRING_DATA_REDIS_HOST="$BDS_TEST_REDIS_HOST" SPRING_DATA_REDIS_PORT="$BDS_TEST_REDIS_PORT"
@@ -154,9 +158,11 @@ export APP_GEOCODING_PROVIDER_URL="http://127.0.0.1:9"
 export APP_ALLOWED_ORIGINS="http://127.0.0.1:$FRONTEND_PORT,http://localhost:$FRONTEND_PORT"
 export APP_PUBLIC_BASE_URL="http://127.0.0.1:$FRONTEND_PORT"
 JVM=(java -Xmx768m -jar "$JAR")
-# demo.broker gets a synthetic VERIFIED KYC profile so the supply suite can post listings (S11: no fixture SQL needed).
+# S11: demo.broker and demo.user get a synthetic VERIFIED KYC profile (posting and sending leads need one; no fixture
+# SQL), and the synthetic accounts sign in with the demo password (an unverified seeker for the KYC-gate journey).
 SEED_ARGS=(--app.uat-seed.mode=seed "--app.uat-seed.accounts=$SEED_ACCOUNTS" "--app.uat-seed.clock=$SEED_CLOCK"
-  --app.uat-seed.kyc-verified-accounts=demo.broker@bds.local)
+  --app.uat-seed.kyc-verified-accounts=demo.broker@bds.local,demo.user@bds.local
+  "--app.uat-seed.password=$DEMO_ACCOUNT_PASSWORD")
 
 wait_ready() {
   for _ in $(seq 1 180); do

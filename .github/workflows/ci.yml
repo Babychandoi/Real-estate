@@ -160,7 +160,8 @@ jobs:
           docker compose $COMPOSE_FILE_ARGS run --rm --no-deps backend
           --app.uat-seed.mode=seed
           --app.uat-seed.accounts=demo.broker@bds.local,demo.user@bds.local,demo.moderator@bds.local,demo.admin@bds.local
-          --app.uat-seed.kyc-verified-accounts=demo.broker@bds.local
+          --app.uat-seed.kyc-verified-accounts=demo.broker@bds.local,demo.user@bds.local
+          --app.uat-seed.password=$(grep '^DEMO_ACCOUNT_PASSWORD=' .env.demo.example | cut -d= -f2-)
           --app.uat-seed.clock=2026-09-01T03:00:00Z
           --server.port=18080
       - name: Re-index search with the seeded listings
