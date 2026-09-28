@@ -36,8 +36,8 @@ describe('Dialog', () => {
     const dialog = screen.getByRole('dialog', { name: 'Báo cáo tin vi phạm' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveAccessibleDescription('Mô tả ngắn');
-    // First focusable element: the close button in the header.
-    expect(screen.getByRole('button', { name: 'Đóng hộp thoại' })).toHaveFocus();
+    // Default initial focus goes to the title, not the close button (NIT): the least meaningful thing to land on.
+    expect(screen.getByRole('heading', { name: 'Báo cáo tin vi phạm' })).toHaveFocus();
     expect(document.body.style.overflow).toBe('hidden');
   });
 

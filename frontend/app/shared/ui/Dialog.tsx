@@ -42,10 +42,15 @@ export function Dialog({
   className,
 }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const generated = useId().replace(/:/g, '');
   const titleId = `dialog${generated}-title`;
   const descriptionId = description ? `dialog${generated}-description` : undefined;
-  useModal({ open, onClose, panelRef, initialFocusRef });
+  // Default initial focus goes to the title, not the close button (NIT): the close button happens to be the
+  // first focusable element in DOM order, but it is the least meaningful thing to land on when a dialog opens —
+  // a screen reader user hears the title read out and a sighted user's focus ring appears somewhere they can
+  // actually orient from, rather than on a control whose only job is to leave.
+  useModal({ open, onClose, panelRef, initialFocusRef: initialFocusRef ?? titleRef });
 
   if (!open) return null;
   return createPortal(
@@ -72,7 +77,7 @@ export function Dialog({
       >
         <div className="flex items-start justify-between gap-4 border-b border-outline-variant px-5 py-4">
           <div className="min-w-0">
-            <h2 id={titleId} className="text-headline-sm text-on-surface">
+            <h2 id={titleId} ref={titleRef} tabIndex={-1} className="text-headline-sm text-on-surface focus:outline-none">
               {title}
             </h2>
             {description && (
