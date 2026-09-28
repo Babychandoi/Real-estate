@@ -39,6 +39,13 @@ class MediaVariantJobHandler implements JobHandler {
         this.meters = meters;
     }
 
+    @jakarta.annotation.PostConstruct
+    void checkEncoder() {
+        if (!ImageProcessor.webpSelfTest()) {
+            log.error("WebP encoder unavailable (native libwebp not loadable on this platform): media jobs will retry and fail");
+        }
+    }
+
     @Override public String queue() { return QUEUE; }
 
     @Override public int batchSize() { return 4; }

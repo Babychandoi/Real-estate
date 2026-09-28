@@ -47,7 +47,30 @@ public final class ImageProcessor {
     private static final float VARIANT_QUALITY = 0.80f;
     private static final Semaphore PERMITS = new Semaphore(1, true);
 
+    static {
+        // ImageIO registers plugins found by the context class loader of the first caller; in the Spring Boot fat jar
+        // that may be the system loader (scheduler/worker thread), which cannot see the bundled WebP plugin.
+        Thread thread = Thread.currentThread();
+        ClassLoader previous = thread.getContextClassLoader();
+        try {
+            thread.setContextClassLoader(ImageProcessor.class.getClassLoader());
+            ImageIO.scanForPlugins();
+        } finally {
+            thread.setContextClassLoader(previous);
+        }
+        ImageIO.setUseCache(false);   // no temp files for streams: everything is in memory and bounded
+    }
+
     private ImageProcessor() {}
+
+    /** Encodes a 2×2 WebP: false when the native libwebp of the plugin cannot be loaded on this platform. */
+    public static boolean webpSelfTest() {
+        try {
+            return encode(new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), "image/webp", 0.5f).length > 0;
+        } catch (Throwable ex) {   // UnsatisfiedLinkError included
+            return false;
+        }
+    }
 
     /** Header-only check used at upload time: format decodable, dimensions within limits. */
     public static Dimensions probe(byte[] bytes, String contentType) {
@@ -153,7 +176,8 @@ public final class ImageProcessor {
 
     /** Progressive halving + bilinear: good quality without the cost of area averaging on big rasters. */
     private static BufferedImage scale(BufferedImage source, int width, int height) {
-        BufferedImage current = normalized(source);
+        // No full-size normalised copy of the (large) decoded raster: every step draws into a smaller target.
+        BufferedImage current = source;
         while (current.getWidth() / 2 >= width && current.getHeight() / 2 >= height) {
             current = draw(current, current.getWidth() / 2, current.getHeight() / 2);
         }
