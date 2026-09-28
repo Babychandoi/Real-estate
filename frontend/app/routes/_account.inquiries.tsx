@@ -18,6 +18,7 @@ import { Button, ButtonLink } from '@/shared/ui/Button';
 import { Dialog } from '@/shared/ui/Dialog';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { ErrorState } from '@/shared/ui/ErrorState';
+import { imageFromUrl, ResponsiveImage } from '@/shared/ui/ResponsiveImage';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Skeleton } from '@/shared/ui/Skeleton';
@@ -80,13 +81,15 @@ function InquiryCard({ item, onChanged }: { item: InquiryItem; onChanged: () => 
   return (
     <article className="flex min-w-0 flex-col gap-3 rounded-lg border border-outline-variant bg-surface p-4">
       <div className="flex gap-3">
-        {item.listingImageUrl ? (
-          <img src={item.listingImageUrl} alt="" className="h-20 w-28 shrink-0 rounded-lg object-cover" />
-        ) : (
-          <span className="grid h-20 w-28 shrink-0 place-items-center rounded-lg bg-surface-container">
-            <Building2 className="h-6 w-6 text-on-surface-variant" aria-hidden="true" />
-          </span>
-        )}
+        {/* ResponsiveImage keeps the tile when the image is gone (a hidden listing's photo answers 404, S1). */}
+        <ResponsiveImage
+          image={imageFromUrl(item.listingImageUrl)}
+          alt=""
+          sizes="112px"
+          aspectRatio="7 / 5"
+          className="w-28 shrink-0 rounded-lg"
+          emptyLabel="Không có ảnh"
+        />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={VARIANT[item.status]}>{INQUIRY_STATUS_LABELS[item.status]}</Badge>
@@ -202,7 +205,10 @@ export function MyInquiriesPage() {
   }, [load]);
 
   return (
-    <div className="min-h-full bg-surface px-4 py-8 md:px-8 lg:py-10">
+    <div
+      className="min-h-full bg-surface px-4 py-8 md:px-8 lg:py-10"
+      data-ready={loading && !result ? undefined : 'true'}
+    >
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>

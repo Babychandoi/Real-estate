@@ -234,7 +234,7 @@ export function ArticleDetailPage() {
   if (state === 'error' || !article) {
     return (
       <div className="ndc-page py-16" data-ready="true">
-        <StatePanel error onRetry={() => setAttempt((value) => value + 1)} />
+        <StatePanel headingLevel={1} error onRetry={() => setAttempt((value) => value + 1)} />
       </div>
     );
   }

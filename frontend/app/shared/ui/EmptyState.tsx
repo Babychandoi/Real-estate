@@ -8,7 +8,7 @@ interface EmptyStateProps {
   icon?: LucideIcon;
   /** Next step(s), e.g. a ButtonLink "Xóa bộ lọc". */
   actions?: React.ReactNode;
-  headingLevel?: 2 | 3 | 4;
+  headingLevel?: 1 | 2 | 3 | 4;
   className?: string;
 }
 

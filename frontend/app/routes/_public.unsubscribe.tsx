@@ -61,18 +61,22 @@ export function UnsubscribePage() {
       : `email về “${target?.category ? CATEGORY_LABELS[target.category].title : 'mục này'}”`;
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-12">
+    <div
+      className="mx-auto flex w-full max-w-xl flex-col gap-4 px-4 py-12"
+      data-ready={status === 'loading' ? undefined : 'true'}
+    >
       {status === 'loading' ? (
         <Skeleton className="h-40 rounded-card" />
       ) : status === 'invalid' ? (
         <EmptyState
           icon={MailX}
+          headingLevel={1}
           title="Liên kết không hợp lệ hoặc đã hết hạn"
           description="Bạn vẫn có thể tắt email trong Tùy chọn thông báo của tài khoản."
           actions={<ButtonLink to="/account#thong-bao">Mở tùy chọn thông báo</ButtonLink>}
         />
       ) : status === 'error' ? (
-        <ErrorState title="Chưa xử lý được yêu cầu" onRetry={load} />
+        <ErrorState headingLevel={1} title="Chưa xử lý được yêu cầu" onRetry={load} />
       ) : (
         <section className="flex flex-col gap-4 rounded-card border border-outline-variant p-6">
           <h1 className="text-headline-sm text-on-surface">Ngừng nhận email</h1>

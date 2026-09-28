@@ -151,6 +151,15 @@ function ShortlistDetailView({ id, onChanged, onGone }: { id: string; onChanged:
   useEffect(() => {
     void load();
   }, [load]);
+  // Refetches without the 'loading' status: unlike the first load, this must not flash the Skeleton and remount the
+  // section — a dialog open over it (the share dialog showing the one-time link) would be torn down mid-display.
+  const reloadQuietly = useCallback(async () => {
+    try {
+      setDetail(await engagementApi.shortlist(id));
+    } catch {
+      /* the visible detail just stays as it was; the next explicit action will surface a fresh error if any */
+    }
+  }, [id]);
 
   const run = async (action: () => Promise<ShortlistDetail | void>, success?: string) => {
     try {
@@ -388,7 +397,7 @@ function ShortlistDetailView({ id, onChanged, onGone }: { id: string; onChanged:
           onClose={() => setShareOpen(false)}
           onShared={() => {
             onChanged();
-            void load();
+            void reloadQuietly();
           }}
         />
       )}

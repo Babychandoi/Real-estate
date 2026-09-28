@@ -222,6 +222,7 @@ export function NotFoundState({ gone, what }: { gone: boolean; what: string }) {
   return (
     <div className="ndc-page py-16" data-ready="true">
       <StatePanel
+        headingLevel={1}
         title={gone ? `${what} không còn hiển thị` : `Không tìm thấy ${what.toLowerCase()}`}
         description={
           gone

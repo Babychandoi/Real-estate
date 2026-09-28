@@ -41,7 +41,7 @@ test.describe('buyer (demo.user)', () => {
   test('reaches their inquiries and profile but not the posting pages', async ({ page, buyerToken }) => {
     await useSession(page, buyerToken);
     await page.goto('/my-inquiries');
-    await expect(page.getByRole('heading', { level: 1, name: 'Tin đã liên hệ' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Yêu cầu đã gửi' })).toBeVisible();
     // A seeker is offered the owner upgrade instead of the posting page (S3a, P-09).
     await expect(page.getByRole('link', { name: 'Đăng tin' })).toHaveAttribute('href', '/become-owner');
 
@@ -70,7 +70,7 @@ test.describe('broker (demo.broker)', () => {
 
     await navigateInApp(page, '/broker/workspace');
     await expect(page).toHaveURL(/\/broker\/workspace$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Hiệu suất từ dữ liệu thật' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Việc hôm nay và hiệu quả phản hồi' })).toBeVisible();
 
     await navigateInApp(page, '/listings/new');
     await expect(page).toHaveURL(/\/listings\/new$/);

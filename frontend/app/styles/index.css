@@ -199,6 +199,7 @@
   .ndc-state-icon {
     @apply grid h-12 w-12 place-items-center rounded-full bg-surface-container-low;
   }
+  .ndc-state h1,
   .ndc-state h2 {
     @apply text-lg font-semibold;
   }

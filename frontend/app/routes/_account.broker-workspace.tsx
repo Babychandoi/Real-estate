@@ -386,7 +386,10 @@ export function BrokerWorkspacePage() {
   }, [load]);
 
   return (
-    <div className="min-h-full bg-surface-container-lowest px-4 py-8 md:px-8 lg:py-10">
+    <div
+      className="min-h-full bg-surface-container-lowest px-4 py-8 md:px-8 lg:py-10"
+      data-ready={data || error ? 'true' : undefined}
+    >
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
         <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>

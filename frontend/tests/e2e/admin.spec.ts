@@ -1,9 +1,11 @@
 import { expect, test as base, type APIRequestContext } from '@playwright/test';
-import { apiLogin, demoPassword, useSession } from './support/helpers';
+import { apiLogin, demoPassword, projectSlot, useSession } from './support/helpers';
 
 // S4-ADMIN journeys (chromium desktop): a moderator claims and approves with a reason; an admin resolves a billing
 // exception; an admin changes a role with a reason and sees it in the history. Staff sessions come from the staff
 // login API (the public login refuses staff accounts); one login per role and worker because /auth is rate limited.
+// Projects run in parallel against one stack, so every journey works on its own row (projectSlot): its own
+// submission, its own plan's order and its own target account (S11).
 
 async function staffLogin(request: APIRequestContext, email: string): Promise<string> {
   const response = await request.post('/api/v1/auth/admin/login', { data: { email, password: demoPassword() } });
@@ -40,13 +42,17 @@ const test = base.extend<object, { moderatorToken: string; adminToken: string; b
 
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 
-test('moderator claims a submission and approves it with a reason', async ({ page, moderatorToken }) => {
+test('moderator claims a submission and approves it with a reason', async ({ page, moderatorToken }, info) => {
   await useSession(page, moderatorToken);
   await page.goto('/2026/nhadatchuan/admin/moderation');
   await expect(page.getByRole('heading', { level: 1, name: 'Kiểm duyệt tin đăng' })).toBeVisible();
   await page.getByRole('button', { name: 'Chưa ai nhận' }).click();
-  const claim = page.getByRole('button', { name: /^Nhận xử lý / }).first();
-  await expect(claim, 'the seed needs at least one unclaimed submission').toBeVisible();
+  // Its own row per project: the first project takes the first unclaimed submission, the second the next one, …
+  const slot = projectSlot(info.project.name);
+  await expect(page.getByRole('button', { name: /^Nhận xử lý / }).first()).toBeVisible();
+  const unclaimed = await page.getByRole('button', { name: /^Nhận xử lý / }).count();
+  expect(unclaimed, `the seed needs more than ${slot} unclaimed submissions`).toBeGreaterThan(slot);
+  const claim = page.getByRole('button', { name: /^Nhận xử lý / }).nth(slot);
   const title = ((await claim.getAttribute('aria-label')) ?? '').replace(/^Nhận xử lý /, '');
   await claim.click();
   // The claimed row leaves the "unclaimed" view once the queue has reloaded.
@@ -73,7 +79,7 @@ test('moderator claims a submission and approves it with a reason', async ({ pag
   await expect(page.getByText(`Đã phê duyệt: ${title}`)).toBeVisible();
 });
 
-test('admin resolves a billing exception with a note', async ({ page, request, adminToken, brokerToken }) => {
+test('admin resolves a billing exception with a note', async ({ page, request, adminToken, brokerToken }, info) => {
   // Setup through the API: a bank account, a broker order reported as paid, a receipt that does not match.
   const bank = await (await request.get('/api/v1/billing/admin/bank', { headers: auth(adminToken) })).text();
   if (!bank.trim()) {
@@ -87,11 +93,20 @@ test('admin resolves a billing exception with a note', async ({ page, request, a
         expectedVersion: null,
       },
     });
-    expect(saved.ok()).toBe(true);
+    // 409: another project saved the bank account at the same moment, which is just as good.
+    expect(saved.ok() || saved.status() === 409, await saved.text()).toBe(true);
   }
+  // One open order per user and plan: each project uses its own paid plan so the orders are distinct.
+  const plans = (await (await request.get('/api/v1/billing/plans')).json()) as Array<{
+    code: string;
+    priceVnd: number;
+  }>;
+  const paid = plans.filter((plan) => plan.priceVnd > 0);
+  const slot = projectSlot(info.project.name);
+  expect(paid.length, `needs more than ${slot} paid plans`).toBeGreaterThan(slot);
   const created = await request.post('/api/v1/billing/orders', {
-    headers: { ...auth(brokerToken), 'Idempotency-Key': `e2e-${Date.now()}` },
-    data: { planCode: 'PRO' },
+    headers: { ...auth(brokerToken), 'Idempotency-Key': `e2e-${info.project.name}-${Date.now()}` },
+    data: { planCode: paid[slot].code },
   });
   expect(created.ok(), await created.text()).toBe(true);
   const order = (await created.json()) as { id: string; reference: string; status: string; amountVnd: number };
@@ -120,11 +135,14 @@ test('admin resolves a billing exception with a note', async ({ page, request, a
   await expect(page.getByText(`${order.reference}: Đã kích hoạt`)).toBeVisible();
 });
 
-test('admin changes a role with a reason and sees it in the history', async ({ page, request, adminToken }) => {
+test('admin changes a role with a reason and sees it in the history', async ({ page, request, adminToken }, info) => {
   const list = await request.get('/api/v1/admin/users?role=USER&size=100', { headers: auth(adminToken) });
   const users = ((await list.json()) as { items: Array<{ id: string; fullName: string; email: string | null }> }).items;
-  const target = users.find((u) => u.email && !u.email.startsWith('demo.'));
-  expect(target, 'the seed needs a USER account other than the demo accounts').toBeTruthy();
+  const candidates = users
+    .filter((u) => u.email && !u.email.startsWith('demo.'))
+    .sort((a, b) => a.email!.localeCompare(b.email!));
+  const target = candidates[projectSlot(info.project.name)];
+  expect(target, 'the seed needs one USER account (other than the demo accounts) per project').toBeTruthy();
 
   await useSession(page, adminToken);
   await page.goto('/2026/nhadatchuan/admin/users');

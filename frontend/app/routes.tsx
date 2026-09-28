@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
 import { ROUTE_ACCESS } from '@/shared/auth/routeAccess';
 import { SEEKERS, type Role } from '@/shared/auth/roles';
 import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
+import { AdminAlias } from '@/shared/admin/AdminAlias';
 
 /** The UI kit catalog exists only in dev builds or when VITE_ENABLE_UI_CATALOG=true (a11y suite in CI). */
 export const UI_CATALOG_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ENABLE_UI_CATALOG === 'true';
@@ -258,6 +259,7 @@ export const router = createBrowserRouter([
     ],
   },
   ...(UiCatalogPage ? [{ path: '/__ui', element: load(<UiCatalogPage />) }] : []),
-  { path: '/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/moderation" replace /> },
-  { path: '/2026/nhadatchua/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/login" replace /> },
+  // UI-26: legacy aliases map to the same page under the real prefix (tests: AdminAlias.test.tsx, admin-aliases E2E).
+  { path: '/admin/*', element: <AdminAlias /> },
+  { path: '/2026/nhadatchua/admin/*', element: <AdminAlias /> },
 ]);

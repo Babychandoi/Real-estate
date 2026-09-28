@@ -116,7 +116,10 @@ export function NotificationCenterPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8">
+    <div
+      className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8"
+      data-ready={status === 'loading' ? undefined : 'true'}
+    >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-headline-md text-on-surface">Thông báo</h1>

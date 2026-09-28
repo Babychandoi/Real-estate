@@ -40,7 +40,9 @@ import java.util.UUID;
  *
  * <p>Runs only when {@code app.uat-seed.mode} is {@code seed} or {@code purge}. Every synthetic row uses an id
  * starting with {@code ee5eed} (text keys start with {@code UAT}), so {@code purge} removes exactly what
- * {@code seed} created. Existing accounts are only referenced (as owners/requesters), never modified.
+ * {@code seed} created. Existing accounts are only referenced (as owners/requesters), never modified; the one
+ * exception is a synthetic VERIFIED KYC profile added (and purged) for accounts listed in
+ * {@code app.uat-seed.kyc-verified-accounts} that have no profile at all.
  *
  * <p>{@code app.uat-seed.clock=<ISO instant>} makes every timestamp relative to that instant, so E2E fixtures are
  * identical run after run (e.g. {@code --app.uat-seed.clock=2026-09-01T03:00:00Z}). Outside production,
@@ -71,6 +73,7 @@ public class UatDataSeeder implements ApplicationRunner {
     private final String passwordHash;
     private final Instant now;
     private Random random;
+    private List<String> kycVerifiedAccounts = List.of();
 
     public UatDataSeeder(JdbcTemplate jdbc, PiiProtectionService pii, TransactionTemplate tx, ApplicationContext context,
                          @Value("${app.uat-seed.mode}") String mode,
@@ -92,6 +95,18 @@ public class UatDataSeeder implements ApplicationRunner {
         this.searchIndex = searchIndex;
         this.now = parseClock(clock);
         this.passwordHash = hashPassword(password, appMode);
+    }
+
+    /**
+     * {@code app.uat-seed.kyc-verified-accounts}: real accounts (from {@code app.uat-seed.accounts}) that get a
+     * synthetic VERIFIED KYC profile when they have none, so E2E can post listings as {@code demo.broker} on a fresh
+     * database (V018 ran before the demo accounts existed). An existing profile, whatever its status, is left alone;
+     * the synthetic profile has an {@code ee5eed} id and is removed by purge.
+     */
+    @Value("${app.uat-seed.kyc-verified-accounts:}")
+    public void setKycVerifiedAccounts(List<String> emails) {
+        this.kycVerifiedAccounts = emails == null ? List.of()
+                : emails.stream().map(email -> email.trim().toLowerCase(Locale.ROOT)).filter(email -> !email.isBlank()).toList();
     }
 
     private static Instant parseClock(String clock) {
@@ -299,7 +314,32 @@ public class UatDataSeeder implements ApplicationRunner {
                 fakeOwners.size(), listings.size(), leads, reports, verifications, projects, articles, orders, imagePool.size());
     }
 
+    private void verifyListedRealAccounts() {
+        for (int i = 0; i < kycVerifiedAccounts.size(); i++) {
+            String email = kycVerifiedAccounts.get(i);
+            if (!accountEmails.contains(email)) {
+                log.warn("UAT seed: {} is in kyc-verified-accounts but not in accounts, skipped", email);
+                continue;
+            }
+            List<Map<String, Object>> users = jdbc.queryForList(
+                    "SELECT id, full_name FROM users WHERE LOWER(email)=? LIMIT 1", email);
+            if (users.isEmpty()) continue;
+            UUID userId = (UUID) users.get(0).get("id");
+            String name = (String) users.get(0).get("full_name");
+            jdbc.update("""
+                    INSERT INTO user_kyc_profiles(id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,dob,address,
+                                                  face_match_score,status,created_at,verified_at,expires_at)
+                    VALUES (?,?,?,?,?,?,?,?,'VERIFIED',?,?,?)
+                    ON CONFLICT (user_id) DO NOTHING""",
+                    id(K_KYC, 0x100 + i), userId, "v1:0099****" + String.format("%04d", i) + ":synthetic:synthetic",
+                    sha256("uat-kyc-real-" + userId), name, "01/01/1990", "Hồ sơ kiểm thử tổng hợp", 0.95,
+                    ago(Duration.ofDays(30)), ago(Duration.ofDays(29)),
+                    Timestamp.from(now.minus(Duration.ofDays(29)).atZone(java.time.ZoneOffset.UTC).plusMonths(24).toInstant()));
+        }
+    }
+
     private List<Person> loadRealAccounts() {
+        verifyListedRealAccounts();
         List<Person> people = new ArrayList<>();
         for (String email : accountEmails) {
             List<Map<String, Object>> rows = jdbc.queryForList("""

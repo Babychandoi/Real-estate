@@ -45,7 +45,7 @@ export function SavedPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-8" data-ready="true">
       <header>
         <h1 className="text-headline-md text-on-surface">Đã lưu</h1>
         <p className="text-body-sm text-on-surface-variant">
