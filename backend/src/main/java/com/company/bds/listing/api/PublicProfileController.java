@@ -1,5 +1,6 @@
 package com.company.bds.listing.api;
 
+import com.company.bds.shared.error.ApiException;
 import com.company.bds.shared.security.ContactInfoGuard;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -35,7 +36,8 @@ public class PublicProfileController {
                 ContactInfoGuard.redact(rs.getString("full_name")), rs.getString("avatar_media_url"), rs.getBoolean("identity_verified"),
                 rs.getLong("active_listing_count"), rs.getTimestamp("created_at").toInstant()
         ), ownerId).stream().findFirst();
-        return profile.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+        return profile.map(ResponseEntity::ok)
+                .orElseThrow(() -> ApiException.notFound("PROFILE_NOT_FOUND", "Không tìm thấy người đăng."));
     }
 
     /** Approved, currently visible listings of one owner for their public profile page. */

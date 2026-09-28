@@ -28,7 +28,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,7 +46,6 @@ import java.util.UUID;
 public class EventIngestionController {
     static final int MAX_BODY_BYTES = 64 * 1024;
     static final int MAX_CONSENT_BYTES = 2 * 1024;
-    private static final String PROBLEM_BASE = "https://api.bds.vn/problems/";
 
     private final EventIngestionService ingestion;
     private final ConsentService consents;
@@ -151,8 +149,7 @@ public class EventIngestionController {
 
     private static ResponseEntity<ProblemDetails> problem(HttpStatus status, String code, String title, String detail,
                                                           HttpServletRequest request, List<ProblemDetails.ValidationErrorItem> errors) {
-        ProblemDetails body = new ProblemDetails(URI.create(PROBLEM_BASE + code.toLowerCase().replace('_', '-')), title, status.value(),
-                detail, request.getRequestURI(), code, UUID.randomUUID().toString(), errors);
+        ProblemDetails body = ProblemDetails.of(status.value(), code, title, detail, request.getRequestURI(), errors);
         return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).cacheControl(CacheControl.noStore()).body(body);
     }
 

@@ -1,5 +1,6 @@
 package com.company.bds.listing.api;
 
+import com.company.bds.shared.error.ApiException;
 import com.company.bds.listing.api.request.CreateListingDraftRequest;
 import com.company.bds.listing.api.request.UpdateListingDraftRequest;
 import com.company.bds.listing.api.response.ListingDetailResponse;
@@ -191,7 +192,7 @@ public class ListingController {
                 .filter(listing -> canView(listing, authentication))
                 .map(this::mapToDetailResponse)
                 .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
     }
 
     @GetMapping("/by-slug/{slug}")
@@ -200,7 +201,7 @@ public class ListingController {
                 .filter(listing -> canView(listing, authentication))
                 .map(this::mapToDetailResponse)
                 .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
     }
 
     @GetMapping("/my-listings")

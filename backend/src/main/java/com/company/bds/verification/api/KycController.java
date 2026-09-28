@@ -1,5 +1,6 @@
 package com.company.bds.verification.api;
 
+import com.company.bds.shared.error.ApiException;
 import com.company.bds.verification.api.request.RejectKycRequest;
 import com.company.bds.verification.api.request.SubmitKycRequest;
 import com.company.bds.verification.api.response.UserKycResponse;
@@ -71,7 +72,7 @@ public class KycController {
                 .map(p -> ResponseEntity.ok(privileged
                         ? UserKycResponse.fromDomainForReviewer(p)
                         : UserKycResponse.fromDomain(p)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseThrow(() -> ApiException.notFound("KYC_NOT_FOUND", "Chưa có hồ sơ định danh."));
     }
 
     @PostMapping("/documents/access")

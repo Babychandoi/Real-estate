@@ -15,10 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 /** Staff analytics dashboard ({@code /api/v1/analytics/**} is ADMIN/MODERATOR in SecurityConfig, never cached). */
 @RestController
@@ -47,9 +45,8 @@ public class AnalyticsDashboardController {
         List<ProblemDetails.ValidationErrorItem> errors = ex.violations().stream()
                 .map(violation -> new ProblemDetails.ValidationErrorItem(violation.field(), violation.code(), violation.message()))
                 .toList();
-        ProblemDetails body = new ProblemDetails(URI.create("https://api.bds.vn/problems/invalid-filter"), "Bộ lọc không hợp lệ",
-                400, "Kiểm tra lại khoảng thời gian và bộ lọc.", request.getRequestURI(), "INVALID_FILTER",
-                UUID.randomUUID().toString(), errors);
+        ProblemDetails body = ProblemDetails.of(400, "INVALID_FILTER", "Bộ lọc không hợp lệ",
+                "Kiểm tra lại khoảng thời gian và bộ lọc.", request.getRequestURI(), errors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(body);
     }
 }

@@ -1,5 +1,7 @@
 package com.company.bds.media;
 
+import jakarta.servlet.http.HttpServletRequest;
+import com.company.bds.shared.error.ProblemDetails;
 import com.company.bds.shared.security.CurrentUser;
 import com.company.bds.iam.application.AuthService;
 import com.company.bds.verification.application.KycDocumentAccessService;
@@ -98,8 +100,9 @@ public class MediaController {
     public record SignRequest(List<String> urls) {}
 
     @ExceptionHandler(MediaStorageService.MediaNotFoundException.class)
-    ResponseEntity<Map<String, String>> notFound(MediaStorageService.MediaNotFoundException ex) {
-        return ResponseEntity.status(404).cacheControl(CacheControl.noStore()).body(Map.of("message", ex.getMessage()));
+    ResponseEntity<ProblemDetails> notFound(MediaStorageService.MediaNotFoundException ex, HttpServletRequest request) {
+        return ResponseEntity.status(404).cacheControl(CacheControl.noStore()).contentType(ProblemDetails.MEDIA_TYPE)
+                .body(ProblemDetails.of(404, "MEDIA_NOT_FOUND", "Tài nguyên không tìm thấy", ex.getMessage(), request.getRequestURI()));
     }
 
     private static ResponseEntity<Resource> stream(MediaStorageService.StoredImage image, CacheControl cache) {

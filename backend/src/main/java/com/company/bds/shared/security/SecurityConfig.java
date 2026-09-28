@@ -1,6 +1,7 @@
 package com.company.bds.shared.security;
 
-import jakarta.servlet.http.HttpServletResponse;
+import com.company.bds.shared.error.ProblemDetails;
+import com.company.bds.shared.error.ProblemResponses;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -56,12 +57,19 @@ public class SecurityConfig {
                         .frameOptions(frame -> frame.deny())
                         .referrerPolicy(ref -> ref.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
                 .exceptionHandling(errors -> errors
-                        .authenticationEntryPoint((request, response, ex) -> problem(response, 401, "Yêu cầu đăng nhập"))
-                        .accessDeniedHandler((request, response, ex) -> problem(response, 403, "Bạn không có quyền thực hiện thao tác này")))
+                        .authenticationEntryPoint((request, response, ex) -> ProblemResponses.write(response, null,
+                                ProblemDetails.of(401, "UNAUTHORIZED", "Chưa xác thực danh tính", "Yêu cầu đăng nhập",
+                                        request.getRequestURI())))
+                        .accessDeniedHandler((request, response, ex) -> ProblemResponses.write(response, null,
+                                ProblemDetails.of(403, "FORBIDDEN", "Từ chối quyền truy cập",
+                                        "Bạn không có quyền thực hiện thao tác này", request.getRequestURI()))))
                 .authorizeHttpRequests(auth -> auth
                         // SSE: completing a stream re-dispatches the request (ASYNC) after the response is committed; the
                         // original request was already authorised, so the async dispatch must not be denied (audit F12).
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
+                        // S9: the error dispatch of an already-authorised request renders its Problem Details
+                        // (ProblemErrorController); it serves nothing else.
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/admin/login", "/api/v1/auth/register", "/api/v1/auth/resend-verification", "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll()
@@ -134,7 +142,8 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Idempotency-Key", "Last-Event-ID"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Idempotency-Key", "Last-Event-ID",
+                "X-Request-Id", "traceparent"));
         configuration.setExposedHeaders(List.of("X-Request-Id"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
@@ -143,10 +152,4 @@ public class SecurityConfig {
         return source;
     }
 
-    private static void problem(HttpServletResponse response, int status, String detail) throws java.io.IOException {
-        response.setStatus(status);
-        response.setCharacterEncoding("UTF-8");
-        response.setContentType("application/problem+json");
-        response.getWriter().write("{\"title\":\"Truy cập bị từ chối\",\"status\":" + status + ",\"detail\":\"" + detail + "\"}");
-    }
 }
