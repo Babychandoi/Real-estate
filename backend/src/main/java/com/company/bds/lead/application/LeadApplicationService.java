@@ -1,37 +1,65 @@
 package com.company.bds.lead.application;
 
 import com.company.bds.analytics.application.AnalyticsRecorder;
+import com.company.bds.iam.application.AuthService;
 import com.company.bds.lead.domain.model.Lead;
-import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.lead.domain.model.LeadRequestType;
+import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.lead.domain.port.LeadPersistencePort;
 import com.company.bds.listing.application.port.out.ListingPersistencePort;
 import com.company.bds.listing.domain.model.Listing;
-import com.company.bds.listing.domain.model.ListingStatus;
+import com.company.bds.notification.RealtimeNotificationService;
+import com.company.bds.shared.error.ApiException;
+import com.company.bds.shared.outbox.OutboxEventWriter;
+import com.company.bds.shared.security.PiiProtectionService;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.company.bds.shared.security.PiiProtectionService;
-import com.company.bds.iam.application.AuthService;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.beans.factory.ObjectProvider;
-import com.company.bds.shared.outbox.OutboxEventWriter;
-import com.company.bds.verification.domain.model.KycStatus;
-import com.company.bds.verification.domain.port.UserKycPersistencePort;
 
+import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 
+/**
+ * Lead submission (F17) and the legacy owner/staff read paths.
+ *
+ * <p>Submission policy (documented in {@code streams/s3b-leads.md}):</p>
+ * <ul>
+ *   <li><b>Pause vs lead (F17.3):</b> the listing row is locked {@code FOR SHARE} and must be ACTIVE with a public
+ *   revision inside the lock. A pause/hide committed first refuses the lead; a pause arriving while the lead is being
+ *   inserted waits for it, and the lead stays valid.</li>
+ *   <li><b>Idempotency (F17.2):</b> the key is bound to scope {@code lead:<actor>} (actor + route) and the SHA-256 of the
+ *   canonical payload, kept {@link #IDEMPOTENCY_TTL}. Concurrent duplicates wait on the key row and replay the winner's
+ *   lead; another payload with the same key is refused; another actor never sees the replay.</li>
+ *   <li><b>Quota (F17.1):</b> {@link #QUOTA_PER_DAY} leads per phone and per requester account in a rolling 24 h window,
+ *   counted and inserted under transaction-scoped advisory locks on both keys (fixed order), so parallel requests cannot
+ *   exceed it. Replays never count.</li>
+ * </ul>
+ */
 @Service
 @Transactional
 public class LeadApplicationService {
+    public static final int QUOTA_PER_DAY = 10;
+    public static final Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
+    private static final String KEY_PATTERN = "[A-Za-z0-9._:-]{8,128}";
+
+    /** Result of a submission; {@code replayed} when an earlier request with the same key produced the lead. */
+    public record SubmitResult(Lead lead, boolean replayed) {}
 
     private final LeadPersistencePort leadPersistencePort;
     private final ListingPersistencePort listingPersistencePort;
     private final PiiProtectionService piiProtection;
     private final JdbcTemplate jdbc;
     private final ObjectProvider<OutboxEventWriter> outbox;
-    private final UserKycPersistencePort kycPersistencePort;
     private final AnalyticsRecorder analytics;
+    private final LeadAccessService access;
+    private final ObjectProvider<RealtimeNotificationService> notifications;
+    private final Clock clock;
 
     public LeadApplicationService(
             LeadPersistencePort leadPersistencePort,
@@ -39,86 +67,118 @@ public class LeadApplicationService {
             PiiProtectionService piiProtection,
             JdbcTemplate jdbc,
             ObjectProvider<OutboxEventWriter> outbox,
-            UserKycPersistencePort kycPersistencePort,
-            AnalyticsRecorder analytics) {
+            AnalyticsRecorder analytics,
+            LeadAccessService access,
+            ObjectProvider<RealtimeNotificationService> notifications,
+            Clock clock) {
         this.leadPersistencePort = leadPersistencePort;
         this.listingPersistencePort = listingPersistencePort;
         this.piiProtection = piiProtection;
         this.jdbc = jdbc;
         this.outbox = outbox;
-        this.kycPersistencePort = kycPersistencePort;
         this.analytics = analytics;
+        this.access = access;
+        this.notifications = notifications;
+        this.clock = clock;
     }
 
-    /**
-     * Khách hàng gửi biểu mẫu liên hệ / Hộp tiếp nhận Lead.
-     * Mã hóa SĐT và băm tra cứu theo NFR12, kiểm soát spam.
-     */
-    public Lead submitLead(
-            UUID requesterId,
-            UUID listingId,
-            String fullName,
-            String rawPhone,
-            LeadRequestType requestType,
-            String note,
-            boolean consentPolicy,
-            String idempotencyKey) {
+    /** Backward-compatible entry point (returns only the lead). */
+    public Lead submitLead(UUID requesterId, UUID listingId, String fullName, String rawPhone, LeadRequestType requestType,
+                           String note, boolean consentPolicy, String idempotencyKey) {
+        return submit(requesterId, listingId, fullName, rawPhone, requestType, note, consentPolicy, idempotencyKey).lead();
+    }
 
-        requestType = requestType != null ? requestType : LeadRequestType.CONSULTATION;
-
-        // 1. Kiểm tra tin đăng có tồn tại không
-        Listing listing = listingPersistencePort.findById(listingId)
-                .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại ID: " + listingId));
-        if (listing.getStatus() != ListingStatus.ACTIVE || listing.getPublicRevisionId() == null) {
-            throw new IllegalStateException("Tin đăng không còn nhận yêu cầu liên hệ.");
+    public SubmitResult submit(UUID requesterId, UUID listingId, String fullName, String rawPhone, LeadRequestType requestType,
+                               String note, boolean consentPolicy, @Nullable String idempotencyKey) {
+        Objects.requireNonNull(requesterId, "requesterId");
+        LeadRequestType type = requestType != null ? requestType : LeadRequestType.CONSULTATION;
+        String name = fullName.trim();
+        String phone = rawPhone.replaceAll("\\s+", "");
+        String cleanNote = note == null || note.isBlank() ? null : note.trim();
+        if (cleanNote != null && cleanNote.length() > 1000) {
+            throw ApiException.badRequest("NOTE_TOO_LONG", "Lời nhắn tối đa 1000 ký tự.");
         }
-        requireVerifiedKyc(requesterId, "Bạn cần hoàn tất eKYC trước khi gửi yêu cầu liên hệ.");
-        requireVerifiedKyc(listing.getOwnerId(), "Người đăng chưa hoàn tất eKYC nên tin này tạm thời chưa nhận yêu cầu liên hệ.");
-        Lead replay = findIdempotentReplay(listingId, fullName, rawPhone, requestType, note, consentPolicy, idempotencyKey);
-        if (replay != null) return replay;
-
-        // 2. Chống spam: băm SĐT tra cứu tần suất gửi
-        String lookupHash = piiProtection.blindIndex(rawPhone);
-        long existingCount = leadPersistencePort.countByPhoneLookupHashSince(lookupHash, Instant.now().minusSeconds(24 * 60 * 60));
-        if (existingCount >= 10) {
-            // Đánh dấu hoặc giới hạn tần suất nếu vượt ngưỡng (NFR12)
-            throw new IllegalStateException("Số điện thoại này đã gửi quá nhiều yêu cầu trong thời gian ngắn.");
+        String key = idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.trim();
+        if (key != null && !key.matches(KEY_PATTERN)) {
+            throw ApiException.badRequest("IDEMPOTENCY_KEY_INVALID", "Idempotency-Key không hợp lệ.");
         }
+        Instant now = clock.instant();
 
-        // 3. Khởi tạo và lưu Lead
+        // 1. Listing must accept leads; FOR SHARE makes a concurrent pause wait for this transaction (F17.3).
+        List<Map<String, Object>> listingRows = jdbc.queryForList(
+                "SELECT owner_id, status, public_revision_id FROM listings WHERE id = ? FOR SHARE", listingId);
+        if (listingRows.isEmpty()) throw ApiException.notFound("LISTING_NOT_FOUND", "Tin đăng không tồn tại.");
+        Map<String, Object> listing = listingRows.get(0);
+        UUID ownerId = (UUID) listing.get("owner_id");
+        if (!"ACTIVE".equals(listing.get("status")) || listing.get("public_revision_id") == null) {
+            throw ApiException.conflict("LISTING_NOT_ACCEPTING_LEADS", "Tin đăng không còn nhận yêu cầu liên hệ.");
+        }
+        if (ownerId.equals(requesterId)) {
+            throw ApiException.conflict("SELF_LEAD", "Bạn không thể gửi yêu cầu liên hệ cho tin của chính mình.");
+        }
+        requireVerifiedKyc(requesterId, "KYC_REQUIRED", "Bạn cần hoàn tất eKYC trước khi gửi yêu cầu liên hệ.");
+        requireVerifiedKyc(ownerId, "OWNER_KYC_REQUIRED",
+                "Người đăng chưa hoàn tất eKYC nên tin này tạm thời chưa nhận yêu cầu liên hệ.");
+
+        // 2. Idempotency bound to the actor and route; concurrent duplicates block on the key row until the winner ends.
         UUID leadId = UUID.randomUUID();
-        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            if (!idempotencyKey.matches("[A-Za-z0-9._:-]{8,128}")) {
-                throw new IllegalArgumentException("Idempotency-Key không hợp lệ.");
-            }
-            String requestHash = AuthService.sha256(listingId + "|" + fullName.trim() + "|" + rawPhone.trim()
-                    + "|" + requestType + "|" + Objects.toString(note, "") + "|" + consentPolicy);
-            int inserted = jdbc.update("""
-                    MERGE INTO api_idempotency_keys target
-                    USING (VALUES ('PUBLIC_LEAD', CAST(? AS VARCHAR(128)), CAST(? AS VARCHAR(64)), CAST(? AS UUID)))
-                          source(scope,idempotency_key,request_hash,resource_id)
-                    ON target.scope=source.scope AND target.idempotency_key=source.idempotency_key
-                    WHEN NOT MATCHED THEN INSERT (scope,idempotency_key,request_hash,resource_id)
-                    VALUES (source.scope,source.idempotency_key,source.request_hash,source.resource_id)
-                    """, idempotencyKey, requestHash, leadId);
-            if (inserted == 0) {
-                Map<String, Object> existing = jdbc.queryForMap("""
-                        SELECT request_hash,resource_id FROM api_idempotency_keys
-                        WHERE scope='PUBLIC_LEAD' AND idempotency_key=?
-                        """, idempotencyKey);
+        if (key != null) {
+            String scope = "lead:" + requesterId;
+            String requestHash = AuthService.sha256(String.join("|", listingId.toString(), name, phone, type.name(),
+                    Objects.toString(cleanNote, ""), String.valueOf(consentPolicy)));
+            int claimed = jdbc.update("""
+                    INSERT INTO api_idempotency_keys(scope, idempotency_key, request_hash, resource_id, created_at, expires_at)
+                    VALUES (?,?,?,?,?,?)
+                    ON CONFLICT (scope, idempotency_key) DO UPDATE
+                        SET request_hash = EXCLUDED.request_hash, resource_id = EXCLUDED.resource_id,
+                            created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at
+                        WHERE COALESCE(api_idempotency_keys.expires_at, api_idempotency_keys.created_at + interval '24 hours') <= ?
+                    """, scope, key, requestHash, leadId, Timestamp.from(now), Timestamp.from(now.plus(IDEMPOTENCY_TTL)),
+                    Timestamp.from(now));
+            if (claimed == 0) {
+                Map<String, Object> existing = jdbc.queryForMap(
+                        "SELECT request_hash, resource_id FROM api_idempotency_keys WHERE scope = ? AND idempotency_key = ?",
+                        scope, key);
                 if (!requestHash.equals(existing.get("request_hash"))) {
-                    throw new IllegalStateException("Idempotency-Key đã được dùng cho yêu cầu khác.");
+                    throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key đã được dùng cho yêu cầu khác.");
                 }
-                return leadPersistencePort.findById((UUID) existing.get("resource_id"))
-                        .orElseThrow(() -> new IllegalStateException("Yêu cầu đang được xử lý; vui lòng thử lại."));
+                Lead previous = leadPersistencePort.findById((UUID) existing.get("resource_id"))
+                        .orElseThrow(() -> ApiException.conflict("IDEMPOTENCY_IN_PROGRESS", "Yêu cầu đang được xử lý; vui lòng thử lại."));
+                return new SubmitResult(previous, true);
             }
         }
-        PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(rawPhone);
-        Lead lead = new Lead(leadId, listingId, requesterId, fullName.trim(), protectedPhone.encrypted(),
-                protectedPhone.blindIndex(), requestType, note, consentPolicy, LeadStatus.NEW, Instant.now());
 
-        Lead saved = leadPersistencePort.save(lead);
-        // Same transaction as the lead; the lead id makes it exactly-once even if the request is retried.
+        // 3. Atomic quota: advisory locks on both keys (sorted, so two transactions never wait on each other in a cycle).
+        String lookupHash = piiProtection.blindIndex(phone);
+        List<String> lockKeys = new ArrayList<>(List.of("lead-quota:phone:" + lookupHash, "lead-quota:user:" + requesterId));
+        Collections.sort(lockKeys);
+        for (String lockKey : lockKeys) {
+            jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey);
+        }
+        Timestamp since = Timestamp.from(now.minus(Duration.ofHours(24)));
+        Long phoneCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM leads WHERE phone_lookup_hash = ? AND created_at > ?", Long.class, lookupHash, since);
+        Long requesterCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM leads WHERE requester_id = ? AND created_at > ?", Long.class, requesterId, since);
+        if ((phoneCount != null && phoneCount >= QUOTA_PER_DAY) || (requesterCount != null && requesterCount >= QUOTA_PER_DAY)) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "LEAD_QUOTA_EXCEEDED",
+                    "Bạn đã gửi quá " + QUOTA_PER_DAY + " yêu cầu liên hệ trong 24 giờ. Vui lòng thử lại sau.");
+        }
+
+        // 4. Insert the lead, its first history entry, the analytics fact and the owner notification in one transaction.
+        PiiProtectionService.ProtectedValue protectedPhone = piiProtection.protect(phone);
+        Lead lead = new Lead(leadId, listingId, requesterId, name, protectedPhone.encrypted(), protectedPhone.blindIndex(),
+                type, cleanNote, consentPolicy, LeadStatus.NEW, now);
+        // Plain JDBC (not the JPA adapter): the history row below references the lead, so it must exist right now.
+        jdbc.update("""
+                INSERT INTO leads(id, listing_id, requester_id, full_name, phone_encrypted, phone_lookup_hash, request_type,
+                                  note, consent_policy, status, created_at, updated_at, version)
+                VALUES (?,?,?,?,?,?,?,?,?,'NEW',?,?,0)
+                """, lead.getId(), listingId, requesterId, name, lead.getPhoneEncrypted(), lead.getPhoneLookupHash(),
+                type.name(), cleanNote, consentPolicy, Timestamp.from(now), Timestamp.from(now));
+        Lead saved = lead;
+        access.recordEvent(saved.getId(), "CREATED", requesterId, "REQUESTER", null, "NEW", null,
+                Map.of("requestType", type.name()), false, now);
         analytics.recordServer("lead_submitted", 1, saved.getId().toString(), requesterId, listingId,
                 Map.of("leadId", saved.getId().toString(), "requestType", saved.getRequestType().name()));
         OutboxEventWriter writer = outbox.getIfAvailable();
@@ -126,62 +186,54 @@ public class LeadApplicationService {
             writer.append("LEAD", saved.getId(), "LEAD_CREATED", Map.of(
                     "leadId", saved.getId(), "listingId", saved.getListingId(), "createdAt", saved.getCreatedAt()));
         }
-        return saved;
-    }
-
-    private void requireVerifiedKyc(UUID userId, String message) {
-        boolean verified = kycPersistencePort.findByUserId(userId)
-                .map(profile -> profile.getStatus() == KycStatus.VERIFIED)
-                .orElse(false);
-        if (!verified) throw new IllegalStateException(message);
-    }
-
-    /**
-     * Lấy danh sách Lead thuộc về các tin đăng của một Môi giới (Broker Network).
-     */
-    @Transactional(readOnly = true)
-    public List<Lead> getLeadsForBroker(UUID brokerId, int page, int size) {
-        List<Listing> brokerListings = listingPersistencePort.findByOwnerId(brokerId);
-        if (brokerListings.isEmpty()) {
-            return List.of();
+        RealtimeNotificationService notifier = notifications.getIfAvailable();
+        if (notifier != null) {
+            notifier.notify(ownerId, "LEAD_RECEIVED", "Có yêu cầu liên hệ mới",
+                    (type == LeadRequestType.VIEWING ? "Khách muốn hẹn xem" : "Khách cần tư vấn")
+                            + " một tin đăng của bạn. Mở Hộp thư khách quan tâm để phản hồi.");
         }
-        List<UUID> listingIds = brokerListings.stream().map(Listing::getId).toList();
-        return leadPersistencePort.findByListingIds(listingIds, page, size);
+        return new SubmitResult(saved, false);
     }
 
-    /**
-     * Lấy toàn bộ Lead cho Bàn điều phối / Quản trị viên.
-     */
+    /** What the contact form needs to know before the visitor types anything (DS-11, F17.4). */
+    @Transactional(readOnly = true)
+    public Map<String, Object> eligibility(UUID requesterId, UUID listingId) {
+        List<Map<String, Object>> rows = jdbc.queryForList(
+                "SELECT owner_id, status, public_revision_id FROM listings WHERE id = ?", listingId);
+        if (rows.isEmpty()) throw ApiException.notFound("LISTING_NOT_FOUND", "Tin đăng không tồn tại.");
+        UUID ownerId = (UUID) rows.get(0).get("owner_id");
+        boolean accepting = "ACTIVE".equals(rows.get(0).get("status")) && rows.get(0).get("public_revision_id") != null;
+        List<Map<String, Object>> open = jdbc.queryForList("""
+                SELECT id, status, created_at FROM leads WHERE listing_id = ? AND requester_id = ?
+                  AND status IN ('NEW','CONTACTED','APPOINTED') ORDER BY created_at DESC, id DESC LIMIT 1
+                """, listingId, requesterId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("listingAcceptsLeads", accepting);
+        result.put("ownListing", ownerId.equals(requesterId));
+        result.put("requesterKycVerified", isKycVerified(requesterId));
+        result.put("ownerKycVerified", isKycVerified(ownerId));
+        result.put("openLeadId", open.isEmpty() ? null : open.get(0).get("id"));
+        result.put("openLeadStatus", open.isEmpty() ? null : open.get(0).get("status"));
+        return result;
+    }
+
+    private void requireVerifiedKyc(UUID userId, String code, String message) {
+        if (!isKycVerified(userId)) throw ApiException.conflict(code, message);
+    }
+
+    /** VERIFIED and not expired (contract §6: identity VERIFIED = status VERIFIED and expires_at null or future). */
+    private boolean isKycVerified(UUID userId) {
+        Boolean verified = jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM user_kyc_profiles WHERE user_id = ? AND status = 'VERIFIED'
+                               AND (expires_at IS NULL OR expires_at > ?))
+                """, Boolean.class, userId, Timestamp.from(clock.instant()));
+        return Boolean.TRUE.equals(verified);
+    }
+
+    /** Lấy toàn bộ Lead cho Bàn điều phối / Quản trị viên. */
     @Transactional(readOnly = true)
     public List<Lead> getAllLeads(int page, int size) {
         return leadPersistencePort.findPage(page, size);
-    }
-
-    @Transactional(readOnly = true)
-    public com.company.bds.lead.domain.model.LeadPage searchLeadsForBroker(UUID brokerId, LeadStatus status, String keyword, int page, int size) {
-        List<UUID> listingIds = listingPersistencePort.findByOwnerId(brokerId).stream().map(Listing::getId).toList();
-        return leadPersistencePort.search(listingIds, status, normalizeSearchKeyword(keyword), page, size);
-    }
-
-    @Transactional(readOnly = true)
-    public com.company.bds.lead.domain.model.LeadPage searchAllLeads(LeadStatus status, String keyword, int page, int size) {
-        return leadPersistencePort.searchAll(status, normalizeSearchKeyword(keyword), page, size);
-    }
-
-    @Transactional(readOnly = true)
-    public com.company.bds.lead.domain.model.LeadPage searchLeadsByListing(
-            UUID listingId, UUID actorId, boolean privileged, LeadStatus status, String keyword, int page, int size) {
-        Listing listing = listingPersistencePort.findById(listingId)
-                .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại."));
-        if (!privileged && !listing.getOwnerId().equals(actorId)) {
-            throw new org.springframework.security.access.AccessDeniedException("Không có quyền xem lead của tin đăng này.");
-        }
-        return leadPersistencePort.search(List.of(listingId), status, normalizeSearchKeyword(keyword), page, size);
-    }
-
-    @Transactional(readOnly = true)
-    public com.company.bds.lead.domain.model.LeadPage getSentLeads(UUID requesterId, int page, int size) {
-        return leadPersistencePort.findByRequesterId(requesterId, page, size);
     }
 
     @Transactional(readOnly = true)
@@ -191,71 +243,15 @@ public class LeadApplicationService {
                 .collect(java.util.stream.Collectors.toMap(Listing::getId, listing -> listing));
     }
 
-    /**
-     * Lấy danh sách Lead theo tin đăng cụ thể.
-     */
-    @Transactional(readOnly = true)
-    public List<Lead> getLeadsByListing(UUID listingId, UUID actorId, boolean privileged, int page, int size) {
-        Listing listing = listingPersistencePort.findById(listingId)
-                .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại."));
-        if (!privileged && !listing.getOwnerId().equals(actorId)) {
-            throw new org.springframework.security.access.AccessDeniedException("Không có quyền xem lead của tin đăng này.");
-        }
-        return leadPersistencePort.findByListingId(listingId, page, size);
-    }
-
-    /**
-     * Môi giới hoặc Admin cập nhật tiến trình chăm sóc Lead (NEW -> CONTACTED -> APPOINTED -> CLOSED -> SPAM).
-     */
-    public Lead updateLeadStatus(UUID leadId, LeadStatus newStatus, UUID actorId, boolean privileged) {
-        if (newStatus == LeadStatus.WITHDRAWN) {
-            throw new IllegalArgumentException("Chỉ người gửi yêu cầu mới có thể rút yêu cầu liên hệ.");
-        }
-        Lead lead = leadPersistencePort.findById(leadId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Lead ID: " + leadId));
-        Listing listing = listingPersistencePort.findById(lead.getListingId())
-                .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại."));
-        if (!privileged && !listing.getOwnerId().equals(actorId)) {
-            throw new org.springframework.security.access.AccessDeniedException("Không có quyền cập nhật lead này.");
-        }
-        lead.updateStatus(newStatus);
-        return leadPersistencePort.save(lead);
-    }
-
     @Transactional(readOnly = true)
     public String revealPhone(UUID leadId, UUID actorId, boolean privileged) {
-        Lead lead = leadPersistencePort.findById(leadId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy lead."));
-        Listing listing = listingPersistencePort.findById(lead.getListingId())
-                .orElseThrow(() -> new IllegalArgumentException("Tin đăng không tồn tại."));
-        if (!privileged && !listing.getOwnerId().equals(actorId)) {
-            throw new org.springframework.security.access.AccessDeniedException("Không có quyền xem liên hệ của lead này.");
+        LeadAccessService.LeadAccess lead = access.requireOwnerSide(leadId, actorId, privileged);
+        Lead full = leadPersistencePort.findById(lead.leadId())
+                .orElseThrow(() -> ApiException.notFound("LEAD_NOT_FOUND", "Không tìm thấy yêu cầu liên hệ."));
+        if (!full.isConsentPolicy()) throw ApiException.conflict("NO_CONSENT", "Khách chưa đồng ý chia sẻ thông tin liên hệ.");
+        if (full.getStatus() == LeadStatus.WITHDRAWN) {
+            throw ApiException.conflict("LEAD_WITHDRAWN", "Khách đã rút yêu cầu nên không thể xem số liên hệ.");
         }
-        if (!lead.isConsentPolicy()) throw new IllegalStateException("Khách chưa đồng ý chia sẻ thông tin liên hệ.");
-        return piiProtection.reveal(lead.getPhoneEncrypted());
-    }
-
-    private Lead findIdempotentReplay(UUID listingId, String fullName, String rawPhone, LeadRequestType requestType, String note,
-            boolean consentPolicy, String idempotencyKey) {
-        if (idempotencyKey == null || idempotencyKey.isBlank()) return null;
-        if (!idempotencyKey.matches("[A-Za-z0-9._:-]{8,128}")) {
-            throw new IllegalArgumentException("Idempotency-Key không hợp lệ.");
-        }
-        List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT request_hash,resource_id FROM api_idempotency_keys
-                WHERE scope='PUBLIC_LEAD' AND idempotency_key=?
-                """, idempotencyKey);
-        if (rows.isEmpty()) return null;
-        String requestHash = AuthService.sha256(listingId + "|" + fullName.trim() + "|" + rawPhone.trim()
-                + "|" + requestType + "|" + Objects.toString(note, "") + "|" + consentPolicy);
-        if (!requestHash.equals(rows.get(0).get("request_hash"))) {
-            throw new IllegalStateException("Idempotency-Key đã được dùng cho yêu cầu khác.");
-        }
-        return leadPersistencePort.findById((UUID) rows.get(0).get("resource_id"))
-                .orElseThrow(() -> new IllegalStateException("Yêu cầu đang được xử lý; vui lòng thử lại."));
-    }
-
-    private String normalizeSearchKeyword(String keyword) {
-        return keyword == null ? "" : keyword.trim().replaceAll("\\s+", " ");
+        return piiProtection.reveal(full.getPhoneEncrypted());
     }
 }

@@ -388,6 +388,15 @@ class BdsApplicationTests {
                     status='VERIFIED', verified_at=EXCLUDED.verified_at
                 """, "90000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000001",
                 "v1:000****0000:test:test", "test-verified-kyc", "Người dùng kiểm thử");
+        // The lead is sent by a separate verified buyer: a poster cannot send a lead to their own listing (S3b).
+        String buyerId = "00000000-0000-0000-0000-000000000003";
+        testData.ensureUser(UUID.fromString(buyerId), "USER");
+        jdbcTemplate.update("""
+                INSERT INTO user_kyc_profiles (id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,status,created_at,verified_at)
+                VALUES (CAST(? AS UUID),CAST(? AS UUID),?,?,?,'VERIFIED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET status='VERIFIED', verified_at=EXCLUDED.verified_at
+                """, "90000000-0000-0000-0000-000000000003", buyerId, "v1:000****0003:test:test", "test-verified-kyc-buyer",
+                "Người mua kiểm thử");
         // 1. Tạo một tin đăng để nhận lead
         String listingJson = """
             {
@@ -431,7 +440,7 @@ class BdsApplicationTests {
             }
             """, listingId);
 
-        MvcResult leadSubmitRes = mockMvc.perform(post("/api/v1/public/leads")
+        MvcResult leadSubmitRes = mockMvc.perform(post("/api/v1/public/leads").with(user(buyerId).roles("USER"))
                         .header("Idempotency-Key", "lead-flow-idempotency-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(leadJson))
@@ -443,7 +452,7 @@ class BdsApplicationTests {
 
         String leadId = objectMapper.readTree(leadSubmitRes.getResponse().getContentAsString()).get("leadId").asText();
 
-        mockMvc.perform(post("/api/v1/public/leads")
+        mockMvc.perform(post("/api/v1/public/leads").with(user(buyerId).roles("USER"))
                         .header("Idempotency-Key", "lead-flow-idempotency-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(leadJson))
