@@ -25,6 +25,12 @@ spring:
     uris: ${BDS_TEST_ES_URL:http://127.0.0.1:59200}
 
 app:
+  seo:
+    # A copy of the built SPA shell (the real one comes from Nginx: http://frontend:3000/index.html).
+    shell-location: classpath:seo/test-shell.html
+  cms:
+    # Tests call CmsArticleApplicationService.publishDue directly.
+    publish-initial-delay: PT24H
   billing:
     quota-enforced: false
   listing:

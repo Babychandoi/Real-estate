@@ -89,6 +89,12 @@ public class RateLimitPolicies {
                         rule(IP, 30, Duration.ofMinutes(15))),
                 policy("public-shortlist", "GET", "/api/v1/public/shortlists/**", EVICT,
                         rule(IP, 120, Duration.ofMinutes(1))),
+                // S7: prerendered HTML for crawlers and first page loads (a page render is a few indexed reads).
+                policy("prerender", "GET", "/render/**", EVICT,
+                        rule(IP, 600, Duration.ofMinutes(1))),
+                // S7: CMS preview links are bearer secrets: bounded guessing.
+                policy("cms-preview", "GET", "/api/v1/public/articles/preview/**", EVICT,
+                        rule(IP, 60, Duration.ofMinutes(15))),
                 policy("analytics-events", "POST", "/api/v1/events", EVICT,
                         rule(IP, 120, Duration.ofMinutes(1))),
                 // Uploads are scanned by ClamAV and written to object storage: far more expensive than a read.

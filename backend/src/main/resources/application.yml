@@ -118,6 +118,26 @@ logging:
 app:
   mode: ${APP_MODE:demo}
   public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
+  # S7-SEO: prerender layer (Nginx sends page requests to /render/**; the shell is the built index.html served by Nginx)
+  seo:
+    shell-location: ${APP_SEO_SHELL_LOCATION:http://frontend:3000/index.html}
+    shell-ttl: ${APP_SEO_SHELL_TTL:PT1M}
+    sitemap:
+      chunk-size: ${APP_SEO_SITEMAP_CHUNK_SIZE:10000}
+      ttl: ${APP_SEO_SITEMAP_TTL:PT10M}
+  # Operator identity for /about, /contact, /terms, /privacy (UI-15). Empty = the pages say "Chưa có dữ liệu".
+  operator:
+    site-name: ${APP_OPERATOR_SITE_NAME:Nhà Đất Chuẩn}
+    legal-name: ${APP_OPERATOR_LEGAL_NAME:}
+    business-registration: ${APP_OPERATOR_BUSINESS_REGISTRATION:}
+    tax-code: ${APP_OPERATOR_TAX_CODE:}
+    address: ${APP_OPERATOR_ADDRESS:}
+    representative: ${APP_OPERATOR_REPRESENTATIVE:}
+    email: ${APP_OPERATOR_EMAIL:}
+    phone: ${APP_OPERATOR_PHONE:}
+    hotline-hours: ${APP_OPERATOR_HOTLINE_HOURS:}
+  cms:
+    publish-poll: ${APP_CMS_PUBLISH_POLL:PT1M}
   mail:
     from: ${APP_MAIL_FROM:no-reply@bds.local}
   security:
