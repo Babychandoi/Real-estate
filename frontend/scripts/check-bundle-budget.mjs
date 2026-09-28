@@ -1,20 +1,32 @@
 #!/usr/bin/env node
 /**
  * Route bundle budget (F15.2). Reads the Vite manifest of a build made with `vite build --manifest` and computes,
- * per route, the JavaScript a first visit must download before the route renders: the entry chunk, the route's lazy
- * chunk and every chunk they import statically (each counted once). Sizes are gzip (level 9, like the bytes a
- * compressing proxy sends at best). Dynamic imports inside a route are not counted: they load on demand.
+ * per route, the JavaScript a first visit must download before the route renders: the entry chunk, the route's
+ * lazy chunk, every chunk they import statically, and any worker/asset script one of those chunks loads eagerly
+ * (m7 — e.g. MapLibre's web worker, listed under the chunk's `assets` in the manifest, not its `imports`, but
+ * fetched as soon as the map initializes). Dynamic `import()`s inside a route are not counted: they load on
+ * demand.
+ *
+ * Sizes are gzip at the level `frontend/nginx.conf` actually serves with (m7): that file sets `gzip on` without a
+ * `gzip_comp_level`, so nginx uses its compiled-in default of **1**, not the maximum (9) an earlier version of
+ * this script assumed — level 9 under-reports what a real response weighs by roughly 10-15%. Pass `--gzip-level 9`
+ * to compare against the old numbers, or `--gzip-level 0` to compare raw sizes. `frontend/nginx.conf` is owned by
+ * another stream (S5-SEC); if it later sets an explicit `gzip_comp_level` or switches to brotli, update the
+ * default here (and re-run `npm run check:bundle` to refresh `bundle-budget.json`) to match.
  *
  * Budgets live in bundle-budget.json. The script prints a table and exits 1 when a route is over budget or when a
  * route module is missing from the manifest (renamed file → update the config in the same change).
  *
  *   npm run check:bundle            build with a manifest, then check
- *   node scripts/check-bundle-budget.mjs [--dist dist] [--config bundle-budget.json] [--json]
+ *   node scripts/check-bundle-budget.mjs [--dist dist] [--config bundle-budget.json] [--gzip-level 1] [--json]
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gzipSync } from 'node:zlib';
+
+/** nginx's compiled-in default when `gzip_comp_level` is not set (frontend/nginx.conf does not set it). */
+export const DEFAULT_GZIP_LEVEL = 1;
 
 /** Manifest keys reachable from `keys` through static imports (the chunks loaded together). */
 export function staticClosure(manifest, keys) {
@@ -31,33 +43,43 @@ export function staticClosure(manifest, keys) {
   return seen;
 }
 
-/** JS files a first visit of `moduleKey` needs, entry included; `moduleKey` null = the entry alone. */
+/**
+ * JS files a first visit of `moduleKey` needs, entry included; `moduleKey` null = the entry alone. Includes each
+ * reachable chunk's own file plus any of its `assets` that are themselves JS (worker scripts a chunk starts
+ * eagerly; regular non-JS assets — images, CSS — are not part of the "initial JS" metric).
+ */
 export function initialJsFiles(manifest, moduleKey) {
   const entries = Object.keys(manifest).filter((key) => manifest[key].isEntry);
   if (entries.length !== 1) throw new Error(`expected one entry chunk, found ${entries.length}`);
   const keys = staticClosure(manifest, moduleKey ? [entries[0], moduleKey] : entries);
-  return [...keys]
-    .map((key) => manifest[key].file)
-    .filter((file) => file.endsWith('.js'))
-    .sort();
+  const files = new Set();
+  for (const key of keys) {
+    const chunk = manifest[key];
+    if (chunk.file.endsWith('.js')) files.add(chunk.file);
+    for (const asset of chunk.assets ?? []) {
+      if (asset.endsWith('.js')) files.add(asset);
+    }
+  }
+  return [...files].sort();
 }
 
-/** Sizes of the given files in bytes: raw and gzip. `read` returns the file contents. */
-export function measure(files, read) {
+/** Sizes of the given files in bytes: raw and gzip at `gzipLevel` (0 = raw only, no compression). `read` returns
+ * the file contents. */
+export function measure(files, read, gzipLevel = DEFAULT_GZIP_LEVEL) {
   let raw = 0;
   let gzip = 0;
   for (const file of files) {
     const content = read(file);
     raw += content.length;
-    gzip += gzipSync(content, { level: 9 }).length;
+    gzip += gzipLevel > 0 ? gzipSync(content, { level: gzipLevel }).length : content.length;
   }
   return { raw, gzip };
 }
 
 /** Checks every route of `config` against its budget; returns rows for the report. */
-export function evaluateBudgets(manifest, config, read) {
+export function evaluateBudgets(manifest, config, read, gzipLevel = DEFAULT_GZIP_LEVEL) {
   const rows = [];
-  const shell = measure(initialJsFiles(manifest, null), read);
+  const shell = measure(initialJsFiles(manifest, null), read, gzipLevel);
   rows.push({
     route: '(shell: index.html)',
     module: 'index.html',
@@ -71,7 +93,13 @@ export function evaluateBudgets(manifest, config, read) {
       continue;
     }
     const files = initialJsFiles(manifest, spec.module);
-    rows.push({ route, module: spec.module, ...measure(files, read), budgetKb: spec.budgetKb, chunks: files.length });
+    rows.push({
+      route,
+      module: spec.module,
+      ...measure(files, read, gzipLevel),
+      budgetKb: spec.budgetKb,
+      chunks: files.length,
+    });
   }
   return rows.map((row) => ({
     ...row,
@@ -89,6 +117,7 @@ function main(argv) {
   };
   const dist = path.resolve(root, option('--dist', 'dist'));
   const configPath = path.resolve(root, option('--config', 'bundle-budget.json'));
+  const gzipLevel = Number(option('--gzip-level', DEFAULT_GZIP_LEVEL));
   const manifestPath = path.join(dist, '.vite', 'manifest.json');
   if (!existsSync(manifestPath)) {
     console.error(`No manifest at ${manifestPath}. Build with: npx vite build --manifest`);
@@ -96,11 +125,16 @@ function main(argv) {
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  const rows = evaluateBudgets(manifest, config, (file) => readFileSync(path.join(dist, file)));
+  const rows = evaluateBudgets(manifest, config, (file) => readFileSync(path.join(dist, file)), gzipLevel);
 
   if (argv.includes('--json')) {
     console.log(JSON.stringify(rows, null, 2));
   } else {
+    console.log(
+      gzipLevel > 0
+        ? `Compression: gzip level ${gzipLevel} (nginx default when gzip_comp_level is unset; frontend/nginx.conf does not set it).`
+        : 'Compression: none (raw sizes).',
+    );
     const header = ['route', 'initial JS gzip', 'budget', 'raw', 'chunks', 'status'];
     const lines = rows.map((row) => [
       row.route,
