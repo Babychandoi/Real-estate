@@ -76,7 +76,7 @@ Without `BDS_TEST_PG_URL` the run fails immediately with
 ## 5. Production / deploy notes
 
 - **Migrations V027–V029** run automatically (Flyway, one transaction each). Lock/time: ADD COLUMN with constant/STABLE defaults is metadata-only; the STORED generated column rewrites `listing_revisions` once (ACCESS EXCLUSIVE for the rewrite); backfills are single guarded UPDATEs; two `CREATE INDEX` on `listings` block writes for their build (milliseconds at production size). Additive only: the previous image runs against the new schema, so **rollback = redeploy the previous image** (no down migration). Caveat: e-mails still pending in `background_jobs` at rollback are not sent by the old release.
-- **All e-mail now goes through the queue.** Keep `APP_JOBS_ENABLED=true` on at least one backend instance or verification/reset/billing mails stop. New optional variables (defaults in `application.yml`; all but the purge cron are listed in `.env.example`): `APP_JOBS_ENABLED`, `APP_JOBS_POLL_MS`, `APP_JOBS_RETRY_BASE`, `APP_JOBS_RETRY_CAP`, `APP_JOBS_COMPLETED_RETENTION`, `APP_JOBS_PURGE_CRON`, `APP_SEARCH_ELASTICSEARCH_ENABLED`, `APP_SEARCH_INDEX_NAME`. None is mapped in `docker-compose.yml` because the defaults are the production values. No secret added.
+- **All e-mail now goes through the queue.** Keep `APP_JOBS_ENABLED=true` on at least one backend instance or verification/reset/billing mails stop. New optional variables (defaults in `application.yml`; all but the purge cron are listed in `.env.example`): `APP_JOBS_ENABLED`, `APP_JOBS_POLL_MS`, `APP_JOBS_RETRY_BASE`, `APP_JOBS_RETRY_CAP`, `APP_JOBS_COMPLETED_RETENTION`, `APP_JOBS_PURGE_CRON`, `APP_SEARCH_ELASTICSEARCH_ENABLED`, `APP_SEARCH_INDEX_NAME`. `docker-compose.yml` maps all of these on the backend service with the production defaults, plus `APP_ANALYTICS_INGESTION_ENABLED` (default `false`; see Review 2 fixes below). No secret added.
 - **`backend/Dockerfile` builds with `-DskipTests`**: tests need PostgreSQL/Redis/Mailpit and run in the CI job `backend-tests`; make that job a required check (F01.9, EXTERNAL).
 - Alerts (for S5): `bds_jobs_dead{queue="email"} > 0`, `bds_jobs_lag_seconds{queue="email"} > 300`. Requeue a dead job after fixing SMTP: `UPDATE background_jobs SET dead_lettered_at = NULL, attempts = 0, run_at = now(), last_error = NULL WHERE id = '<id>';`.
 - Local development: `scripts/test-infra.sh up` then `eval "$(scripts/test-infra.sh env)"` before `mvnw verify`.
@@ -91,3 +91,33 @@ Without `BDS_TEST_PG_URL` the run fails immediately with
 - **S8:** consent storage/UX, retention (use `ScheduledTaskLock`), bot/internal refinements, dashboards on `analytics_events` (`page_path`, `area_code`, `is_internal`, `is_bot`).
 - **S9:** ArchUnit can rely on `analytics.domain` having no framework dependency; Problem Details for framework 4xx.
 - **S0-FE:** `track()` sends `{consent, events:[{eventId: UUIDv4, name, v: 1, occurredAt, anonymousId, sessionId, listingId?, properties (catalog keys only), page (path), utm?, device?}]}` (text/plain beacons accepted); add `WITHDRAWN` to the frontend `LeadStatus` type and OWNER to `roles.ts`/registration; E2E seed: `java -jar backend.jar --app.uat-seed.mode=seed --app.uat-seed.clock=2026-09-01T03:00:00Z [--app.uat-seed.password=<≥12 chars>]` (exits 0; synthetic e-mails `uat.<name>@example.invalid`), purge with `--app.uat-seed.mode=purge`.
+
+## 7. Review 2 fixes (independent reviewer pass)
+
+An independent reviewer found 4 MAJOR and 10 MINOR issues plus NITs; all are fixed on this branch. Full findings:
+`/private/tmp/claude-501/-Users-connecty-Real-estate/2947126b-307c-4bfa-9fb8-e95e50ab2e86/scratchpad/review-s0be-report.md`.
+
+| Finding | Fix | Commit | Evidence |
+|---|---|---|---|
+| M1 worker dies silently on `Error` | catch `Throwable` in the poll loop and every handler path | `95b9e04` | `JobWorkerFaultToleranceTests` |
+| M1 hung handler blocks the worker forever | handler runs on a separate thread with a time budget (80% of lease, capped 90%); interrupted and failed on timeout | `95b9e04` | same |
+| M2 metrics frozen when worker is down | heartbeat feeds `JobWorker.state()` independently of batch processing; actuator contributor `jobWorker` reports DOWN when stopped/stalled/queue paused | `95b9e04` | `JobWorkerFaultToleranceTests`, `JobHealthIndicatorTests` |
+| M3 malformed admin address breaks billing transfer report | one address rule (`MailAddressValidator` = `@Email` semantics) validated at save time in `saveBank`; `MailOutbox.tryEnqueue` never throws, logs + counts `bds.mail.rejected` instead | `00bc1e5` | `MailAddressValidatorTests`, `BillingServiceMailTests` |
+| M4 `/api/v1/events` public write, no rate limit | kill switch `app.analytics.ingestion.enabled` (env `APP_ANALYTICS_INGESTION_ENABLED`, default `false`); 503 before body read when off; per-request caps kept; false "rate limited" Javadoc claim removed | `100faff` | `EventIngestionTests` |
+| m1 outbox regex stricter than `@Email` | outbox and billing share `MailAddressValidator`; forgot-password answers identically for known/unknown/unsendable | `00bc1e5` | `MailAddressValidatorTests` |
+| m2 `fail`/dead-letter ignore `enqueue_seq` | a coalesced payload newer than the failed attempt is released for a fresh attempt instead of dead-lettered | `95b9e04` | `JobQueueTests` |
+| m3 `bds_enqueue_job` blank dedupe / fixed max_attempts | SQL path normalizes blank keys like Java; optional 5th `p_max_attempts` param (default 10) | `95b9e04`, (SQL function in `a4aa635`, adjusted) | `JobQueueTests` |
+| m4 shared Redis DB across concurrent test runs | each JVM run claims its own Redis DB index (random 16..63, `FLUSHDB` at start) unless `BDS_TEST_REDIS_DB` is set | `3cc330f` | `TestSupportTests` |
+| m5 seeder purge could touch non-synthetic rows / miss API-created rows | purge matches the full structured id pattern only, and additionally deletes rows created later through the API by synthetic users, in FK-safe order | `e6824a6` | `UatDataSeederTests` |
+| m6 seeder CLI could claim production email jobs | job worker and business schedulers disabled automatically whenever `app.uat-seed.mode` is set | `e6824a6` | `UatDataSeederTests` |
+| m7 `.env.example` vars not wired into Compose | `docker-compose.yml` backend `environment:` block passes all `APP_JOBS_*`, `APP_SEARCH_*`, `APP_ANALYTICS_INGESTION_ENABLED` | `0d87bde` | manual `docker compose config` check |
+| m8 migrations could hang the deploy under a concurrent long lock | `SET LOCAL lock_timeout` / `statement_timeout` at the top of V027–V029 | `a4aa635` (amended) | `SchemaMigrationTests` |
+| m9 sealed mail kept forever on dead jobs / retried past validity | plaintext dropped right after a successful send; permanent SMTP failures (5xx) are not retried; one-time-link mail expires (dead-letters, scrubbed) once its link is no longer valid | `00bc1e5` | `MailOutboxTests` |
+| m10 analytics application layer imported infrastructure/HTTP types | application depends on an output port (`AnalyticsEventRepository`); ArchUnit test locks the boundary | `100faff` | `AnalyticsLayeringTests` |
+
+NITs also fixed: dead-letter log values, `ElasticsearchSyncTests` determinism, seeder `updated_at` from the fixed
+clock, the §2.7 EXPLAIN script committed (`streams/s0-be/explain-listing-indexes.sql`), RUNBOOK updated (test
+procedure, image builds skip tests, job-queue operations section).
+
+Full re-run after all fixes: `sh mvnw -B -ntp verify` → **Tests run: 111, Failures: 0, Errors: 0, Skipped: 0**, BUILD
+SUCCESS (111 = the reviewer's 83 baseline + tests added for these fixes).
