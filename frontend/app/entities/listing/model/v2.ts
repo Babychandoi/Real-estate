@@ -197,6 +197,11 @@ export function formatDate(value?: string | null): string {
 
 const areaFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
 
+/** Lengths in metres with the Vietnamese decimal comma ("4,6 m", never "4.6 m"). */
+export function formatMetres(metres: number | null | undefined): string {
+  return metres == null ? '' : `${areaFormat.format(metres)} m`;
+}
+
 export function formatArea(areaM2: number | null | undefined): string {
   return areaM2 == null ? '' : `${areaFormat.format(areaM2)} m²`;
 }

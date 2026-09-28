@@ -45,7 +45,9 @@ type Row = {
   purpose?: 'SALE' | 'RENT';
 };
 
-const withUnit = (value: number | null | undefined, unit: string) => (value != null ? `${value} ${unit}` : '—');
+const numberVi = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 });
+const withUnit = (value: number | null | undefined, unit: string) =>
+  value != null ? `${numberVi.format(value)} ${unit}` : '—';
 
 /** Every price keeps its period ("/tháng" for rent, F04.3); rows that only make sense for one purpose say so. */
 const ROWS: Row[] = [

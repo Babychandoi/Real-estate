@@ -11,7 +11,7 @@ interface ErrorStateProps {
   retrying?: boolean;
   retryLabel?: string;
   icon?: LucideIcon;
-  headingLevel?: 2 | 3 | 4;
+  headingLevel?: 1 | 2 | 3 | 4;
   className?: string;
 }
 

@@ -67,12 +67,13 @@ export function SharedShortlistPage() {
       ) : status === 'gone' ? (
         <EmptyState
           icon={Link2Off}
+          headingLevel={1}
           title="Liên kết chia sẻ không còn hiệu lực"
           description="Người chia sẻ có thể đã tạo liên kết mới hoặc ngừng chia sẻ. Hãy xin họ liên kết mới."
           actions={<ButtonLink to="/search">Tìm nhà đất</ButtonLink>}
         />
       ) : status === 'error' || !view ? (
-        <ErrorState title="Không tải được danh sách" onRetry={load} />
+        <ErrorState headingLevel={1} title="Không tải được danh sách" onRetry={load} />
       ) : (
         <>
           <header className="flex flex-wrap items-end justify-between gap-3">

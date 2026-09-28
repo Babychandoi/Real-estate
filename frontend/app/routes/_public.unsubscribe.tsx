@@ -67,12 +67,13 @@ export function UnsubscribePage() {
       ) : status === 'invalid' ? (
         <EmptyState
           icon={MailX}
+          headingLevel={1}
           title="Liên kết không hợp lệ hoặc đã hết hạn"
           description="Bạn vẫn có thể tắt email trong Tùy chọn thông báo của tài khoản."
           actions={<ButtonLink to="/account#thong-bao">Mở tùy chọn thông báo</ButtonLink>}
         />
       ) : status === 'error' ? (
-        <ErrorState title="Chưa xử lý được yêu cầu" onRetry={load} />
+        <ErrorState headingLevel={1} title="Chưa xử lý được yêu cầu" onRetry={load} />
       ) : (
         <section className="flex flex-col gap-4 rounded-card border border-outline-variant p-6">
           <h1 className="text-headline-sm text-on-surface">Ngừng nhận email</h1>

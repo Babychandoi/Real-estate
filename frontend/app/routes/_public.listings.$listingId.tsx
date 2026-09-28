@@ -26,6 +26,7 @@ import { listingDocumentMeta, listingIdFromRoute, listingPath } from '@/entities
 import {
   FURNISHING_LABELS,
   formatArea,
+  formatMetres,
   formatDate,
   propertyTypeLabel,
   purposeLabel,
@@ -282,10 +283,14 @@ function ListingDetailView({
       icon: Bath,
     },
     { label: 'Số tầng', value: listing.facts.floors != null ? `${listing.facts.floors} tầng` : null, icon: Building },
-    { label: 'Mặt tiền', value: listing.facts.frontageM != null ? `${listing.facts.frontageM} m` : null, icon: Ruler },
+    {
+      label: 'Mặt tiền',
+      value: listing.facts.frontageM != null ? formatMetres(listing.facts.frontageM) : null,
+      icon: Ruler,
+    },
     {
       label: 'Đường vào',
-      value: listing.facts.roadWidthM != null ? `${listing.facts.roadWidthM} m` : null,
+      value: listing.facts.roadWidthM != null ? formatMetres(listing.facts.roadWidthM) : null,
       icon: RouteIcon,
     },
     { label: 'Hướng', value: listing.facts.direction || null, icon: Compass },
