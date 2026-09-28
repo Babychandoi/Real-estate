@@ -28,6 +28,12 @@ class EventIngestionKillSwitchTests {
     private final AnalyticsEventRepository repository = new AnalyticsEventRepository() {
         @Override public int insertWebEvents(List<AnalyticsEvent> events) { writes.addAndGet(events.size()); return events.size(); }
         @Override public boolean insertServerEvent(AnalyticsEvent event) { writes.incrementAndGet(); return true; }
+        @Override public java.util.Map<String, java.util.Set<com.company.bds.analytics.domain.DeviceFlag>> deviceFlags(
+                java.util.Collection<String> anonymousIds) { return java.util.Map.of(); }
+        @Override public boolean flagDevice(String anonymousId, com.company.bds.analytics.domain.DeviceFlag flag, String reason) {
+            writes.incrementAndGet();
+            return true;
+        }
     };
 
     private MockMvc mvc(boolean enabled) {

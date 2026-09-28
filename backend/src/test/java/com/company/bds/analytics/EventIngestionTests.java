@@ -70,8 +70,12 @@ class EventIngestionTests {
                 .containsEntry("page_path", "/listings/nha-rieng-cau-giay");
     }
 
+    /**
+     * S8 (Decree 13/2023): analytics is opt-in. A batch without granted consent (denied or missing) is acknowledged and
+     * dropped: nothing is stored, not even an identifier-free row, whatever an old or modified client sends.
+     */
     @Test
-    void withoutConsentTheServerDropsIdentifiersAndCampaignData() throws Exception {
+    void withoutConsentNothingIsStored() throws Exception {
         String bearer = "Bearer " + data.sessionFor(data.user().create().id());
         for (String consent : new String[] {"denied", null}) {
             ObjectNode event = event("compare_opened", props -> props.set("listingIds",
@@ -80,15 +84,14 @@ class EventIngestionTests {
             event.put("page", "/compare");
 
             mockMvc.perform(withBody(post("/api/v1/events").header("Authorization", bearer), batch(consent, event), BROWSER))
-                    .andExpect(status().isAccepted());
+                    .andExpect(status().isAccepted())
+                    .andExpect(jsonPath("$.accepted").value(0)).andExpect(jsonPath("$.dropped").value(1));
 
-            Map<String, Object> stored = row(event.get("eventId").asText());
-            assertThat(stored.get("anonymous_id")).as("consent=%s", consent).isNull();
-            assertThat(stored.get("session_id")).isNull();
-            assertThat(stored.get("user_id")).isNull();
-            assertThat(stored.get("utm")).isNull();
-            assertThat(stored).containsEntry("page_path", "/compare");
+            assertThat(count(event.get("eventId").asText())).as("consent=%s", consent).isZero();
         }
+        send("{\"consent\":\"maybe\",\"events\":[" + event("compare_opened", props -> props.set("listingIds",
+                json.createArrayNode().add(UUID.randomUUID().toString()))) + "]}", BROWSER)
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors[0].code").value("INVALID_CONSENT"));
     }
 
     @Test
@@ -108,7 +111,7 @@ class EventIngestionTests {
 
         ObjectNode fromModerator = event("kyc_required_shown", props -> props.put("context", "lead"));
         mockMvc.perform(withBody(post("/api/v1/events").with(user(UUID.randomUUID().toString()).roles("MODERATOR")),
-                batch("denied", fromModerator), BROWSER)).andExpect(status().isAccepted());
+                batch("granted", fromModerator), BROWSER)).andExpect(status().isAccepted());
         assertThat(row(fromModerator.get("eventId").asText())).containsEntry("is_internal", true);
     }
 

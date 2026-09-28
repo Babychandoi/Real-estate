@@ -89,6 +89,9 @@ public class RateLimitPolicies {
                         rule(IP, 30, Duration.ofMinutes(15))),
                 policy("public-shortlist", "GET", "/api/v1/public/shortlists/**", EVICT,
                         rule(IP, 120, Duration.ofMinutes(1))),
+                // S8: consent decisions (banner/preferences); a visitor decides a handful of times at most.
+                policy("analytics-consent", "POST", "/api/v1/events/consent", EVICT,
+                        rule(IP, 30, Duration.ofMinutes(15))),
                 policy("analytics-events", "POST", "/api/v1/events", EVICT,
                         rule(IP, 120, Duration.ofMinutes(1))),
                 // Uploads are scanned by ClamAV and written to object storage: far more expensive than a read.

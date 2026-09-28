@@ -21,4 +21,9 @@ public record AnalyticsEvent(UUID eventId, String name, int schemaVersion, Insta
         Objects.requireNonNull(origin);
         propertiesJson = propertiesJson == null ? "{}" : propertiesJson;
     }
+
+    public AnalyticsEvent withFlags(boolean internalFlag, boolean botFlag) {
+        return new AnalyticsEvent(eventId, name, schemaVersion, occurredAt, anonymousId, sessionId, userId, listingId, internalFlag,
+                botFlag, origin, device, areaCode, pagePath, propertiesJson, utmJson);
+    }
 }

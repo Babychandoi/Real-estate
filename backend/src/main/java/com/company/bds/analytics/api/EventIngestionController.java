@@ -1,14 +1,18 @@
 package com.company.bds.analytics.api;
 
+import com.company.bds.analytics.application.ConsentService;
 import com.company.bds.analytics.application.EventIngestionService;
 import com.company.bds.analytics.application.EventViolation;
 import com.company.bds.analytics.application.InvalidEventsException;
+import com.company.bds.analytics.domain.InternalNetworks;
 import com.company.bds.shared.error.ProblemDetails;
+import com.company.bds.shared.security.ClientIpResolver;
 import com.company.bds.shared.security.CurrentUser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -42,17 +46,32 @@ import java.util.UUID;
 @RequestMapping("/api/v1/events")
 public class EventIngestionController {
     static final int MAX_BODY_BYTES = 64 * 1024;
+    static final int MAX_CONSENT_BYTES = 2 * 1024;
     private static final String PROBLEM_BASE = "https://api.bds.vn/problems/";
 
     private final EventIngestionService ingestion;
+    private final ConsentService consents;
     private final ObjectMapper json;
     private final boolean enabled;
+    private final ClientIpResolver clientIp;
+    private final InternalNetworks internalNetworks;
 
-    public EventIngestionController(EventIngestionService ingestion, ObjectMapper json,
-                                    @Value("${app.analytics.ingestion.enabled:false}") boolean enabled) {
+    @Autowired
+    public EventIngestionController(EventIngestionService ingestion, ConsentService consents, ObjectMapper json,
+                                    @Value("${app.analytics.ingestion.enabled:false}") boolean enabled,
+                                    ClientIpResolver clientIp,
+                                    @Value("${app.analytics.internal-networks:}") String internalNetworks) {
         this.ingestion = ingestion;
+        this.consents = consents;
         this.json = json;
         this.enabled = enabled;
+        this.clientIp = clientIp;
+        this.internalNetworks = InternalNetworks.parse(internalNetworks);
+    }
+
+    /** Without internal networks (tests and standalone setups). */
+    public EventIngestionController(EventIngestionService ingestion, ObjectMapper json, boolean enabled) {
+        this(ingestion, null, json, enabled, new ClientIpResolver(ClientIpResolver.DEFAULT_TRUSTED_PROXIES), "");
     }
 
     @PostMapping
@@ -78,8 +97,42 @@ public class EventIngestionController {
             throw new InvalidEventsException(List.of(new EventViolation("body", "MALFORMED_JSON", "Nội dung không phải JSON hợp lệ.")));
         }
         EventIngestionService.Viewer viewer = new EventIngestionService.Viewer(userId(authentication), staff(authentication),
-                request.getHeader(HttpHeaders.USER_AGENT));
+                request.getHeader(HttpHeaders.USER_AGENT), internalNetworks.contains(clientIp.resolve(request)));
         return ResponseEntity.accepted().cacheControl(CacheControl.noStore()).body(ingestion.ingest(batch, viewer));
+    }
+
+    /**
+     * Records one analytics consent decision (granted or withdrawn) as proof of consent. Public: the banner asks
+     * before sign-in; the user id comes only from a bearer token. Rate limited by policy {@code analytics-consent}.
+     */
+    @PostMapping("/consent")
+    public ResponseEntity<ConsentService.ConsentReceipt> consent(HttpServletRequest request, Authentication authentication)
+            throws IOException {
+        if (!supported(request.getContentType()) || MediaType.parseMediaType(request.getContentType()).isCompatibleWith(MediaType.TEXT_PLAIN)) {
+            throw new PayloadRejected(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_MEDIA_TYPE", "Chỉ nhận application/json.");
+        }
+        byte[] body = request.getInputStream().readNBytes(MAX_CONSENT_BYTES + 1);
+        if (body.length > MAX_CONSENT_BYTES) {
+            throw new PayloadRejected(HttpStatus.PAYLOAD_TOO_LARGE, "PAYLOAD_TOO_LARGE", "Nội dung quá lớn.");
+        }
+        JsonNode node;
+        try {
+            node = json.readTree(body);
+        } catch (JsonProcessingException ex) {
+            node = null;
+        }
+        if (node == null || !node.isObject()) {
+            throw new InvalidEventsException(List.of(new EventViolation("body", "MALFORMED_JSON", "Nội dung không phải JSON hợp lệ.")));
+        }
+        ConsentService.ConsentCommand command = new ConsentService.ConsentCommand(text(node, "consentId"), text(node, "purpose"),
+                text(node, "choice"), text(node, "policyVersion"), text(node, "source"));
+        return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
+                .body(consents.record(command, userId(authentication)));
+    }
+
+    private static String text(JsonNode node, String field) {
+        JsonNode value = node.get(field);
+        return value != null && value.isTextual() ? value.asText() : null;
     }
 
     @ExceptionHandler(InvalidEventsException.class)
