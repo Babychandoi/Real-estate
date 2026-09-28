@@ -1,6 +1,6 @@
 # Stream S3a-SUPPLY — listing write path, wizard, OWNER, my-listings, freshness, import, quality (wave W2)
 
-Branch `audit/s3a-supply` (from `audit-2026-09-27` @ `b875b91`). Flyway V045–V047 used (V048–V049 free), port 18114,
+Branch `audit/s3a-supply` (from `audit-2026-09-27` @ `b875b91`). Flyway V045–V048 used (V049 free), port 18114,
 Vite 5314, Redis DB 5, E2E DB prefix `s3a_e2e`.
 
 ## 1. How to verify
@@ -79,6 +79,28 @@ frontend lint/typecheck/format clean, Vitest **16 files / 145 tests**, build OK,
 - **S3b:** read `?listingId=` on `/my-leads`.
 - **S6:** reminders use `RealtimeNotificationService.notify` + `MailOutbox`; migrate to `NotificationRequest` with dedupe keys (`expiry:<id>:<cycle>:<kind>`, `sold-check:<id>:<due>`).
 
-## 8. Commits
+## 8. Review 2 fixes
+
+Backend commit `b561d1b`, frontend commit `d829637` (see `git log`). Final: `mvnw verify` **178 tests, 0 failures**;
+`ListingFreshnessTests` 5 consecutive runs 8/8; Vitest 17 files / 146 tests (run with `--testTimeout=30000`: the
+pre-existing ESLint-plugin test timed out at 5 s under load average ~150, unrelated); build + bundle OK; E2E
+`supply` 2/2, `authenticated` 2/2 (chromium-1440).
+
+| Finding | Fix | Test |
+|---|---|---|
+| M1 flaky reminder test (app clock vs DB `now()`) | due reminders enqueued with `runAt = null` (DB clock) | `ListingFreshnessTests` ×5 green |
+| m2 autosave self-conflict | `saveNow` waits in a loop for the running save; a waiter with nothing left reuses its result | `useDraftAutosave.test.ts` (3 overlapping saves, distinct versions) |
+| m3 lost-update optional | wizard always sends If-Match (version known from create/load); v1 updates without a version are logged and counted `bds.listing.draft.unversioned_updates`. **Plan:** require If-Match on `PUT /listings/{id}/draft` once the old UI and other clients are gone (watch the counter reach 0) | code |
+| m4 existence leak | ownership checked before the version; 404 for non-owners on PUT draft, draft, preview, confirm-availability, renew (no ETag) | `ListingWritePathTests.otherAccountsGet404WithoutLearningTheVersion` |
+| m5 sold-report abuse | report saved first, sold check in the same transaction; after an answered check, a new one within 7 days needs ≥2 distinct reporter phones (`sold_check_cleared_at`, V048). Anonymous reports without a phone do not count toward the two | `afterAnAnsweredCheck…TwoDistinctReporters…`, `soldCheckOnlyExistsWhenTheReportIsSaved` |
+| m6 reminder scan cap | keyset over `(expires_at, id)` in batches (500; settable) until the window is exhausted | `reminderScanReachesEveryListingInTheWindowAcrossBatches` (batch 3, 7 listings) |
+| m7 import | dry run runs the KYC check and turns rows beyond quota into errors; a batch whose drafts were all deleted no longer blocks re-import; leading `= + @ - tab CR` removed from text cells (`- ` list dash kept); upload read with a 1 MB bound | `ListingImportEligibilityTests` (2, context with KYC + quota enforced) |
+| m8 V045 | also backfills ACTIVE rows with NULL confirmation from `updated_at`. **Production procedure** for large tables: before deploying, run `CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_listings_active_expires …`, `idx_listings_sold_check …`, `idx_listings_owner_created …` (same definitions as V045) outside a transaction; V045's statements then do nothing | migration + note |
+| m9 out-of-order my-listings | request sequence; only the latest response updates the page | code |
+| NIT renewable flag | server renewal rule = list rule (no revision after the public one); `sameContentAs` removed | `expiredListingRenews…` |
+| NIT become-owner lock | locks the `users` row (exists without a role row) | `userBecomesOwner…` |
+| `listing_published` duplication | exactly one event per published revision, also after a repeated approve | `editOfAPublishedListing…` (`assertOnePublished`) |
+
+## 9. Commits
 
 See `git log audit-2026-09-27..audit/s3a-supply`.
