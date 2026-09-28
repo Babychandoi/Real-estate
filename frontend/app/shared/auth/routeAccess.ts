@@ -18,6 +18,7 @@ export const ROUTE_ACCESS = {
   adminListings: ADMIN_ONLY,
   adminUsers: ADMIN_ONLY,
   adminLeadsAndReports: STAFF,
+  adminReports: STAFF,
   adminVerification: STAFF,
   adminBilling: ADMIN_ONLY,
   adminAnalytics: STAFF,

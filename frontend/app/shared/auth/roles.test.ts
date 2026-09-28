@@ -27,6 +27,7 @@ describe('route access by role (contract §2.5)', () => {
       'account',
       'adminModeration',
       'adminLeadsAndReports',
+      'adminReports',
       'adminVerification',
       'adminAnalytics',
       'adminProjects',

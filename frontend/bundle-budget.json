@@ -96,33 +96,33 @@
     },
     "admin/moderation": {
       "module": "app/routes/_admin.moderation.tsx",
-      "budgetKb": 136,
-      "measuredKb": 123.1
+      "budgetKb": 150,
+      "measuredKb": 136.7
     },
     "admin/listings": {
       "module": "app/routes/_admin.listings.tsx",
-      "budgetKb": 131,
-      "measuredKb": 118.6
+      "budgetKb": 146,
+      "measuredKb": 132.3
     },
     "admin/users": {
       "module": "app/routes/_admin.users.tsx",
-      "budgetKb": 135,
-      "measuredKb": 122
+      "budgetKb": 147,
+      "measuredKb": 133.6
     },
     "admin/leads-and-reports": {
       "module": "app/routes/_admin.leads-and-reports.tsx",
       "budgetKb": 137,
-      "measuredKb": 123.8
+      "measuredKb": 123.2
     },
     "admin/verification": {
       "module": "app/routes/_admin.verification.tsx",
-      "budgetKb": 131,
-      "measuredKb": 118.8
+      "budgetKb": 146,
+      "measuredKb": 132.3
     },
     "admin/billing": {
       "module": "app/routes/_admin.billing.tsx",
-      "budgetKb": 133,
-      "measuredKb": 120.5
+      "budgetKb": 146,
+      "measuredKb": 132.6
     },
     "admin/analytics": {
       "module": "app/routes/_admin.analytics.tsx",
@@ -138,6 +138,11 @@
       "module": "app/routes/_admin.cms.tsx",
       "budgetKb": 137,
       "measuredKb": 124.1
+    },
+    "admin/reports": {
+      "module": "app/routes/_admin.reports.tsx",
+      "budgetKb": 145,
+      "measuredKb": 133.8
     }
   },
   "gzipLevel": 1
