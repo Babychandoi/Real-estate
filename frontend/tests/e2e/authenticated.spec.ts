@@ -74,8 +74,11 @@ test.describe('broker (demo.broker)', () => {
     await navigateInApp(page, '/listings/new');
     await expect(page).toHaveURL(/\/listings\/new$/);
     await expect(page.getByRole('heading', { name: 'Vui lòng đăng nhập' })).toHaveCount(0);
-    // The listing form itself renders (NIT), not just "no login prompt" — a broker who is verified sees the
-    // create-listing wizard, not (say) a silent blank page or an unrelated error state.
-    await expect(page.getByRole('heading', { name: /Soạn thảo & Đăng tin/ })).toBeVisible();
+    // The page renders one of its two legitimate authenticated states (NIT), not just "no login prompt": the
+    // create-listing wizard once the broker is eKYC-verified, or the eKYC gate otherwise. Either proves the route
+    // actually rendered content instead of, say, a silent blank page or an unrelated error state.
+    await expect(
+      page.getByRole('heading', { name: /Soạn thảo & Đăng tin|Xác minh danh tính trước khi đăng tin/ }),
+    ).toBeVisible();
   });
 });
