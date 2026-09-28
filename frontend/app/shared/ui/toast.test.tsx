@@ -48,12 +48,7 @@ describe('Toast timing (WCAG 2.2.1, m11)', () => {
     vi.useFakeTimers();
     render(
       <ToastProvider>
-        <ShowButton
-          kind="info"
-          title="Đã gửi"
-          action={{ label: 'Xem', onClick: () => undefined }}
-          duration={2000}
-        />
+        <ShowButton kind="info" title="Đã gửi" action={{ label: 'Xem', onClick: () => undefined }} duration={2000} />
       </ToastProvider>,
     );
     act(() => screen.getByRole('button', { name: 'show' }).click());

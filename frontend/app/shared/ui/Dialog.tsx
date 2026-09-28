@@ -77,7 +77,12 @@ export function Dialog({
       >
         <div className="flex items-start justify-between gap-4 border-b border-outline-variant px-5 py-4">
           <div className="min-w-0">
-            <h2 id={titleId} ref={titleRef} tabIndex={-1} className="text-headline-sm text-on-surface focus:outline-none">
+            <h2
+              id={titleId}
+              ref={titleRef}
+              tabIndex={-1}
+              className="text-headline-sm text-on-surface focus:outline-none"
+            >
               {title}
             </h2>
             {description && (

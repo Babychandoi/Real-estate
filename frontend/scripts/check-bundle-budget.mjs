@@ -167,9 +167,7 @@ function main(argv) {
     lines.forEach((line) => console.log(format(line)));
   }
   if (unbudgeted.length) {
-    console.error(
-      `\n${unbudgeted.length} route module(s) have no budget entry: ${unbudgeted.join(', ')}`,
-    );
+    console.error(`\n${unbudgeted.length} route module(s) have no budget entry: ${unbudgeted.join(', ')}`);
     console.error(`Add each one to "routes" in ${path.relative(root, configPath)} with an explicit budgetKb.`);
   }
   const failures = rows.filter((row) => row.over);
