@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { MAX_LISTING_IDS } from './catalog';
 import {
   ANONYMOUS_ID_KEY,
   CONSENT_STORAGE_KEY,
   getAnalyticsConsent,
   getStoredAnalyticsConsent,
   SESSION_KEY,
+  UTM_KEY,
   setAnalyticsConsent,
 } from './consent';
-import { createAnalyticsClient, type AnalyticsClient, type EventBatch } from './track';
+import { captureLandingContext, createAnalyticsClient, type AnalyticsClient, type EventBatch } from './track';
 
 const LISTING = '5b1d6f0e-2f55-4c1e-9d0a-2a6f5d7e8c01';
 const OTHER = '6c2e7f1f-3a66-4d2f-8e1b-3b7a6e8f9d02';
@@ -207,6 +209,125 @@ describe('track()', () => {
     expect(sent[0].consent).toBe('denied');
     expect(sent[0].events[0]).toMatchObject({ anonymousId: null, sessionId: null });
     expect(sent[0].events[0].utm).toBeUndefined();
+  });
+});
+
+describe('property validation matches the server (m2)', () => {
+  it('drops an event whose required property fails the server pattern, without losing the rest of the batch', async () => {
+    const warn = vi.fn();
+    makeClient({ warn });
+    client.track('search_performed', { filterHash: 'not-32-hex-chars', purpose: 'SALE', resultCount: null });
+    client.track('kyc_required_shown', { context: 'lead_form' });
+    await vi.runAllTimersAsync();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].events.map((event) => event.name)).toEqual(['kyc_required_shown']);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('search_performed'), expect.anything());
+  });
+
+  it('drops only an invalid optional property, keeping the rest of the event', async () => {
+    makeClient();
+    client.track(
+      'listing_detail_viewed',
+      // @ts-expect-error — propertyType outside the server's enum
+      { purpose: 'SALE', propertyType: 'CASTLE', district: 'not-digits' },
+      { listingId: LISTING },
+    );
+    await vi.runAllTimersAsync();
+    expect(sent[0].events[0].properties).toEqual({ purpose: 'SALE' });
+  });
+
+  it('rejects an event missing a required property (filterHash never supplied)', async () => {
+    makeClient();
+    client.track('compare_opened', { listingIds: [LISTING] });
+    // @ts-expect-error — filterHash omitted entirely
+    client.track('search_results_viewed', { listingIds: [LISTING] });
+    await vi.runAllTimersAsync();
+    // compare_opened has no required filterHash, so it is unaffected; search_results_viewed is missing one.
+    expect(sent[0].events.map((event) => event.name)).toEqual(['compare_opened']);
+  });
+
+  it('sanitises the page path, dropping it when it does not match the server pattern', async () => {
+    window.history.replaceState(null, '', `/${'a'.repeat(250)}`);
+    makeClient();
+    client.track('kyc_required_shown', { context: 'lead_form' });
+    await vi.runAllTimersAsync();
+    expect(sent[0].events[0].page).toBeUndefined();
+  });
+
+  it('keeps a page path that matches the server pattern', async () => {
+    makeClient();
+    client.track('kyc_required_shown', { context: 'lead_form' });
+    await vi.runAllTimersAsync();
+    expect(sent[0].events[0].page).toBe('/listings/can-ho-2pn');
+  });
+});
+
+describe('batching stays under the byte cap (m3)', () => {
+  it('splits a batch that would exceed the byte cap even though it is under 50 events and 20 events', async () => {
+    makeClient({ maxBatchBytes: 8000 });
+    const bigIds = Array.from({ length: MAX_LISTING_IDS }, () => LISTING);
+    // 10 events × ~1.9 KB each ≈ 19 KB, so an 8 KB cap must split them into several requests.
+    for (let index = 0; index < 10; index += 1) client.track('compare_opened', { listingIds: bigIds });
+    await vi.runAllTimersAsync();
+    expect(sent.length).toBeGreaterThan(1);
+    for (const batch of sent) {
+      expect(new Blob([JSON.stringify(batch)]).size).toBeLessThanOrEqual(8000);
+    }
+    expect(sent.flatMap((batch) => batch.events)).toHaveLength(10);
+  });
+
+  it('always sends at least one event even if it alone exceeds the cap', async () => {
+    makeClient({ maxBatchBytes: 10 });
+    client.track('compare_opened', { listingIds: [LISTING] });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].events).toHaveLength(1);
+  });
+});
+
+describe('landing UTM is captured once, early (m4)', () => {
+  it('captureLandingContext persists the UTM once and later URL changes do not overwrite it', () => {
+    window.history.replaceState(null, '', '/?utm_source=zalo&utm_campaign=thu-9');
+    captureLandingContext();
+    expect(JSON.parse(sessionStorage.getItem(UTM_KEY) ?? '{}')).toEqual({ source: 'zalo', campaign: 'thu-9' });
+
+    window.history.replaceState(null, '', '/search?purpose=SALE');
+    captureLandingContext();
+    expect(JSON.parse(sessionStorage.getItem(UTM_KEY) ?? '{}')).toEqual({ source: 'zalo', campaign: 'thu-9' });
+  });
+
+  it('a client created after the URL was rewritten still uses the UTM captured at app start', async () => {
+    window.history.replaceState(null, '', '/?utm_source=zalo&utm_campaign=thu-9');
+    captureLandingContext();
+    // A route effect (e.g. search filters) rewrites the URL, dropping the campaign params — after landing.
+    window.history.replaceState(null, '', '/search?purpose=SALE');
+
+    localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
+    makeClient();
+    client.track('compare_opened', { listingIds: [LISTING] });
+    await vi.runAllTimersAsync();
+    expect(sent[0].events[0].utm).toEqual({ source: 'zalo', campaign: 'thu-9' });
+  });
+});
+
+describe('track() never throws (m5)', () => {
+  it('treats non-object properties as empty and unknown names as a no-op', () => {
+    makeClient();
+    const call = (name: string, properties: unknown, context?: unknown) =>
+      (client.track as (n: string, p: unknown, c?: unknown) => void)(name, properties, context);
+    expect(() => call('kyc_required_shown', null)).not.toThrow();
+    expect(() => call('kyc_required_shown', undefined)).not.toThrow();
+    expect(() => call('kyc_required_shown', 'not an object')).not.toThrow();
+    expect(() => call('kyc_required_shown', 42)).not.toThrow();
+    expect(() => call('does_not_exist', {})).not.toThrow();
+    expect(() => call('listing_detail_viewed', {}, { listingId: { not: 'a string' } })).not.toThrow();
+    expect(client.pending()).toBe(0);
+  });
+
+  it('the module-level track() also never throws', async () => {
+    const { track } = await import('./track');
+    expect(() => (track as (n: string, p: unknown) => void)('kyc_required_shown', null)).not.toThrow();
   });
 });
 

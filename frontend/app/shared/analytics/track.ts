@@ -2,18 +2,23 @@
  * `track(name, properties)` — consent-aware, batched web analytics (contract §5/§12).
  *
  * - Only catalogued web events are sent (unknown or server-only names are a no-op); only catalogued properties
- *   leave the page. Listing events need `{ listingId }` (enforced by the types); an event the server would reject
- *   is dropped here, because one invalid event makes the server refuse the whole batch.
+ *   leave the page, and each one is validated against the same patterns the backend enforces (m2). Listing events
+ *   need `{ listingId }` (enforced by the types too). An event the server would reject for a required property is
+ *   dropped here (with a console.warn) instead of losing the rest of the batch; an invalid *optional* property is
+ *   dropped on its own and the event is still sent.
  * - Consent is taken when the event happens. Without "granted" the event carries no anonymous id, session id or
  *   UTM and the batch is sent with `consent: "denied"` (the server stores it without identifiers).
- * - Events are batched (flush at 20 waiting events or after 5 s, at most 50 per request), flushed with
+ * - Events are batched (flush at 20 waiting events, after 5 s, or at ~60 KB of serialised JSON, whichever comes
+ *   first — well under the server's 64 KB body limit and sendBeacon/keepalive limits), flushed with
  *   `fetch(keepalive)` when the tab is hidden and with `navigator.sendBeacon` on `pagehide`.
  * - The user id is never in the body: the server reads it from the bearer token (fetch path only).
+ * - `track()` never throws: bad input (null properties, an unknown event name, a non-UUID listingId) is a no-op,
+ *   optionally logged with `console.warn` (m5).
  */
 import { apiFetch, apiUrl } from '@/shared/api/client';
 import {
   isWebEventName,
-  pickCatalogProperties,
+  sanitizeCatalogProperties,
   WEB_EVENT_CATALOG,
   type ListingEventName,
   type WebEventName,
@@ -60,6 +65,10 @@ export type TrackContextArg<N extends WebEventName> = N extends ListingEventName
   : [context?: TrackContext];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Same shape the server's `EventIngestionService.PAGE_PATH` accepts (path only, no query string or fragment). */
+const PAGE_PATH = /^\/[A-Za-z0-9/_.~%:@!$&'()*+,;=-]{0,199}$/;
+/** Comfortably under the server's 64 KB body cap and the sendBeacon/keepalive limits (m3). */
+const MAX_BATCH_BYTES = 60_000;
 
 export interface AnalyticsClientOptions {
   /** Endpoint path or URL; default `/events` under the API base (`/api/v1/events`). */
@@ -70,6 +79,8 @@ export interface AnalyticsClientOptions {
   flushIntervalMs?: number;
   /** Events per request; the ingestion API accepts at most 50. */
   maxBatch?: number;
+  /** Serialised bytes per request; the ingestion API and sendBeacon/keepalive accept at most 64 KB (default 60 000). */
+  maxBatchBytes?: number;
   /** Oldest events are dropped beyond this many waiting events (default 200). */
   maxQueue?: number;
   /** Delivery attempts per event before it is dropped (default 3). */
@@ -81,6 +92,8 @@ export interface AnalyticsClientOptions {
   consent?: () => AnalyticsConsent;
   now?: () => Date;
   randomId?: () => string;
+  /** Logs dropped/invalid events; default `console.warn`, silenced in tests unless overridden. */
+  warn?: (message: string, detail?: unknown) => void;
 }
 
 interface Pending {
@@ -132,10 +145,29 @@ function parseUtm(search: string): Record<string, string> | undefined {
   return Object.keys(utm).length ? utm : undefined;
 }
 
+/**
+ * Captures the landing UTM parameters into sessionStorage, once per session (m4). Must run before any client-side
+ * URL rewrite (e.g. a search page replacing the query string, a listing page redirecting to its canonical slug)
+ * can drop them. Safe to call more than once: a no-op once something is stored, even an empty capture.
+ */
+export function captureLandingContext(): void {
+  if (typeof window === 'undefined') return;
+  if (readStorage(() => sessionStorage, UTM_KEY) != null) return;
+  const utm = parseUtm(window.location.search);
+  if (utm) writeStorage(() => sessionStorage, UTM_KEY, JSON.stringify(utm));
+}
+
 function currentDevice(): Device | undefined {
   if (typeof window === 'undefined') return undefined;
   const width = window.innerWidth;
   return width < 768 ? 'mobile' : width < 1024 ? 'tablet' : 'desktop';
+}
+
+/** The current path, sanitised to what the server's page-path pattern accepts; `undefined` otherwise (m2). */
+function currentPagePath(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  const path = window.location.pathname;
+  return PAGE_PATH.test(path) ? path : undefined;
 }
 
 export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
@@ -143,11 +175,13 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
   const batchSize = options.batchSize ?? 20;
   const flushIntervalMs = options.flushIntervalMs ?? 5000;
   const maxBatch = Math.min(options.maxBatch ?? 50, 50);
+  const maxBatchBytes = options.maxBatchBytes ?? MAX_BATCH_BYTES;
   const maxQueue = options.maxQueue ?? 200;
   const maxAttempts = options.maxAttempts ?? 3;
   const consentOf = options.consent ?? getAnalyticsConsent;
   const now = options.now ?? (() => new Date());
   const randomId = options.randomId ?? defaultRandomId;
+  const warn = options.warn ?? ((message: string, detail?: unknown) => console.warn(`[analytics] ${message}`, detail));
   const send =
     options.send ??
     ((body: string) => apiFetch(endpoint, { method: 'POST', body, keepalive: true, credentials: 'same-origin' }));
@@ -157,7 +191,9 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
       typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'
         ? navigator.sendBeacon(url, body)
         : false);
-  const landingUtm = typeof window === 'undefined' ? undefined : parseUtm(window.location.search);
+  // The landing UTM should already be in sessionStorage (captureLandingContext ran at app start); this call is a
+  // safety net for callers that create a client without that having happened yet (e.g. tests).
+  captureLandingContext();
 
   let queue: Pending[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -190,15 +226,12 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
 
   function utm(): Record<string, string> | undefined {
     const stored = readStorage(() => sessionStorage, UTM_KEY);
-    if (stored) {
-      try {
-        return JSON.parse(stored) as Record<string, string>;
-      } catch {
-        return undefined;
-      }
+    if (!stored) return undefined;
+    try {
+      return JSON.parse(stored) as Record<string, string>;
+    } catch {
+      return undefined;
     }
-    if (landingUtm) writeStorage(() => sessionStorage, UTM_KEY, JSON.stringify(landingUtm));
-    return landingUtm;
   }
 
   function schedule(delay: number) {
@@ -209,14 +242,30 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
     }, delay);
   }
 
+  /** Byte size of an event once serialised inside a batch (its JSON plus one comma). */
+  function eventSize(event: WebEvent): number {
+    return new Blob([JSON.stringify(event)]).size + 1;
+  }
+
+  /** Takes up to `maxBatch` same-consent events from the front of the queue, capped at `maxBatchBytes`. */
   function takeBatch(): Pending[] {
     if (!queue.length) return [];
     const consent = queue[0].consent;
     const batch: Pending[] = [];
     const rest: Pending[] = [];
+    let bytes = 2; // "[" + "]" of the events array
     for (const item of queue) {
-      if (batch.length < maxBatch && item.consent === consent) batch.push(item);
-      else rest.push(item);
+      if (batch.length >= maxBatch || item.consent !== consent) {
+        rest.push(item);
+        continue;
+      }
+      const size = eventSize(item.event);
+      if (batch.length > 0 && bytes + size > maxBatchBytes) {
+        rest.push(item);
+        continue;
+      }
+      batch.push(item);
+      bytes += size;
     }
     queue = rest;
     return batch;
@@ -274,32 +323,51 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
   }
 
   function track<N extends WebEventName>(name: N, properties: WebEventProperties[N], ...rest: TrackContextArg<N>) {
-    if (!isWebEventName(name)) return;
-    const context: TrackContext = rest[0] ?? {};
-    if (context.listingId !== undefined && !UUID.test(context.listingId)) return;
-    if (WEB_EVENT_CATALOG[name].requiresListing && !context.listingId) return;
-    const consent = consentOf();
-    const granted = consent === 'granted';
-    const event: WebEvent = {
-      eventId: randomId(),
-      name,
-      v: WEB_EVENT_CATALOG[name].version,
-      occurredAt: now().toISOString(),
-      anonymousId: granted ? anonymousId() : null,
-      sessionId: granted ? sessionId() : null,
-      properties: pickCatalogProperties(name, properties),
-      page: typeof window === 'undefined' ? undefined : window.location.pathname,
-      device: currentDevice(),
-    };
-    if (context.listingId) event.listingId = context.listingId;
-    if (granted) {
-      const campaign = utm();
-      if (campaign) event.utm = campaign;
+    // Never throws (m5): bad input from a caller must not break the page it instruments.
+    try {
+      if (!isWebEventName(name)) {
+        warn(`unknown event "${String(name)}" ignored`);
+        return;
+      }
+      const context: TrackContext = rest[0] ?? {};
+      if (context.listingId !== undefined && !UUID.test(context.listingId)) {
+        warn(`"${name}": listingId is not a UUID, event dropped`, context.listingId);
+        return;
+      }
+      if (WEB_EVENT_CATALOG[name].requiresListing && !context.listingId) {
+        warn(`"${name}" requires a listingId, event dropped`);
+        return;
+      }
+      const sanitizedProperties = sanitizeCatalogProperties(name, properties);
+      if (sanitizedProperties == null) {
+        warn(`"${name}": a required property is missing or invalid, event dropped`, properties);
+        return;
+      }
+      const consent = consentOf();
+      const granted = consent === 'granted';
+      const event: WebEvent = {
+        eventId: randomId(),
+        name,
+        v: WEB_EVENT_CATALOG[name].version,
+        occurredAt: now().toISOString(),
+        anonymousId: granted ? anonymousId() : null,
+        sessionId: granted ? sessionId() : null,
+        properties: sanitizedProperties,
+        page: currentPagePath(),
+        device: currentDevice(),
+      };
+      if (context.listingId) event.listingId = context.listingId;
+      if (granted) {
+        const campaign = utm();
+        if (campaign) event.utm = campaign;
+      }
+      queue.push({ consent, event, attempts: 0 });
+      if (queue.length > maxQueue) queue = queue.slice(-maxQueue);
+      if (queue.length >= batchSize) void flush();
+      else schedule(flushIntervalMs);
+    } catch (error) {
+      warn(`"${String(name)}": tracking failed unexpectedly, event dropped`, error);
     }
-    queue.push({ consent, event, attempts: 0 });
-    if (queue.length > maxQueue) queue = queue.slice(-maxQueue);
-    if (queue.length >= batchSize) void flush();
-    else schedule(flushIntervalMs);
   }
 
   const onVisibility = () => {
@@ -343,13 +411,23 @@ export type AnalyticsClient = ReturnType<typeof createAnalyticsClient>;
 let defaultClient: AnalyticsClient | null = null;
 const analyticsDisabled = import.meta.env.MODE === 'test' || import.meta.env.VITE_ANALYTICS_DISABLED === 'true';
 
-/** Records a catalogued web event; see the module comment for consent, batching and delivery. */
+// Captured once, as early as this module is first imported (main.tsx imports it before rendering, specifically
+// for this), so a later client-side URL rewrite (search filters, canonical slug redirects…) can never drop the
+// landing campaign parameters before they are read (m4).
+captureLandingContext();
+
+/** Records a catalogued web event; see the module comment for consent, batching, validation and delivery. */
 export function track<N extends WebEventName>(
   name: N,
   properties: WebEventProperties[N],
   ...context: TrackContextArg<N>
 ): void {
   if (analyticsDisabled || typeof window === 'undefined') return;
-  defaultClient ??= createAnalyticsClient();
-  defaultClient.track(name, properties, ...context);
+  try {
+    defaultClient ??= createAnalyticsClient();
+    defaultClient.track(name, properties, ...context);
+  } catch {
+    // track() must never throw into the caller (m5); createAnalyticsClient itself does not throw in practice, but
+    // this guards the public entry point unconditionally.
+  }
 }

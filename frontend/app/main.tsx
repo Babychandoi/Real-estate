@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import { router } from './routes';
+// Imported for its module-load side effect (m4): captures the landing UTM before any route effect can rewrite
+// the URL and drop it (e.g. the search page replacing the query string, a listing page redirecting to its slug).
+import './shared/analytics/track';
 import { ToastProvider } from './shared/ui/Toast';
 import './styles/index.css';
 
