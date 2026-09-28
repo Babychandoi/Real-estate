@@ -50,14 +50,13 @@
     },
     "/listings/new": {
       "module": "app/routes/_public.listings.new.tsx",
-      "budgetKb": 665,
-      "measuredKb": 604,
-      "target": "S3-SUPPLY wizard: load the map picker (chunk + worker) on the location step only; <= 140 kB"
+      "budgetKb": 140,
+      "measuredKb": 132.3
     },
     "/my-listings": {
       "module": "app/routes/_account.listings.tsx",
-      "budgetKb": 133,
-      "measuredKb": 120.8
+      "budgetKb": 142,
+      "measuredKb": 129.0
     },
     "/my-leads": {
       "module": "app/routes/_account.leads.tsx",

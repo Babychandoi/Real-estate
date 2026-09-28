@@ -3,7 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { RootLayout } from './root';
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
 import { ROUTE_ACCESS } from '@/shared/auth/routeAccess';
-import type { Role } from '@/shared/auth/roles';
+import { SEEKERS, type Role } from '@/shared/auth/roles';
 import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
 
 /** The UI kit catalog exists only in dev builds or when VITE_ENABLE_UI_CATALOG=true (a11y suite in CI). */
@@ -43,6 +43,7 @@ const CmsManagementPage = lazy(() => import('./routes/_admin.cms').then((m) => (
 const BillingPage = lazy(() => import('./routes/_account.billing').then((m) => ({ default: m.BillingPage })));
 const AdminBillingPage = lazy(() => import('./routes/_admin.billing').then((m) => ({ default: m.AdminBillingPage })));
 const MyLeadsPage = lazy(() => import('./routes/_account.leads').then((m) => ({ default: m.MyLeadsPage })));
+const BecomeOwnerPage = lazy(() => import('./features/owner-onboarding/BecomeOwner'));
 const MyInquiriesPage = lazy(() => import('./routes/_account.inquiries').then((m) => ({ default: m.MyInquiriesPage })));
 const KycPage = lazy(() => import('./routes/_account.kyc').then((m) => ({ default: m.KycPage })));
 const AccountProfilePage = lazy(() =>
@@ -103,6 +104,7 @@ export const router = createBrowserRouter([
       { path: 'nguoi-dang/:sellerId', element: load(<SellerProfilePage />) },
       { path: 'billing', element: protect(<BillingPage />, 'Gói đăng tin', ROUTE_ACCESS.billing) },
       { path: 'my-leads', element: protect(<MyLeadsPage />, 'Khách quan tâm', ROUTE_ACCESS.myLeads) },
+      { path: 'become-owner', element: protect(<BecomeOwnerPage />, 'Đăng tin với vai trò Chủ nhà', SEEKERS) },
       { path: 'my-inquiries', element: protect(<MyInquiriesPage />, 'Tin đã liên hệ', ROUTE_ACCESS.myInquiries) },
       { path: 'kyc', element: protect(<KycPage />, 'Xác minh eKYC', ROUTE_ACCESS.kyc) },
       {

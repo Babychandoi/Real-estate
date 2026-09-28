@@ -12,6 +12,8 @@ import {
 import { Link } from 'react-router-dom';
 import type { LeadItem } from '@/entities/lead/model/types';
 import { apiClient } from '@/shared/api/client';
+import { useAuth } from '@/shared/auth/AuthContext';
+import { BecomeOwnerCard } from '@/features/owner-onboarding/BecomeOwner';
 
 type LeadPage = { items: LeadItem[]; totalElements: number; page: number; size: number; totalPages: number };
 const STATUS_LABELS: Record<LeadItem['status'], string> = {
@@ -26,6 +28,7 @@ const formatDate = (value: string) =>
   new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
 export function MyInquiriesPage() {
+  const { user } = useAuth();
   const [result, setResult] = useState<LeadPage>({ items: [], totalElements: 0, page: 0, size: 12, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -64,6 +67,11 @@ export function MyInquiriesPage() {
             Làm mới
           </button>
         </header>
+        {user?.role === 'USER' && (
+          <div className="mt-6">
+            <BecomeOwnerCard />
+          </div>
+        )}
         {error && (
           <p role="alert" className="mt-5 rounded-lg bg-rose-50 p-4 text-sm text-rose-800">
             {error}
