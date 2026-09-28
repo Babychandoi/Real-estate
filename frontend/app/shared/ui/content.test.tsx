@@ -100,6 +100,18 @@ describe('Money', () => {
     expect(screen.getByText('Chưa có giá')).toBeInTheDocument();
     expect(screen.getByText('~48,2 triệu/m²')).toBeInTheDocument();
   });
+
+  it('never prints "0 ₫" for a zero or negative amount, showing a negotiable fallback instead (m9)', () => {
+    render(
+      <>
+        <Money price={{ amount: 0, currency: 'VND', period: null }} />
+        <Money price={{ amount: -1, currency: 'VND', period: null }} zeroFallback="Liên hệ" />
+      </>,
+    );
+    expect(screen.getByText('Thỏa thuận')).toBeInTheDocument();
+    expect(screen.getByText('Liên hệ')).toBeInTheDocument();
+    expect(screen.queryByText(/^0/)).toBeNull();
+  });
 });
 
 describe('ResponsiveImage', () => {

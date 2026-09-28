@@ -47,19 +47,41 @@ function decimal(value: number, maxFractionDigits: number): string {
   return formatter.format(value);
 }
 
+function devWarn(message: string, detail?: unknown): void {
+  if (typeof console !== 'undefined') console.warn(`[money] ${message}`, detail);
+}
+
+/** Never throws (m9): an invalid ISO 4217 code makes `Intl.NumberFormat` throw a `RangeError`; falls back to VND. */
 function currency(amount: number, code: string): string {
-  return new Intl.NumberFormat(LOCALE, { style: 'currency', currency: code, maximumFractionDigits: 0 }).format(amount);
+  try {
+    return new Intl.NumberFormat(LOCALE, { style: 'currency', currency: code, maximumFractionDigits: 0 }).format(
+      amount,
+    );
+  } catch (error) {
+    devWarn(`"${code}" is not a valid currency code, falling back to VND`, error);
+    if (code === 'VND') return `${decimal(amount, 0)} ₫`; // avoid infinite recursion if VND itself ever fails
+    try {
+      return new Intl.NumberFormat(LOCALE, { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(
+        amount,
+      );
+    } catch {
+      return `${decimal(amount, 0)} ₫`;
+    }
+  }
 }
 
 /**
  * Compact VND amount: ≥ 1 tỷ → up to 2 decimals in tỷ; ≥ 1 triệu → up to 1 decimal in triệu; below that every
- * digit. Rounding is done on integers (hundredths of a tỷ, tenths of a triệu) so there is no floating-point drift,
- * and a value that rounds up to 1.000 triệu is shown as "1 tỷ".
+ * digit. The amount is rounded to the nearest đồng *before* picking a branch (not only within it), so e.g.
+ * 999 999,6 (a fraction can appear via `unitPriceFromArea`) is treated as the 1 000 000 it will display as and
+ * renders "1 triệu", not "1.000.000 ₫" (m9). Rounding within a branch is done on integers (hundredths of a tỷ,
+ * tenths of a triệu) so there is no floating-point drift, and a value that rounds up to 1.000 triệu is shown as
+ * "1 tỷ".
  */
 export function formatVndCompact(amount: number): string {
   if (!Number.isFinite(amount)) return '';
   const sign = amount < 0 ? '-' : '';
-  const value = Math.abs(amount);
+  const value = Math.round(Math.abs(amount));
   if (value < MILLION) return sign + currency(value, 'VND');
 
   const tenthsOfMillion = Math.round(value / 100_000);

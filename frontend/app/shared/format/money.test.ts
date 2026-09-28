@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   formatMoney,
   formatRentTerms,
@@ -39,6 +39,14 @@ describe('formatMoney (contract §4 examples)', () => {
   it('falls back to Intl currency formatting for other currencies', () => {
     expect(formatMoney({ amount: 1500, currency: 'usd', period: null })).toBe(`1.500${NBSP}US$`);
   });
+
+  it('never throws on an invalid currency code, falling back to VND with a dev warning (m9)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    expect(() => formatMoney({ amount: 1500, currency: 'VNĐ', period: null })).not.toThrow();
+    expect(formatMoney({ amount: 1500, currency: 'VNĐ', period: null })).toBe(`1.500${NBSP}₫`);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
 });
 
 describe('formatVndCompact boundaries', () => {
@@ -62,6 +70,13 @@ describe('formatVndCompact boundaries', () => {
     [1_234_500_000_000, '1.234,5 tỷ'],
   ])('%d -> %s', (amount, expected) => {
     expect(formatVndCompact(amount)).toBe(expected);
+  });
+
+  it('rounds to the nearest đồng before picking a unit, not after (m9)', () => {
+    // A fractional amount (e.g. from unitPriceFromArea) just below 1 000 000 rounds up to it and must render in
+    // the "triệu" branch, not as "999.999,6 ₫"/"1.000.000 ₫".
+    expect(formatVndCompact(999_999.6)).toBe('1 triệu');
+    expect(formatVndCompact(999_999.4)).toBe(`999.999${NBSP}₫`);
   });
 
   it('keeps the sign of negative amounts (price changes)', () => {
