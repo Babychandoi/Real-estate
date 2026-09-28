@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '@/shared/auth/AuthContext';
@@ -132,8 +132,10 @@ describe('project page (P-06)', () => {
     expect(screen.getByRole('link', { name: 'Bản đồ quy hoạch' })).toHaveAttribute('href', 'https://example.org/qh');
     expect(screen.getByText('55 triệu/m²')).toBeInTheDocument();
     expect(screen.getByText('Chưa đủ 5 tin để tính giá trung vị.')).toBeInTheDocument();
-    expect(document.title).toBe('Khu căn hộ A — dự án tại Cầu Giấy | Nhà Đất Chuẩn');
-    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toMatch(/\/du-an\/khu-a$/);
+    await waitFor(() => {
+      expect(document.title).toBe('Khu căn hộ A — dự án tại Cầu Giấy | Nhà Đất Chuẩn');
+      expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute('href')).toMatch(/\/du-an\/khu-a$/);
+    });
   });
 
   it('says a locked project is gone and marks the page noindex', async () => {
