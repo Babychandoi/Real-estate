@@ -92,7 +92,9 @@ public final class CmsDtos {
                                  String coverImageUrl, String authorName, String legalReference, String metaDescription,
                                  String sourceName, String sourceUrl, Instant reviewedAt) {
         static PublicRevision of(ArticleRevision r) {
-            return new PublicRevision(r.id(), r.revisionNumber(), r.title(), r.summary(), r.contentHtml(), r.coverImageUrl(),
+            // sanitised on write since V090; again on read so rows written before (seed, legacy editor) are safe too
+            return new PublicRevision(r.id(), r.revisionNumber(), r.title(), r.summary(),
+                    com.company.bds.cms.application.CmsHtmlSanitizer.sanitize(r.contentHtml()), r.coverImageUrl(),
                     r.authorName(), r.legalReference(), r.metaDescription(), r.sourceName(), r.sourceUrl(), r.reviewedAt());
         }
     }

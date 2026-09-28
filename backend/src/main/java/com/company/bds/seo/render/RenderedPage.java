@@ -14,7 +14,8 @@ public record RenderedPage(int status, String redirectTo, String title, String d
     public static final String INDEX = "index,follow,max-image-preview:large";
     public static final String NOINDEX_FOLLOW = "noindex,follow";
     public static final String NOINDEX_NOFOLLOW = "noindex,nofollow";
-    public static final String CACHE_PUBLIC = "no-cache";
+    /** HTML is never stored (same policy as the static shell); page data is cached in the application instead. */
+    public static final String CACHE_PUBLIC = "no-store, no-cache, must-revalidate";
     public static final String CACHE_PRIVATE = "no-store";
 
     public static RenderedPage redirect(String location) {
