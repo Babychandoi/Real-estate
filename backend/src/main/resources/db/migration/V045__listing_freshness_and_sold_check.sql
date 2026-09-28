@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS listing_expiry_reminders (
     PRIMARY KEY (listing_id, cycle_expires_at, kind)
 );
 
+-- Indexes: plain CREATE INDEX (Flyway runs this file in a transaction). On a large production table build them
+-- beforehand with CREATE INDEX CONCURRENTLY IF NOT EXISTS (same names); these statements then do nothing.
 -- Expiry sweep and reminder scan: only ACTIVE listings with an expiry.
 CREATE INDEX IF NOT EXISTS idx_listings_active_expires ON listings (expires_at) WHERE status = 'ACTIVE' AND expires_at IS NOT NULL;
 -- Sold-check sweep.
@@ -27,6 +29,9 @@ CREATE INDEX IF NOT EXISTS idx_listings_owner_created ON listings (owner_id, cre
 
 -- Existing ACTIVE listings get a first expiry 45 days after their last confirmation, never earlier than 14 days from
 -- the deploy, so owners get both reminders before anything expires.
+-- ACTIVE rows without a confirmation (activated after V027's backfill) count from their last change.
+UPDATE listings SET availability_confirmed_at = updated_at
+WHERE status = 'ACTIVE' AND availability_confirmed_at IS NULL;
 UPDATE listings
 SET expires_at = GREATEST(availability_confirmed_at + INTERVAL '45 days', now() + INTERVAL '14 days')
-WHERE status = 'ACTIVE' AND expires_at IS NULL AND availability_confirmed_at IS NOT NULL;
+WHERE status = 'ACTIVE' AND expires_at IS NULL;

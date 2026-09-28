@@ -72,10 +72,25 @@ public class ListingFreshnessService {
      * paused by {@link #pauseUnansweredSoldChecks}. A second report while a check is open changes nothing.
      */
     @Transactional
-    public void requestSoldConfirmation(UUID listingId) {
+    public void requestSoldConfirmation(UUID listingId) { requestSoldConfirmation(listingId, null); }
+
+    /** {@code reporterPhone} is the current report's reporter (it may not be flushed yet when this runs). */
+    @Transactional
+    public void requestSoldConfirmation(UUID listingId, String reporterPhone) {
         Listing listing = listings.findById(listingId).orElse(null);
         if (listing == null) return;
         Instant now = clock.instant();
+        Instant cleared = listing.getSoldCheckClearedAt();
+        if (cleared != null && cleared.isAfter(now.minus(FreshnessPolicy.SOLD_CHECK_COOLDOWN))) {
+            // The owner answered a check recently: a new one needs reports from at least two distinct reporters.
+            Integer reporters = jdbc.queryForObject("""
+                    SELECT COUNT(DISTINCT phone) FROM (
+                        SELECT reporter_phone AS phone FROM listing_reports
+                        WHERE listing_id = ? AND category = 'FAKE_SOLD' AND created_at > ? AND reporter_phone IS NOT NULL
+                        UNION SELECT CAST(? AS VARCHAR)) reporters WHERE phone IS NOT NULL
+                    """, Integer.class, listingId, Timestamp.from(cleared), reporterPhone);
+            if (reporters == null || reporters < 2) return;
+        }
         if (!listing.requestSoldCheck(now)) return;
         Listing saved = listings.save(listing);
         Instant due = saved.getSoldCheckDueAt();
@@ -130,11 +145,32 @@ public class ListingFreshnessService {
      */
     @Transactional
     public int scheduleReminders(Instant now) {
-        List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT id, expires_at FROM listings
-                WHERE status = 'ACTIVE' AND expires_at > ? AND expires_at <= ?
-                ORDER BY expires_at, id LIMIT 2000
-                """, Timestamp.from(now), Timestamp.from(now.plus(FreshnessPolicy.FIRST_REMINDER)));
+        int queued = 0;
+        Timestamp lastExpires = Timestamp.from(now);
+        UUID lastId = new UUID(0, 0);
+        while (true) {
+            // Keyset progress over (expires_at, id): every listing in the window is visited once per scan.
+            List<Map<String, Object>> rows = jdbc.queryForList("""
+                    SELECT id, expires_at FROM listings
+                    WHERE status = 'ACTIVE' AND expires_at <= ? AND (expires_at, id) > (?, ?)
+                    ORDER BY expires_at, id LIMIT ?
+                    """, Timestamp.from(now.plus(FreshnessPolicy.FIRST_REMINDER)), lastExpires, lastId, reminderBatch);
+            if (rows.isEmpty()) break;
+            queued += queueBatch(rows, now);
+            Map<String, Object> last = rows.get(rows.size() - 1);
+            lastExpires = (Timestamp) last.get("expires_at");
+            lastId = (UUID) last.get("id");
+            if (rows.size() < reminderBatch) break;
+        }
+        return queued;
+    }
+
+    private int reminderBatch = 500;
+
+    /** Batch size of the reminder scan (tests use a small one). */
+    public void setReminderBatch(int size) { this.reminderBatch = size; }
+
+    private int queueBatch(List<Map<String, Object>> rows, Instant now) {
         int queued = 0;
         for (Map<String, Object> row : rows) {
             UUID id = (UUID) row.get("id");
@@ -152,7 +188,8 @@ public class ListingFreshnessService {
         if (kind.equals("D7") && !cycle.minus(FreshnessPolicy.SECOND_REMINDER).isAfter(now)) return 0;
         Optional<UUID> job = jobs.enqueueOnce(REMINDER_QUEUE, id + ":" + cycle.getEpochSecond() + ":" + kind,
                 Map.of("listingId", id.toString(), "cycle", cycle.toString(), "kind", kind),
-                runAt.isBefore(now) ? now : runAt);
+                // Already due: let the database stamp run_at (the worker claims with run_at <= now() on the DB clock).
+                runAt.isAfter(now) ? runAt : null);
         return job.isPresent() ? 1 : 0;
     }
 
@@ -190,7 +227,7 @@ public class ListingFreshnessService {
         Listing listing = listings.findById(listingId)
                 .orElseThrow(() -> new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
         if (!listing.getOwnerId().equals(ownerId)) {
-            throw new ListingDomainException("FORBIDDEN", "Bạn không có quyền thao tác trên tin đăng này.");
+            throw new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng.");
         }
         return listing;
     }

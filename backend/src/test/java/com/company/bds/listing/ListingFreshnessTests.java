@@ -97,6 +97,28 @@ class ListingFreshnessTests {
     }
 
     @Test
+    void reminderScanReachesEveryListingInTheWindowAcrossBatches() {
+        TestData.TestUser owner = data.user().role("OWNER").create();
+        Instant now = Instant.now();
+        java.util.List<UUID> ids = new java.util.ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            TestData.TestListing l = data.listing(owner.id()).create();
+            setExpiry(l.id(), now.plus(Duration.ofDays(5)).plusSeconds(i)); // same window, distinct keys
+            ids.add(l.id());
+        }
+        freshness.setReminderBatch(3);
+        try {
+            freshness.scheduleReminders(now);
+        } finally {
+            freshness.setReminderBatch(500);
+        }
+        for (UUID id : ids) {
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM background_jobs WHERE queue=? AND payload->>'listingId'=? AND payload->>'kind'='D7'",
+                    Integer.class, ListingFreshnessService.REMINDER_QUEUE, id.toString())).isEqualTo(1);
+        }
+    }
+
+    @Test
     void reconfirmingStartsANewCycleSoQueuedRemindersOfTheOldCycleAreSkipped() {
         TestData.TestUser owner = data.user().role("OWNER").create();
         TestData.TestListing listing = data.listing(owner.id()).create();
@@ -137,6 +159,50 @@ class ListingFreshnessTests {
         // Resubmitting the edit goes back through moderation.
         mockMvc.perform(post("/api/v1/listings/" + edited.id() + "/submit").header("Authorization", auth))
                 .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+    }
+
+    void report(UUID listingId, String phone) throws Exception {
+        mockMvc.perform(post("/api/v1/public/reports").contentType(MediaType.APPLICATION_JSON).content(
+                        "{\"listingId\":\"%s\",\"category\":\"FAKE_SOLD\",\"description\":\"Đã bán rồi\"%s}"
+                                .formatted(listingId, phone == null ? "" : ",\"reporterPhone\":\"" + phone + "\"")))
+                .andExpect(status().isCreated());
+    }
+
+    Timestamp soldCheck(UUID id) {
+        return jdbc.queryForObject("SELECT sold_check_due_at FROM listings WHERE id=?", Timestamp.class, id);
+    }
+
+    @Test
+    void afterAnAnsweredCheckANewOneNeedsTwoDistinctReportersWithinSevenDays() throws Exception {
+        TestData.TestUser owner = data.user().role("OWNER").create();
+        TestData.TestListing l = data.listing(owner.id()).create();
+        report(l.id(), "0900000001");
+        freshness.confirmAvailability(l.id(), owner.id());
+        assertThat(soldCheck(l.id())).isNull();
+        report(l.id(), "0900000002");
+        report(l.id(), "0900000002");
+        report(l.id(), null);
+        assertThat(soldCheck(l.id())).isNull(); // one distinct reporter since the answer: no new check
+        report(l.id(), "0900000003");
+        assertThat(soldCheck(l.id())).isNotNull();
+    }
+
+    @Autowired com.company.bds.lead.application.ViolationReportApplicationService reports;
+    @Autowired org.springframework.transaction.PlatformTransactionManager tx;
+
+    @Test
+    void soldCheckOnlyExistsWhenTheReportIsSaved() {
+        TestData.TestUser owner = data.user().role("OWNER").create();
+        TestData.TestListing l = data.listing(owner.id()).create();
+        org.springframework.transaction.support.TransactionTemplate template = new org.springframework.transaction.support.TransactionTemplate(tx);
+        template.executeWithoutResult(status -> {
+            reports.submitReport(l.id(), com.company.bds.lead.domain.model.ReportCategory.FAKE_SOLD,
+                    com.company.bds.lead.domain.model.ReportSeverity.MEDIUM, "Đã bán", null, null);
+            assertThat(soldCheck(l.id())).isNotNull();
+            status.setRollbackOnly(); // the report is not saved...
+        });
+        assertThat(soldCheck(l.id())).isNull(); // ...so neither is the check
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM listing_reports WHERE listing_id=?", Integer.class, l.id())).isZero();
     }
 
     @Test

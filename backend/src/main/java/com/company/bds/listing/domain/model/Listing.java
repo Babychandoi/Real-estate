@@ -26,6 +26,7 @@ public class Listing {
     private Instant availabilityConfirmedAt;
     private Instant expiresAt;
     private Instant soldCheckDueAt;
+    private Instant soldCheckClearedAt;
 
     public Listing(
             UUID id,
@@ -125,6 +126,11 @@ public class Listing {
      * - Nếu revision gần nhất đã SUBMITTED hoặc APPROVED -> Tự động sinh revision DRAFT mới (bất biến revision cũ).
      */
     /** Restores lifecycle columns (persistence mapping only). */
+    public Listing withSoldCheckClearedAt(Instant value) {
+        this.soldCheckClearedAt = value;
+        return this;
+    }
+
     public Listing withLifecycle(ListingSource source, Instant availabilityConfirmedAt, Instant expiresAt, Instant soldCheckDueAt) {
         this.source = source != null ? source : ListingSource.DIRECT;
         this.availabilityConfirmedAt = availabilityConfirmedAt;
@@ -159,8 +165,8 @@ public class Listing {
         ListingRevision published = getPublicRevision().orElseThrow(() ->
                 new ListingDomainException("RENEWAL_REQUIRES_REVIEW", "Tin chưa từng được duyệt, vui lòng gửi duyệt."));
         ListingRevision latest = getLatestRevision().orElse(published);
-        boolean unchanged = latest.getId().equals(published.getId())
-                || (latest.getStatus() == RevisionStatus.DRAFT && latest.sameContentAs(published));
+        // Unchanged = no revision after the public one (the same rule the owner list shows as "renewable").
+        boolean unchanged = latest.getId().equals(published.getId());
         boolean inWindow = expiresAt == null || !now.isAfter(expiresAt.plus(FreshnessPolicy.RENEWAL_WINDOW));
         if (!unchanged || !inWindow) {
             throw new ListingDomainException("RENEWAL_REQUIRES_REVIEW", unchanged
@@ -181,6 +187,7 @@ public class Listing {
     }
 
     private void startValidity(Instant now) {
+        if (this.soldCheckDueAt != null) this.soldCheckClearedAt = now;
         this.availabilityConfirmedAt = now;
         this.expiresAt = now.plus(FreshnessPolicy.VALIDITY);
         this.soldCheckDueAt = null;
@@ -369,4 +376,5 @@ public class Listing {
     public Instant getAvailabilityConfirmedAt() { return availabilityConfirmedAt; }
     public Instant getExpiresAt() { return expiresAt; }
     public Instant getSoldCheckDueAt() { return soldCheckDueAt; }
+    public Instant getSoldCheckClearedAt() { return soldCheckClearedAt; }
 }

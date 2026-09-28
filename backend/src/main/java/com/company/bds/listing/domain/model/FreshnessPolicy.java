@@ -14,5 +14,8 @@ public final class FreshnessPolicy {
     /** Time the owner has to answer a "đã bán/không còn" report before the listing is paused. */
     public static final Duration SOLD_CHECK_DEADLINE = Duration.ofHours(48);
 
+    /** After the owner answered a sold check, a new check needs two distinct reporters during this period. */
+    public static final Duration SOLD_CHECK_COOLDOWN = Duration.ofDays(7);
+
     private FreshnessPolicy() {}
 }

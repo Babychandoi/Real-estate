@@ -29,6 +29,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.text.Normalizer;
@@ -51,6 +52,17 @@ public class ListingApplicationService implements
     private final boolean quotaEnforced;
     private final boolean verifiedKycRequired;
     private final UserKycPersistencePort userKycPersistencePort;
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ListingApplicationService.class);
+    private io.micrometer.core.instrument.Counter unversionedUpdates =
+            io.micrometer.core.instrument.Counter.builder("bds.listing.draft.unversioned_updates")
+                    .register(new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void meters(io.micrometer.core.instrument.MeterRegistry registry) {
+        unversionedUpdates = io.micrometer.core.instrument.Counter.builder("bds.listing.draft.unversioned_updates")
+                .description("Draft updates without If-Match/expectedVersion (v1 clients)").register(registry);
+    }
 
     public ListingApplicationService(ListingPersistencePort persistencePort, Clock clock, JdbcTemplate jdbc,
                                      @Value("${app.billing.quota-enforced:true}") boolean quotaEnforced,
@@ -162,21 +174,23 @@ public class ListingApplicationService implements
 
         // Serialize concurrent saves of one listing (two tabs, autosave + manual save): the row lock makes the second
         // writer wait, then its expected version no longer matches and it gets 409 instead of overwriting (R-4).
-        List<Long> locked = jdbc.queryForList("SELECT version FROM listings WHERE id=? FOR UPDATE", Long.class, command.listingId());
-        if (locked.isEmpty()) {
-            throw new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng với ID: " + command.listingId());
+        // Ownership first, with the same 404 as a missing listing: no version or existence leaks to other accounts.
+        List<Map<String, Object>> locked = jdbc.queryForList(
+                "SELECT version, owner_id FROM listings WHERE id=? FOR UPDATE", command.listingId());
+        if (locked.isEmpty() || (command.requesterId() != null && !command.requesterId().equals(locked.get(0).get("owner_id")))) {
+            throw new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng.");
         }
-        if (command.expectedVersion() != null && !command.expectedVersion().equals(locked.get(0))) {
-            throw new ListingVersionConflictException(locked.get(0));
+        Long current = ((Number) locked.get(0).get("version")).longValue();
+        if (command.expectedVersion() == null) {
+            // v1 clients without If-Match (old UI); the wizard always sends it. Planned: require it once the old UI is gone.
+            unversionedUpdates.increment();
+            log.info("listing_draft_update_without_version listing={}", command.listingId());
+        } else if (!command.expectedVersion().equals(current)) {
+            throw new ListingVersionConflictException(current);
         }
 
         Listing listing = persistencePort.findById(command.listingId())
-                .orElseThrow(() -> new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng với ID: " + command.listingId()));
-
-        // Kiểm tra quyền sở hữu
-        if (command.requesterId() != null && !listing.getOwnerId().equals(command.requesterId())) {
-            throw new ListingDomainException("FORBIDDEN", "Bạn không có quyền chỉnh sửa tin đăng này.");
-        }
+                .orElseThrow(() -> new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
 
         List<ListingMedia> mediaList = buildMediaList(command.imageUrls());
 
@@ -255,7 +269,7 @@ public class ListingApplicationService implements
         return list;
     }
 
-    private void requireVerifiedKyc(UUID userId) {
+    public void requireVerifiedKyc(UUID userId) {
         if (!verifiedKycRequired) return;
         if (userId != null && userKycPersistencePort.findByUserId(userId)
                 .map(profile -> profile.getStatus() == KycStatus.VERIFIED)

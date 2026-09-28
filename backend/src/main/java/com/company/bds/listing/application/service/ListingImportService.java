@@ -77,11 +77,17 @@ public class ListingImportService {
         } catch (IllegalArgumentException ex) {
             fileErrors.add(new Issue(null, ex.getMessage()));
         }
+        // Same eligibility as the commit, so a clean dry run means the commit succeeds.
+        try {
+            listings.requireVerifiedKyc(ownerId);
+        } catch (com.company.bds.listing.domain.exception.ListingDomainException ex) {
+            fileErrors.add(new Issue(null, ex.getMessage()));
+        }
         Integer quota = quotaEnforced ? jdbc.queryForObject(
                 "SELECT listing_quota_remaining FROM users WHERE id=?", Integer.class, ownerId) : null;
         if (quota != null) {
             for (int i = quota; i < parsed.size(); i++) {
-                parsed.get(i).warnings().add("Vượt số lượt đăng còn lại (" + quota + "): tin được tạo nháp nhưng cần thêm lượt để gửi duyệt.");
+                parsed.get(i).errors().add(new Issue(null, "Vượt số lượt đăng còn lại (" + quota + " tin). Mua thêm lượt hoặc bớt dòng."));
             }
         }
         List<UUID> existing = committedBatch(ownerId, sha);
@@ -114,7 +120,15 @@ public class ListingImportService {
         return report(sha, false, true, false, batchId, parsed, valid, quota, fileErrors, created);
     }
 
+    /**
+     * The committed batch of this file, if its drafts still exist. A batch whose drafts were all deleted is dropped so
+     * the owner can import the same file again.
+     */
     private List<UUID> committedBatch(UUID ownerId, String sha) {
+        jdbc.update("""
+                DELETE FROM listing_import_batches b WHERE b.owner_id=? AND b.file_sha256=?
+                  AND NOT EXISTS (SELECT 1 FROM listings l WHERE l.import_batch_id = b.id)
+                """, ownerId, sha);
         return jdbc.queryForList("SELECT id FROM listing_import_batches WHERE owner_id=? AND file_sha256=?", UUID.class, ownerId, sha);
     }
 
@@ -203,6 +217,22 @@ public class ListingImportService {
         return new Parsed(line.number(), command, e, new ArrayList<>(), title);
     }
 
+    /**
+     * Spreadsheet formula injection: text starting with = + - @ (or a tab/CR) would run as a formula when a report or
+     * export is opened in Excel. Such prefixes are removed; "- " (a list dash followed by a space) is kept.
+     */
+    static String neutralizeFormula(String value) {
+        if (value == null) return null;
+        String result = value;
+        while (!result.isEmpty()) {
+            char c = result.charAt(0);
+            boolean dashList = c == '-' && result.length() > 1 && result.charAt(1) == ' ';
+            if ((c == '=' || c == '+' || c == '@' || c == '\t' || c == '\r' || c == '-') && !dashList) result = result.substring(1).stripLeading();
+            else break;
+        }
+        return result.isEmpty() ? null : result;
+    }
+
     private static Integer toInt(Long value) { return value == null ? null : value.intValue(); }
 
     private static final class Row {
@@ -219,7 +249,7 @@ public class ListingImportService {
         }
 
         String text(String column, int max, List<Issue> errors) {
-            String value = raw(column);
+            String value = neutralizeFormula(raw(column));
             if (value != null && value.length() > max) errors.add(new Issue(column, "Tối đa " + max + " ký tự."));
             return value;
         }

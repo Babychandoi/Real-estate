@@ -61,12 +61,15 @@ public class ViolationReportApplicationService {
         if (severity == ReportSeverity.P0_EMERGENCY) {
             listing.pause(now);
             listingPersistencePort.save(listing);
-        } else if (category == ReportCategory.FAKE_SOLD) {
-            // P-14: "đã bán/không còn" → the owner confirms within 48 hours or the listing is paused automatically.
-            freshness.requestSoldConfirmation(listingId);
         }
 
-        return reportPersistencePort.save(report);
+        ListingReport saved = reportPersistencePort.save(report);
+        if (severity != ReportSeverity.P0_EMERGENCY && category == ReportCategory.FAKE_SOLD) {
+            // P-14: "đã bán/không còn" → the owner confirms within 48 hours or the listing is paused automatically.
+            // Same transaction as the saved report: no sold check without its report.
+            freshness.requestSoldConfirmation(listingId, reporterPhone == null || reporterPhone.isBlank() ? null : reporterPhone);
+        }
+        return saved;
     }
 
     /**

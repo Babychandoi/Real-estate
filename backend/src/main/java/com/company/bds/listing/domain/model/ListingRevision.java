@@ -295,22 +295,6 @@ public class ListingRevision {
 
     public ListingAttributes getAttributes() { return attributes; }
 
-    /** True when the reviewable content of both revisions is the same (used to renew without new moderation). */
-    public boolean sameContentAs(ListingRevision other) {
-        if (other == null) return false;
-        return java.util.Objects.equals(title, other.title) && purpose == other.purpose && propertyType == other.propertyType
-                && priceVnd == other.priceVnd && cmp(areaM2, other.areaM2)
-                && java.util.Objects.equals(description, other.description)
-                && java.util.Objects.equals(addressSummary, other.addressSummary)
-                && java.util.Objects.equals(attributes, other.attributes)
-                && mediaList.stream().map(ListingMedia::mediaUrl).toList()
-                        .equals(other.mediaList.stream().map(ListingMedia::mediaUrl).toList());
-    }
-
-    private static boolean cmp(BigDecimal a, BigDecimal b) {
-        return a == null ? b == null : b != null && a.compareTo(b) == 0;
-    }
-
     // Getters
     public UUID getId() { return id; }
     public UUID getListingId() { return listingId; }

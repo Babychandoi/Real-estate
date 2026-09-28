@@ -57,6 +57,9 @@ public class ListingJpaEntity {
     @Column(name = "sold_check_due_at")
     private Instant soldCheckDueAt;
 
+    @Column(name = "sold_check_cleared_at")
+    private Instant soldCheckClearedAt;
+
     @OneToMany(mappedBy = "listing", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("revisionNumber ASC")
     private List<ListingRevisionJpaEntity> revisions = new ArrayList<>();
@@ -104,6 +107,8 @@ public class ListingJpaEntity {
     public void setAvailabilityConfirmedAt(Instant value) { this.availabilityConfirmedAt = value; }
     public Instant getExpiresAt() { return expiresAt; }
     public void setExpiresAt(Instant value) { this.expiresAt = value; }
+    public Instant getSoldCheckClearedAt() { return soldCheckClearedAt; }
+    public void setSoldCheckClearedAt(Instant value) { this.soldCheckClearedAt = value; }
     public Instant getSoldCheckDueAt() { return soldCheckDueAt; }
     public void setSoldCheckDueAt(Instant value) { this.soldCheckDueAt = value; }
     public List<ListingRevisionJpaEntity> getRevisions() { return revisions; }

@@ -153,6 +153,25 @@ class ListingWritePathTests {
     }
 
     @Test
+    void otherAccountsGet404WithoutLearningTheVersion() throws Exception {
+        String auth = bearer(data.user().role("OWNER").create().id());
+        String id = create(auth, rentDraft("")).get("listingId").asText();
+        String other = bearer(data.user().role("OWNER").create().id());
+        for (String ifMatch : new String[]{"\"v0\"", "\"v7\""}) {
+            mockMvc.perform(put("/api/v1/listings/" + id + "/draft").header("Authorization", other).header("If-Match", ifMatch)
+                            .contentType(MediaType.APPLICATION_JSON).content(rentDraft("")))
+                    .andExpect(status().isNotFound())
+                    .andExpect(header().doesNotExist("ETag"));
+        }
+        for (String path : new String[]{"/draft", "/preview"}) {
+            mockMvc.perform(get("/api/v2/me/listings/" + id + path).header("Authorization", other)).andExpect(status().isNotFound());
+        }
+        for (String path : new String[]{"/confirm-availability", "/renew"}) {
+            mockMvc.perform(post("/api/v2/me/listings/" + id + path).header("Authorization", other)).andExpect(status().isNotFound());
+        }
+    }
+
+    @Test
     void concurrentSavesOfTheSameVersionOneWinsTheOtherGets409() throws Exception {
         String auth = bearer(data.user().role("OWNER").create().id());
         String id = create(auth, rentDraft("")).get("listingId").asText();
@@ -219,5 +238,15 @@ class ListingWritePathTests {
                 FROM listings WHERE id=?""", listing.id());
         assertThat(after).containsEntry("status", "ACTIVE").containsEntry("public_revision_id", submitted)
                 .containsEntry("validity", 45L * 24 * 3600);
+        // listing_published is recorded once per published revision (S0-BE, approval path), never by the write path.
+        assertOnePublished(listing.id());
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listing.id() + "/approve").header("Authorization", moderator)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"revisionId\":\"" + submitted + "\"}"));
+        assertOnePublished(listing.id());
+    }
+
+    void assertOnePublished(UUID listingId) {
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM analytics_events WHERE name='listing_published' AND listing_id=?",
+                Integer.class, listingId)).isEqualTo(1);
     }
 }

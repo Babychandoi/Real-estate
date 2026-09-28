@@ -184,7 +184,12 @@ public class OwnerListingController {
         if (file.getSize() > ListingImportService.MAX_BYTES) {
             throw new IllegalArgumentException("Tệp vượt quá 1 MB.");
         }
-        ListingImportService.ImportReport report = importer.importCsv(CurrentUser.id(authentication), file.getBytes(), dryRun);
+        byte[] bytes;
+        try (java.io.InputStream in = file.getInputStream()) {
+            bytes = in.readNBytes((int) ListingImportService.MAX_BYTES + 1); // bounded read, never the whole upload
+        }
+        if (bytes.length > ListingImportService.MAX_BYTES) throw new IllegalArgumentException("Tệp vượt quá 1 MB.");
+        ListingImportService.ImportReport report = importer.importCsv(CurrentUser.id(authentication), bytes, dryRun);
         HttpStatus status = !dryRun && report.committed() && !report.duplicate() ? HttpStatus.CREATED
                 : (!dryRun && !report.committed() ? HttpStatus.UNPROCESSABLE_ENTITY : HttpStatus.OK);
         return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(report);

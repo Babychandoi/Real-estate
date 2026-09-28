@@ -38,7 +38,7 @@ public class ListingEntityMapper {
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         ).withLifecycle(ListingSource.valueOf(entity.getSource()), entity.getAvailabilityConfirmedAt(),
-                entity.getExpiresAt(), entity.getSoldCheckDueAt());
+                entity.getExpiresAt(), entity.getSoldCheckDueAt()).withSoldCheckClearedAt(entity.getSoldCheckClearedAt());
     }
 
     public ListingRevision toRevisionDomain(ListingRevisionJpaEntity revEntity) {
@@ -108,6 +108,7 @@ public class ListingEntityMapper {
         entity.setAvailabilityConfirmedAt(domain.getAvailabilityConfirmedAt());
         entity.setExpiresAt(domain.getExpiresAt());
         entity.setSoldCheckDueAt(domain.getSoldCheckDueAt());
+        entity.setSoldCheckClearedAt(domain.getSoldCheckClearedAt());
 
         if (domain.getRevisions() != null) {
             for (ListingRevision revDomain : domain.getRevisions()) {

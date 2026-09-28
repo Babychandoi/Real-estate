@@ -187,7 +187,7 @@ class OwnerListingsTests {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")));
         mockMvc.perform(post("/api/v2/me/listings/" + l.id() + "/confirm-availability")
-                .header("Authorization", bearer(data.user().role("OWNER").create().id()))).andExpect(status().isForbidden());
+                .header("Authorization", bearer(data.user().role("OWNER").create().id()))).andExpect(status().isNotFound());
         assertThat(Duration.ofDays(45)).isEqualTo(com.company.bds.listing.domain.model.FreshnessPolicy.VALIDITY);
     }
 }

@@ -316,8 +316,9 @@ public class AuthService {
      */
     @Transactional
     public BecomeOwnerResult becomeOwner(UUID userId) {
-        // Lock the user's role rows so two concurrent requests record one change.
-        List<String> roles = jdbc.queryForList("SELECT role FROM user_roles WHERE user_id=? FOR UPDATE", String.class, userId);
+        // Lock the user row (exists even when the user has no role row yet).
+        jdbc.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", userId);
+        List<String> roles = jdbc.queryForList("SELECT role FROM user_roles WHERE user_id=?", String.class, userId);
         String current = roles.isEmpty() ? Roles.USER : Roles.highest(roles);
         if (current.equals(Roles.OWNER)) return new BecomeOwnerResult(BecomeOwnerOutcome.ALREADY_OWNER, view(loadUser(userId)));
         if (!current.equals(Roles.USER)) {
