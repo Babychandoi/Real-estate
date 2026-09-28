@@ -8,6 +8,7 @@ import com.company.bds.notification.RealtimeNotificationService;
 import com.company.bds.shared.jobs.JobQueue;
 import com.company.bds.shared.mail.MailMessage;
 import com.company.bds.shared.mail.MailOutbox;
+import com.company.bds.shared.security.PiiProtectionService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,9 +20,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -42,15 +45,17 @@ public class ListingFreshnessService {
     private final MailOutbox mail;
     private final RealtimeNotificationService notifications;
     private final Clock clock;
+    private final PiiProtectionService pii;
 
     public ListingFreshnessService(ListingPersistencePort listings, JdbcTemplate jdbc, JobQueue jobs, MailOutbox mail,
-                                   RealtimeNotificationService notifications, Clock clock) {
+                                   RealtimeNotificationService notifications, Clock clock, PiiProtectionService pii) {
         this.listings = listings;
         this.jdbc = jdbc;
         this.jobs = jobs;
         this.mail = mail;
         this.notifications = notifications;
         this.clock = clock;
+        this.pii = pii;
     }
 
     @Transactional
@@ -83,13 +88,14 @@ public class ListingFreshnessService {
         Instant cleared = listing.getSoldCheckClearedAt();
         if (cleared != null && cleared.isAfter(now.minus(FreshnessPolicy.SOLD_CHECK_COOLDOWN))) {
             // The owner answered a check recently: a new one needs reports from at least two distinct reporters.
-            Integer reporters = jdbc.queryForObject("""
-                    SELECT COUNT(DISTINCT phone) FROM (
-                        SELECT reporter_phone AS phone FROM listing_reports
-                        WHERE listing_id = ? AND category = 'FAKE_SOLD' AND created_at > ? AND reporter_phone IS NOT NULL
-                        UNION SELECT CAST(? AS VARCHAR)) reporters WHERE phone IS NOT NULL
-                    """, Integer.class, listingId, Timestamp.from(cleared), reporterPhone);
-            if (reporters == null || reporters < 2) return;
+            // Phones are stored as randomized ciphertext, so distinctness is decided on the decrypted, normalized values.
+            Set<String> reporters = new HashSet<>();
+            jdbc.queryForList("""
+                    SELECT reporter_phone FROM listing_reports
+                    WHERE listing_id = ? AND category = 'FAKE_SOLD' AND created_at > ? AND reporter_phone IS NOT NULL
+                    """, String.class, listingId, Timestamp.from(cleared)).forEach(p -> reporters.add(phoneKey(p)));
+            if (reporterPhone != null) reporters.add(phoneKey(reporterPhone));
+            if (reporters.size() < 2) return;
         }
         if (!listing.requestSoldCheck(now)) return;
         Listing saved = listings.save(listing);
@@ -102,6 +108,11 @@ public class ListingFreshnessService {
                 "LISTING_SOLD_CHECK", "sold-check:" + saved.getId() + ":" + due.getEpochSecond());
         jobs.enqueue(SOLD_CHECK_QUEUE, saved.getId() + ":" + due.getEpochSecond(),
                 Map.of("listingId", saved.getId().toString(), "dueAt", due.toString()), due);
+    }
+
+    private String phoneKey(String stored) {
+        String plain = stored.startsWith("v1:") ? pii.reveal(stored) : stored;
+        return plain.replaceAll("\\s+", "");
     }
 
     /** Pauses ACTIVE listings whose sold check passed its deadline unanswered. Returns the paused ids. */
