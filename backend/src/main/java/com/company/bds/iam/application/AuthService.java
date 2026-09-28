@@ -253,7 +253,7 @@ public class AuthService {
         return jdbc.queryForObject("SELECT plan_code,plan_expires_at,listing_quota_remaining,avatar_media_url,phone_encrypted FROM users WHERE id=?",
                 (rs, row) -> new UserView(user.id(), user.fullName(), user.email(), user.role(), rs.getString(1),
                         rs.getTimestamp(2) == null ? null : rs.getTimestamp(2).toInstant(), rs.getInt(3), rs.getString(4),
-                        revealPhoneIfAvailable(rs.getString(5))), user.id());
+                        revealPhoneIfAvailable(rs.getString(5)), Roles.label(user.role())), user.id());
     }
 
     @Transactional
@@ -304,7 +304,31 @@ public class AuthService {
     }
 
     public record UserAccount(UUID id, String fullName, String email, String passwordHash, String role) {}
-    public record UserView(UUID id, String name, String email, String role, String planCode, Instant planExpiresAt, int listingQuotaRemaining, String avatarMediaUrl, String phone) {}
+    public record UserView(UUID id, String name, String email, String role, String planCode, Instant planExpiresAt, int listingQuotaRemaining, String avatarMediaUrl, String phone, String roleLabel) {}
+
+    public enum BecomeOwnerOutcome { UPGRADED, ALREADY_OWNER }
+
+    public record BecomeOwnerResult(BecomeOwnerOutcome outcome, UserView user) {}
+
+    /**
+     * Self-service USER → OWNER (P-09) after the user explicitly confirmed they post their own property. Audited in
+     * {@code user_role_changes}; idempotent for an OWNER; refused for brokers and staff (their role is managed elsewhere).
+     */
+    @Transactional
+    public BecomeOwnerResult becomeOwner(UUID userId) {
+        // Lock the user's role rows so two concurrent requests record one change.
+        List<String> roles = jdbc.queryForList("SELECT role FROM user_roles WHERE user_id=? FOR UPDATE", String.class, userId);
+        String current = roles.isEmpty() ? Roles.USER : Roles.highest(roles);
+        if (current.equals(Roles.OWNER)) return new BecomeOwnerResult(BecomeOwnerOutcome.ALREADY_OWNER, view(loadUser(userId)));
+        if (!current.equals(Roles.USER)) {
+            throw new IllegalStateException("Tài khoản " + Roles.label(current) + " không cần chuyển sang vai trò chủ nhà.");
+        }
+        jdbc.update("DELETE FROM user_roles WHERE user_id=?", userId);
+        jdbc.update("INSERT INTO user_roles(user_id, role) VALUES (?, ?)", userId, Roles.OWNER);
+        jdbc.update("INSERT INTO user_role_changes(id, user_id, from_role, to_role, reason) VALUES (?,?,?,?,?)",
+                UUID.randomUUID(), userId, current, Roles.OWNER, "SELF_DECLARED_OWNER");
+        return new BecomeOwnerResult(BecomeOwnerOutcome.UPGRADED, view(loadUser(userId)));
+    }
     public record AuthResult(String accessToken, Instant expiresAt, UserView user) {}
     public record RegistrationResult(String email, boolean requiresEmailVerification) {}
     public record KycDocumentAccess(String token, Instant expiresAt) {}

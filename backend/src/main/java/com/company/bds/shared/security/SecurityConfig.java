@@ -92,6 +92,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/catalog/**", "/api/v1/cms/**").hasAnyRole(staff)
                         .requestMatchers(HttpMethod.POST, "/api/v1/transactions/deposits/*/release", "/api/v1/transactions/deposits/*/refund").hasRole("ADMIN")
                         .requestMatchers("/api/v1/transactions/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v2/me/listings/*/preview", "/api/v2/me/listings/*/draft")
+                                .hasAnyRole(Roles.anyOf(Roles.POSTERS, Roles.STAFF))
+                        .requestMatchers("/api/v2/me/listings", "/api/v2/me/listings/**").hasAnyRole(posters)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/me/become-owner").authenticated()
                         .requestMatchers("/api/v1/kyc/**", "/api/v1/listings/**", "/api/v1/auth/**", "/api/v1/billing/**", "/api/v1/notifications/**").authenticated()
                         .anyRequest().denyAll())
                 // IP/e-mail quotas before the bearer-token lookup (a token-spray flood never reaches the database),

@@ -20,12 +20,15 @@ public class ViolationReportApplicationService {
 
     private final ListingReportPersistencePort reportPersistencePort;
     private final ListingPersistencePort listingPersistencePort;
+    private final com.company.bds.listing.application.service.ListingFreshnessService freshness;
 
     public ViolationReportApplicationService(
             ListingReportPersistencePort reportPersistencePort,
-            ListingPersistencePort listingPersistencePort) {
+            ListingPersistencePort listingPersistencePort,
+            com.company.bds.listing.application.service.ListingFreshnessService freshness) {
         this.reportPersistencePort = reportPersistencePort;
         this.listingPersistencePort = listingPersistencePort;
+        this.freshness = freshness;
     }
 
     /**
@@ -58,6 +61,9 @@ public class ViolationReportApplicationService {
         if (severity == ReportSeverity.P0_EMERGENCY) {
             listing.pause(now);
             listingPersistencePort.save(listing);
+        } else if (category == ReportCategory.FAKE_SOLD) {
+            // P-14: "đã bán/không còn" → the owner confirms within 48 hours or the listing is paused automatically.
+            freshness.requestSoldConfirmation(listingId);
         }
 
         return reportPersistencePort.save(report);
