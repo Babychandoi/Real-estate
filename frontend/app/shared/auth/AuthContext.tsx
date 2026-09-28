@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { apiClient, apiFetch, clearAccessToken, setAccessToken } from '@/shared/api/client';
+import { apiClient, clearAccessToken, setAccessToken } from '@/shared/api/client';
 import {
   canUseBrokerWorkspace,
   hasRole as roleIn,
@@ -85,6 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  // Bumped at every sign-in: a stream stopped by an expired session restarts even for the same account.
+  const [sessionKey, setSessionKey] = useState(0);
 
   useEffect(() => {
     if (!sessionStorage.getItem('bds_access_token')) {
@@ -99,46 +101,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (!user) return;
-    const controller = new AbortController();
-    const connect = async () => {
-      try {
-        const response = await apiFetch('/notifications/stream', {
-          headers: { Accept: 'text/event-stream' },
-          signal: controller.signal,
-        });
-        const reader = response.body?.getReader();
-        if (!reader) return;
-        const decoder = new TextDecoder();
-        let buffer = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const events = buffer.split('\n\n');
-          buffer = events.pop() || '';
-          for (const event of events) {
-            if (event.includes('event:notification') && event.includes('PLAN_UPGRADED')) {
-              const fresh = await apiClient<ServerUser>('/auth/me');
-              setUser(toUser(fresh));
-              window.dispatchEvent(new CustomEvent('bds:notification', { detail: event }));
-            }
-          }
-        }
-      } catch {
-        if (!controller.signal.aborted) setTimeout(connect, 2000);
-      }
+    // One stream per signed-in account (audit F12.2): reconnects on errors and on a normal end of stream with
+    // backoff + jitter, replays with Last-Event-ID and drops duplicates. Loaded on demand (not in the initial script).
+    let stop: (() => void) | null = null;
+    let cancelled = false;
+    void import('@/shared/notifications/liveNotifications').then(({ startLiveNotifications }) => {
+      if (cancelled) return;
+      stop = startLiveNotifications((notification) => {
+        if (notification.type !== 'PLAN_UPGRADED') return;
+        apiClient<ServerUser>('/auth/me')
+          .then((fresh) => setUser(toUser(fresh)))
+          .catch(() => undefined);
+      });
+    });
+    return () => {
+      cancelled = true;
+      stop?.();
     };
-    connect();
-    return () => controller.abort();
     // One stream per signed-in account: reconnect when the user id changes, not when profile fields update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, sessionKey]);
 
   // Every action below only touches state setters and module functions, so a stable identity is safe and keeps
   // the context value from changing on each render.
   const accept = useCallback((result: AuthResult) => {
     setAccessToken(result.accessToken);
     setUser(toUser(result.user));
+    setSessionKey((key) => key + 1);
     setIsLoginModalOpen(false);
   }, []);
   const login = useCallback(

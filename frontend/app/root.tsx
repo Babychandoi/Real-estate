@@ -1,6 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Building2, ChevronDown, LogIn, FileText, History, LogOut, Menu, Plus, UserCheck, Users } from 'lucide-react';
+import {
+  Bell,
+  Building2,
+  ChevronDown,
+  LogIn,
+  FileText,
+  Heart,
+  History,
+  LogOut,
+  Menu,
+  Plus,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { CompareTray } from '@/features/compare/CompareControls';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { LoginModal } from '@/shared/auth/LoginModal';
@@ -19,7 +32,13 @@ const accountPaths = new Set([
   '/billing',
   '/kyc',
   '/become-owner',
+  '/saved',
+  '/notifications',
 ]);
+/** Signed-in only (S6): loaded after sign-in, with a same-size placeholder so the header does not shift. */
+const NotificationBell = lazy(() =>
+  import('@/shared/notifications/NotificationBell').then((m) => ({ default: m.NotificationBell })),
+);
 /** Account dropdown in the header (UI design styling, audit role gating and labels). */
 function AccountMenu() {
   const { user, isPoster, logout } = useAuth();
@@ -76,6 +95,14 @@ function AccountMenu() {
           <Link to="/kyc" className={item}>
             <UserCheck className="h-4 w-4 text-primary" aria-hidden="true" />
             Xác minh eKYC
+          </Link>
+          <Link to="/saved" className={item}>
+            <Heart className="h-4 w-4 text-primary" aria-hidden="true" />
+            Tin và tìm kiếm đã lưu
+          </Link>
+          <Link to="/notifications" className={item}>
+            <Bell className="h-4 w-4 text-primary" aria-hidden="true" />
+            Thông báo
           </Link>
           <div className="my-1 border-t" style={{ borderColor: 'var(--ndc-border)' }} />
           {isPoster ? (
@@ -191,7 +218,12 @@ function RootLayoutContent() {
                 <span className="hidden sm:inline">Đăng nhập</span>
               </button>
             ) : (
-              <AccountMenu />
+              <>
+                <Suspense fallback={<span className="inline-block h-11 w-11" aria-hidden="true" />}>
+                  <NotificationBell />
+                </Suspense>
+                <AccountMenu />
+              </>
             )}
             {isAuthenticated && isPoster ? (
               <Link to="/listings/new" className="ndc-primary-link max-sm:px-2.5" aria-label="Đăng tin">
@@ -243,6 +275,12 @@ function RootLayoutContent() {
               </Link>
               <Link to="/kyc" className="ndc-nav-link">
                 Xác minh danh tính
+              </Link>
+              <Link to="/saved" className="ndc-nav-link">
+                Tin và tìm kiếm đã lưu
+              </Link>
+              <Link to="/notifications" className="ndc-nav-link">
+                Thông báo
               </Link>
             </>
           )}

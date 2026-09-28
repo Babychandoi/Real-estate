@@ -4,6 +4,7 @@ import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { rememberSignedMediaUrl, useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 import { validationMessage } from '@/shared/types/problem-details';
+import { NotificationPreferencesSection, PrivacySection } from '@/features/engagement/ui/AccountEngagementSections';
 
 type UploadedImage = { url: string; previewUrl?: string | null; previewExpiresAt?: string | null };
 
@@ -18,6 +19,8 @@ export function AccountProfilePage() {
   const [avatarMessage, setAvatarMessage] = useState('');
   // A new avatar is public only once processed (a second or two); until then the owner sees it through a signed URL.
   const displayMedia = useSignedMediaUrls([avatarMediaUrl]);
+  // A stored avatar URL that no longer loads falls back to the initials (UI-13, S6).
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     setName(user?.name ?? '');
@@ -118,8 +121,13 @@ export function AccountProfilePage() {
           <label className="group relative h-20 w-20 shrink-0 cursor-pointer rounded-full focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2">
             {/* Only the photo is clipped to the circle; the camera badge sits on its edge. */}
             <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
-              {avatarMediaUrl ? (
-                <img src={displayMedia(avatarMediaUrl)} alt="Ảnh đại diện" className="h-full w-full object-cover" />
+              {avatarMediaUrl && brokenAvatar !== avatarMediaUrl ? (
+                <img
+                  src={displayMedia(avatarMediaUrl)}
+                  alt="Ảnh đại diện"
+                  className="h-full w-full object-cover"
+                  onError={() => setBrokenAvatar(avatarMediaUrl)}
+                />
               ) : (
                 initials || <UserRound className="h-7 w-7" />
               )}
@@ -143,6 +151,11 @@ export function AccountProfilePage() {
             />
           </label>
           <div className="min-w-0">
+            {avatarMediaUrl && brokenAvatar === avatarMediaUrl && (
+              <p role="status" className="mb-1 text-xs font-semibold text-warning-on-container">
+                Không tải được ảnh đại diện hiện tại. Hãy chọn ảnh khác hoặc gỡ ảnh.
+              </p>
+            )}
             <p className="text-sm font-semibold text-on-surface">
               {uploading
                 ? 'Đang lưu ảnh…'
@@ -240,6 +253,8 @@ export function AccountProfilePage() {
           {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
         </button>
       </form>
+      <NotificationPreferencesSection />
+      <PrivacySection />
     </section>
   );
 }

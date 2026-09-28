@@ -152,6 +152,20 @@ app:
       # Queue gauges are refreshed by their own thread, also where the worker is disabled.
       enabled: ${APP_JOBS_METRICS_ENABLED:true}
       refresh-ms: ${APP_JOBS_METRICS_REFRESH_MS:15000}
+  notifications:
+    # S6 (audit F12): redis = Pub/Sub fan-out on channel bds:notifications:v1 between instances (required with more
+    # than one backend instance); local = single instance only. History/replay always come from PostgreSQL.
+    fanout: ${APP_NOTIFICATIONS_FANOUT:redis}
+    heartbeat-ms: ${APP_NOTIFICATIONS_HEARTBEAT_MS:25000}
+    stream-timeout: ${APP_NOTIFICATIONS_STREAM_TIMEOUT:PT30M}
+    max-streams-per-user: ${APP_NOTIFICATIONS_MAX_STREAMS_PER_USER:5}
+    replay-look-back: PT2M
+    replay-limit: 200
+  engagement:
+    # Saved-search digest (every minute, task-locked) and the daily retention sweep.
+    scheduler-enabled: ${APP_ENGAGEMENT_SCHEDULER_ENABLED:true}
+    digest-ms: ${APP_ENGAGEMENT_DIGEST_MS:60000}
+    retention-cron: ${APP_ENGAGEMENT_RETENTION_CRON:0 23 4 * * *}
   outbox:
     enabled: ${OUTBOX_ENABLED:false}
     webhook-url: ${OUTBOX_WEBHOOK_URL:}

@@ -59,12 +59,17 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, ex) -> problem(response, 401, "Yêu cầu đăng nhập"))
                         .accessDeniedHandler((request, response, ex) -> problem(response, 403, "Bạn không có quyền thực hiện thao tác này")))
                 .authorizeHttpRequests(auth -> auth
+                        // SSE: completing a stream re-dispatches the request (ASYNC) after the response is committed; the
+                        // original request was already authorised, so the async dispatch must not be denied (audit F12).
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/admin/login", "/api/v1/auth/register", "/api/v1/auth/resend-verification", "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/verify-email").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**", "/api/v1/listings/search", "/api/v1/listings/by-slug/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/public/reports").permitAll()
+                        // S6: one-click unsubscribe from alert e-mails (RFC 8058) carries its own token, no session.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/public/unsubscribe").permitAll()
                         // S2: public read API v2 (search, map, detail, price history, similar, sellers) and its admin side.
                         .requestMatchers(HttpMethod.GET, "/api/v2/listings/**", "/api/v2/public/**").permitAll()
                         .requestMatchers("/api/v2/admin/**").hasRole("ADMIN")
@@ -103,6 +108,8 @@ public class SecurityConfig {
                                 .hasAnyRole(Roles.anyOf(Roles.POSTERS, Roles.STAFF))
                         .requestMatchers("/api/v2/me/listings", "/api/v2/me/listings/**").hasAnyRole(posters)
                         .requestMatchers(HttpMethod.POST, "/api/v1/me/become-owner").authenticated()
+                        // S6: saved listings, shortlists, saved searches, notification preferences of the signed-in user.
+                        .requestMatchers("/api/v1/me/**").authenticated()
                         .requestMatchers("/api/v1/kyc/**", "/api/v1/listings/**", "/api/v1/auth/**", "/api/v1/billing/**", "/api/v1/notifications/**").authenticated()
                         .anyRequest().denyAll())
                 // IP/e-mail quotas before the bearer-token lookup (a token-spray flood never reaches the database),
@@ -121,7 +128,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(allowedOrigins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Idempotency-Key"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Idempotency-Key", "Last-Event-ID"));
         configuration.setExposedHeaders(List.of("X-Request-Id"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);

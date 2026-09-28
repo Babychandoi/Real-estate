@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '@/shared/auth/AuthContext';
+import { ToastProvider } from '@/shared/ui/Toast';
 import { ListingDetailPage } from './_public.listings.$listingId';
 
 const listing = {
@@ -58,13 +59,15 @@ function mockApi({ found }: { found: boolean }) {
 function renderDetail(slug: string) {
   return render(
     <MemoryRouter initialEntries={[`/listings/${slug}`]}>
-      <AuthProvider>
-        <Routes>
-          <Route path="/listings/:listingId" element={<ListingDetailPage />} />
-          <Route path="/search" element={<h1>Trang tìm kiếm</h1>} />
-          <Route path="/" element={<h1>Trang chủ</h1>} />
-        </Routes>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <Routes>
+            <Route path="/listings/:listingId" element={<ListingDetailPage />} />
+            <Route path="/search" element={<h1>Trang tìm kiếm</h1>} />
+            <Route path="/" element={<h1>Trang chủ</h1>} />
+          </Routes>
+        </AuthProvider>
+      </ToastProvider>
     </MemoryRouter>,
   );
 }

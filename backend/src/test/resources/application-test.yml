@@ -41,6 +41,9 @@ app:
   features:
     real-kyc: true
     real-transactions: true
+  engagement:
+    # Tests call AlertDigestService directly.
+    scheduler-enabled: false
   jobs:
     # Tests drive the worker explicitly (JobWorker.drain) so they never race a background poller.
     enabled: false

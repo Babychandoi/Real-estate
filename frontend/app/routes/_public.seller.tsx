@@ -9,6 +9,7 @@ import {
   type SellerProfileV2,
 } from '@/entities/listing/model/v2';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { useDocumentMeta } from '@/shared/seo/useDocumentMeta';
 import { ApiProblemException } from '@/shared/types/problem-details';
@@ -212,7 +213,7 @@ export function SellerProfilePage() {
             <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-5 xl:grid-cols-3">
               {items.map((item) => (
                 <li key={item.id}>
-                  <ListingCard listing={item} />
+                  <ListingCard listing={item} actions={<FavoriteButton listingId={item.id} title={item.title} />} />
                 </li>
               ))}
             </ul>

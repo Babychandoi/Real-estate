@@ -15,6 +15,8 @@ export function AccountNavigation() {
     ...(canOpen(role, 'brokerWorkspace') ? [{ to: '/broker/workspace', label: 'Không gian môi giới' }] : []),
     ...(canOpen(role, 'billing') ? [{ to: '/billing', label: 'Gói dịch vụ' }] : []),
     ...(canOpen(role, 'myInquiries') ? [{ to: '/my-inquiries', label: 'Yêu cầu đã gửi' }] : []),
+    { to: '/saved', label: 'Đã lưu' },
+    { to: '/notifications', label: 'Thông báo' },
     { to: '/kyc', label: 'Xác minh danh tính' },
   ];
   return (

@@ -193,6 +193,14 @@ public class GlobalExceptionHandler {
                 "VALIDATION_ERROR", UUID.randomUUID().toString(), errors));
     }
 
+    /**
+     * The client of a streaming response (SSE) went away: nothing can be written any more and it is not a server error.
+     */
+    @ExceptionHandler(org.springframework.web.context.request.async.AsyncRequestNotUsableException.class)
+    public void handleClientGone(org.springframework.web.context.request.async.AsyncRequestNotUsableException ex) {
+        log.debug("client_disconnected reason={}", ex.getClass().getSimpleName());
+    }
+
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ProblemDetails> handleApiException(ApiException ex, HttpServletRequest request) {
         return simple(ex, request, ex.status(), ex.code(), ex.status().is4xxClientError()

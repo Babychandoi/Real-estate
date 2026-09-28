@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, CheckCheck, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
 import type { ListingSummaryV2 } from '@/entities/listing/model/v2';
 import { listingPath } from '@/entities/listing/model/seo';
 import { apiClient } from '@/shared/api/client';
@@ -172,7 +173,12 @@ export function HomePage() {
         ) : (
           <div className="ndc-listing-grid">
             {listings.map((listing, index) => (
-              <ListingCard key={listing.id} listing={listing} priority={index < 3} />
+              <ListingCard
+                key={listing.id}
+                listing={listing}
+                priority={index < 3}
+                actions={<FavoriteButton listingId={listing.id} title={listing.title} />}
+              />
             ))}
           </div>
         )}

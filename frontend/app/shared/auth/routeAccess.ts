@@ -14,6 +14,8 @@ export const ROUTE_ACCESS = {
   myInquiries: SEEKERS,
   kyc: ALL_ROLES,
   account: ALL_ROLES,
+  saved: ALL_ROLES,
+  notifications: ALL_ROLES,
   adminModeration: STAFF,
   adminListings: ADMIN_ONLY,
   adminUsers: ADMIN_ONLY,

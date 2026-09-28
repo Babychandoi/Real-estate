@@ -36,6 +36,7 @@ import {
   type PriceHistoryV2,
 } from '@/entities/listing/model/v2';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
 import type { UserKycProfile } from '@/entities/verification/model/types';
 import { CompareToggleButton } from '@/features/compare/CompareControls';
 import { compareItemFromSummary } from '@/features/compare/compareStore';
@@ -542,6 +543,7 @@ function ListingDetailView({
                 </p>
                 {contactAction}
                 <CompareToggleButton variant="inline" listing={compareItemFromSummary(listing)} />
+                <FavoriteButton appearance="inline" listingId={listing.id} title={listing.title} />
                 <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
                   <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
                   <p className="text-xs">
@@ -571,7 +573,7 @@ function ListingDetailView({
           <ul className="ndc-listing-grid">
             {similar.map((item) => (
               <li key={item.id}>
-                <ListingCard listing={item} />
+                <ListingCard listing={item} actions={<FavoriteButton listingId={item.id} title={item.title} />} />
               </li>
             ))}
           </ul>
