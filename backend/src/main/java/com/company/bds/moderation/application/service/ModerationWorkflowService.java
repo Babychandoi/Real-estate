@@ -218,7 +218,8 @@ public class ModerationWorkflowService {
                     saved.getId() + ":" + revision.getRevisionNumber(), saved.getOwnerId(), saved.getId(),
                     Map.of("revisionNumber", revision.getRevisionNumber())));
         }
-        return new Decision(decisionId, listingId, revisionId, decision, reasonCode, saved.getStatus().name(), actorId);
+        return new Decision(true, decisionId, listingId, revisionId, decision, reasonCode, saved.getStatus().name(),
+                saved.getPublicRevisionId(), actorId);
     }
 
     private Optional<UUID> pendingRevision(UUID listingId) {
@@ -240,8 +241,9 @@ public class ModerationWorkflowService {
         return ApiException.conflict("CLAIM_CONFLICT", "Tin đang được " + holder + " xử lý.");
     }
 
-    public record Decision(UUID id, UUID listingId, UUID revisionId, String decision, String reasonCode, String listingStatus,
-                           UUID moderatorId) {}
+    /** {@code success}, {@code status} and {@code publicRevisionId} keep the v1 response shape. */
+    public record Decision(boolean success, UUID id, UUID listingId, UUID revisionId, String decision, String reasonCode,
+                           String status, UUID publicRevisionId, UUID moderatorId) {}
 
     public record BulkItem(UUID listingId, UUID revisionId) {}
 

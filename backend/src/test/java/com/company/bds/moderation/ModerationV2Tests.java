@@ -67,7 +67,7 @@ class ModerationV2Tests {
 
         postAs(a, "/api/v1/moderation/listings/" + listing.id() + "/approve",
                 Map.of("revisionId", listing.latestRevisionId(), "reasonCode", "MEETS_STANDARDS", "note", "Ảnh rõ, giá hợp lý"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.listingStatus").value("ACTIVE"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.moderatorId").value(a.id().toString()));
 
         Map<String, Object> decision = jdbc.queryForMap("SELECT moderator_id, decision, reason_code, note FROM moderation_decisions WHERE listing_id = ?", listing.id());

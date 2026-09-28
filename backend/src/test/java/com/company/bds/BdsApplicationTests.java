@@ -196,12 +196,13 @@ class BdsApplicationTests {
                 .andExpect(status().isOk());
 
         // 2. Kiểm tra hàng đợi kiểm duyệt /api/v1/moderation/queue
-        MvcResult queueRes = mockMvc.perform(get("/api/v1/moderation/queue"))
+        // F08.2: the queue is a server-paged envelope {items, page, size, total, stats}.
+        MvcResult queueRes = mockMvc.perform(get("/api/v1/moderation/queue").param("size", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.items").isArray())
                 .andReturn();
 
-        JsonNode queueArray = objectMapper.readTree(queueRes.getResponse().getContentAsString());
+        JsonNode queueArray = objectMapper.readTree(queueRes.getResponse().getContentAsString()).get("items");
         boolean foundInQueue = false;
         String revIdToApprove = null;
         for (JsonNode item : queueArray) {

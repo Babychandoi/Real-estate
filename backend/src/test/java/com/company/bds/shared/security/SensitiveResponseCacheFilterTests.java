@@ -83,7 +83,11 @@ class SensitiveResponseCacheFilterTests {
         when(storage.read(anyString())).thenReturn(new MediaStorageService.StoredImage(mock(GetObjectResponse.class), "image/jpeg", 3));
         when(storage.readPrivate(any(UUID.class), anyBoolean(), anyString()))
                 .thenReturn(new MediaStorageService.StoredImage(mock(GetObjectResponse.class), "image/jpeg", 3));
-        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MediaController(storage, mock(AuthService.class)))
+        // Staff read a private image only with a logged, reasoned grant (S4); this test grants it to focus on caching.
+        com.company.bds.verification.application.KycDocumentAccessService kycAccess =
+                mock(com.company.bds.verification.application.KycDocumentAccessService.class);
+        when(kycAccess.staffMayRead(any(UUID.class), any(), anyString())).thenReturn(true);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MediaController(storage, mock(AuthService.class), kycAccess))
                 .addFilters(filter).build();
         String key = UUID.randomUUID() + ".jpg";
 

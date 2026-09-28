@@ -75,7 +75,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/v1/listings/*/draft").hasAnyRole(posters)
                         .requestMatchers(HttpMethod.GET, "/api/v1/listings/my-listings").hasAnyRole(posters)
                         .requestMatchers(HttpMethod.GET, "/api/v1/listings/{id}").permitAll()
-                        .requestMatchers("/api/v1/admin/users/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/admin/users/**", "/api/v1/admin/listings/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()
                         .requestMatchers("/api/v1/billing/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/billing/**").hasAnyRole(posters)
