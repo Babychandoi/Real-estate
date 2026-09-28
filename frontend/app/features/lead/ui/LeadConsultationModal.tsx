@@ -1,9 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Lock, Phone, User, X } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { formatPriceVnd } from '@/entities/listing/model/types';
 import { formatMoney, type Money } from '@/shared/format/money';
 import { useModal } from '@/shared/ui/useModal';
+import { track } from '@/shared/analytics/track';
 
 interface Props {
   isOpen: boolean;
@@ -35,11 +37,13 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<LeadResult | null>(null);
   const [error, setError] = useState('');
+  const [kycRequired, setKycRequired] = useState(false);
   const idempotencyKeyRef = useRef(crypto.randomUUID());
 
   const close = () => {
     setResult(null);
     setError('');
+    setKycRequired(false);
     idempotencyKeyRef.current = crypto.randomUUID();
     onClose();
   };
@@ -47,6 +51,11 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
   // Shared modal stack (M2): joins the same stack as the kit Dialog/Sheet, so Escape and the Tab trap only ever
   // apply to whichever modal is on top, whether this one is opened from a page or from inside a kit Sheet.
   useModal({ open: isOpen, onClose: close, panelRef: dialogRef, initialFocusRef: closeRef });
+
+  // F17.4 funnel: form opened → (KYC required) → lead submitted (server event).
+  useEffect(() => {
+    if (isOpen) track('lead_form_opened', { requestType: 'VIEWING' }, { listingId: listing.id });
+  }, [isOpen, listing.id]);
 
   if (!isOpen) return null;
   const submit = async (event: React.FormEvent) => {
@@ -73,11 +82,15 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
       if (!created.requestCode) throw new Error('Máy chủ không trả mã yêu cầu');
       setResult(created);
     } catch (caught) {
-      const detail =
+      const problem =
         caught && typeof caught === 'object' && 'problem' in caught
-          ? (caught as { problem?: { detail?: string } }).problem?.detail
+          ? (caught as { problem?: { detail?: string; code?: string } }).problem
           : undefined;
-      setError(detail || 'Chưa gửi được yêu cầu. Dữ liệu vẫn được giữ; vui lòng kiểm tra mạng rồi thử lại.');
+      if (problem?.code === 'KYC_REQUIRED') {
+        setKycRequired(true);
+        track('kyc_required_shown', { context: 'lead_form' });
+      }
+      setError(problem?.detail || 'Chưa gửi được yêu cầu. Dữ liệu vẫn được giữ; vui lòng kiểm tra mạng rồi thử lại.');
     } finally {
       setIsSubmitting(false);
     }
@@ -124,7 +137,11 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
               <h3 className="font-bold text-xl mt-3">Yêu cầu đã được ghi nhận</h3>
               <p className="text-sm text-on-surface-variant mt-2">
                 Mã yêu cầu: <strong className="text-on-surface">{result.requestCode}</strong>. Người phụ trách sẽ liên
-                hệ khi tiếp nhận.
+                hệ khi tiếp nhận. Theo dõi phản hồi và lịch hẹn tại{' '}
+                <Link to="/my-inquiries" className="font-semibold text-primary underline">
+                  Yêu cầu đã gửi
+                </Link>
+                .
               </p>
               <button onClick={close} className="mt-6 min-h-11 px-5 rounded-lg bg-primary text-white font-semibold">
                 Hoàn tất
@@ -174,6 +191,14 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
               {error && (
                 <div id="lead-error" role="alert" className="p-3 rounded-lg bg-rose-50 text-rose-800 text-sm">
                   {error}
+                  {kycRequired && (
+                    <Link
+                      to={`/kyc?returnTo=${encodeURIComponent(`${window.location.pathname}?contact=1`)}`}
+                      className="mt-2 block font-semibold underline"
+                    >
+                      Xác minh eKYC rồi quay lại tin này
+                    </Link>
+                  )}
                 </div>
               )}
               <label className="block text-sm font-semibold">

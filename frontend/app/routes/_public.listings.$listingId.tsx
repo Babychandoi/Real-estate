@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Bath,
@@ -177,8 +177,8 @@ export const ListingDetailPage: React.FC = () => {
         </h1>
         {state.kind === 'gone' ? (
           <p className="text-body-sm text-on-surface-variant">
-            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được. Bạn có thể tìm các tin tương tự đang
-            hiển thị.
+            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được.
+            Bạn có thể tìm các tin tương tự đang hiển thị.
           </p>
         ) : (
           <p className="text-body-sm text-on-surface-variant">
@@ -238,6 +238,21 @@ function ListingDetailView({
   const isOwn = Boolean(user && user.id === listing.seller.id);
   const rent = formatRentTerms(listing.rentTerms);
   const contactRef = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // DS-11: `?contact=1` keeps the visitor's intent across sign-in and KYC; the form reopens once they can send it.
+  const wantsContact = searchParams.get('contact') === '1';
+  const kycGate = isAuthenticated && !isOwn && kycStatus !== 'VERIFIED' && kycStatus !== 'LOADING';
+  useEffect(() => {
+    if (!wantsContact || isOwn || kycStatus !== 'VERIFIED') return;
+    setLeadOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('contact');
+    setSearchParams(next, { replace: true });
+  }, [wantsContact, isOwn, kycStatus, searchParams, setSearchParams]);
+  useEffect(() => {
+    if (kycGate) track('kyc_required_shown', { context: 'lead_form' });
+  }, [kycGate]);
 
   useEffect(() => {
     if (!user) {
@@ -284,7 +299,12 @@ function ListingDetailView({
   const contactAction = isOwn ? null : !isAuthenticated ? (
     <Button
       className="w-full"
-      onClick={() => setIsLoginModalOpen(true)}
+      onClick={() => {
+        const next = new URLSearchParams(searchParams);
+        next.set('contact', '1');
+        setSearchParams(next, { replace: true });
+        setIsLoginModalOpen(true);
+      }}
       leftIcon={<MessageSquare className="h-4 w-4" />}
     >
       Đăng nhập để liên hệ
@@ -294,7 +314,11 @@ function ListingDetailView({
       Hẹn xem & nhận tư vấn
     </Button>
   ) : (
-    <ButtonLink to="/kyc" className="w-full" leftIcon={<Lock className="h-4 w-4" />}>
+    <ButtonLink
+      to={`/kyc?returnTo=${encodeURIComponent(`${pathname}?contact=1`)}`}
+      className="w-full"
+      leftIcon={<Lock className="h-4 w-4" />}
+    >
       Xác minh eKYC để liên hệ
     </ButtonLink>
   );
