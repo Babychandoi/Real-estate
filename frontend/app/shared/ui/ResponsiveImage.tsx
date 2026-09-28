@@ -32,6 +32,11 @@ export function srcSetOf(image: ImageDto): string | undefined {
 
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
 
+/** Reserved when neither `aspectRatio` nor a usable `image.width`/`image.height` pair is given (m10): a 4:3 tile is
+ * close enough to most listing photos that a fallback/loading tile does not noticeably jump once the real image
+ * (or the "missing" placeholder) paints, and it never collapses to zero height. */
+const DEFAULT_ASPECT_RATIO = '4 / 3';
+
 interface ResponsiveImageProps {
   image: ImageDto | null | undefined;
   /** Describe the photo ("Phòng khách căn hộ 2PN"); use "" only for purely decorative images. */
@@ -67,8 +72,12 @@ export function ResponsiveImage({
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const failed = Boolean(image && failedUrl === image.url);
   const dominant = image?.placeholder?.dominantColor;
+  // Space is always reserved (m10) so a missing/failed image never collapses the tile or shifts surrounding
+  // layout: explicit aspectRatio wins, then the image's own intrinsic ratio, then a neutral default.
+  const intrinsicRatio =
+    image?.width && image?.height && image.width > 0 && image.height > 0 ? `${image.width} / ${image.height}` : null;
   const style: React.CSSProperties = {
-    aspectRatio,
+    aspectRatio: aspectRatio ?? intrinsicRatio ?? DEFAULT_ASPECT_RATIO,
     backgroundColor: dominant && HEX_COLOR.test(dominant) ? dominant : undefined,
   };
   const srcSet = image ? srcSetOf(image) : undefined;

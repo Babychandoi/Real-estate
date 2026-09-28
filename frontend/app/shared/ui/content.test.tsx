@@ -145,6 +145,18 @@ describe('ResponsiveImage', () => {
     expect(screen.getByRole('img', { name: 'Chưa có ảnh' })).toBeInTheDocument();
   });
 
+  it('reserves space even without an explicit aspect ratio or dimensions (m10)', () => {
+    const { rerender } = render(<ResponsiveImage image={{ ...image, width: 0, height: 0 }} alt="Phòng khách" />);
+    expect(screen.getByRole('img', { name: 'Phòng khách' }).parentElement).toHaveStyle({ aspectRatio: '4 / 3' });
+
+    rerender(<ResponsiveImage image={image} alt="Phòng khách" />);
+    // Falls back to the photo's own intrinsic ratio when no `aspectRatio` prop is given.
+    expect(screen.getByRole('img', { name: 'Phòng khách' }).parentElement).toHaveStyle({ aspectRatio: '1600 / 1000' });
+
+    rerender(<ResponsiveImage image={null} alt="" />);
+    expect(screen.getByRole('img', { name: 'Chưa có ảnh' }).parentElement).toHaveStyle({ aspectRatio: '4 / 3' });
+  });
+
   it('adapts legacy URLs without variants', () => {
     const legacy = imageFromUrl('/api/v1/public/media/x.jpg');
     expect(legacy).toEqual({
