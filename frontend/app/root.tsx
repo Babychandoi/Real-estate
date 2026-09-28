@@ -22,11 +22,15 @@ import {
   Search,
   Users,
   History,
-  Camera
+  Camera,
+  Map as MapIcon,
+  BookOpen,
 } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { LoginModal } from '@/shared/auth/LoginModal';
+import { canOpen } from '@/shared/auth/routeAccess';
+import { useModal } from '@/shared/ui/useModal';
 
 const RootLayoutContent: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -35,24 +39,13 @@ const RootLayoutContent: React.FC = () => {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobilePanelRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const { user, isAuthenticated, isAdminOrModerator, isBroker, setIsLoginModalOpen, logout } = useAuth();
+  const { user, isAuthenticated, isAdminOrModerator, isPoster, setIsLoginModalOpen, logout } = useAuth();
+  const role = user?.role;
+  const closeMobileMenu = () => setIsMobileOpen(false);
 
-  useEffect(() => {
-    if (!isMobileOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const first = mobilePanelRef.current?.querySelector<HTMLElement>('button,a'); first?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsMobileOpen(false);
-      if (event.key !== 'Tab' || !mobilePanelRef.current) return;
-      const items = Array.from(mobilePanelRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),a[href]'));
-      if (!items.length) return;
-      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
-      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', onKey); menuButtonRef.current?.focus(); };
-  }, [isMobileOpen]);
+  // Shared modal stack (M2): joins the same stack as the kit Dialog/Sheet and the login dialog, so Escape and the
+  // Tab trap only ever apply to whichever is on top.
+  useModal({ open: isMobileOpen, onClose: () => setIsMobileOpen(false), panelRef: mobilePanelRef });
 
   useEffect(() => {
     if (!isUserMenuOpen) return;
@@ -64,12 +57,17 @@ const RootLayoutContent: React.FC = () => {
     };
     document.addEventListener('mousedown', closeMenu);
     document.addEventListener('keydown', closeOnEscape);
-    return () => { document.removeEventListener('mousedown', closeMenu); document.removeEventListener('keydown', closeOnEscape); };
+    return () => {
+      document.removeEventListener('mousedown', closeMenu);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
   }, [isUserMenuOpen]);
 
   return (
     <div className="min-h-screen flex flex-col bg-surface text-on-surface">
-      <a href="#main-content" className="skip-link">Bỏ qua điều hướng</a>
+      <a href="#main-content" className="skip-link">
+        Bỏ qua điều hướng
+      </a>
       {/* Header điều hướng */}
       <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between gap-2">
@@ -79,12 +77,8 @@ const RootLayoutContent: React.FC = () => {
               <Building2 className="w-5 h-5 text-white" />
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-base tracking-tight text-primary leading-none">
-                NHÀ ĐẤT CHUẨN
-              </span>
-              <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider mt-0.5">
-                Minh bạch 2026
-              </span>
+              <span className="font-extrabold text-base tracking-tight text-primary leading-none">NHÀ ĐẤT CHUẨN</span>
+              <span className="text-xs text-emerald-800 font-bold uppercase tracking-wider mt-0.5">Minh bạch 2026</span>
             </div>
           </Link>
 
@@ -101,7 +95,7 @@ const RootLayoutContent: React.FC = () => {
               to="/search"
               className="px-3 py-2 rounded-lg text-primary hover:bg-primary/10 transition-colors flex items-center gap-1.5 font-semibold whitespace-nowrap"
             >
-              <span className="text-sm">🗺️</span>
+              <MapIcon className="h-4 w-4" aria-hidden="true" />
               Tìm kiếm & Bản đồ
             </Link>
 
@@ -113,7 +107,7 @@ const RootLayoutContent: React.FC = () => {
             </Link>
 
             {/* Chỉ hiển thị cho vai trò Môi giới Pro hoặc Admin */}
-            {isBroker && (
+            {canOpen(role, 'brokerWorkspace') && (
               <Link
                 to="/broker/workspace"
                 className="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-800 hover:bg-blue-100 transition-colors flex items-center gap-1.5 font-semibold text-xs border border-blue-200/60 whitespace-nowrap"
@@ -137,16 +131,18 @@ const RootLayoutContent: React.FC = () => {
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span>Bàn Quản trị & Vận hành</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isAdminOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${isAdminOpen ? 'rotate-180' : ''}`}
+                  />
                 </button>
 
                 {isAdminOpen && (
                   <div className="absolute left-0 mt-1 w-80 bg-surface rounded-2xl shadow-2xl border border-outline-variant/40 p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 backdrop-blur-xl">
                     <div className="px-3 py-2 border-b border-outline-variant/20 mb-1 flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                         Phân Hệ Quản Trị
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">
                         Đã xác thực
                       </span>
                     </div>
@@ -164,9 +160,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-on-surface group-hover:text-primary whitespace-nowrap">
                             Bàn kiểm duyệt tin đăng
                           </span>
-                          <span className="text-[10px] text-on-surface-variant">
-                            So sánh Diff ContentRevision, SLA 8h
-                          </span>
+                          <span className="text-xs text-on-surface-variant">So sánh Diff ContentRevision, SLA 8h</span>
                         </div>
                       </Link>
 
@@ -182,9 +176,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-emerald-900 group-hover:text-emerald-700 whitespace-nowrap">
                             Bàn Thẩm định eKYC Chính chủ
                           </span>
-                          <span className="text-[10px] text-emerald-700/80">
-                            Đối soát CCCD & Sổ hồng cấp nhãn
-                          </span>
+                          <span className="text-xs text-emerald-700/80">Đối soát CCCD & Sổ hồng cấp nhãn</span>
                         </div>
                       </Link>
 
@@ -200,9 +192,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-rose-900 group-hover:text-rose-700 whitespace-nowrap">
                             Bàn Lead CRM & Báo xấu
                           </span>
-                          <span className="text-[10px] text-rose-700/80">
-                            Điều phối lead, xử lý vi phạm SLA 24h
-                          </span>
+                          <span className="text-xs text-rose-700/80">Điều phối lead, xử lý vi phạm SLA 24h</span>
                         </div>
                       </Link>
 
@@ -218,9 +208,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-purple-900 group-hover:text-purple-700 whitespace-nowrap">
                             Báo cáo phễu chuyển đổi
                           </span>
-                          <span className="text-[10px] text-purple-700/80">
-                            Analytics 5 tầng & Hiệu suất Môi giới
-                          </span>
+                          <span className="text-xs text-purple-700/80">Analytics 5 tầng & Hiệu suất Môi giới</span>
                         </div>
                       </Link>
 
@@ -236,9 +224,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-amber-950 group-hover:text-amber-800 whitespace-nowrap">
                             Quản lý Dự án BĐS Master
                           </span>
-                          <span className="text-[10px] text-amber-800/80">
-                            Hồ sơ 1/500, Giỏ căn hộ, Ưu đãi
-                          </span>
+                          <span className="text-xs text-amber-800/80">Hồ sơ 1/500, Giỏ căn hộ, Ưu đãi</span>
                         </div>
                       </Link>
 
@@ -254,9 +240,7 @@ const RootLayoutContent: React.FC = () => {
                           <span className="text-xs font-semibold text-indigo-950 group-hover:text-indigo-700 whitespace-nowrap">
                             Quản trị CMS Bài viết
                           </span>
-                          <span className="text-[10px] text-indigo-700/80">
-                            Pháp lý, cẩm nang, xuất bản Clean HTML
-                          </span>
+                          <span className="text-xs text-indigo-700/80">Pháp lý, cẩm nang, xuất bản Clean HTML</span>
                         </div>
                       </Link>
 
@@ -269,7 +253,7 @@ const RootLayoutContent: React.FC = () => {
                         className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors text-slate-800"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-xs">⚡</span>
+                          <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                           <span className="text-xs font-semibold">Tài liệu API Swagger 3.0</span>
                         </div>
                         <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
@@ -283,18 +267,26 @@ const RootLayoutContent: React.FC = () => {
 
           {/* Hành động người dùng & Đăng nhập */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <button ref={menuButtonRef} type="button" aria-label="Mở menu chính" aria-expanded={isMobileOpen} onClick={() => setIsMobileOpen(true)} className="order-2 xl:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Menu className="w-5 h-5" /></button>
-            {isAuthenticated && isBroker ? (
-              <Link to="/listings/new">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}
-                  className="hidden sm:inline-flex whitespace-nowrap"
-                >
-                  Đăng tin
-                </Button>
-              </Link>
+            <button
+              ref={menuButtonRef}
+              type="button"
+              aria-label="Mở menu chính"
+              aria-expanded={isMobileOpen}
+              onClick={() => setIsMobileOpen(true)}
+              className="order-2 xl:hidden min-w-11 min-h-11 rounded-lg grid place-items-center border border-outline-variant hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            {isAuthenticated && isPoster ? (
+              <ButtonLink
+                to="/listings/new"
+                variant="outline"
+                size="sm"
+                leftIcon={<PlusCircle className="w-4 h-4 text-primary" />}
+                className="hidden sm:inline-flex whitespace-nowrap"
+              >
+                Đăng tin
+              </ButtonLink>
             ) : !isAuthenticated ? (
               <Button
                 variant="outline"
@@ -307,7 +299,7 @@ const RootLayoutContent: React.FC = () => {
               </Button>
             ) : null}
 
-            {isAuthenticated && isBroker && (
+            {isAuthenticated && canOpen(role, 'billing') && (
               <Link
                 to="/billing"
                 aria-label="Xem các gói đăng tin và nâng cấp"
@@ -332,45 +324,110 @@ const RootLayoutContent: React.FC = () => {
               </Button>
             ) : (
               <div ref={userMenuRef} className="relative pl-2 border-l border-outline-variant/30">
-                <button type="button" aria-label="Mở menu tài khoản" aria-expanded={isUserMenuOpen} onClick={() => setIsUserMenuOpen((open) => !open)} className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary">
+                <button
+                  type="button"
+                  aria-label="Mở menu tài khoản"
+                  aria-expanded={isUserMenuOpen}
+                  onClick={() => setIsUserMenuOpen((open) => !open)}
+                  className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"
+                >
                   <Avatar name={user?.name} src={user?.avatarMediaUrl} size="sm" />
                   <div className="hidden md:flex flex-col items-start text-left">
                     <span className="text-xs font-bold text-on-surface leading-tight whitespace-nowrap">
                       {user?.name}
                     </span>
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full mt-0.5 ${
-                      user?.role === 'ADMIN'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : user?.role === 'MODERATOR'
-                        ? 'bg-primary/10 text-primary'
-                        : user?.role === 'BROKER'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-slate-100 text-slate-800'
-                    }`}>
+                    <span
+                      className={`text-xs font-semibold px-1.5 py-0.2 rounded-full mt-0.5 ${
+                        role === 'ADMIN'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : role === 'MODERATOR'
+                            ? 'bg-primary/10 text-primary'
+                            : role === 'BROKER'
+                              ? 'bg-blue-100 text-blue-800'
+                              : role === 'OWNER'
+                                ? 'bg-warning-container text-warning-on-container'
+                                : 'bg-slate-100 text-slate-800'
+                      }`}
+                    >
                       {user?.roleLabel}
                     </span>
                   </div>
-                  <ChevronDown className={`hidden md:block w-3.5 h-3.5 text-on-surface-variant transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown
+                    className={`hidden md:block w-3.5 h-3.5 text-on-surface-variant transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`}
+                  />
                 </button>
                 {isUserMenuOpen && (
                   <div className="absolute right-0 top-[calc(100%+0.5rem)] w-64 rounded-xl bg-surface p-2 shadow-xl border border-outline-variant/50 z-50">
-                    <Link to="/account" onClick={() => setIsUserMenuOpen(false)} className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-surface-container transition-colors">
+                    <Link
+                      to="/account"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center gap-3 rounded-lg px-3 py-3 hover:bg-surface-container transition-colors"
+                    >
                       <Avatar name={user?.name} src={user?.avatarMediaUrl} size="md" />
-                      <div className="min-w-0"><p className="truncate text-sm font-bold text-on-surface">{user?.name}</p><p className="truncate text-xs text-on-surface-variant">Thông tin cá nhân</p></div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-on-surface">{user?.name}</p>
+                        <p className="truncate text-xs text-on-surface-variant">Thông tin cá nhân</p>
+                      </div>
                     </Link>
                     {!user?.avatarMediaUrl && (
-                      <Link to="/account" onClick={() => setIsUserMenuOpen(false)} className="mx-1 mb-1 flex min-h-10 items-center gap-2 rounded-lg bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary/10">
+                      <Link
+                        to="/account"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="mx-1 mb-1 flex min-h-10 items-center gap-2 rounded-lg bg-primary/5 px-3 text-xs font-semibold text-primary hover:bg-primary/10"
+                      >
                         <Camera className="h-4 w-4" aria-hidden="true" /> Thêm ảnh đại diện để người khác nhận ra bạn
                       </Link>
                     )}
-                    <Link to="/kyc" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"><UserCheck className="w-4 h-4 text-primary" />Xác minh eKYC</Link>
+                    <Link
+                      to="/kyc"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"
+                    >
+                      <UserCheck className="w-4 h-4 text-primary" />
+                      Xác minh eKYC
+                    </Link>
                     <div className="my-1 border-t border-outline-variant/40" />
-                    {isBroker ? <>
-                      <Link to="/my-listings" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><FileText className="w-4 h-4 text-primary" />Kho tin của tôi</Link>
-                      <Link to="/my-leads" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><Users className="w-4 h-4 text-primary" />Khách quan tâm</Link>
-                    </> : <Link to="/my-inquiries" onClick={() => setIsUserMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"><History className="w-4 h-4 text-primary" />Tin đã liên hệ</Link>}
+                    {isPoster ? (
+                      <>
+                        <Link
+                          to="/my-listings"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <FileText className="w-4 h-4 text-primary" />
+                          Kho tin của tôi
+                        </Link>
+                        <Link
+                          to="/my-leads"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"
+                        >
+                          <Users className="w-4 h-4 text-primary" />
+                          Khách quan tâm
+                        </Link>
+                      </>
+                    ) : canOpen(role, 'myInquiries') ? (
+                      <Link
+                        to="/my-inquiries"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container focus-visible:ring-2 focus-visible:ring-primary"
+                      >
+                        <History className="w-4 h-4 text-primary" />
+                        Tin đã liên hệ
+                      </Link>
+                    ) : null}
                     <div className="my-1 border-t border-outline-variant/40" />
-                    <button type="button" onClick={() => { logout(); setIsUserMenuOpen(false); }} className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-primary"><LogOut className="w-4 h-4" />Đăng xuất</button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Đăng xuất
+                    </button>
                   </div>
                 )}
               </div>
@@ -380,20 +437,135 @@ const RootLayoutContent: React.FC = () => {
       </header>
 
       {isMobileOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 xl:hidden" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsMobileOpen(false); }}>
-          <div ref={mobilePanelRef} role="dialog" aria-modal="true" aria-label="Menu chính" className="ml-auto h-full w-[min(22rem,88vw)] bg-surface p-5 shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-outline-variant"><strong className="text-lg">Điều hướng</strong><button type="button" aria-label="Đóng menu" onClick={() => setIsMobileOpen(false)} className="min-w-11 min-h-11 rounded-lg grid place-items-center hover:bg-surface-container"><X className="w-5 h-5" /></button></div>
-            <nav className="py-5 flex flex-col gap-2 text-base" onClick={() => setIsMobileOpen(false)}>
-              <Link to="/search" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Search className="w-5 h-5" />Tìm kiếm</Link>
-              <Link to="/compare" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Layers className="w-5 h-5" />So sánh BĐS</Link>
-              {isBroker && <Link to="/listings/new" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><PlusCircle className="w-5 h-5" />Đăng tin</Link>}
-              {isAuthenticated && <><Link to="/account" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserIcon className="w-5 h-5" />Thông tin cá nhân</Link><Link to="/kyc" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><UserCheck className="w-5 h-5" />Xác minh eKYC</Link></>}
-              {user?.role === 'USER' && <Link to="/my-inquiries" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><History className="w-5 h-5" />Tin đã liên hệ</Link>}
-              {isBroker && <Link to="/broker/workspace" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><Briefcase className="w-5 h-5" />Không gian môi giới</Link>}
-              {isAdminOrModerator && <Link to="/2026/nhadatchuan/admin/moderation" className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"><FileCheck2 className="w-5 h-5" />Bàn quản trị</Link>}
+        <div
+          className="fixed inset-0 z-50 bg-black/50 xl:hidden"
+          role="presentation"
+          // click (not mousedown): see shared/ui/Dialog.tsx for why mousedown races focus-return on close (m1).
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsMobileOpen(false);
+          }}
+        >
+          <div
+            ref={mobilePanelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu chính"
+            className="ml-auto h-full w-[min(22rem,88vw)] bg-surface p-5 shadow-2xl flex flex-col"
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-outline-variant">
+              <strong className="text-lg">Điều hướng</strong>
+              <button
+                type="button"
+                aria-label="Đóng menu"
+                onClick={() => setIsMobileOpen(false)}
+                className="min-w-11 min-h-11 rounded-lg grid place-items-center hover:bg-surface-container"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <nav className="py-5 flex flex-col gap-2 text-base">
+              <Link
+                onClick={closeMobileMenu}
+                to="/search"
+                className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+              >
+                <Search className="w-5 h-5" />
+                Tìm kiếm
+              </Link>
+              <Link
+                onClick={closeMobileMenu}
+                to="/compare"
+                className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+              >
+                <Layers className="w-5 h-5" />
+                So sánh BĐS
+              </Link>
+              {isPoster && (
+                <Link
+                  onClick={closeMobileMenu}
+                  to="/listings/new"
+                  className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  Đăng tin
+                </Link>
+              )}
+              {isAuthenticated && (
+                <>
+                  <Link
+                    onClick={closeMobileMenu}
+                    to="/account"
+                    className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                  >
+                    <UserIcon className="w-5 h-5" />
+                    Thông tin cá nhân
+                  </Link>
+                  <Link
+                    onClick={closeMobileMenu}
+                    to="/kyc"
+                    className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                  >
+                    <UserCheck className="w-5 h-5" />
+                    Xác minh eKYC
+                  </Link>
+                </>
+              )}
+              {canOpen(role, 'myInquiries') && (
+                <Link
+                  onClick={closeMobileMenu}
+                  to="/my-inquiries"
+                  className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                >
+                  <History className="w-5 h-5" />
+                  Tin đã liên hệ
+                </Link>
+              )}
+              {canOpen(role, 'brokerWorkspace') && (
+                <Link
+                  onClick={closeMobileMenu}
+                  to="/broker/workspace"
+                  className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                >
+                  <Briefcase className="w-5 h-5" />
+                  Không gian môi giới
+                </Link>
+              )}
+              {isAdminOrModerator && (
+                <Link
+                  onClick={closeMobileMenu}
+                  to="/2026/nhadatchuan/admin/moderation"
+                  className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                >
+                  <FileCheck2 className="w-5 h-5" />
+                  Bàn quản trị
+                </Link>
+              )}
             </nav>
             <div className="mt-auto pt-4 border-t border-outline-variant">
-              {isAuthenticated ? <button type="button" onClick={() => { logout(); setIsMobileOpen(false); }} className="w-full min-h-11 rounded-lg bg-surface-container font-semibold">Đăng xuất</button> : <button type="button" onClick={() => { setIsMobileOpen(false); setIsLoginModalOpen(true); }} className="w-full min-h-11 rounded-lg bg-primary text-white font-semibold">Đăng nhập / Đăng ký</button>}
+              {isAuthenticated ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    logout();
+                    setIsMobileOpen(false);
+                  }}
+                  className="w-full min-h-11 rounded-lg bg-surface-container font-semibold"
+                >
+                  Đăng xuất
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileOpen(false);
+                    setIsLoginModalOpen(true);
+                  }}
+                  className="w-full min-h-11 rounded-lg bg-primary text-white font-semibold"
+                >
+                  Đăng nhập / Đăng ký
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -413,25 +585,35 @@ const RootLayoutContent: React.FC = () => {
           <div className="flex flex-col gap-2 max-w-sm">
             <span className="font-bold text-base text-primary">Nhà Đất Chuẩn</span>
             <p>
-              Nền tảng đăng và tìm kiếm bất động sản có kiểm duyệt nội dung. Người dùng chủ động liên hệ,
-              xác minh thông tin và trao đổi trực tiếp với nhau; chúng tôi không làm trung gian giao dịch.
+              Nền tảng đăng và tìm kiếm bất động sản có kiểm duyệt nội dung. Người dùng chủ động liên hệ, xác minh thông
+              tin và trao đổi trực tiếp với nhau; chúng tôi không làm trung gian giao dịch.
             </p>
           </div>
           <div className="flex gap-8">
             <div className="flex flex-col gap-2">
               <span className="font-bold text-on-surface">Về chúng tôi</span>
-              <Link to="/about" className="hover:underline">Giới thiệu</Link>
-              <Link to="/terms" className="hover:underline">Điều khoản sử dụng</Link>
-              <Link to="/privacy" className="hover:underline">Chính sách quyền riêng tư</Link>
+              <Link to="/about" className="hover:underline">
+                Giới thiệu
+              </Link>
+              <Link to="/terms" className="hover:underline">
+                Điều khoản sử dụng
+              </Link>
+              <Link to="/privacy" className="hover:underline">
+                Chính sách quyền riêng tư
+              </Link>
             </div>
             <div className="flex flex-col gap-2">
               <span className="font-bold text-on-surface">Hỗ trợ</span>
-              <Link to="/contact" className="hover:underline">Liên hệ tư vấn</Link>
-              <Link to="/contact#report" className="hover:underline">Báo cáo tin vi phạm</Link>
+              <Link to="/contact" className="hover:underline">
+                Liên hệ tư vấn
+              </Link>
+              <Link to="/contact#report" className="hover:underline">
+                Báo cáo tin vi phạm
+              </Link>
             </div>
           </div>
         </div>
-        <div className="max-w-6xl mx-auto px-4 md:px-8 mt-8 pt-4 border-t border-outline-variant/20 text-center text-[11px] text-slate-700">
+        <div className="max-w-6xl mx-auto px-4 md:px-8 mt-8 pt-4 border-t border-outline-variant/20 text-center text-xs text-slate-700">
           © 2026 Nhà Đất Chuẩn. Bảo lưu mọi quyền.
         </div>
       </footer>

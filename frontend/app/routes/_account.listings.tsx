@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Clock, Eye, EyeOff, Send, Building2, Pencil } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
 import { apiClient } from '@/shared/api/client';
@@ -57,8 +57,12 @@ export const MyListingsPage: React.FC = () => {
   };
 
   const changeVisibility = async (listingId: string, hidden: boolean) => {
-    try { await apiClient(`/listings/${listingId}/visibility`, { method: 'POST', body: JSON.stringify({ hidden }) }); fetchMyListings(); }
-    catch (err) { console.error('Không thể thay đổi trạng thái hiển thị:', err); }
+    try {
+      await apiClient(`/listings/${listingId}/visibility`, { method: 'POST', body: JSON.stringify({ hidden }) });
+      fetchMyListings();
+    } catch (err) {
+      console.error('Không thể thay đổi trạng thái hiển thị:', err);
+    }
   };
 
   const filteredListings = listings.filter((item) => {
@@ -80,11 +84,9 @@ export const MyListingsPage: React.FC = () => {
             Theo dõi trạng thái kiểm duyệt, chỉnh sửa bản nháp và nộp duyệt phiên bản mới.
           </p>
         </div>
-        <Link to="/listings/new">
-          <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-            Đăng tin mới
-          </Button>
-        </Link>
+        <ButtonLink to="/listings/new" variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
+          Đăng tin mới
+        </ButtonLink>
       </div>
 
       {/* Thẻ thống kê nhanh */}
@@ -126,9 +128,7 @@ export const MyListingsPage: React.FC = () => {
             }`}
           >
             {tab.label}
-            <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-surface-container-high">
-              {tab.count}
-            </span>
+            <span className="px-1.5 py-0.2 rounded-full text-xs bg-surface-container-high">{tab.count}</span>
           </button>
         ))}
       </div>
@@ -145,38 +145,81 @@ export const MyListingsPage: React.FC = () => {
           {filteredListings.map((item) => (
             <Card key={item.id} className="flex h-full min-w-0 flex-col overflow-hidden p-0">
               <div className="relative h-48 shrink-0 bg-surface-container">
-                  {item.imageUrls[0] ? <img
-                    src={item.imageUrls[0]}
-                    alt={item.title}
-                    className="h-full w-full object-cover"
-                  /> : <div className="grid h-full place-items-center text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
+                {item.imageUrls[0] ? (
+                  <img src={item.imageUrls[0]} alt={item.title} className="h-full w-full object-cover" />
+                ) : (
+                  <div
+                    className="grid h-full place-items-center text-on-surface-variant"
+                    role="img"
+                    aria-label="Tin đăng chưa có ảnh"
+                  >
                     <Building2 className="h-7 w-7" aria-hidden="true" />
-                  </div>}
-                  <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-[10px] font-bold">
-                    v{item.revisionNumber}
                   </div>
+                )}
+                <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-xs font-bold">
+                  v{item.revisionNumber}
                 </div>
+              </div>
               <div className="flex flex-1 flex-col p-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {item.status === 'ACTIVE' && <Badge variant="verified">Đang hiển thị</Badge>}
-                    {item.status === 'PENDING_REVIEW' && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-tertiary/10 text-tertiary-container flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Chờ thẩm định
-                      </span>
-                    )}
-                    {item.status === 'DRAFT' && <Badge variant="neutral">Bản nháp</Badge>}
-                    <span className="text-xs font-semibold text-primary">{formatPriceVnd(item.priceVnd)}</span><span className="text-xs text-on-surface-variant">· {item.areaM2} m²</span>
-                  </div>
-                  <h3 className="mt-3 text-base font-bold text-on-surface line-clamp-2 hover:text-primary">
-                    <Link to={listingPath(item)}>{item.title || 'Tin đăng chưa đặt tiêu đề'}</Link>
-                  </h3>
-                  <p className="mt-1 text-xs text-on-surface-variant line-clamp-1">{item.addressSummary}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {item.status === 'ACTIVE' && <Badge variant="verified">Đang hiển thị</Badge>}
+                  {item.status === 'PENDING_REVIEW' && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-tertiary/10 text-tertiary-container flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Chờ thẩm định
+                    </span>
+                  )}
+                  {item.status === 'DRAFT' && <Badge variant="neutral">Bản nháp</Badge>}
+                  <span className="text-xs font-semibold text-primary">{formatPriceVnd(item.priceVnd)}</span>
+                  <span className="text-xs text-on-surface-variant">· {item.areaM2} m²</span>
+                </div>
+                <h3 className="mt-3 text-base font-bold text-on-surface line-clamp-2 hover:text-primary">
+                  <Link to={listingPath(item)}>{item.title || 'Tin đăng chưa đặt tiêu đề'}</Link>
+                </h3>
+                <p className="mt-1 text-xs text-on-surface-variant line-clamp-1">{item.addressSummary}</p>
                 <div className="mt-auto flex items-center gap-2 border-t border-outline-variant/30 pt-3">
-                  <Link to={listingPath(item)}><Button variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>Xem</Button></Link>
-                  {item.status !== 'PENDING_REVIEW' && <Link to={`/listings/new?edit=${item.id}`}><Button variant="outline" size="sm" leftIcon={<Pencil className="w-4 h-4" />}>Chỉnh sửa</Button></Link>}
-                  {item.status === 'DRAFT' && <Button variant="primary" size="sm" onClick={() => handleQuickSubmit(item.id)} leftIcon={<Send className="w-4 h-4" />}>Nộp duyệt</Button>}
-                  {item.status === 'ACTIVE' && <Button variant="outline" size="sm" onClick={() => changeVisibility(item.id, true)} leftIcon={<EyeOff className="w-4 h-4" />}>Ẩn tin</Button>}
-                  {item.status === 'PAUSED' && <Button variant="primary" size="sm" onClick={() => changeVisibility(item.id, false)} leftIcon={<Eye className="w-4 h-4" />}>Hiện lại</Button>}
+                  <ButtonLink to={listingPath(item)} variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>
+                    Xem
+                  </ButtonLink>
+                  {item.status !== 'PENDING_REVIEW' && (
+                    <ButtonLink
+                      to={`/listings/new?edit=${item.id}`}
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Pencil className="w-4 h-4" />}
+                    >
+                      Chỉnh sửa
+                    </ButtonLink>
+                  )}
+                  {item.status === 'DRAFT' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => handleQuickSubmit(item.id)}
+                      leftIcon={<Send className="w-4 h-4" />}
+                    >
+                      Nộp duyệt
+                    </Button>
+                  )}
+                  {item.status === 'ACTIVE' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => changeVisibility(item.id, true)}
+                      leftIcon={<EyeOff className="w-4 h-4" />}
+                    >
+                      Ẩn tin
+                    </Button>
+                  )}
+                  {item.status === 'PAUSED' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => changeVisibility(item.id, false)}
+                      leftIcon={<Eye className="w-4 h-4" />}
+                    >
+                      Hiện lại
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -189,11 +232,15 @@ export const MyListingsPage: React.FC = () => {
           <p className="text-xs text-on-surface-variant max-w-sm">
             Bắt đầu tạo tin đăng mới để tiếp cận hàng ngàn khách hàng tiềm năng tìm kiếm bất động sản.
           </p>
-          <Link to="/listings/new" className="mt-2">
-            <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-              Tạo tin đăng ngay
-            </Button>
-          </Link>
+          <ButtonLink
+            to="/listings/new"
+            variant="primary"
+            size="md"
+            leftIcon={<PlusCircle className="w-4 h-4" />}
+            className="mt-2"
+          >
+            Tạo tin đăng ngay
+          </ButtonLink>
         </div>
       )}
     </div>

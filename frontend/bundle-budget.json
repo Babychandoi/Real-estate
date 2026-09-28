@@ -1,0 +1,144 @@
+{
+  "$comment": "Initial JS per route in kB gzip (scripts/check-bundle-budget.mjs, F15.2): the entry chunk, the route's lazy chunk, every chunk they import statically, and any worker/asset script one of those chunks starts eagerly (MapLibre's worker). Compressed at gzip level 1, the nginx default frontend/nginx.conf actually serves at (it sets gzip on without gzip_comp_level) -- not level 9, which under-reports by roughly 10-15%. Budgets are the measured size at S0-FE plus about 10% headroom; lower them when a stream makes a route lighter. `target` records the intended budget once the named work lands.",
+  "shellBudgetKb": 128,
+  "routes": {
+    "/": {
+      "module": "app/routes/_public.home.tsx",
+      "budgetKb": 135,
+      "measuredKb": 122.2
+    },
+    "/search": {
+      "module": "app/routes/_public.search.tsx",
+      "budgetKb": 663,
+      "measuredKb": 602.6,
+      "target": "F15.1 (S2-SEARCH): load MapLibre (chunk + worker) only when the map is opened; list view <= 130 kB"
+    },
+    "/listings/:slug": {
+      "module": "app/routes/_public.listings.$listingId.tsx",
+      "budgetKb": 141,
+      "measuredKb": 127.8
+    },
+    "/compare": {
+      "module": "app/routes/_public.compare.tsx",
+      "budgetKb": 137,
+      "measuredKb": 123.8
+    },
+    "/nguoi-dang/:sellerId": {
+      "module": "app/routes/_public.seller.tsx",
+      "budgetKb": 135,
+      "measuredKb": 122.4
+    },
+    "/about (information pages)": {
+      "module": "app/routes/_public.information.tsx",
+      "budgetKb": 132,
+      "measuredKb": 119.9
+    },
+    "/forgot-password": {
+      "module": "app/routes/_public.forgot-password.tsx",
+      "budgetKb": 131,
+      "measuredKb": 118.3
+    },
+    "/reset-password": {
+      "module": "app/routes/_public.reset-password.tsx",
+      "budgetKb": 130,
+      "measuredKb": 117.6
+    },
+    "/verify-email": {
+      "module": "app/routes/_public.verify-email.tsx",
+      "budgetKb": 129,
+      "measuredKb": 117.2
+    },
+    "/listings/new": {
+      "module": "app/routes/_public.listings.new.tsx",
+      "budgetKb": 665,
+      "measuredKb": 604,
+      "target": "S3-SUPPLY wizard: load the map picker (chunk + worker) on the location step only; <= 140 kB"
+    },
+    "/my-listings": {
+      "module": "app/routes/_account.listings.tsx",
+      "budgetKb": 133,
+      "measuredKb": 120.8
+    },
+    "/my-leads": {
+      "module": "app/routes/_account.leads.tsx",
+      "budgetKb": 135,
+      "measuredKb": 122.2
+    },
+    "/my-inquiries": {
+      "module": "app/routes/_account.inquiries.tsx",
+      "budgetKb": 132,
+      "measuredKb": 119.6
+    },
+    "/broker/workspace": {
+      "module": "app/routes/_account.broker-workspace.tsx",
+      "budgetKb": 131,
+      "measuredKb": 118.2
+    },
+    "/billing": {
+      "module": "app/routes/_account.billing.tsx",
+      "budgetKb": 133,
+      "measuredKb": 120.7
+    },
+    "/kyc": {
+      "module": "app/routes/_account.kyc.tsx",
+      "budgetKb": 133,
+      "measuredKb": 120.9
+    },
+    "/account": {
+      "module": "app/routes/_account.profile.tsx",
+      "budgetKb": 132,
+      "measuredKb": 119.4
+    },
+    "admin/login": {
+      "module": "app/routes/_admin.login.tsx",
+      "budgetKb": 130,
+      "measuredKb": 117.9
+    },
+    "admin/moderation": {
+      "module": "app/routes/_admin.moderation.tsx",
+      "budgetKb": 136,
+      "measuredKb": 123.1
+    },
+    "admin/listings": {
+      "module": "app/routes/_admin.listings.tsx",
+      "budgetKb": 131,
+      "measuredKb": 118.6
+    },
+    "admin/users": {
+      "module": "app/routes/_admin.users.tsx",
+      "budgetKb": 135,
+      "measuredKb": 122
+    },
+    "admin/leads-and-reports": {
+      "module": "app/routes/_admin.leads-and-reports.tsx",
+      "budgetKb": 137,
+      "measuredKb": 123.8
+    },
+    "admin/verification": {
+      "module": "app/routes/_admin.verification.tsx",
+      "budgetKb": 131,
+      "measuredKb": 118.8
+    },
+    "admin/billing": {
+      "module": "app/routes/_admin.billing.tsx",
+      "budgetKb": 133,
+      "measuredKb": 120.5
+    },
+    "admin/analytics": {
+      "module": "app/routes/_admin.analytics.tsx",
+      "budgetKb": 132,
+      "measuredKb": 119.6
+    },
+    "admin/projects": {
+      "module": "app/routes/_admin.projects.tsx",
+      "budgetKb": 131,
+      "measuredKb": 118.3
+    },
+    "admin/cms": {
+      "module": "app/routes/_admin.cms.tsx",
+      "budgetKb": 137,
+      "measuredKb": 124.1
+    }
+  },
+  "gzipLevel": 1
+}

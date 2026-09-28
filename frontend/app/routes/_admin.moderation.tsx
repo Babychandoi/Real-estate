@@ -1,12 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowRight, CircleDot, X } from 'lucide-react';
 import { moderationApi } from '../entities/moderation/api/moderationApi';
-import type {
-  FieldDiff,
-  ListingDiff,
-  ModerationQueueItem,
-  StandardReason,
-} from '../entities/moderation/model/types';
+import type { FieldDiff, ListingDiff, ModerationQueueItem, StandardReason } from '../entities/moderation/model/types';
 import { formatPriceVnd, formatPropertyType } from '../entities/listing/model/types';
+import { errorMessage } from '@/shared/api/errors';
+import { useModal } from '@/shared/ui/useModal';
 
 export default function ModerationWorkspacePage() {
   const [queue, setQueue] = useState<ModerationQueueItem[]>([]);
@@ -22,6 +20,9 @@ export default function ModerationWorkspacePage() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [selectedReasonCode, setSelectedReasonCode] = useState('');
   const [rejectionDetail, setRejectionDetail] = useState('');
+  const rejectPanelRef = useRef<HTMLDivElement>(null);
+  // Shared modal stack (M2): this dialog had no focus trap, no backdrop-close and no focus return at all.
+  useModal({ open: isRejectModalOpen, onClose: () => setIsRejectModalOpen(false), panelRef: rejectPanelRef });
 
   // Approval note
   const [approvalNote, setApprovalNote] = useState('');
@@ -34,12 +35,15 @@ export default function ModerationWorkspacePage() {
   // Load queue and reasons on mount
   useEffect(() => {
     loadQueue();
-    moderationApi.getRejectionReasons()
+    moderationApi
+      .getRejectionReasons()
       .then((data) => {
         setReasons(data);
         if (data.length > 0) setSelectedReasonCode(data[0].code);
       })
       .catch((err) => console.error('Lỗi tải lý do từ chối:', err));
+    // Mount-only: the queue and the reason catalogue load once; later reloads are explicit (after approve/reject).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadQueue = async () => {
@@ -53,8 +57,8 @@ export default function ModerationWorkspacePage() {
         setSelectedItem(null);
         setDiff(null);
       }
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Không thể tải hàng đợi kiểm duyệt' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Không thể tải hàng đợi kiểm duyệt') });
     } finally {
       setLoadingQueue(false);
     }
@@ -67,8 +71,8 @@ export default function ModerationWorkspacePage() {
     try {
       const diffData = await moderationApi.getDiff(item.listingId);
       setDiff(diffData);
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Không thể tải chi tiết đối chiếu' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Không thể tải chi tiết đối chiếu') });
     } finally {
       setLoadingDiff(false);
     }
@@ -77,7 +81,10 @@ export default function ModerationWorkspacePage() {
   const handleApprove = async () => {
     if (!selectedItem) return;
     if (!approvalNote.trim()) {
-      setFeedback({ type: 'error', message: 'Vui lòng nhập ghi chú duyệt nội dung. Duyệt tin không đồng nghĩa xác minh pháp lý.' });
+      setFeedback({
+        type: 'error',
+        message: 'Vui lòng nhập ghi chú duyệt nội dung. Duyệt tin không đồng nghĩa xác minh pháp lý.',
+      });
       return;
     }
     if (!window.confirm(`Xác nhận PHÊ DUYỆT tin đăng "${selectedItem.title}"?`)) return;
@@ -88,11 +95,14 @@ export default function ModerationWorkspacePage() {
         revisionId: selectedItem.revisionId,
         note: approvalNote.trim(),
       });
-      setFeedback({ type: 'success', message: `Đã phê duyệt thành công tin đăng #${selectedItem.listingId.substring(0, 8)}!` });
+      setFeedback({
+        type: 'success',
+        message: `Đã phê duyệt thành công tin đăng #${selectedItem.listingId.substring(0, 8)}!`,
+      });
       setApprovalNote('');
       await loadQueue();
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Lỗi khi phê duyệt tin đăng' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Lỗi khi phê duyệt tin đăng') });
     } finally {
       setActionLoading(false);
     }
@@ -108,12 +118,15 @@ export default function ModerationWorkspacePage() {
         reasonCode: selectedReasonCode,
         reasonDetail: rejectionDetail,
       });
-      setFeedback({ type: 'success', message: `Đã từ chối tin đăng #${selectedItem.listingId.substring(0, 8)} với lý do: ${selectedReasonCode}` });
+      setFeedback({
+        type: 'success',
+        message: `Đã từ chối tin đăng #${selectedItem.listingId.substring(0, 8)} với lý do: ${selectedReasonCode}`,
+      });
       setIsRejectModalOpen(false);
       setRejectionDetail('');
       await loadQueue();
-    } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Lỗi khi từ chối tin đăng' });
+    } catch (err) {
+      setFeedback({ type: 'error', message: errorMessage(err, 'Lỗi khi từ chối tin đăng') });
     } finally {
       setActionLoading(false);
     }
@@ -121,8 +134,9 @@ export default function ModerationWorkspacePage() {
 
   // Filtered queue
   const filteredQueue = queue.filter((item) => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          item.addressSummary.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch =
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.addressSummary.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
     if (tabFilter === 'FIRST') return item.isFirstSubmission;
     if (tabFilter === 'UPDATE') return !item.isFirstSubmission;
@@ -137,7 +151,12 @@ export default function ModerationWorkspacePage() {
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                />
               </svg>
             </div>
             <div>
@@ -163,8 +182,18 @@ export default function ModerationWorkspacePage() {
               disabled={loadingQueue}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium transition border border-slate-700"
             >
-              <svg className={`w-4 h-4 ${loadingQueue ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                className={`w-4 h-4 ${loadingQueue ? 'animate-spin' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
               Làm mới hàng đợi
             </button>
@@ -178,15 +207,11 @@ export default function ModerationWorkspacePage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-800/80">
           <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
             <span className="text-xs text-slate-400">Tin mới nộp (Revision #1)</span>
-            <div className="text-lg font-bold text-sky-400">
-              {queue.filter((q) => q.isFirstSubmission).length}
-            </div>
+            <div className="text-lg font-bold text-sky-400">{queue.filter((q) => q.isFirstSubmission).length}</div>
           </div>
           <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
             <span className="text-xs text-slate-400">Cập nhật tin cũ (Revision #2+)</span>
-            <div className="text-lg font-bold text-amber-400">
-              {queue.filter((q) => !q.isFirstSubmission).length}
-            </div>
+            <div className="text-lg font-bold text-amber-400">{queue.filter((q) => !q.isFirstSubmission).length}</div>
           </div>
           <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
             <span className="text-xs text-slate-400">Thay đổi đang hiển thị</span>
@@ -201,13 +226,22 @@ export default function ModerationWorkspacePage() {
 
       {/* Feedback notification */}
       {feedback && (
-        <div className={`mx-6 mt-4 px-4 py-3 rounded-lg flex items-center justify-between text-sm ${
-          feedback.type === 'success'
-            ? 'bg-emerald-950/80 border border-emerald-600/50 text-emerald-200'
-            : 'bg-rose-950/80 border border-rose-600/50 text-rose-200'
-        }`}>
+        <div
+          className={`mx-6 mt-4 px-4 py-3 rounded-lg flex items-center justify-between text-sm ${
+            feedback.type === 'success'
+              ? 'bg-emerald-950/80 border border-emerald-600/50 text-emerald-200'
+              : 'bg-rose-950/80 border border-rose-600/50 text-rose-200'
+          }`}
+        >
           <span>{feedback.message}</span>
-          <button onClick={() => setFeedback(null)} className="text-slate-400 hover:text-white">✕</button>
+          <button
+            type="button"
+            onClick={() => setFeedback(null)}
+            aria-label="Đóng thông báo"
+            className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:text-white"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
       )}
 
@@ -259,28 +293,27 @@ export default function ModerationWorkspacePage() {
                 Đang tải hàng đợi kiểm duyệt...
               </div>
             ) : filteredQueue.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 text-sm">
-                Không có tin đăng nào cần duyệt.
-              </div>
+              <div className="text-center py-12 text-slate-500 text-sm">Không có tin đăng nào cần duyệt.</div>
             ) : (
               filteredQueue.map((item) => {
                 const isSelected = selectedItem?.listingId === item.listingId;
                 return (
                   <div
                     key={item.listingId}
-                    onClick={() => selectListing(item)}
-                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                    className={`relative p-3 rounded-xl border cursor-pointer transition-all focus-within:ring-2 focus-within:ring-sky-400 ${
                       isSelected
                         ? 'bg-sky-950/40 border-sky-500 shadow-md ring-1 ring-sky-500/50'
                         : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                        item.isFirstSubmission
-                          ? 'bg-sky-950 text-sky-300 border border-sky-800/60'
-                          : 'bg-amber-950 text-amber-300 border border-amber-800/60'
-                      }`}>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                          item.isFirstSubmission
+                            ? 'bg-sky-950 text-sky-300 border border-sky-800/60'
+                            : 'bg-amber-950 text-amber-300 border border-amber-800/60'
+                        }`}
+                      >
                         {item.isFirstSubmission ? 'Tin Mới #Rev 1' : `Bản Cập Nhật #Rev ${item.revisionNumber}`}
                       </span>
                       <span className="text-xs text-slate-400">
@@ -289,20 +322,24 @@ export default function ModerationWorkspacePage() {
                     </div>
 
                     <h3 className="text-sm font-semibold text-slate-100 line-clamp-2 leading-snug mb-2">
-                      {item.title}
+                      {/* The button's overlay makes the whole card clickable while keeping one keyboard stop. */}
+                      <button
+                        type="button"
+                        onClick={() => selectListing(item)}
+                        aria-pressed={isSelected}
+                        className="text-left after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none"
+                      >
+                        {item.title}
+                      </button>
                     </h3>
 
                     <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span className="font-bold text-emerald-400">
-                        {formatPriceVnd(item.priceVnd)}
-                      </span>
+                      <span className="font-bold text-emerald-400">{formatPriceVnd(item.priceVnd)}</span>
                       <span>{item.areaM2} m²</span>
                       <span>{item.mediaCount} ảnh</span>
                     </div>
 
-                    <p className="text-xs text-slate-500 truncate mt-1">
-                      {item.addressSummary}
-                    </p>
+                    <p className="text-xs text-slate-500 truncate mt-1">{item.addressSummary}</p>
                   </div>
                 );
               })
@@ -318,9 +355,12 @@ export default function ModerationWorkspacePage() {
               <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-xs font-mono text-slate-400">Mã: {selectedItem.listingId.substring(0, 8)}...</span>
+                    <span className="text-xs font-mono text-slate-400">
+                      Mã: {selectedItem.listingId.substring(0, 8)}...
+                    </span>
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800">
-                      Loại: {formatPropertyType(selectedItem.propertyType)} • {selectedItem.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
+                      Loại: {formatPropertyType(selectedItem.propertyType)} •{' '}
+                      {selectedItem.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
                     </span>
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800">
                       Revision: #{selectedItem.revisionNumber}
@@ -328,7 +368,8 @@ export default function ModerationWorkspacePage() {
                   </div>
                   <h2 className="text-lg font-bold text-white">{selectedItem.title}</h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Địa chỉ: <span className="text-slate-300">{selectedItem.addressSummary}</span> • Chủ tin: <span className="font-mono text-slate-400">{selectedItem.ownerId.substring(0, 8)}...</span>
+                    Địa chỉ: <span className="text-slate-300">{selectedItem.addressSummary}</span> • Chủ tin:{' '}
+                    <span className="font-mono text-slate-400">{selectedItem.ownerId.substring(0, 8)}...</span>
                   </p>
                 </div>
 
@@ -368,15 +409,23 @@ export default function ModerationWorkspacePage() {
                   <div className="flex items-center gap-3">
                     <h3 className="font-bold text-white text-base">Đối Chiếu Thay Đổi Hai Cột (Side-by-Side Diff)</h3>
                     {diff && (
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                        diff.changedCount > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-white'
-                      }`}>
-                        {diff.isFirstSubmission ? 'Nộp duyệt lần đầu' : `Phát hiện ${diff.changedCount} trường thay đổi`}
+                      <span
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
+                          diff.changedCount > 0
+                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                            : 'bg-slate-800 text-white'
+                        }`}
+                      >
+                        {diff.isFirstSubmission
+                          ? 'Nộp duyệt lần đầu'
+                          : `Phát hiện ${diff.changedCount} trường thay đổi`}
                       </span>
                     )}
                   </div>
                   <span className="text-xs text-slate-400">
-                    Bản cũ: {diff?.previousRevisionNumber ? `Revision #${diff.previousRevisionNumber}` : '(Trống)'} ➔ Bản mới: Revision #{diff?.currentRevisionNumber}
+                    Bản cũ: {diff?.previousRevisionNumber ? `Revision #${diff.previousRevisionNumber}` : '(Trống)'}{' '}
+                    <ArrowRight className="inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" /> Bản mới: Revision #
+                    {diff?.currentRevisionNumber}
                   </span>
                 </div>
 
@@ -399,17 +448,15 @@ export default function ModerationWorkspacePage() {
                       <div
                         key={d.fieldName}
                         className={`grid grid-cols-12 gap-4 p-3 rounded-xl border transition ${
-                          d.isChanged
-                            ? 'bg-amber-950/15 border-amber-500/40'
-                            : 'bg-slate-900/30 border-slate-800/60'
+                          d.isChanged ? 'bg-amber-950/15 border-amber-500/40' : 'bg-slate-900/30 border-slate-800/60'
                         }`}
                       >
                         <div className="col-span-3 flex flex-col justify-center">
                           <span className="text-sm font-medium text-slate-200">{d.fieldLabel}</span>
                           <span className="text-xs font-mono text-slate-500">{d.fieldName}</span>
                           {d.isChanged && (
-                            <span className="inline-block mt-1 text-[11px] font-semibold text-amber-400">
-                              ● ĐÃ THAY ĐỔI
+                            <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-400">
+                              <CircleDot className="h-3 w-3" aria-hidden="true" /> ĐÃ THAY ĐỔI
                             </span>
                           )}
                         </div>
@@ -420,11 +467,13 @@ export default function ModerationWorkspacePage() {
                         </div>
 
                         {/* New value column */}
-                        <div className={`col-span-5 p-2.5 rounded-lg border text-sm break-words ${
-                          d.isChanged
-                            ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200 font-medium'
-                            : 'bg-slate-900/80 border-slate-800 text-slate-300'
-                        }`}>
+                        <div
+                          className={`col-span-5 p-2.5 rounded-lg border text-sm break-words ${
+                            d.isChanged
+                              ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200 font-medium'
+                              : 'bg-slate-900/80 border-slate-800 text-slate-300'
+                          }`}
+                        >
                           {d.newValue}
                         </div>
                       </div>
@@ -438,7 +487,12 @@ export default function ModerationWorkspacePage() {
                 <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                   <h3 className="font-bold text-white text-base flex items-center gap-2">
                     <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
                     </svg>
                     Chứng cứ và kiểm tra bổ sung
                   </h3>
@@ -464,10 +518,11 @@ export default function ModerationWorkspacePage() {
 
                 {/* Approval Note Input */}
                 <div className="mt-2">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                  <label htmlFor="moderation-approval-note" className="block text-xs font-medium text-slate-400 mb-1">
                     Ghi chú thẩm định nội bộ (Lưu vào nhật ký kiểm toán):
                   </label>
                   <input
+                    id="moderation-approval-note"
                     type="text"
                     value={approvalNote}
                     onChange={(e) => setApprovalNote(e.target.value)}
@@ -480,7 +535,12 @@ export default function ModerationWorkspacePage() {
           ) : (
             <div className="flex flex-col items-center justify-center h-96 text-slate-500 text-sm">
               <svg className="w-16 h-16 text-slate-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                />
               </svg>
               <span>Vui lòng chọn một tin đăng từ hàng đợi bên trái để bắt đầu thẩm định.</span>
             </div>
@@ -490,27 +550,48 @@ export default function ModerationWorkspacePage() {
 
       {/* Modal từ chối kiểm duyệt */}
       {isRejectModalOpen && selectedItem && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5">
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          role="presentation"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsRejectModalOpen(false);
+          }}
+        >
+          <div
+            ref={rejectPanelRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="moderation-reject-title"
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5"
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
-                <h3 className="font-bold text-lg text-white">Từ Chối Phê Duyệt Tin Đăng</h3>
+                <h3 id="moderation-reject-title" className="font-bold text-lg text-white">
+                  Từ Chối Phê Duyệt Tin Đăng
+                </h3>
                 <p className="text-xs text-slate-400 mt-0.5">Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setIsRejectModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
+                aria-label="Đóng"
+                className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
               >
-                ✕
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
             {/* Select Reason */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              <label
+                htmlFor="moderation-reject-reason"
+                className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
+              >
                 Chọn lý do:
               </label>
               <select
+                id="moderation-reject-reason"
                 value={selectedReasonCode}
                 onChange={(e) => setSelectedReasonCode(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-rose-500"
@@ -525,10 +606,14 @@ export default function ModerationWorkspacePage() {
 
             {/* Detail Reason Textarea */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              <label
+                htmlFor="moderation-reject-detail"
+                className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
+              >
                 Chi Tiết Giải Trình Cho Môi Giới (Hiển thị trong thông báo):
               </label>
               <textarea
+                id="moderation-reject-detail"
                 rows={4}
                 value={rejectionDetail}
                 onChange={(e) => setRejectionDetail(e.target.value)}
@@ -542,7 +627,7 @@ export default function ModerationWorkspacePage() {
               <button
                 type="button"
                 onClick={() => setIsRejectModalOpen(false)}
-                    disabled={actionLoading || !approvalNote.trim()}
+                disabled={actionLoading || !approvalNote.trim()}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition"
               >
                 Hủy bỏ
@@ -553,7 +638,9 @@ export default function ModerationWorkspacePage() {
                 disabled={actionLoading || !selectedReasonCode}
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-rose-950/50"
               >
-                {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                {actionLoading && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                )}
                 Xác Nhận Từ Chối
               </button>
             </div>

@@ -35,7 +35,9 @@ export const HomePage: React.FC = () => {
       }
     }
     loadData();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [purpose]);
 
   const submitSearch = (searchKeyword = keyword) => {
@@ -45,7 +47,7 @@ export const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-8 pb-16">
+    <div className="flex flex-col gap-8 pb-16" data-ready={isLoading ? 'false' : 'true'}>
       {/* Hero Banner & Thanh tìm kiếm chính */}
       <section className="relative overflow-hidden bg-gradient-to-b from-primary-fixed/40 via-surface to-surface pt-10 pb-12 px-4 md:px-8 border-b border-outline-variant/30">
         <div className="max-w-4xl mx-auto flex flex-col items-center text-center gap-4">
@@ -60,7 +62,8 @@ export const HomePage: React.FC = () => {
           </h1>
 
           <p className="text-sm md:text-base text-on-surface-variant max-w-xl">
-            Tìm kiếm bất động sản mua bán, cho thuê và liên hệ trực tiếp với người đăng. Trạng thái kiểm duyệt phản ánh chất lượng nội dung, không thay thế thẩm định pháp lý.
+            Tìm kiếm bất động sản mua bán, cho thuê và liên hệ trực tiếp với người đăng. Trạng thái kiểm duyệt phản ánh
+            chất lượng nội dung, không thay thế thẩm định pháp lý.
           </p>
 
           {/* Toggle Mua bán / Cho thuê */}
@@ -92,7 +95,13 @@ export const HomePage: React.FC = () => {
           </div>
 
           {/* Input Tìm kiếm thông minh */}
-          <form onSubmit={(event) => { event.preventDefault(); submitSearch(); }} className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl p-2.5 shadow-[0_10px_25px_-5px_rgba(15,76,129,0.12)] border border-outline-variant/60 flex flex-col sm:flex-row gap-2 mt-2">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitSearch();
+            }}
+            className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl p-2.5 shadow-[0_10px_25px_-5px_rgba(15,76,129,0.12)] border border-outline-variant/60 flex flex-col sm:flex-row gap-2 mt-2"
+          >
             <div className="flex items-center gap-2 flex-1 px-3">
               <Search className="w-5 h-5 text-outline" />
               <input
@@ -107,7 +116,6 @@ export const HomePage: React.FC = () => {
               Tìm kiếm
             </Button>
           </form>
-
         </div>
       </section>
 
@@ -115,9 +123,7 @@ export const HomePage: React.FC = () => {
       <section className="max-w-6xl mx-auto w-full px-4 md:px-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-on-surface">
-              Tin đăng mới nhất
-            </h2>
+            <h2 className="text-xl md:text-2xl font-bold text-on-surface">Tin đăng mới nhất</h2>
             <p className="text-xs md:text-sm text-on-surface-variant mt-0.5">
               Nội dung đã qua kiểm duyệt; hãy xác minh pháp lý và hiện trạng trước khi quyết định
             </p>
@@ -134,7 +140,16 @@ export const HomePage: React.FC = () => {
             ))}
           </div>
         ) : loadError ? (
-          <div className="rounded-xl bg-rose-50 py-10 text-center" role="alert"><p className="text-rose-800">{loadError}</p><button type="button" onClick={() => window.location.reload()} className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white">Thử lại</button></div>
+          <div className="rounded-xl bg-rose-50 py-10 text-center" role="alert">
+            <p className="text-rose-800">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white"
+            >
+              Thử lại
+            </button>
+          </div>
         ) : listings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map((item) => (

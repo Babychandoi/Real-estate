@@ -19,16 +19,19 @@ export async function geocodePlaces(query: string, signal?: AbortSignal): Promis
   const hit = cache.get(key);
   if (hit) return hit;
   const raw = await apiClient<RawPlace[]>(`/public/geocoding?q=${encodeURIComponent(query.trim())}`, { signal });
-  const places = (raw ?? []).map((item) => {
-    const box = item.boundingbox?.map(Number);
-    return {
-      label: item.display_name.replace(/, (Việt Nam|Vietnam)$/, ''),
-      lat: Number(item.lat),
-      lon: Number(item.lon),
-      type: item.type ?? 'place',
-      bbox: box && box.length === 4 && box.every(Number.isFinite) ? (box as [number, number, number, number]) : undefined,
-    };
-  }).filter((place) => Number.isFinite(place.lat) && Number.isFinite(place.lon));
+  const places = (raw ?? [])
+    .map((item) => {
+      const box = item.boundingbox?.map(Number);
+      return {
+        label: item.display_name.replace(/, (Việt Nam|Vietnam)$/, ''),
+        lat: Number(item.lat),
+        lon: Number(item.lon),
+        type: item.type ?? 'place',
+        bbox:
+          box && box.length === 4 && box.every(Number.isFinite) ? (box as [number, number, number, number]) : undefined,
+      };
+    })
+    .filter((place) => Number.isFinite(place.lat) && Number.isFinite(place.lon));
   cache.set(key, places);
   return places;
 }

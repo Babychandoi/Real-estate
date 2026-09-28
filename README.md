@@ -116,9 +116,21 @@ java -jar target/bds-backend-0.0.1-SNAPSHOT.jar # Chạy server trên cổng 808
 ```bash
 cd frontend
 npm ci
+npm run lint                            # ESLint (typescript-eslint, react-hooks, jsx-a11y)
+npm run typecheck                       # TypeScript strict (tsc)
+npm run format:check                    # Prettier (npm run format để sửa)
+npm run test:unit                       # Vitest
 npm run build                           # Kiểm tra TypeScript strict & đóng gói
-npm run dev                             # Chạy dev server tại http://localhost:3000
+npm run check:bundle                    # Ngân sách JS ban đầu theo route (bundle-budget.json)
+npm run dev                             # Chạy dev server tại http://localhost:3000 (thư viện giao diện: /__ui)
 ```
+
+Kiểm thử E2E trên máy (CSDL mới trên hạ tầng test dùng chung, seed cố định đồng hồ, dừng mọi thứ khi xong):
+```bash
+scripts/test-infra.sh up                # một lần, nếu hạ tầng test chưa chạy
+scripts/e2e-local.sh                    # navigation, a11y, auth-dialog, authenticated trên Chromium
+```
+Hệ thống thiết kế (token, cỡ chữ, icon, kích thước điều khiển, WCAG): `docs/design-system.md`.
 
 ---
 

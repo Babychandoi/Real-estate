@@ -25,7 +25,9 @@ export function PrivateMediaImage({ src, alt }: PrivateMediaImageProps) {
         localUrl = URL.createObjectURL(blob);
         setObjectUrl(localUrl);
       })
-      .catch(() => { if (!controller.signal.aborted) setFailed(true); });
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      });
     return () => {
       controller.abort();
       if (localUrl) URL.revokeObjectURL(localUrl);
@@ -33,10 +35,23 @@ export function PrivateMediaImage({ src, alt }: PrivateMediaImageProps) {
   }, [src]);
 
   if (!src || failed) {
-    return <div className="grid aspect-[4/3] place-items-center rounded-xl bg-slate-100 text-slate-500">
-      <span className="flex items-center gap-2 text-sm"><ImageOff className="h-4 w-4" />Không tải được ảnh</span>
-    </div>;
+    return (
+      <div className="grid aspect-[4/3] place-items-center rounded-xl bg-slate-100 text-slate-500">
+        <span className="flex items-center gap-2 text-sm">
+          <ImageOff className="h-4 w-4" />
+          Không tải được ảnh
+        </span>
+      </div>
+    );
   }
-  if (!objectUrl) return <div className="grid aspect-[4/3] place-items-center rounded-xl bg-slate-100 text-sm text-slate-500" role="status">Đang tải ảnh bảo mật…</div>;
+  if (!objectUrl)
+    return (
+      <div
+        className="grid aspect-[4/3] place-items-center rounded-xl bg-slate-100 text-sm text-slate-500"
+        role="status"
+      >
+        Đang tải ảnh bảo mật…
+      </div>
+    );
   return <img src={objectUrl} alt={alt} className="aspect-[4/3] w-full rounded-xl bg-slate-100 object-contain" />;
 }

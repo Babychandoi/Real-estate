@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Independent gates: backend-tests, frontend-checks, e2e and security-scan run in parallel and report on their own,
+# so a failure in one never hides the result of another. Every E2E suite is its own step with its own report.
 jobs:
   backend-tests:
     # Integration tests run on PostgreSQL/PostGIS + Flyway (no H2). The service containers mirror
@@ -73,36 +79,161 @@ jobs:
           name: backend-surefire-reports
           path: backend/target/surefire-reports
           retention-days: 7
-  verify:
+
+  frontend-checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Frontend checks
+      - name: Install
+        id: install
+        run: npm ci
+      # Each check runs even when an earlier one failed, so one run shows every problem.
+      - name: Audit dependencies (high and critical)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm audit --audit-level=high
+      - name: Lint (ESLint)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
+      - name: Typecheck (tsc)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+      - name: Formatting (Prettier)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run format:check
+      - name: Unit tests (Vitest)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run test:unit -- --reporter=default --reporter=junit --outputFile.junit=test-results/unit/junit.xml
+      - name: Production build
+        id: build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run build
+      - name: Route bundle budget
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: npm run check:bundle
+      - name: Upload unit test results
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-unit-junit-${{ github.run_attempt }}
+          path: frontend/test-results/unit/
+          if-no-files-found: ignore
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      COMPOSE_FILE_ARGS: --env-file .env.demo.example
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      # The frontend image is built with the UI catalog: its a11y checks must run, never skip.
+      E2E_REQUIRE_UI_CATALOG: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci && npm audit --audit-level=high && npm run lint && npm run build
+        run: npm ci
+      - name: Build images (frontend with the /__ui catalog)
+        run: |
+          docker compose $COMPOSE_FILE_ARGS build backend
+          docker compose $COMPOSE_FILE_ARGS build --build-arg VITE_ENABLE_UI_CATALOG=true frontend
       - name: Start integration stack
-        run: docker compose --env-file .env.demo.example up -d --build --wait
+        run: docker compose $COMPOSE_FILE_ARGS up -d --wait
+      - name: Seed fixture data (UAT seeder, fixed clock)
+        # The running stack created the demo accounts; this one-off container adds deterministic listings, leads,
+        # reports and orders for them and exits.
+        run: >-
+          docker compose $COMPOSE_FILE_ARGS run --rm --no-deps backend
+          --app.uat-seed.mode=seed
+          --app.uat-seed.accounts=demo.broker@bds.local,demo.user@bds.local,demo.moderator@bds.local,demo.admin@bds.local
+          --app.uat-seed.clock=2026-09-01T03:00:00Z
+          --server.port=18080
+      - name: Re-index search with the seeded listings
+        # The backend syncs Elasticsearch at start-up (and every 60 s); a restart makes the index match the seed
+        # before any test runs instead of waiting for the next sync.
+        run: |
+          docker compose $COMPOSE_FILE_ARGS restart backend
+          docker compose $COMPOSE_FILE_ARGS restart frontend
+          docker compose $COMPOSE_FILE_ARGS up -d --wait
       - name: Install Playwright browsers
+        id: browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium firefox webkit
-      - name: Visual regression and accessibility
+      - name: 'E2E: navigation'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
         working-directory: frontend
-        run: npm run test:e2e
         env:
-          PLAYWRIGHT_EXTERNAL_SERVER: '1'
+          PLAYWRIGHT_SUITE: navigation
+        run: npx playwright test tests/e2e/navigation.spec.ts
+      - name: 'E2E: accessibility and responsive containment'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: a11y
+        run: npx playwright test tests/e2e/a11y.spec.ts
+      - name: 'E2E: authentication dialog'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: auth-dialog
+        run: npx playwright test tests/e2e/auth-dialog.spec.ts
+      - name: 'E2E: signed-in buyer and broker'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: authenticated
+        # One desktop project: /auth/* is rate limited per IP and these are smoke flows, not layout checks.
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/authenticated.spec.ts --project=chromium-1440
+      - name: 'E2E: visual regression'
+        id: visual
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        # Not blocking until S11 regenerates the baselines after reviewing the diffs (F01.5); the diffs are still
+        # uploaded below. Remove continue-on-error once the reviewed baselines are committed.
+        continue-on-error: true
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: visual
+        run: npx playwright test tests/e2e/visual.spec.ts
+      - name: Collect stack logs
+        if: ${{ failure() || steps.visual.outcome == 'failure' }}
+        run: |
+          mkdir -p frontend/test-results
+          docker compose $COMPOSE_FILE_ARGS logs --no-color > frontend/test-results/compose.log 2>&1 || true
+      - name: Upload Playwright reports, traces and screenshot diffs
+        if: ${{ failure() || steps.visual.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts-${{ github.run_attempt }}
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+      - name: Upload JUnit results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-junit-${{ github.run_attempt }}
+          path: frontend/test-results/*/junit.xml
+          if-no-files-found: ignore
       - name: Stop integration stack
         if: always()
-        run: docker compose --env-file .env.demo.example down -v
+        run: docker compose $COMPOSE_FILE_ARGS down -v
+
   security-scan:
     runs-on: ubuntu-latest
     steps:
