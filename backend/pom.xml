@@ -92,6 +92,13 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
+        <!-- CMS HTML sanitising (S7-SEO): allow-list of tags/attributes for published article bodies -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.21.2</version>
+        </dependency>
+
         <!-- OpenAPI 3.0 / Swagger UI -->
         <dependency>
             <groupId>org.springdoc</groupId>

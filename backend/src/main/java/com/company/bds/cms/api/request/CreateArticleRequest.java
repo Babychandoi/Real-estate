@@ -28,6 +28,8 @@ public class CreateArticleRequest {
     private String legalReference;
     private String metaDescription;
     private String canonicalUrl;
+    private String sourceName;
+    private String sourceUrl;
 
     public CreateArticleRequest() {}
 
@@ -52,4 +54,13 @@ public class CreateArticleRequest {
     public void setMetaDescription(String metaDescription) { this.metaDescription = metaDescription; }
     public String getCanonicalUrl() { return canonicalUrl; }
     public void setCanonicalUrl(String canonicalUrl) { this.canonicalUrl = canonicalUrl; }
+    public String getSourceName() { return sourceName; }
+    public void setSourceName(String sourceName) { this.sourceName = sourceName; }
+    public String getSourceUrl() { return sourceUrl; }
+    public void setSourceUrl(String sourceUrl) { this.sourceUrl = sourceUrl; }
+
+    public com.company.bds.cms.domain.model.RevisionContent toContent() {
+        return new com.company.bds.cms.domain.model.RevisionContent(title, summary, contentHtml, coverImageUrl, authorName,
+                legalReference, metaDescription, canonicalUrl, sourceName, sourceUrl);
+    }
 }

@@ -41,7 +41,9 @@ public class SensitiveResponseCacheFilter extends OncePerRequestFilter {
             "/api/v1/transactions/**", "/api/v1/broker/**", "/api/v1/notifications/**", "/api/v1/analytics/**",
             "/api/v1/listings/my-listings", "/api/v1/listings/admin/**", "/api/v1/listings/*/draft",
             "/api/v1/cms/**", "/api/v1/catalog/**", "/api/v1/events",
-            "/api/v2/admin/**", "/api/v1/me/**", "/api/v2/me/**");
+            "/api/v2/admin/**", "/api/v1/me/**", "/api/v2/me/**",
+            // S7: CMS previews of unpublished revisions (token-bearing, never cached or shared)
+            "/api/v1/public/articles/preview/**");
     /** Public catalogue inside a private prefix. */
     private static final List<String> PUBLIC_EXCEPTIONS = List.of("/api/v1/billing/plans");
 
