@@ -743,3 +743,5 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - This patch starts disposable MinIO for backend tests and supplies a demo-only signing key to the E2E stack. CI on the resulting PR remains the acceptance evidence; no backend test pass or E2E pass is claimed until it runs.
 
 - First PR CI run `36476964181` built the test MinIO image, but the immediate readiness request was reset during container startup (`curl` exit 56). Added `--retry-all-errors` so the health probe tolerates this startup race; backend tests remain pending the next run.
+
+- PR CI run `36478775976`: backend tests, frontend checks, security scan, navigation, accessibility, auth dialog and authenticated flows passed. Chromium visual snapshots failed for Home/Search on several widths (4–6% pixel difference); retained the blocking gate and added a small diff-only artifact to review the actual images on the next run.

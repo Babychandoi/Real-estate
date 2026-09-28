@@ -225,6 +225,16 @@ jobs:
         env:
           PLAYWRIGHT_SUITE: visual
         run: npx playwright test tests/e2e/visual.spec.ts --project=chromium-320 --project=chromium-768 --project=chromium-1440 --project=android-chrome
+      - name: Upload Chromium visual diffs for review
+        if: ${{ !cancelled() && steps.visual.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-visual-diffs-${{ github.run_attempt }}
+          path: |
+            frontend/test-results/visual/artifacts/**/*-actual.png
+            frontend/test-results/visual/artifacts/**/*-diff.png
+          retention-days: 14
+          if-no-files-found: ignore
       - name: 'E2E: visual regression (firefox, webkit)'
         id: visual-other-engines
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
