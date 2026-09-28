@@ -22,6 +22,9 @@ public class ProductionSafetyValidator implements ApplicationRunner {
     private final String mediaSecretKey;
     private final String mediaBucket;
     private final String searchCursorSecret;
+    /** HMAC key of signed media URLs (S1-MEDIA); must be identical on every instance. */
+    @Value("${app.media.signing-secret:}")
+    private String mediaSigningSecret = "";
 
     public ProductionSafetyValidator(@Value("${app.mode:demo}") String mode,
                                      @Value("${spring.datasource.password:}") String databasePassword,
@@ -76,6 +79,9 @@ public class ProductionSafetyValidator implements ApplicationRunner {
         }
         if (!mediaStorageEnabled || mediaAccessKey.isBlank() || mediaSecretKey.length() < 16 || mediaBucket.isBlank()) {
             throw new IllegalStateException("Production yêu cầu MinIO và credential an toàn.");
+        }
+        if (mediaSigningSecret == null || mediaSigningSecret.length() < 32) {
+            throw new IllegalStateException("Production từ chối khởi động: MEDIA_SIGNING_SECRET (app.media.signing-secret) phải là secret tối thiểu 32 ký tự.");
         }
         if (searchCursorSecret == null || searchCursorSecret.length() < 32) {
             throw new IllegalStateException("Production từ chối khởi động: SEARCH_CURSOR_SECRET (app.search.cursor-secret) phải là secret tối thiểu 32 ký tự.");

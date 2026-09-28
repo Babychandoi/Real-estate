@@ -88,6 +88,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/leads/**").hasAnyRole(leadInbox)
                         // The broker workspace stays broker-only; owners get the simplified dashboard in my-listings/my-leads.
                         .requestMatchers("/api/v1/broker/**").hasAnyRole(Roles.ADMIN, Roles.BROKER)
+                        // Signed media URLs are capabilities (HMAC, expiry): no session, see MediaUrlSigner.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/media/signed/**").permitAll()
                         .requestMatchers("/api/v1/media/**").authenticated()
                         .requestMatchers("/api/v1/reports/**").hasAnyRole(staff)
                         .requestMatchers("/api/v1/kyc/queue", "/api/v1/kyc/*/approve", "/api/v1/kyc/*/reject", "/api/v1/kyc/*/revoke",

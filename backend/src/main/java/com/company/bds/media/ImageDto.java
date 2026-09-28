@@ -24,5 +24,8 @@ public record ImageDto(String url, @Nullable Integer width, @Nullable Integer he
 
     public record Source(String url, int width) {}
 
-    public record Placeholder(@Nullable String dominantColor) {}
+    /** Shown while the image loads: a dominant colour and, for processed images, a tiny blurred WebP data URI. */
+    public record Placeholder(@Nullable String dominantColor, @Nullable String lqip) {
+        public Placeholder(@Nullable String dominantColor) { this(dominantColor, null); }
+    }
 }

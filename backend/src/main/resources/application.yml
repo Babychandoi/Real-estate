@@ -164,6 +164,11 @@ app:
     access-key: ${MINIO_ROOT_USER:}
     secret-key: ${MINIO_ROOT_PASSWORD:}
     bucket: ${MINIO_BUCKET:bds-listings}
+    # HMAC key of signed media URLs (drafts/hidden listings, S1); >= 32 chars, same on every instance, required in
+    # production. Rotate by moving the old value to previous-signing-secret for one TTL.
+    signing-secret: ${MEDIA_SIGNING_SECRET:}
+    previous-signing-secret: ${MEDIA_PREVIOUS_SIGNING_SECRET:}
+    signed-url-ttl: ${MEDIA_SIGNED_URL_TTL:PT15M}
     antivirus:
       enabled: ${CLAMAV_ENABLED:false}
       host: ${CLAMAV_HOST:localhost}
