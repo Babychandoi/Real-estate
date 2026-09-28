@@ -34,6 +34,7 @@ import {
   type PriceHistoryV2,
 } from '@/entities/listing/model/v2';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
 import type { UserKycProfile } from '@/entities/verification/model/types';
 import { CompareToggleButton } from '@/features/compare/CompareControls';
 import { compareItemFromSummary } from '@/features/compare/compareStore';
@@ -177,8 +178,8 @@ export const ListingDetailPage: React.FC = () => {
         </h1>
         {state.kind === 'gone' ? (
           <p className="text-body-sm text-on-surface-variant">
-            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được. Bạn có thể tìm các tin tương tự đang
-            hiển thị.
+            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được.
+            Bạn có thể tìm các tin tương tự đang hiển thị.
           </p>
         ) : (
           <p className="text-body-sm text-on-surface-variant">
@@ -469,6 +470,7 @@ function ListingDetailView({
                 </p>
                 {contactAction}
                 <CompareToggleButton variant="inline" listing={compareItemFromSummary(listing)} />
+                <FavoriteButton appearance="inline" listingId={listing.id} title={listing.title} />
                 <p className="text-label font-normal text-on-surface-variant">
                   Nhà Đất Chuẩn không nhận tiền cọc và không ký hợp đồng thay bạn.
                 </p>
@@ -488,7 +490,7 @@ function ListingDetailView({
           <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {similar.map((item) => (
               <li key={item.id}>
-                <ListingCard listing={item} />
+                <ListingCard listing={item} actions={<FavoriteButton listingId={item.id} title={item.title} />} />
               </li>
             ))}
           </ul>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { CompareTray } from '@/features/compare/CompareControls';
 import { Avatar } from '@/shared/ui/Avatar';
@@ -25,6 +25,8 @@ import {
   Camera,
   Map as MapIcon,
   BookOpen,
+  Bell,
+  Heart,
 } from 'lucide-react';
 import { Button, ButtonLink } from '@/shared/ui/Button';
 import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
@@ -32,6 +34,11 @@ import { LoginModal } from '@/shared/auth/LoginModal';
 import { canOpen } from '@/shared/auth/routeAccess';
 import { ROLES } from '@/shared/auth/roles';
 import { useModal } from '@/shared/ui/useModal';
+
+/** Signed-in only: loaded after sign-in, with a same-size placeholder so the header does not shift. */
+const NotificationBell = lazy(() =>
+  import('@/shared/notifications/NotificationBell').then((m) => ({ default: m.NotificationBell })),
+);
 
 const RootLayoutContent: React.FC = () => {
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -322,6 +329,12 @@ const RootLayoutContent: React.FC = () => {
               </Link>
             )}
 
+            {isAuthenticated && (
+              <Suspense fallback={<span className="inline-block h-11 w-11" aria-hidden="true" />}>
+                <NotificationBell />
+              </Suspense>
+            )}
+
             {!isAuthenticated ? (
               <Button
                 variant="primary"
@@ -396,6 +409,22 @@ const RootLayoutContent: React.FC = () => {
                     >
                       <UserCheck className="w-4 h-4 text-primary" />
                       Xác minh eKYC
+                    </Link>
+                    <Link
+                      to="/saved"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"
+                    >
+                      <Heart className="w-4 h-4 text-primary" aria-hidden="true" />
+                      Tin và tìm kiếm đã lưu
+                    </Link>
+                    <Link
+                      to="/notifications"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold text-on-surface hover:bg-surface-container"
+                    >
+                      <Bell className="w-4 h-4 text-primary" aria-hidden="true" />
+                      Thông báo
                     </Link>
                     <div className="my-1 border-t border-outline-variant/40" />
                     {isPoster ? (
@@ -519,6 +548,22 @@ const RootLayoutContent: React.FC = () => {
                   >
                     <UserCheck className="w-5 h-5" />
                     Xác minh eKYC
+                  </Link>
+                  <Link
+                    onClick={closeMobileMenu}
+                    to="/saved"
+                    className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                  >
+                    <Heart className="w-5 h-5" aria-hidden="true" />
+                    Tin và tìm kiếm đã lưu
+                  </Link>
+                  <Link
+                    onClick={closeMobileMenu}
+                    to="/notifications"
+                    className="min-h-11 px-3 rounded-lg flex items-center gap-3 hover:bg-surface-container"
+                  >
+                    <Bell className="w-5 h-5" aria-hidden="true" />
+                    Thông báo
                   </Link>
                 </>
               )}

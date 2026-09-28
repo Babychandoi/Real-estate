@@ -63,6 +63,16 @@ const AdminLoginPage = lazy(() => import('./routes/_admin.login').then((m) => ({
 const InformationPage = lazy(() =>
   import('./routes/_public.information').then((m) => ({ default: m.InformationPage })),
 );
+const SavedPage = lazy(() => import('./routes/_account.saved').then((m) => ({ default: m.SavedPage })));
+const NotificationCenterPage = lazy(() =>
+  import('./routes/_account.notifications').then((m) => ({ default: m.NotificationCenterPage })),
+);
+const SharedShortlistPage = lazy(() =>
+  import('./routes/_public.shortlist').then((m) => ({ default: m.SharedShortlistPage })),
+);
+const UnsubscribePage = lazy(() =>
+  import('./routes/_public.unsubscribe').then((m) => ({ default: m.UnsubscribePage })),
+);
 const NotFoundPage = lazy(() => import('./routes/_public.information').then((m) => ({ default: m.NotFoundPage })));
 
 const load = (node: ReactNode) => (
@@ -112,6 +122,13 @@ export const router = createBrowserRouter([
         path: 'account',
         element: protect(<AccountProfilePage />, 'Thông tin cá nhân', ROUTE_ACCESS.account),
       },
+      { path: 'saved', element: protect(<SavedPage />, 'Tin và tìm kiếm đã lưu', ROUTE_ACCESS.saved) },
+      {
+        path: 'notifications',
+        element: protect(<NotificationCenterPage />, 'Thông báo', ROUTE_ACCESS.notifications),
+      },
+      { path: 'shortlists/:token', element: load(<SharedShortlistPage />) },
+      { path: 'unsubscribe', element: load(<UnsubscribePage />) },
       { path: 'verify-email', element: load(<VerifyEmailPage />) },
       { path: 'forgot-password', element: load(<ForgotPasswordPage />) },
       { path: 'reset-password', element: load(<ResetPasswordPage />) },

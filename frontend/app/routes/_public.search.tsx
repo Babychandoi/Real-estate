@@ -17,6 +17,8 @@ import {
   type SearchView,
 } from '@/features/search/filterSchema';
 import { useListingSearch } from '@/features/search/useListingSearch';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
+import { SaveSearchButton } from '@/features/engagement/SaveSearchButton';
 import { PriceTypeChips } from '@/features/search/ui/PriceTypeChips';
 import { SearchBox } from '@/features/search/ui/SearchBox';
 import { Button } from '@/shared/ui/Button';
@@ -175,6 +177,7 @@ export function SearchAndMapPage() {
                   highlighted={showMap && (hoveredId === listing.id || selectedPoint?.id === listing.id)}
                   onHoverChange={showMap ? setHoveredId : undefined}
                   linkState={{ fromSearch: `${location.pathname}${location.search}` }}
+                  actions={<FavoriteButton listingId={listing.id} title={listing.title} />}
                 />
               </li>
             ))}
@@ -268,6 +271,7 @@ export function SearchAndMapPage() {
           >
             Bộ lọc{activeFilterCount(filters) ? ` (${activeFilterCount(filters)})` : ''}
           </Button>
+          <SaveSearchButton filters={filters} />
           <div className="flex items-center gap-2 text-body-sm text-on-surface-variant">
             <span className="sr-only sm:not-sr-only" aria-hidden="true">
               Sắp xếp

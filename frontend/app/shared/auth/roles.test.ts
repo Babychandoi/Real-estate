@@ -7,7 +7,16 @@ const allowedPages = (role: Role) => pages.filter((page) => canOpen(role, page))
 
 describe('route access by role (contract §2.5)', () => {
   it('lets an OWNER post and manage listings, leads and billing, but not the broker workspace', () => {
-    expect(allowedPages(ROLES.OWNER)).toEqual(['createListing', 'myListings', 'myLeads', 'billing', 'kyc', 'account']);
+    expect(allowedPages(ROLES.OWNER)).toEqual([
+      'createListing',
+      'myListings',
+      'myLeads',
+      'billing',
+      'kyc',
+      'account',
+      'saved',
+      'notifications',
+    ]);
     expect(canOpen(ROLES.OWNER, 'brokerWorkspace')).toBe(false);
   });
 
@@ -18,13 +27,15 @@ describe('route access by role (contract §2.5)', () => {
   });
 
   it('gives a home seeker their inquiries and account pages only', () => {
-    expect(allowedPages(ROLES.USER)).toEqual(['myInquiries', 'kyc', 'account']);
+    expect(allowedPages(ROLES.USER)).toEqual(['myInquiries', 'kyc', 'account', 'saved', 'notifications']);
   });
 
   it('limits moderators to the staff desks', () => {
     expect(allowedPages(ROLES.MODERATOR)).toEqual([
       'kyc',
       'account',
+      'saved',
+      'notifications',
       'adminModeration',
       'adminLeadsAndReports',
       'adminReports',

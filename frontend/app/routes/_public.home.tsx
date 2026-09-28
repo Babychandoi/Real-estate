@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Building2, Key, Shield, Filter } from 'lucide-react';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
 import type { ListingSummaryV2 } from '@/entities/listing/model/v2';
 import { Button } from '@/shared/ui/Button';
 import { apiClient } from '@/shared/api/client';
@@ -155,7 +156,11 @@ export const HomePage: React.FC = () => {
         ) : listings.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map((item) => (
-              <ListingCard key={item.id} listing={item} />
+              <ListingCard
+                key={item.id}
+                listing={item}
+                actions={<FavoriteButton listingId={item.id} title={item.title} />}
+              />
             ))}
           </div>
         ) : (

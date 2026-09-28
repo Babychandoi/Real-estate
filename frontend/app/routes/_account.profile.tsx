@@ -3,6 +3,7 @@ import { Camera, CheckCircle2, Mail, Phone, Save, ShieldCheck, UserRound } from 
 import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { validationMessage } from '@/shared/types/problem-details';
+import { NotificationPreferencesSection, PrivacySection } from '@/features/engagement/ui/AccountEngagementSections';
 
 type UploadedImage = { url: string };
 
@@ -15,6 +16,8 @@ export function AccountProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [avatarMessage, setAvatarMessage] = useState('');
+  // A stored avatar URL that no longer loads (object removed, host blocked) falls back to the initials (UI-13).
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
 
   useEffect(() => {
     setName(user?.name ?? '');
@@ -104,8 +107,13 @@ export function AccountProfilePage() {
           <label className="group relative h-20 w-20 shrink-0 cursor-pointer rounded-full focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2">
             {/* Only the photo is clipped to the circle; the camera badge sits on its edge. */}
             <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
-              {avatarMediaUrl ? (
-                <img src={avatarMediaUrl} alt="Ảnh đại diện" className="h-full w-full object-cover" />
+              {avatarMediaUrl && brokenAvatar !== avatarMediaUrl ? (
+                <img
+                  src={avatarMediaUrl}
+                  alt="Ảnh đại diện"
+                  className="h-full w-full object-cover"
+                  onError={() => setBrokenAvatar(avatarMediaUrl)}
+                />
               ) : (
                 initials || <UserRound className="h-7 w-7" />
               )}
@@ -139,6 +147,11 @@ export function AccountProfilePage() {
             <p className="mt-1 text-xs text-on-surface-variant">
               Ảnh được lưu ngay và hiển thị công khai trên thẻ tin đăng và trang chi tiết tin của bạn.
             </p>
+            {avatarMediaUrl && brokenAvatar === avatarMediaUrl && (
+              <p role="status" className="mt-1 text-xs font-semibold text-warning-on-container">
+                Không tải được ảnh đại diện hiện tại. Hãy chọn ảnh khác hoặc gỡ ảnh.
+              </p>
+            )}
             {avatarMediaUrl && !uploading && (
               <button
                 type="button"
@@ -226,6 +239,8 @@ export function AccountProfilePage() {
           {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
         </button>
       </form>
+      <NotificationPreferencesSection />
+      <PrivacySection />
     </div>
   );
 }
