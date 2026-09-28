@@ -48,7 +48,7 @@ export function MyInquiriesPage() {
   }, [load]);
 
   return (
-    <div className="min-h-full bg-white px-4 py-8 md:px-8 lg:py-10">
+    <section className="min-h-full bg-white px-4 py-8 md:px-8 lg:py-10">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end">
           <div>
@@ -182,7 +182,7 @@ export function MyInquiriesPage() {
           </nav>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

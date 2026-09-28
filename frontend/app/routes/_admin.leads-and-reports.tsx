@@ -188,7 +188,7 @@ export default function LeadsAndReportsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-950">Giám sát khách quan tâm</h1>
@@ -292,7 +292,7 @@ export default function LeadsAndReportsPage() {
               </div>
               {listingPage.items.length === 0 ? (
                 <div className="py-16 text-center">
-                  <Building2 className="mx-auto h-9 w-9 text-slate-400" />
+                  <Building2 className="mx-auto h-9 w-9 text-on-surface-variant" />
                   <p className="mt-3 font-medium text-slate-700">Không tìm thấy bài đăng có yêu cầu liên hệ</p>
                 </div>
               ) : (
@@ -308,7 +308,7 @@ export default function LeadsAndReportsPage() {
                         <img src={listing.imageUrl} alt="" className="h-40 w-full object-cover" />
                       ) : (
                         <span className="grid h-40 place-items-center bg-slate-100">
-                          <Building2 className="h-8 w-8 text-slate-400" />
+                          <Building2 className="h-8 w-8 text-on-surface-variant" />
                         </span>
                       )}
                       <span className="block p-4">
@@ -430,7 +430,7 @@ export default function LeadsAndReportsPage() {
               </div>
               {leadPage.items.length === 0 ? (
                 <div className="py-16 text-center">
-                  <UserRound className="mx-auto h-9 w-9 text-slate-400" />
+                  <UserRound className="mx-auto h-9 w-9 text-on-surface-variant" />
                   <p className="mt-3 font-medium text-slate-700">Không tìm thấy yêu cầu liên hệ phù hợp</p>
                 </div>
               ) : (
@@ -543,6 +543,6 @@ export default function LeadsAndReportsPage() {
           )}
         </section>
       )}
-    </div>
+    </section>
   );
 }

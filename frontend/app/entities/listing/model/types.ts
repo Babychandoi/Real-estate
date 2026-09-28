@@ -59,6 +59,9 @@ export function formatPropertyType(propertyType: string): string {
 }
 
 const LISTING_STATUS_LABELS: Record<string, string> = {
+  PAUSED: 'Tạm ẩn',
+  EXPIRED: 'Hết hạn',
+  LOCKED: 'Đã khóa',
   DRAFT: 'Bản nháp',
   PENDING_REVIEW: 'Chờ duyệt',
   ACTIVE: 'Đang hiển thị',
@@ -107,4 +110,8 @@ export function calculateUnitPrice(price: number, area: number): string {
     return `~${UNIT_PRICE_MILLIONS.format(Math.round(pricePerM2 / 100_000) / 10)} tr/m²`;
   }
   return '';
+}
+
+export function formatListingPrice(price: number, purpose: string): string {
+  return formatPriceVnd(price) + (purpose === 'RENT' ? '/tháng' : '');
 }

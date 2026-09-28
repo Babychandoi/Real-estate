@@ -397,14 +397,23 @@ export const PropertyComparePage: React.FC = () => {
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Quay lại tìm kiếm
         </Link>
-        <section className="mb-6 flex flex-col justify-between gap-4 rounded-card border border-outline-variant bg-surface-container-lowest p-6 md:flex-row md:items-start">
+        <section className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-6 shadow-sm md:flex-row md:items-start">
           <div className="max-w-3xl">
-            <h1 className="flex items-center gap-2 text-headline-md text-on-surface">
+            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-on-surface md:text-3xl">
               <Scale className="h-7 w-7 text-primary" aria-hidden="true" /> So sánh tin đăng
             </h1>
-            <p className="mt-2 text-body-sm text-on-surface-variant">
-              Tối đa {MAX_COMPARE} tin cùng nhu cầu (cùng bán hoặc cùng cho thuê). “Tốt nhất” chỉ phản ánh con số ở hàng
-              đó.
+            <p className="mt-2 text-sm leading-relaxed text-on-surface-variant">
+              Đặt tối đa {MAX_COMPARE} tin <strong>cùng nhu cầu</strong> (cùng bán hoặc cùng cho thuê) cạnh nhau để so
+              giá, diện tích, đơn giá, số phòng, pháp lý và mức độ xác minh. Ô có nhãn{' '}
+              <span className="inline-flex items-center gap-1 rounded-full bg-success-container px-2 py-0.5 text-xs font-bold text-success-on-container">
+                <Trophy className="h-3 w-3" aria-hidden="true" />
+                Tốt nhất
+              </span>{' '}
+              chỉ phản ánh con số ở hàng đó.
+            </p>
+            <p className="mt-2 text-xs text-on-surface-variant">
+              Thêm tin bằng nút <strong>“So sánh”</strong> trên thẻ tin ở trang tìm kiếm, trang chi tiết, hoặc chọn ngay
+              tại đây.
             </p>
           </div>
           {selectedIds.length > 0 && (
@@ -422,11 +431,26 @@ export const PropertyComparePage: React.FC = () => {
         </section>
 
         {selectedIds.length === 0 && (
-          <section className="rounded-card border border-outline-variant bg-surface-container-lowest p-8 text-center">
-            <h2 className="text-headline-sm text-on-surface">Bạn chưa chọn tin nào để so sánh</h2>
+          <section className="rounded-2xl border border-outline-variant/40 bg-surface-container-lowest p-8 text-center shadow-sm md:p-12">
+            <Scale className="mx-auto mb-3 h-12 w-12 text-primary/60" aria-hidden="true" />
+            <h2 className="text-xl font-bold text-on-surface">Bạn chưa chọn tin nào để so sánh</h2>
             <p className="mt-2 text-body-sm text-on-surface-variant">
               Bấm “So sánh” trên 2–3 tin cùng nhu cầu ở trang tìm kiếm, hoặc chọn ngay tại đây.
             </p>
+            <ol className="mx-auto mt-5 grid max-w-3xl gap-3 text-left text-sm text-on-surface-variant md:grid-cols-3">
+              {[
+                'Tìm tin phù hợp ở trang Tìm kiếm & Bản đồ.',
+                'Bấm “So sánh” trên 2–3 tin cùng nhu cầu bán hoặc thuê.',
+                'Mở danh sách so sánh ở thanh cuối màn hình để xem bảng đối chiếu.',
+              ].map((step, index) => (
+                <li key={step} className="flex gap-3 rounded-xl bg-surface-container-low p-4">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-white">
+                    {index + 1}
+                  </span>
+                  {step}
+                </li>
+              ))}
+            </ol>
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Button onClick={() => setPickerOpen(true)} leftIcon={<Plus className="h-4 w-4" />}>
                 Chọn tin ngay tại đây
@@ -448,7 +472,7 @@ export const PropertyComparePage: React.FC = () => {
         )}
 
         {selectedIds.length > 0 && (
-          <section className="overflow-x-auto rounded-card border border-outline-variant bg-surface-container-lowest">
+          <section className="overflow-x-auto rounded-2xl border border-outline-variant/40 bg-surface-container-lowest shadow-sm">
             <div className="min-w-[860px]">
               <div
                 className="grid border-b border-outline-variant bg-surface-container"
@@ -546,10 +570,13 @@ export const PropertyComparePage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setPickerOpen(true)}
-                      className="flex h-full min-h-[220px] w-full flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-outline text-body-sm font-semibold text-on-surface-variant hover:border-primary hover:text-primary"
+                      className="flex h-full min-h-[220px] w-full flex-col items-center justify-center gap-2 rounded-card border-2 border-dashed border-outline text-body-sm font-semibold text-on-surface-variant transition hover:border-primary hover:bg-primary/5 hover:text-primary"
                     >
                       <Plus className="h-7 w-7" aria-hidden="true" />
                       Thêm tin để so sánh
+                      <span className="text-xs font-normal">
+                        {purpose ? `Tin ${purpose === 'SALE' ? 'bán' : 'cho thuê'}` : 'Bán hoặc cho thuê'}
+                      </span>
                     </button>
                   </div>
                 ))}
@@ -577,7 +604,7 @@ export const PropertyComparePage: React.FC = () => {
                             <>
                               <span>{row.display(slot.item)}</span>
                               {winners.has(slot.id) && (
-                                <span className="inline-flex items-center gap-1 text-label">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-success-container px-2 py-0.5 text-xs font-bold">
                                   <Trophy className="h-3 w-3" aria-hidden="true" /> Tốt nhất
                                 </span>
                               )}
@@ -597,6 +624,11 @@ export const PropertyComparePage: React.FC = () => {
             </div>
           </section>
         )}
+
+        <p className="mt-5 text-sm text-on-surface-variant">
+          Thông tin do người đăng cung cấp và nền tảng kiểm duyệt trước khi công khai. “Tốt nhất” chỉ phản ánh con số,
+          không thay thế việc tự kiểm tra hiện trạng và giấy tờ trước khi quyết định.
+        </p>
       </div>
       {pickerOpen && (
         <ListingPicker

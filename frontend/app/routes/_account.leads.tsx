@@ -168,7 +168,7 @@ export function MyLeadsPage() {
   };
 
   return (
-    <div className="min-h-full bg-white px-4 py-8 md:px-8 lg:py-10">
+    <section className="min-h-full bg-white px-4 py-8 md:px-8 lg:py-10">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-7 md:flex-row md:items-end">
           <div className="max-w-3xl">
@@ -471,7 +471,7 @@ export function MyLeadsPage() {
           </section>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

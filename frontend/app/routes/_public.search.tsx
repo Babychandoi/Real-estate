@@ -20,7 +20,7 @@ import { useListingSearch } from '@/features/search/useListingSearch';
 import { PriceTypeChips } from '@/features/search/ui/PriceTypeChips';
 import { SearchBox } from '@/features/search/ui/SearchBox';
 import { Button } from '@/shared/ui/Button';
-import { Chip, ChipGroup } from '@/shared/ui/Chip';
+import { Chip } from '@/shared/ui/Chip';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { LoadMore } from '@/shared/ui/Pagination';
 import { Select } from '@/shared/ui/Select';
@@ -128,7 +128,7 @@ export function SearchAndMapPage() {
 
   const results = (
     <section aria-labelledby="search-results-heading" className="flex min-w-0 flex-col gap-4">
-      <h2 id="search-results-heading" className="text-headline-sm text-on-surface" aria-live="polite">
+      <h2 id="search-results-heading" className="font-semibold text-on-surface" aria-live="polite">
         {resultsHeading}
       </h2>
       {state.restarted && (
@@ -221,23 +221,32 @@ export function SearchAndMapPage() {
 
   return (
     <div
-      className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-4 md:px-6"
+      className="ndc-page flex max-w-[1440px] flex-col gap-4 py-8 sm:py-10"
       data-ready={state.status === 'loading' ? 'false' : 'true'}
     >
-      <header className="flex flex-col gap-3">
-        <h1 className="sr-only">Tìm kiếm nhà đất</h1>
+      <div className="ndc-section-heading !mb-2">
+        <div>
+          <p className="!mt-0 text-xs font-semibold uppercase tracking-widest">Khám phá bất động sản</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+            {filters.purpose === 'RENT' ? 'Tìm nơi thuê phù hợp' : 'Tìm ngôi nhà tiếp theo'}
+          </h1>
+          <p>Chọn nhu cầu, thu hẹp khu vực và so sánh trước khi liên hệ.</p>
+        </div>
+      </div>
+      <header className="ndc-search-toolbar !mb-0" aria-label="Bộ lọc tìm kiếm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-          <ChipGroup label="Nhu cầu" className="shrink-0 flex-nowrap">
+          <div role="group" aria-label="Nhu cầu" className="ndc-purpose shrink-0 border">
             {(['SALE', 'RENT'] as const).map((purpose) => (
-              <Chip
+              <button
                 key={purpose}
-                selected={filters.purpose === purpose}
+                type="button"
+                aria-pressed={filters.purpose === purpose}
                 onClick={() => apply(withPurpose(filters, purpose))}
               >
-                {purpose === 'SALE' ? 'Mua' : 'Thuê'}
-              </Chip>
+                {purpose === 'SALE' ? 'Mua nhà' : 'Thuê nhà'}
+              </button>
             ))}
-          </ChipGroup>
+          </div>
           <SearchBox
             keyword={filters.q ?? ''}
             place={filters.place}
@@ -284,7 +293,11 @@ export function SearchAndMapPage() {
                 .map((value) => ({ value, label: SORT_LABELS[value] }))}
             />
           </div>
-          <div role="group" aria-label="Chế độ hiển thị kết quả" className="ml-auto flex gap-1">
+          <div
+            role="group"
+            aria-label="Chế độ hiển thị kết quả"
+            className="ml-auto flex gap-1 rounded-lg border bg-white p-1"
+          >
             <Chip selected={view === 'list'} onClick={() => setView('list')} icon={LayoutList}>
               Danh sách
             </Chip>
@@ -310,7 +323,9 @@ export function SearchAndMapPage() {
 
       {view === 'map' ? (
         <div className="flex flex-col gap-4">
-          <div className="relative h-[70dvh] overflow-hidden rounded-card border border-outline-variant">{map}</div>
+          <div className="relative h-[70dvh] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container">
+            {map}
+          </div>
           <div className="lg:hidden">
             <Button variant="outline" onClick={() => setView('list')} leftIcon={<LayoutList className="h-4 w-4" />}>
               Xem danh sách ({state.items.length})
@@ -322,7 +337,7 @@ export function SearchAndMapPage() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)]">
           <div className="lg:order-1">{results}</div>
           <div className="order-first lg:order-2">
-            <div className="relative h-[50dvh] overflow-hidden rounded-card border border-outline-variant lg:sticky lg:top-20 lg:h-[calc(100dvh-7rem)]">
+            <div className="relative h-[50dvh] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container lg:sticky lg:top-20 lg:h-[calc(100dvh-7rem)]">
               {map}
             </div>
           </div>

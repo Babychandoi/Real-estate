@@ -27,7 +27,7 @@ export const AdminLoginPage: React.FC = () => {
   };
 
   return (
-    <section className="mx-auto flex min-h-[calc(100dvh-16rem)] w-full max-w-md items-center px-4 py-10">
+    <main className="mx-auto flex min-h-[calc(100dvh-16rem)] w-full max-w-md items-center px-4 py-10">
       <form
         onSubmit={submit}
         className="w-full rounded-2xl border border-outline-variant/60 bg-white p-6 shadow-sm sm:p-8"
@@ -106,6 +106,6 @@ export const AdminLoginPage: React.FC = () => {
           </Link>
         </div>
       </form>
-    </section>
+    </main>
   );
 };

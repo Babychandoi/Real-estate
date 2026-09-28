@@ -1,169 +1,211 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Building2, Key, Shield, Filter } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Building2, CheckCheck, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
 import type { ListingSummaryV2 } from '@/entities/listing/model/v2';
-import { Button } from '@/shared/ui/Button';
+import { listingPath } from '@/entities/listing/model/seo';
 import { apiClient } from '@/shared/api/client';
-import { useNavigate } from 'react-router-dom';
+import { formatMoney } from '@/shared/format/money';
+import { ListingSkeleton, StatePanel } from '@/shared/ui/Feedback';
+import { ResponsiveImage } from '@/shared/ui/ResponsiveImage';
 
-export const HomePage: React.FC = () => {
+export function HomePage() {
   const navigate = useNavigate();
   const [purpose, setPurpose] = useState<'SALE' | 'RENT'>('SALE');
   const [keyword, setKeyword] = useState('');
   const [listings, setListings] = useState<ListingSummaryV2[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    let isMounted = true;
-    async function loadData() {
-      setIsLoading(true);
-      setLoadError(null);
-      try {
-        const data = (
-          await apiClient<{ items: ListingSummaryV2[] }>(`/api/v2/listings/search?purpose=${purpose}&size=6`)
-        ).items;
-        if (isMounted) {
-          setListings(data);
-        }
-      } catch (err) {
-        console.error('Không thể tải danh sách tin đăng từ API backend:', err);
-        if (isMounted) {
+    let active = true;
+    setLoading(true);
+    setFailed(false);
+    // Public search API v2 (contract §8); the home page shows the first page of the newest listings.
+    apiClient<{ items: ListingSummaryV2[] }>(`/api/v2/listings/search?purpose=${purpose}&size=6`)
+      .then((data) => {
+        if (active) setListings(data.items);
+      })
+      .catch(() => {
+        if (active) {
+          setFailed(true);
           setListings([]);
-          setLoadError('Không thể tải dữ liệu tin đăng. Vui lòng thử lại.');
         }
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    }
-    loadData();
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
     return () => {
-      isMounted = false;
+      active = false;
     };
-  }, [purpose]);
+  }, [purpose, attempt]);
 
-  const submitSearch = (searchKeyword = keyword) => {
+  const submitSearch = () => {
+    // URL state of the search page (features/search/filterSchema): keyword is `q`.
     const query = new URLSearchParams({ purpose });
-    if (searchKeyword.trim()) query.set('q', searchKeyword.trim());
+    if (keyword.trim()) query.set('q', keyword.trim());
     navigate(`/search?${query.toString()}`);
   };
 
+  const featured = listings.find((item) => item.image);
+
   return (
-    <div className="flex flex-col gap-8 pb-16" data-ready={isLoading ? 'false' : 'true'}>
-      {/* Hero Banner & Thanh tìm kiếm chính */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-primary-fixed/40 via-surface to-surface pt-10 pb-12 px-4 md:px-8 border-b border-outline-variant/30">
-        <div className="max-w-4xl mx-auto flex flex-col items-center text-center gap-4">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant text-xs font-semibold text-primary">
-            <Shield className="w-3.5 h-3.5 text-secondary" />
-            Tin đăng được kiểm duyệt nội dung
-          </div>
-
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-on-surface">
-            Minh bạch từng tin đăng, <br className="hidden sm:inline" />
-            <span className="text-primary">Dễ dàng tìm đúng nơi</span>
-          </h1>
-
-          <p className="text-sm md:text-base text-on-surface-variant max-w-xl">
-            Tìm kiếm bất động sản mua bán, cho thuê và liên hệ trực tiếp với người đăng. Trạng thái kiểm duyệt phản ánh
-            chất lượng nội dung, không thay thế thẩm định pháp lý.
-          </p>
-
-          {/* Toggle Mua bán / Cho thuê */}
-          <div className="mt-4 p-1.5 bg-surface-container rounded-xl flex gap-1 w-full max-w-xs shadow-inner">
-            <button
-              type="button"
-              onClick={() => setPurpose('SALE')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                purpose === 'SALE'
-                  ? 'bg-surface-container-lowest text-primary shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <Building2 className="w-4 h-4" />
-              Mua bán
-            </button>
-            <button
-              type="button"
-              onClick={() => setPurpose('RENT')}
-              className={`flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                purpose === 'RENT'
-                  ? 'bg-surface-container-lowest text-primary shadow-sm'
-                  : 'text-on-surface-variant hover:text-on-surface'
-              }`}
-            >
-              <Key className="w-4 h-4" />
-              Cho thuê
-            </button>
-          </div>
-
-          {/* Input Tìm kiếm thông minh */}
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              submitSearch();
-            }}
-            className="w-full max-w-2xl bg-surface-container-lowest rounded-2xl p-2.5 shadow-[0_10px_25px_-5px_rgba(15,76,129,0.12)] border border-outline-variant/60 flex flex-col sm:flex-row gap-2 mt-2"
-          >
-            <div className="flex items-center gap-2 flex-1 px-3">
-              <Search className="w-5 h-5 text-outline" />
-              <input
-                type="text"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Tìm theo khu vực, dự án, phường mới (QĐ 19/2025)..."
-                className="w-full bg-transparent text-sm text-on-surface placeholder:text-outline focus:outline-none py-1.5"
-              />
+    <div data-ready={loading ? 'false' : 'true'}>
+      <section className="ndc-home-hero">
+        <div className="ndc-page grid items-center gap-10 lg:grid-cols-[1.2fr_1fr]">
+          <div>
+            <p className="mb-4 text-xs font-semibold uppercase tracking-[.18em] text-secondary">
+              Một nơi ở. Nhiều khởi đầu.
+            </p>
+            <h1>
+              Ngôi nhà phù hợp,
+              <br />
+              từ thông tin rõ ràng.
+            </h1>
+            <p className="mt-5 max-w-lg text-base leading-7 text-on-surface-variant">
+              Tìm mua, thuê và so sánh bất động sản. Nội dung tin đăng được kiểm duyệt; trạng thái kiểm duyệt không thay
+              thế thẩm định pháp lý.
+            </p>
+            <div className="ndc-purpose mb-3 mt-7">
+              <button type="button" aria-pressed={purpose === 'SALE'} onClick={() => setPurpose('SALE')}>
+                Mua nhà
+              </button>
+              <button type="button" aria-pressed={purpose === 'RENT'} onClick={() => setPurpose('RENT')}>
+                Thuê nhà
+              </button>
             </div>
-            <Button type="submit" variant="primary" size="md" className="rounded-xl px-6">
-              Tìm kiếm
-            </Button>
-          </form>
+            <form
+              className="ndc-search-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitSearch();
+              }}
+            >
+              <label className="flex min-w-0 flex-1 items-center gap-3 px-3">
+                <MapPin className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                <span className="sr-only">Từ khóa hoặc địa điểm</span>
+                <input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="Dự án, đường hoặc khu vực…"
+                  maxLength={100}
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-offset-0"
+                />
+              </label>
+              <button className="ndc-primary-link" type="submit">
+                <Search className="h-4 w-4" aria-hidden="true" />
+                Tìm kiếm
+              </button>
+            </form>
+            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-on-surface-variant">
+              {[
+                ['APARTMENT', 'Căn hộ'],
+                ['HOUSE', 'Nhà riêng'],
+                ['LAND', 'Đất'],
+              ].map(([value, label]) => (
+                <Link
+                  className="inline-flex min-h-11 items-center gap-1 hover:text-primary"
+                  key={value}
+                  to={`/search?purpose=${purpose}&type=${value}`}
+                >
+                  {label}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="relative hidden overflow-hidden rounded-[24px] bg-primary lg:block">
+            {featured && !failed && !loading ? (
+              <Link to={listingPath(featured)} className="block">
+                <ResponsiveImage
+                  image={featured.image}
+                  alt={featured.title}
+                  sizes="(min-width: 1024px) 40vw, 100vw"
+                  aspectRatio="5 / 4"
+                  loading="eager"
+                  priority
+                  imgClassName="h-full w-full object-cover"
+                />
+                <div className="bg-primary p-6 text-white">
+                  <p className="mb-2 text-xs uppercase tracking-widest text-white/80">Tin vừa cập nhật</p>
+                  <h2 className="line-clamp-2 text-xl font-semibold">{featured.title}</h2>
+                  <p className="mt-3 text-sm">
+                    {formatMoney(featured.price)} · {featured.areaM2} m²
+                  </p>
+                </div>
+              </Link>
+            ) : (
+              <div className="flex min-h-[420px] flex-col justify-end p-10 text-white">
+                <Building2 className="mb-12 h-24 w-24 text-white/60" aria-hidden="true" />
+                <p className="text-3xl font-semibold">
+                  Thêm một lựa chọn.
+                  <br />
+                  Gần hơn một tổ ấm.
+                </p>
+                <p className="mt-4 text-sm text-white/80">Khám phá tin đăng theo nhu cầu của bạn.</p>
+              </div>
+            )}
+          </div>
         </div>
       </section>
-
-      {/* Danh sách tin đăng nổi bật */}
-      <section className="max-w-6xl mx-auto w-full px-4 md:px-8">
-        <div className="flex items-center justify-between mb-6">
+      <section className="ndc-page py-10 sm:py-14">
+        <div className="ndc-section-heading">
           <div>
-            <h2 className="text-xl md:text-2xl font-bold text-on-surface">Tin đăng mới nhất</h2>
-            <p className="text-xs md:text-sm text-on-surface-variant mt-0.5">
-              Nội dung đã qua kiểm duyệt; hãy xác minh pháp lý và hiện trạng trước khi quyết định
-            </p>
+            <h2>{purpose === 'SALE' ? 'Bất động sản mới đăng bán' : 'Không gian mới cho thuê'}</h2>
+            <p>Nội dung đã qua kiểm duyệt; hãy xác minh pháp lý và hiện trạng trước khi quyết định.</p>
           </div>
-          <Button variant="outline" size="sm" leftIcon={<Filter className="w-4 h-4" />} onClick={() => submitSearch()}>
-            Bộ lọc
-          </Button>
+          <Link to={`/search?purpose=${purpose}`} className="ndc-text-link">
+            Xem tất cả
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
         </div>
-
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="h-80 bg-surface-container-high rounded-xl animate-pulse"></div>
-            ))}
-          </div>
-        ) : loadError ? (
-          <div className="rounded-xl bg-rose-50 py-10 text-center" role="alert">
-            <p className="text-rose-800">{loadError}</p>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white"
-            >
-              Thử lại
-            </button>
-          </div>
-        ) : listings.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {listings.map((item) => (
-              <ListingCard key={item.id} listing={item} />
-            ))}
-          </div>
+        {loading ? (
+          <ListingSkeleton />
+        ) : failed ? (
+          <StatePanel error onRetry={() => setAttempt((value) => value + 1)} />
+        ) : !listings.length ? (
+          <StatePanel
+            title="Chưa có tin mới trong mục này"
+            description="Bạn có thể đổi nhu cầu hoặc khám phá những khu vực khác."
+          />
         ) : (
-          <div className="text-center py-12 bg-surface-container-low rounded-xl">
-            <p className="text-on-surface-variant">Không tìm thấy tin đăng phù hợp.</p>
+          <div className="ndc-listing-grid">
+            {listings.map((listing, index) => (
+              <ListingCard key={listing.id} listing={listing} priority={index < 3} />
+            ))}
           </div>
         )}
       </section>
+      <section className="ndc-page">
+        <div className="grid gap-6 rounded-2xl border border-outline-variant/40 bg-white p-6 sm:p-8 md:grid-cols-3">
+          {[
+            {
+              icon: SlidersHorizontal,
+              title: 'Tìm đúng nhu cầu',
+              body: 'Lọc theo loại hình, ngân sách, diện tích và khu vực.',
+            },
+            {
+              icon: CheckCheck,
+              title: 'So sánh có cơ sở',
+              body: 'Đặt các tin cạnh nhau để nhìn rõ giá và đặc điểm.',
+            },
+            {
+              icon: MapPin,
+              title: 'Chủ động kết nối',
+              body: 'Gửi yêu cầu tư vấn hoặc hẹn xem khi bạn đã sẵn sàng.',
+            },
+          ].map(({ icon: Icon, title, body }) => (
+            <div key={title}>
+              <Icon className="mb-4 h-6 w-6 text-secondary" aria-hidden="true" />
+              <h2 className="font-semibold">{title}</h2>
+              <p className="mt-2 text-sm leading-7 text-on-surface-variant">{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
-};
+}
+
+export default HomePage;

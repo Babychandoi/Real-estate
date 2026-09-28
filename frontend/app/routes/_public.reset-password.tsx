@@ -37,6 +37,7 @@ export function ResetPasswordPage() {
   if (!validToken)
     return (
       <div className="mx-auto max-w-md px-4 py-12">
+        <h1 className="mb-4 text-2xl font-semibold">Đặt lại mật khẩu</h1>
         <p className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-800">
           Liên kết đặt lại mật khẩu không hợp lệ.{' '}
           <Link to="/forgot-password" className="font-bold underline">
