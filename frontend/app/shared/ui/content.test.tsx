@@ -22,6 +22,32 @@ describe('TrustBadge (contract §6)', () => {
     expect(trustLabel('identity', 'REJECTED')).toBe(trustLabel('identity', 'NOT_SUBMITTED'));
   });
 
+  it('falls back to the same kind\'s "not submitted" copy for an unrecognised status (m8)', () => {
+    // @ts-expect-error — simulating a status value this build does not know about yet
+    render(<TrustBadge kind="identity" status="SOMETHING_NEW" />);
+    expect(screen.getByText('Chưa xác minh danh tính người đăng')).toBeInTheDocument();
+    expect(screen.queryByText('Nội dung tin chưa qua kiểm duyệt')).toBeNull();
+
+    // @ts-expect-error — same for ownership
+    render(<TrustBadge kind="ownership" status="SOMETHING_NEW" />);
+    expect(screen.getByText('Chưa đối chiếu giấy tờ chủ sở hữu')).toBeInTheDocument();
+  });
+
+  it('never shows a check date for a rejected status (m8)', () => {
+    render(
+      <TrustBadge
+        kind="ownership"
+        status="REJECTED"
+        checkedAt="2026-08-12T02:00:00Z"
+        expiresAt="2028-08-12T02:00:00Z"
+        detailed
+      />,
+    );
+    const note = screen.getByText(/Đối chiếu tại thời điểm kiểm tra/);
+    expect(note).not.toHaveTextContent('Kiểm tra ngày');
+    expect(note).not.toHaveTextContent('Hiệu lực đến');
+  });
+
   it('shows the scope note and dates in detailed mode', () => {
     render(
       <TrustBadge

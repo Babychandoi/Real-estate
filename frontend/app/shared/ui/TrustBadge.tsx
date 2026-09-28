@@ -106,6 +106,14 @@ interface TrustBadgeProps<K extends TrustKind> {
   className?: string;
 }
 
+/** Fallback copy per kind for a status this badge doesn't recognise (e.g. a future enum value): the same wording
+ * as "not submitted" for that kind, never another kind's text. */
+const UNKNOWN_STATUS_FALLBACK: { [K in TrustKind]: Copy } = {
+  identity: COPY.identity.NOT_SUBMITTED,
+  listing: COPY.listing.NOT_CHECKED,
+  ownership: COPY.ownership.NOT_SUBMITTED,
+};
+
 export function TrustBadge<K extends TrustKind>({
   kind,
   status,
@@ -114,10 +122,13 @@ export function TrustBadge<K extends TrustKind>({
   detailed = false,
   className,
 }: TrustBadgeProps<K>) {
-  const copy = (COPY[kind] as Record<string, Copy>)[status] ?? COPY.listing.NOT_CHECKED;
+  const copy = (COPY[kind] as Record<string, Copy>)[status] ?? UNKNOWN_STATUS_FALLBACK[kind];
   const Icon = copy.icon;
-  const checked = formatDate(checkedAt);
-  const expires = formatDate(expiresAt);
+  // A rejected check shows no dates: the badge already reads like "not verified" (deviation #8), and a date
+  // would look like evidence that a check happened even though the outcome is withheld from the public.
+  const showDates = status !== 'REJECTED';
+  const checked = showDates ? formatDate(checkedAt) : null;
+  const expires = showDates ? formatDate(expiresAt) : null;
   const badge = (
     <span
       className={cn(
