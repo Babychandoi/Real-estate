@@ -1,4 +1,4 @@
-package com.company.bds.catalog.infrastructure.persistence.port;
+package com.company.bds.catalog.application.port.out;
 
 import com.company.bds.catalog.domain.model.Project;
 import java.util.List;

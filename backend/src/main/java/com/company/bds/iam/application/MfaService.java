@@ -4,7 +4,6 @@ import com.company.bds.iam.domain.ClientContext;
 import com.company.bds.iam.domain.Totp;
 import com.company.bds.shared.error.ApiException;
 import com.company.bds.shared.security.PiiProtectionService;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,7 +67,7 @@ public class MfaService {
                 "SELECT COALESCE(SUM(failed_attempts), 0) FROM mfa_challenges WHERE user_id = ? AND created_at > ?",
                 Integer.class, userId, Timestamp.from(now.minus(ACCOUNT_FAILURE_WINDOW)));
         if (recentFailures != null && recentFailures >= ACCOUNT_FAILURE_LIMIT) {
-            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "MFA_TEMPORARILY_LOCKED",
+            throw ApiException.tooManyRequests("MFA_TEMPORARILY_LOCKED",
                     "Đã nhập sai mã xác thực quá nhiều lần. Hãy thử lại sau 1 giờ hoặc liên hệ một quản trị viên khác.");
         }
         String purpose = isEnrolled(userId) ? "VERIFY" : "ENROLL";
@@ -198,7 +197,7 @@ public class MfaService {
                 attempts, locked, Timestamp.from(clock.instant()), challenge.id());
         events.record(challenge.userId(), locked ? SecurityEventLog.Type.MFA_CHALLENGE_LOCKED : SecurityEventLog.Type.MFA_FAILED, client);
         if (locked) {
-            return new ApiException(HttpStatus.UNAUTHORIZED, "MFA_CHALLENGE_LOCKED",
+            return ApiException.unauthorized("MFA_CHALLENGE_LOCKED",
                     "Nhập sai mã quá nhiều lần. Hãy đăng nhập lại từ đầu.");
         }
         int left = policy.challengeMaxAttempts() - attempts;
@@ -219,7 +218,7 @@ public class MfaService {
     }
 
     private static ApiException challengeInvalid() {
-        return new ApiException(HttpStatus.UNAUTHORIZED, "MFA_CHALLENGE_INVALID", CHALLENGE_INVALID);
+        return ApiException.unauthorized("MFA_CHALLENGE_INVALID", CHALLENGE_INVALID);
     }
 
     private void consume(UUID challengeId) {

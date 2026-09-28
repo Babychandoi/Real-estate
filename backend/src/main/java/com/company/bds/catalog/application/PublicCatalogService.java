@@ -10,7 +10,6 @@ import com.company.bds.catalog.application.port.PublicCatalogStore.ProjectRow;
 import com.company.bds.search.application.port.ResponseCachePort;
 import com.company.bds.shared.error.ApiException;
 import com.company.bds.shared.security.ContactInfoGuard;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -88,7 +87,7 @@ public class PublicCatalogService {
                 () -> store.projectBySlug(slug).map(p -> p.locked() ? new ProjectPage(p, List.of(), null)
                         : new ProjectPage(publicProject(p), store.amenities(p.id()), inventory(store.projectInventory(p.id())))).orElse(null));
         if (page == null) throw projectNotFound();
-        if (page.project().locked()) throw new ApiException(HttpStatus.GONE, "PROJECT_GONE", "Dự án không còn hiển thị công khai.");
+        if (page.project().locked()) throw ApiException.gone("PROJECT_GONE", "Dự án không còn hiển thị công khai.");
         return page;
     }
 

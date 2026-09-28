@@ -1,5 +1,6 @@
 package com.company.bds.catalog.api;
 
+import com.company.bds.shared.error.ApiException;
 import com.company.bds.catalog.api.request.CreateProjectRequest;
 import com.company.bds.catalog.api.response.ProjectResponse;
 import com.company.bds.catalog.application.ProjectCatalogService;
@@ -53,13 +54,17 @@ public class ProjectController {
     public ResponseEntity<ProjectResponse> getProjectById(@PathVariable UUID id) {
         return projectService.getProjectById(id)
                 .map(p -> ResponseEntity.ok(ProjectResponse.fromDomain(p)))
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(ProjectController::projectNotFound);
     }
 
     @GetMapping("/slug/{slug}")
     public ResponseEntity<ProjectResponse> getProjectBySlug(@PathVariable String slug) {
         return projectService.getProjectBySlug(slug)
                 .map(p -> ResponseEntity.ok(ProjectResponse.fromDomain(p)))
-                .orElse(ResponseEntity.notFound().build());
+                .orElseThrow(ProjectController::projectNotFound);
+    }
+
+    private static ApiException projectNotFound() {
+        return ApiException.notFound("PROJECT_NOT_FOUND", "Không tìm thấy dự án.");
     }
 }

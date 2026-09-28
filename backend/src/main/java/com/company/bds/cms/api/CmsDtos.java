@@ -102,11 +102,7 @@ public final class CmsDtos {
     public record PublicPageResponse(List<PublicArticleResponse> items, long total, int page, int size, boolean hasNext) {}
 
     public static String categoryLabel(ArticleCategory category) {
-        return switch (category) {
-            case LEGAL_POLICY -> "Chính sách & pháp lý";
-            case KNOWLEDGE -> "Kiến thức";
-            case MARKET_INSIGHTS -> "Thị trường";
-        };
+        return category.label();
     }
 
     private static Instant later(Instant a, Instant b) {

@@ -101,6 +101,8 @@ springdoc:
   api-docs:
     enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
     path: /v3/api-docs
+  # S9 (F22.4): schemas are named by class first, then shortened uniquely by OpenApiSchemaNames
+  use-fqn: true
   swagger-ui:
     path: /swagger-ui.html
     operations-sorter: method
@@ -108,9 +110,15 @@ springdoc:
     display-request-duration: true
 
 # Cấu hình logging bảo mật (không log PII / secret)
+# S9-QUALITY (F22.2): one JSON object per line (Logstash layout: @timestamp, level, logger_name, thread_name, message,
+# stack_trace) plus the MDC of the request (requestId, traceId from RequestIdFilter). Every string value passes through
+# PiiLogMasker (e-mail, phone, bearer token, password/token/secret pairs).
 logging:
-  pattern:
-    console: "{\"timestamp\":\"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}\",\"level\":\"%level\",\"logger\":\"%logger{36}\",\"message\":\"%replace(%msg){'\"','\\\"'}\"}%n"
+  structured:
+    format:
+      console: logstash
+    json:
+      customizer: com.company.bds.shared.observability.PiiMaskingLogCustomizer
   level:
     root: INFO
     com.company.bds: ${APP_LOG_LEVEL:INFO}

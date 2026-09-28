@@ -9,7 +9,6 @@ import com.company.bds.shared.error.ApiException;
 import com.company.bds.shared.jobs.JobQueue;
 import com.company.bds.shared.security.ContactInfoGuard;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -307,7 +306,7 @@ public class AppointmentService {
 
     private Map<String, Object> lockAppointment(UUID appointmentId, Long expectedVersion) {
         if (expectedVersion == null) {
-            throw new ApiException(HttpStatus.PRECONDITION_REQUIRED, "EXPECTED_VERSION_REQUIRED", "Thiếu expectedVersion của lịch hẹn.");
+            throw ApiException.preconditionRequired("EXPECTED_VERSION_REQUIRED", "Thiếu expectedVersion của lịch hẹn.");
         }
         Map<String, Object> row = jdbc.queryForMap(
                 "SELECT status, proposed_by_side, version, starts_at FROM viewing_appointments WHERE id = ? FOR UPDATE", appointmentId);

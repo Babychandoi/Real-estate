@@ -3,7 +3,7 @@ package com.company.bds.transaction.application;
 import com.company.bds.listing.application.port.out.ListingPersistencePort;
 import com.company.bds.listing.domain.model.Listing;
 import com.company.bds.transaction.domain.model.DepositContract;
-import com.company.bds.transaction.infrastructure.persistence.port.DepositContractPersistencePort;
+import com.company.bds.transaction.application.port.out.DepositContractPersistencePort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;

@@ -10,7 +10,6 @@ import com.company.bds.cms.domain.model.ArticleRevision;
 import com.company.bds.cms.domain.model.ArticleStatus;
 import com.company.bds.cms.domain.model.RevisionContent;
 import com.company.bds.shared.error.ApiException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -292,7 +291,7 @@ public class CmsArticleApplicationService {
         String author = required(c.authorName(), 255, "CMS_AUTHOR_REQUIRED", "Nhập tên tác giả hoặc ban biên tập.");
         String html = CmsHtmlSanitizer.sanitize(c.contentHtml());
         if (html == null || CmsHtmlSanitizer.text(html).isBlank()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "CMS_BODY_REQUIRED", "Nội dung bài viết không được để trống.");
+            throw ApiException.badRequest("CMS_BODY_REQUIRED", "Nội dung bài viết không được để trống.");
         }
         String sourceUrl = optionalUrl(c.sourceUrl(), false, "CMS_SOURCE_URL_INVALID", "Đường dẫn nguồn phải bắt đầu bằng https:// hoặc http://.");
         String cover = optionalUrl(c.coverImageUrl(), true, "CMS_COVER_URL_INVALID", "Ảnh bìa phải là ảnh đã tải lên hoặc đường dẫn https://.");

@@ -23,8 +23,7 @@ public class ProductionSafetyValidator implements ApplicationRunner {
     private final String mediaBucket;
     private final String searchCursorSecret;
     /** HMAC key of signed media URLs (S1-MEDIA); must be identical on every instance. */
-    @Value("${app.media.signing-secret:}")
-    private String mediaSigningSecret = "";
+    private final String mediaSigningSecret;
 
     public ProductionSafetyValidator(@Value("${app.mode:demo}") String mode,
                                      @Value("${spring.datasource.password:}") String databasePassword,
@@ -40,7 +39,8 @@ public class ProductionSafetyValidator implements ApplicationRunner {
                                      @Value("${app.media.access-key:}") String mediaAccessKey,
                                      @Value("${app.media.secret-key:}") String mediaSecretKey,
                                      @Value("${app.media.bucket:}") String mediaBucket,
-                                     @Value("${app.search.cursor-secret:}") String searchCursorSecret) {
+                                     @Value("${app.search.cursor-secret:}") String searchCursorSecret,
+                                     @Value("${app.media.signing-secret:}") String mediaSigningSecret) {
         this.mode = mode;
         this.databasePassword = databasePassword;
         this.redisPassword = redisPassword;
@@ -56,6 +56,7 @@ public class ProductionSafetyValidator implements ApplicationRunner {
         this.mediaSecretKey = mediaSecretKey;
         this.mediaBucket = mediaBucket;
         this.searchCursorSecret = searchCursorSecret;
+        this.mediaSigningSecret = mediaSigningSecret;
     }
 
     @Override public void run(ApplicationArguments args) {

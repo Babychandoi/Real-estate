@@ -7,7 +7,6 @@ import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.notification.RealtimeNotificationService;
 import com.company.bds.shared.error.ApiException;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -206,7 +205,7 @@ public class LeadCommandService {
 
     private void requireVersion(Long expectedVersion, LeadAccess lead) {
         if (expectedVersion == null) {
-            throw new ApiException(HttpStatus.PRECONDITION_REQUIRED, "EXPECTED_VERSION_REQUIRED",
+            throw ApiException.preconditionRequired("EXPECTED_VERSION_REQUIRED",
                     "Thiếu expectedVersion: tải lại yêu cầu rồi thử lại.");
         }
         if (expectedVersion != lead.version()) throw conflict(lead.leadId());

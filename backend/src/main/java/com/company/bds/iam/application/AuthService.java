@@ -1,7 +1,6 @@
 package com.company.bds.iam.application;
 
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Value;
@@ -360,7 +359,7 @@ public class AuthService {
 
     private static ApiException tokenProblem(TokenStatus status, String purpose) {
         return switch (status) {
-            case EXPIRED -> new ApiException(HttpStatus.GONE, "TOKEN_EXPIRED",
+            case EXPIRED -> ApiException.gone("TOKEN_EXPIRED",
                     "Liên kết " + purpose + " đã hết hạn. Hãy yêu cầu liên kết mới.");
             case USED -> ApiException.conflict("TOKEN_USED", "Liên kết " + purpose + " đã được sử dụng.");
             case SUPERSEDED -> ApiException.conflict("TOKEN_SUPERSEDED",

@@ -14,7 +14,6 @@ import com.company.bds.shared.jobs.JobQueue;
 import com.company.bds.shared.outbox.OutboxEventWriter;
 import com.company.bds.shared.security.PiiProtectionService;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -165,7 +164,7 @@ public class LeadApplicationService {
         Long requesterCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM leads WHERE requester_id = ? AND created_at > ?", Long.class, requesterId, since);
         if ((phoneCount != null && phoneCount >= QUOTA_PER_DAY) || (requesterCount != null && requesterCount >= QUOTA_PER_DAY)) {
-            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "LEAD_QUOTA_EXCEEDED",
+            throw ApiException.tooManyRequests("LEAD_QUOTA_EXCEEDED",
                     "Bạn đã gửi quá " + QUOTA_PER_DAY + " yêu cầu liên hệ trong 24 giờ. Vui lòng thử lại sau.");
         }
 

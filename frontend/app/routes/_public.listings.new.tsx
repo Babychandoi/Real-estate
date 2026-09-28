@@ -332,7 +332,10 @@ export const CreateListingPage: React.FC = () => {
       for (const file of selected) {
         const form = new FormData();
         form.append('file', file);
-        const result = await apiClient<{ url: string; previewUrl?: string | null; previewExpiresAt?: string | null }>('/media/images', { method: 'POST', body: form });
+        const result = await apiClient<{ url: string; previewUrl?: string | null; previewExpiresAt?: string | null }>(
+          '/media/images',
+          { method: 'POST', body: form },
+        );
         rememberSignedMediaUrl(result.url, result.previewUrl, result.previewExpiresAt);
         setFields((current) => ({ ...current, imageUrls: [...current.imageUrls, result.url] }));
       }
@@ -970,7 +973,11 @@ export const CreateListingPage: React.FC = () => {
                   ) : (
                     <article className="mx-auto max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                       {preview.images[0] ? (
-                        <img src={displayMedia(preview.images[0].url)} alt="Ảnh bìa" className="aspect-video w-full object-cover" />
+                        <img
+                          src={displayMedia(preview.images[0].url)}
+                          alt="Ảnh bìa"
+                          className="aspect-video w-full object-cover"
+                        />
                       ) : (
                         <div className="flex aspect-video items-center justify-center bg-surface-container text-on-surface-variant">
                           <ImageIcon className="h-8 w-8" aria-hidden="true" /> Chưa có ảnh

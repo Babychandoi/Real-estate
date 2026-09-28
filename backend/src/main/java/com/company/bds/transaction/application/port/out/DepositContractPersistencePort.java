@@ -1,4 +1,4 @@
-package com.company.bds.transaction.infrastructure.persistence.port;
+package com.company.bds.transaction.application.port.out;
 
 import com.company.bds.transaction.domain.model.DepositContract;
 

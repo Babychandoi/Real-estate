@@ -109,6 +109,9 @@ jobs:
       - name: Formatting (Prettier)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run format:check
+      - name: API contract (types generated from the backend's OpenAPI snapshot)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run check:api
       - name: Unit tests (Vitest)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run test:unit -- --reporter=default --reporter=junit --outputFile.junit=test-results/unit/junit.xml

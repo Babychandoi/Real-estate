@@ -2,7 +2,7 @@ package com.company.bds.catalog.infrastructure.persistence.adapter;
 
 import com.company.bds.catalog.domain.model.Project;
 import com.company.bds.catalog.infrastructure.persistence.entity.ProjectJpaEntity;
-import com.company.bds.catalog.infrastructure.persistence.port.ProjectPersistencePort;
+import com.company.bds.catalog.application.port.out.ProjectPersistencePort;
 import com.company.bds.catalog.infrastructure.persistence.repository.ProjectJpaRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.data.domain.PageRequest;
