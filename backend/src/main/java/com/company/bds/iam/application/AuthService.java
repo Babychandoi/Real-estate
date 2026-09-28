@@ -385,6 +385,11 @@ public class AuthService {
         return sessions.find(rawToken);
     }
 
+    /** Same lookup; {@code recordActivity=false} leaves the idle timer alone (background traffic). */
+    public SessionService.ActiveSession findSession(String rawToken, boolean recordActivity) {
+        return sessions.find(rawToken, recordActivity);
+    }
+
     private UserAccount loadUser(UUID id) {
         return jdbc.queryForObject("""
                 SELECT u.id,u.full_name,u.email,u.password_hash,%s AS role FROM users u WHERE u.id=?

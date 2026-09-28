@@ -52,3 +52,9 @@ CREATE INDEX idx_auth_security_events_user ON auth_security_events (user_id, cre
 ALTER TABLE user_admin_actions DROP CONSTRAINT chk_user_admin_actions_action;
 ALTER TABLE user_admin_actions ADD CONSTRAINT chk_user_admin_actions_action
     CHECK (action IN ('ROLE_CHANGE', 'LOCK', 'UNLOCK', 'MFA_RESET', 'SESSIONS_REVOKE'));
+
+-- Staff sessions opened before this release were created without a second factor: end them, so every ADMIN/MODERATOR
+-- signs in again through the MFA step (the first sign-in enrols an authenticator).
+UPDATE auth_sessions s SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = 'MFA_ROLLOUT'
+WHERE s.revoked_at IS NULL
+  AND EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = s.user_id AND r.role IN ('ADMIN', 'MODERATOR'));

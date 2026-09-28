@@ -176,6 +176,31 @@ class AdminMfaTests {
     }
 
     @Test
+    void wrongCodesAreCappedPerAccountAcrossChallengesAndRecoveryCodesAreStoredKeyed() throws Exception {
+        TestData.TestUser admin = data.user().role(Roles.ADMIN).create();
+        StaffLogin.Enrolled enrolled = staff.enrol(admin.email());
+        String stored = jdbc.queryForList("SELECT code_hash FROM user_mfa_recovery_codes WHERE user_id = ?", String.class, admin.id()).get(0);
+        assertThat(enrolled.recoveryCodes()).noneMatch(code -> com.company.bds.iam.application.AuthService.sha256(code.replace("-", "")).equals(stored)
+                || com.company.bds.iam.application.AuthService.sha256(code).equals(stored));
+
+        String right = Totp.code(enrolled.secret(), Totp.step(Instant.now()) + 1);
+        // Two burnt challenges = 10 wrong codes within the hour.
+        for (int challenge = 0; challenge < 2; challenge++) {
+            String token = staff.passwordStep(admin.email()).get("challengeToken").asText();
+            for (int attempt = 0; attempt < 5; attempt++) {
+                staff.call("/api/v1/auth/admin/mfa/verify", "{\"challengeToken\":\"%s\",\"code\":\"%s\"}".formatted(token, wrong(right)));
+            }
+        }
+        staff.call("/api/v1/auth/admin/login", "{\"email\":\"%s\",\"password\":\"%s\"}".formatted(admin.email(), TestData.DEFAULT_PASSWORD))
+                .andExpect(status().isTooManyRequests()).andExpect(jsonPath("$.code").value("MFA_TEMPORARILY_LOCKED"));
+        // An hour later the account can try again.
+        jdbc.update("UPDATE mfa_challenges SET created_at = created_at - interval '61 minutes' WHERE user_id = ?", admin.id());
+        String token = staff.passwordStep(admin.email()).get("challengeToken").asText();
+        staff.call("/api/v1/auth/admin/mfa/verify", "{\"challengeToken\":\"%s\",\"code\":\"%s\"}".formatted(token, right))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void anAdminResetsAnotherStaffMembersAuthenticatorWithAReasonAndTheirSessionsEnd() throws Exception {
         TestData.TestUser admin = data.user().role(Roles.ADMIN).create();
         TestData.TestUser moderator = data.user().role(Roles.MODERATOR).create();

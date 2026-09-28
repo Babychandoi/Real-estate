@@ -30,6 +30,8 @@ import java.util.UUID;
 public class MfaService {
     static final String SECRET_PURPOSE = "mfa-totp-secret";
     static final int RECOVERY_CODE_COUNT = 10;
+    static final int ACCOUNT_FAILURE_LIMIT = 10;
+    static final java.time.Duration ACCOUNT_FAILURE_WINDOW = java.time.Duration.ofHours(1);
     private static final SecureRandom RANDOM = new SecureRandom();
     /** Crockford-like alphabet without 0/O/1/I/L so codes can be read back from paper. */
     private static final char[] CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789".toCharArray();
@@ -60,6 +62,15 @@ public class MfaService {
     /** Challenge for a staff account whose password was just verified; ENROLL when no authenticator is confirmed yet. */
     public Challenge startChallenge(UUID userId) {
         Instant now = clock.instant();
+        // Each challenge burns after a few wrong codes, but whoever has the password can ask for new ones: wrong codes
+        // are also capped per account and hour (the BdsMfaChallengeLocked alert fires meanwhile).
+        Integer recentFailures = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(failed_attempts), 0) FROM mfa_challenges WHERE user_id = ? AND created_at > ?",
+                Integer.class, userId, Timestamp.from(now.minus(ACCOUNT_FAILURE_WINDOW)));
+        if (recentFailures != null && recentFailures >= ACCOUNT_FAILURE_LIMIT) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "MFA_TEMPORARILY_LOCKED",
+                    "Đã nhập sai mã xác thực quá nhiều lần. Hãy thử lại sau 1 giờ hoặc liên hệ một quản trị viên khác.");
+        }
         String purpose = isEnrolled(userId) ? "VERIFY" : "ENROLL";
         // One open challenge per account: a new login replaces the previous one.
         jdbc.update("UPDATE mfa_challenges SET consumed_at = ? WHERE user_id = ? AND consumed_at IS NULL", Timestamp.from(now), userId);
@@ -118,7 +129,7 @@ public class MfaService {
         if (recoveryCode != null && !recoveryCode.isBlank()) {
             int used = jdbc.update("""
                     UPDATE user_mfa_recovery_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at IS NULL
-                    """, Timestamp.from(clock.instant()), userId, AuthService.sha256(normalizeRecoveryCode(recoveryCode)));
+                    """, Timestamp.from(clock.instant()), userId, recoveryCodeHash(recoveryCode));
             if (used == 0) throw wrongCode(challenge, client);
             consume(challenge.id());
             events.record(userId, SecurityEventLog.Type.MFA_RECOVERY_CODE_USED, client);
@@ -222,7 +233,7 @@ public class MfaService {
             String code = randomRecoveryCode();
             codes.add(code);
             jdbc.update("INSERT INTO user_mfa_recovery_codes(id, user_id, code_hash, created_at) VALUES (?,?,?,?)",
-                    UUID.randomUUID(), userId, AuthService.sha256(normalizeRecoveryCode(code)), Timestamp.from(clock.instant()));
+                    UUID.randomUUID(), userId, recoveryCodeHash(code), Timestamp.from(clock.instant()));
         }
         return codes;
     }
@@ -235,6 +246,14 @@ public class MfaService {
             out.append(CODE_ALPHABET[RANDOM.nextInt(CODE_ALPHABET.length)]);
         }
         return out.toString();
+    }
+
+    /**
+     * Keyed (HMAC-SHA256 with the blind-index key), not a bare SHA-256: a code carries about 49 bits, so an unkeyed hash
+     * from a leaked table could be brute-forced offline.
+     */
+    private String recoveryCodeHash(String code) {
+        return crypto.blindIndex("mfa-recovery:" + normalizeRecoveryCode(code));
     }
 
     static String normalizeRecoveryCode(String code) {

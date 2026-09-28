@@ -122,6 +122,24 @@ class SessionLifecycleTests {
     }
 
     @Test
+    void theNotificationStreamDoesNotKeepAnIdleStaffSessionAlive() throws Exception {
+        TestData.TestUser moderator = data.user().role(Roles.MODERATOR).create();
+        String token = staff.enrol(moderator.email()).accessToken();
+        String hash = AuthService.sha256(token);
+        jdbc.update("UPDATE auth_sessions SET last_seen_at = now() - interval '20 minutes' WHERE token_hash = ?", hash);
+        Instant before = jdbc.queryForObject("SELECT last_seen_at FROM auth_sessions WHERE token_hash = ?", java.sql.Timestamp.class, hash).toInstant();
+        // The stream request is authenticated (whatever its outcome) but records no activity.
+        mockMvc.perform(get("/api/v1/notifications/stream").header("Authorization", "Bearer " + token)
+                .header("Accept", "text/event-stream")).andReturn();
+        assertThat(jdbc.queryForObject("SELECT last_seen_at FROM auth_sessions WHERE token_hash = ?", java.sql.Timestamp.class, hash)
+                .toInstant()).isEqualTo(before);
+        // A real request does.
+        expectSignedIn("Bearer " + token, true);
+        assertThat(jdbc.queryForObject("SELECT last_seen_at FROM auth_sessions WHERE token_hash = ?", java.sql.Timestamp.class, hash)
+                .toInstant()).isAfter(before);
+    }
+
+    @Test
     void activityIsRecordedAtMostOnceAMinute() throws Exception {
         TestData.TestUser user = data.user().create();
         String bearer = bearer(user);

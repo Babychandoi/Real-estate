@@ -61,7 +61,10 @@ public class SessionService {
      * The active session of a raw token: not revoked, before its absolute expiry, within its idle timeout, account
      * ACTIVE. Refreshes {@code last_seen_at} when it is older than a minute.
      */
-    public ActiveSession find(String rawToken) {
+    public ActiveSession find(String rawToken) { return find(rawToken, true); }
+
+    /** {@code recordActivity=false} for background traffic (the notification stream) that must not keep a staff session alive. */
+    public ActiveSession find(String rawToken, boolean recordActivity) {
         if (rawToken == null || rawToken.isBlank() || rawToken.length() > 256) return null;
         Timestamp now = Timestamp.from(clock.instant());
         List<ActiveSession> sessions = jdbc.query("""
@@ -74,7 +77,7 @@ public class SessionService {
                 rs.getString(5), null, rs.getString(6))), AuthService.sha256(rawToken), now, now);
         if (sessions.isEmpty()) return null;
         ActiveSession session = sessions.get(0);
-        if (session.lastSeenAt().isBefore(now.toInstant().minus(TOUCH_INTERVAL))) {
+        if (recordActivity && session.lastSeenAt().isBefore(now.toInstant().minus(TOUCH_INTERVAL))) {
             jdbc.update("UPDATE auth_sessions SET last_seen_at = ? WHERE id = ? AND last_seen_at < ?",
                     now, session.id(), Timestamp.from(now.toInstant().minus(TOUCH_INTERVAL)));
         }
