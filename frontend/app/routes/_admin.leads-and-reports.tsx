@@ -573,7 +573,10 @@ export default function LeadsAndReportsPage() {
                           Tiến độ chăm sóc
                           <select
                             aria-label={`Trạng thái khách ${lead.fullName}`}
-                            disabled={busyId === lead.id}
+                            // WITHDRAWN is terminal (NIT): once withdrawn, staff cannot move it to any other
+                            // status either, so the whole control is disabled rather than only hiding the
+                            // WITHDRAWN option from the list.
+                            disabled={busyId === lead.id || lead.status === 'WITHDRAWN'}
                             value={lead.status}
                             onChange={(event) => void changeLead(lead.id, event.target.value as LeadStatus)}
                             className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base font-medium text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"

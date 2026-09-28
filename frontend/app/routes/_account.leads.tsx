@@ -438,9 +438,13 @@ export function MyLeadsPage() {
                           Tiến độ chăm sóc
                           <select
                             value={lead.status}
-                            disabled={busyId === lead.id}
+                            // WITHDRAWN is terminal and requester-only (NIT): once the requester withdraws, the
+                            // owner cannot move it to any other status, so the whole control is disabled instead
+                            // of merely hiding "WITHDRAWN" from the option list (which still let every other
+                            // status through).
+                            disabled={busyId === lead.id || lead.status === 'WITHDRAWN'}
                             onChange={(event) => void changeStatus(lead, event.target.value as LeadStatus)}
-                            className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900"
+                            className="mt-1.5 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 disabled:cursor-not-allowed disabled:opacity-70"
                           >
                             <option value={lead.status}>{STATUS_LABELS[lead.status]}</option>
                             {(Object.entries(STATUS_LABELS) as [LeadStatus, string][])

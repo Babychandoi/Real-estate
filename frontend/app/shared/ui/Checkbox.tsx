@@ -8,7 +8,8 @@ export interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputE
   indeterminate?: boolean;
 }
 
-/** Native checkbox with its label: the whole 44 px row is the click target. */
+/** Native checkbox with its label: the row is 44 px tall for spacing, but only the input and the label text (via
+ * `htmlFor`) are clickable — the description and the row's own padding are not (NIT). */
 export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
   { label, description, indeterminate = false, className, id, disabled, ...props },
   forwardedRef,

@@ -76,6 +76,19 @@ export function measure(files, read, gzipLevel = DEFAULT_GZIP_LEVEL) {
   return { raw, gzip };
 }
 
+/**
+ * Route modules that exist in the manifest (app/routes/*.tsx, dynamic entries) but have no entry in
+ * `config.routes` (NIT): without this, a newly added route silently gets no budget instead of failing the check,
+ * which is easy to miss until its bundle has already grown unchecked.
+ */
+export function unbudgetedRoutes(manifest, config) {
+  const budgeted = new Set(Object.values(config.routes).map((spec) => spec.module));
+  return Object.keys(manifest)
+    .filter((key) => /^app\/routes\/.*\.tsx$/.test(key) && manifest[key].isDynamicEntry)
+    .filter((key) => !budgeted.has(key))
+    .sort();
+}
+
 /** Checks every route of `config` against its budget; returns rows for the report. */
 export function evaluateBudgets(manifest, config, read, gzipLevel = DEFAULT_GZIP_LEVEL) {
   const rows = [];
@@ -126,6 +139,7 @@ function main(argv) {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
   const rows = evaluateBudgets(manifest, config, (file) => readFileSync(path.join(dist, file)), gzipLevel);
+  const unbudgeted = unbudgetedRoutes(manifest, config);
 
   if (argv.includes('--json')) {
     console.log(JSON.stringify(rows, null, 2));
@@ -152,6 +166,12 @@ function main(argv) {
     console.log(widths.map((width) => '-'.repeat(width)).join('  '));
     lines.forEach((line) => console.log(format(line)));
   }
+  if (unbudgeted.length) {
+    console.error(
+      `\n${unbudgeted.length} route module(s) have no budget entry: ${unbudgeted.join(', ')}`,
+    );
+    console.error(`Add each one to "routes" in ${path.relative(root, configPath)} with an explicit budgetKb.`);
+  }
   const failures = rows.filter((row) => row.over);
   if (failures.length) {
     console.error(
@@ -160,9 +180,8 @@ function main(argv) {
     console.error(
       'Split the route (dynamic import) or, if the growth is intended, raise the budget in bundle-budget.json.',
     );
-    return 1;
   }
-  return 0;
+  return failures.length || unbudgeted.length ? 1 : 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

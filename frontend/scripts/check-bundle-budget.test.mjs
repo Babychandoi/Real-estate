@@ -1,6 +1,13 @@
 import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_GZIP_LEVEL, evaluateBudgets, initialJsFiles, measure, staticClosure } from './check-bundle-budget.mjs';
+import {
+  DEFAULT_GZIP_LEVEL,
+  evaluateBudgets,
+  initialJsFiles,
+  measure,
+  staticClosure,
+  unbudgetedRoutes,
+} from './check-bundle-budget.mjs';
 
 // A miniature Vite manifest: entry + shared chunk, one light route, one route that statically imports a map chunk
 // (with a worker script under `assets`, like MapLibre's — m7), a non-JS asset that must not be counted as JS, and
@@ -83,6 +90,25 @@ describe('route initial JS', () => {
     expect(byRoute['/search'].gzipKb).toBeGreaterThan(500);
     expect(byRoute['/renamed']).toMatchObject({ missing: true, over: true });
     expect(byRoute['(shell: index.html)'].over).toBe(false);
+  });
+});
+
+describe('unbudgeted routes fail the check instead of passing silently (NIT)', () => {
+  it('lists a route module missing from config.routes', () => {
+    const config = { shellBudgetKb: 120, routes: { '/': { module: 'app/routes/home.tsx', budgetKb: 120 } } };
+    expect(unbudgetedRoutes(manifest, config)).toContain('app/routes/search.tsx');
+  });
+
+  it('reports nothing once every dynamic route module is budgeted', () => {
+    const config = {
+      shellBudgetKb: 120,
+      routes: {
+        '/': { module: 'app/routes/home.tsx', budgetKb: 120 },
+        '/search': { module: 'app/routes/search.tsx', budgetKb: 200 },
+        '/lazy': { module: 'app/routes/lazy-panel.tsx', budgetKb: 100 },
+      },
+    };
+    expect(unbudgetedRoutes(manifest, config)).toEqual([]);
   });
 });
 
