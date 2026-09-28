@@ -26,6 +26,7 @@ import {
   type VersionSummary,
 } from '@/features/my-listings/api';
 import { ImportDialog } from '@/features/my-listings/ImportDialog';
+import { useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 
 const TABS: Array<{ id: StatusTab; label: string }> = [
   { id: 'ALL', label: 'Tất cả' },
@@ -62,9 +63,11 @@ function isTab(value: string | null): value is StatusTab {
 function ListingRow({
   item,
   onAction,
+  displayMedia,
 }: {
   item: MyListingItem;
   onAction: (run: () => Promise<unknown>, done: string) => void;
+  displayMedia: (url: string | null | undefined) => string | undefined;
 }) {
   const shown = item.publicVersion ?? item.pendingEdit;
   const badge = STATUS_BADGE[item.status];
@@ -79,7 +82,7 @@ function ListingRow({
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="aspect-video w-full shrink-0 overflow-hidden rounded-lg bg-surface-container sm:w-40">
           {item.thumbnailUrl ? (
-            <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+            <img src={displayMedia(item.thumbnailUrl)} alt="" className="h-full w-full object-cover" loading="lazy" />
           ) : (
             <div className="flex h-full items-center justify-center text-on-surface-variant">
               <ImageOff className="h-6 w-6" aria-hidden="true" />
@@ -235,6 +238,8 @@ export const MyListingsPage: React.FC = () => {
   const tab: StatusTab = isTab(params.get('status')) ? (params.get('status') as StatusTab) : 'ALL';
   const page = Math.max(0, Number(params.get('page') ?? '0') || 0);
   const [data, setData] = useState<Page | null>(null);
+  // Images of drafts/hidden listings are not public (S1): the owner sees them through signed URLs (one batch per page).
+  const displayMedia = useSignedMediaUrls(data?.items.map((item) => item.thumbnailUrl) ?? []);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -316,7 +321,7 @@ export const MyListingsPage: React.FC = () => {
       <>
         <ul className="mt-4 flex flex-col gap-3" aria-busy={loading || undefined}>
           {data.items.map((item) => (
-            <ListingRow key={item.id} item={item} onAction={onAction} />
+            <ListingRow key={item.id} item={item} onAction={onAction} displayMedia={displayMedia} />
           ))}
         </ul>
         {data.totalPages > 1 && (
@@ -333,12 +338,13 @@ export const MyListingsPage: React.FC = () => {
   );
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6" data-ready={!loading ? 'true' : undefined}>
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="ndc-page py-8" data-ready={!loading ? 'true' : undefined}>
+      <div className="ndc-section-heading">
         <div>
-          <h1 className="text-headline-md text-on-surface">Tin đăng của tôi</h1>
-          <p className="text-body-sm text-on-surface-variant">
-            {isOwner ? 'Chủ nhà tự đăng' : 'Quản lý tin'} · {data ? `${data.counts.ALL} tin` : 'đang tải'}
+          <h1 className="text-3xl font-semibold">Tin đăng của tôi</h1>
+          <p>
+            {isOwner ? 'Chủ nhà tự đăng' : 'Quản lý tin'} · {data ? `${data.counts.ALL} tin` : 'đang tải'} · Theo dõi
+            kiểm duyệt, cập nhật nội dung và quản lý hiển thị.
           </p>
         </div>
         <div className="flex gap-2">
@@ -349,6 +355,21 @@ export const MyListingsPage: React.FC = () => {
             Đăng tin
           </ButtonLink>
         </div>
+      </div>
+      <div className="mb-6 mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {(
+          [
+            ['Tổng tin', 'ALL'],
+            ['Đang hiển thị', 'ACTIVE'],
+            ['Chờ duyệt', 'PENDING_REVIEW'],
+            ['Bản nháp', 'DRAFT'],
+          ] as const
+        ).map(([name, key]) => (
+          <div key={key} className="rounded-xl border bg-white p-5">
+            <p className="text-sm text-on-surface-variant">{name}</p>
+            <strong className="mt-2 block text-3xl text-primary">{data ? (data.counts[key] ?? 0) : '—'}</strong>
+          </div>
+        ))}
       </div>
       {expiring > 0 && (
         <p className="mt-4 rounded-lg bg-warning-container p-3 text-body-sm text-warning-on-container" role="note">

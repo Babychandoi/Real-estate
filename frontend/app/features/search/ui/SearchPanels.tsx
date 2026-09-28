@@ -101,7 +101,11 @@ export function NoResults({
       actions={
         suggestions.length ? (
           suggestions.map((suggestion) => (
-            <Button key={suggestion.type} variant="outline" onClick={() => onApply(withoutParams(filters, suggestion.drop))}>
+            <Button
+              key={suggestion.type}
+              variant="outline"
+              onClick={() => onApply(withoutParams(filters, suggestion.drop))}
+            >
               {SUGGESTION_LABELS[suggestion.type] ?? 'Nới điều kiện'} (
               {suggestion.total.relation === 'gte' ? 'hơn ' : ''}
               {suggestion.total.value.toLocaleString('vi-VN')} tin)
@@ -117,13 +121,7 @@ export function NoResults({
   );
 }
 
-export function SearchError({
-  error,
-  onRetry,
-}: {
-  error: NonNullable<SearchState['error']>;
-  onRetry: () => void;
-}) {
+export function SearchError({ error, onRetry }: { error: NonNullable<SearchState['error']>; onRetry: () => void }) {
   return error.errors.length ? (
     <InlineFeedback kind="error" title={error.message}>
       <ul className="list-disc pl-5">

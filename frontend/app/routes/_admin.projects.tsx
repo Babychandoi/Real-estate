@@ -93,11 +93,11 @@ export function ProjectCatalogPage() {
     legalLicenseNumber: 'Số giấy phép pháp lý',
   };
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
+    <section className="mx-auto max-w-6xl space-y-6 px-4 py-10">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Danh mục dự án</h1>
-          <p className="mt-1 text-slate-600">Dữ liệu được đọc và ghi trực tiếp qua API dự án.</p>
+          <p className="mt-1 text-slate-600">Quản lý thông tin, vị trí và tiến độ các dự án bất động sản.</p>
         </div>
         <button
           type="button"
@@ -205,7 +205,7 @@ export function ProjectCatalogPage() {
           </form>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 export default ProjectCatalogPage;

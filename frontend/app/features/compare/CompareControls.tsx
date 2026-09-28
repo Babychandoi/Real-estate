@@ -34,7 +34,7 @@ export function CompareToggleButton({
 
   const base =
     variant === 'overlay'
-      ? 'min-h-9 rounded-full px-3 text-xs shadow-md backdrop-blur-sm'
+      ? 'min-h-11 rounded-lg px-3 text-xs shadow-md backdrop-blur-sm'
       : 'min-h-11 w-full justify-center rounded-lg px-4 text-sm';
   const tone = selected
     ? 'bg-primary text-white border-primary'

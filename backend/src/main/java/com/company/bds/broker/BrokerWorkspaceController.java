@@ -1,10 +1,60 @@
 package com.company.bds.broker;
+
+import com.company.bds.lead.api.request.LeadCommandRequests;
 import com.company.bds.shared.security.CurrentUser;
-import org.springframework.jdbc.core.JdbcTemplate;import org.springframework.security.core.Authentication;import org.springframework.web.bind.annotation.*;import java.util.*;
-@RestController @RequestMapping("/api/v1/broker/workspace")
-public class BrokerWorkspaceController{
- private final JdbcTemplate jdbc;public BrokerWorkspaceController(JdbcTemplate j){jdbc=j;}
- @GetMapping public Map<String,Object> get(Authentication a){UUID id=CurrentUser.id(a);var stats=jdbc.queryForMap("SELECT COUNT(*) listings,COUNT(*) FILTER(WHERE status='ACTIVE') active,COUNT(*) FILTER(WHERE status='PENDING_REVIEW') pending FROM listings WHERE owner_id=?",id);var leads=jdbc.queryForMap("SELECT COUNT(*) leads,COUNT(*) FILTER(WHERE le.status='NEW') new_leads,COALESCE(ROUND(AVG(EXTRACT(EPOCH FROM(CURRENT_TIMESTAMP-le.created_at))/60) FILTER(WHERE le.status='NEW')),0) avg_wait_minutes FROM leads le JOIN listings l ON l.id=le.listing_id WHERE l.owner_id=?",id);var sla=jdbc.query("SELECT first_response_minutes,reminder_enabled,daily_digest_enabled FROM broker_sla_settings WHERE user_id=?",(r,n)->Map.of("firstResponseMinutes",r.getInt(1),"reminderEnabled",r.getBoolean(2),"dailyDigestEnabled",r.getBoolean(3)),id).stream().findFirst().orElse(Map.of("firstResponseMinutes",30,"reminderEnabled",true,"dailyDigestEnabled",true));var listings=jdbc.queryForList("SELECT id,status,created_at,updated_at FROM listings WHERE owner_id=? ORDER BY updated_at DESC LIMIT 50",id);return Map.of("listingStats",stats,"leadStats",leads,"sla",sla,"listings",listings);}
- @PutMapping("/sla") public Map<String,Object> sla(@RequestBody Sla s,Authentication a){if(s.firstResponseMinutes()<5||s.firstResponseMinutes()>1440)throw new IllegalArgumentException("SLA phải từ 5 đến 1440 phút.");jdbc.update("INSERT INTO broker_sla_settings(user_id,first_response_minutes,reminder_enabled,daily_digest_enabled) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET first_response_minutes=EXCLUDED.first_response_minutes,reminder_enabled=EXCLUDED.reminder_enabled,daily_digest_enabled=EXCLUDED.daily_digest_enabled,updated_at=CURRENT_TIMESTAMP",CurrentUser.id(a),s.firstResponseMinutes(),s.reminderEnabled(),s.dailyDigestEnabled());return get(a);}
- public record Sla(int firstResponseMinutes,boolean reminderEnabled,boolean dailyDigestEnabled){}
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/** Broker workspace (UI-08) and the qualified-lead / ROI report (P-08). BROKER/ADMIN only (SecurityConfig). */
+@RestController
+@RequestMapping("/api/v1/broker")
+public class BrokerWorkspaceController {
+    private final BrokerWorkspaceService workspace;
+
+    public BrokerWorkspaceController(BrokerWorkspaceService workspace) {
+        this.workspace = workspace;
+    }
+
+    @GetMapping("/workspace")
+    public Map<String, Object> get(Authentication authentication) {
+        return workspace.workspace(CurrentUser.id(authentication));
+    }
+
+    @PutMapping("/workspace/sla")
+    public Map<String, Object> sla(@RequestBody Sla request, Authentication authentication) {
+        UUID actor = CurrentUser.id(authentication);
+        workspace.updateSla(actor, request.firstResponseMinutes(), request.reminderEnabled(), request.dailyDigestEnabled());
+        return workspace.workspace(actor);
+    }
+
+    @GetMapping("/team")
+    public List<Map<String, Object>> team(Authentication authentication) {
+        return workspace.team(CurrentUser.id(authentication));
+    }
+
+    @PostMapping("/team")
+    public List<Map<String, Object>> addMember(@RequestBody LeadCommandRequests.TeamMember request, Authentication authentication) {
+        return workspace.addMember(CurrentUser.id(authentication), request.email());
+    }
+
+    @DeleteMapping("/team/{memberId}")
+    public List<Map<String, Object>> removeMember(@PathVariable("memberId") UUID memberId, Authentication authentication) {
+        return workspace.removeMember(CurrentUser.id(authentication), memberId);
+    }
+
+    @GetMapping("/reports/leads")
+    public Map<String, Object> leadReport(
+            @RequestParam(name = "from", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(name = "to", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Authentication authentication) {
+        return workspace.leadReport(CurrentUser.id(authentication), from, to);
+    }
+
+    public record Sla(int firstResponseMinutes, boolean reminderEnabled, boolean dailyDigestEnabled) {}
 }

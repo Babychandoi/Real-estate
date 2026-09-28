@@ -447,7 +447,7 @@ export const LoginModal: React.FC = () => {
             </div>
 
             {/* Mật khẩu */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="register-password" className="text-xs font-semibold text-on-surface mb-1.5 block">
                   Mật khẩu
@@ -460,9 +460,9 @@ export const LoginModal: React.FC = () => {
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder="Tối thiểu 10 ký tự"
                     required
-                    minLength={6}
+                    minLength={10}
                   />
                 </div>
               </div>

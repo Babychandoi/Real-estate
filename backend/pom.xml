@@ -69,6 +69,13 @@
             <artifactId>okhttp-jvm</artifactId>
             <version>5.3.2</version>
         </dependency>
+        <!-- WebP encoder/decoder for the image pipeline (S1-MEDIA): ImageIO plugin bundling libwebp for
+             linux x86_64/aarch64 (runtime image eclipse-temurin, glibc) and macOS x86_64/aarch64 (dev). -->
+        <dependency>
+            <groupId>com.github.usefulness</groupId>
+            <artifactId>webp-imageio</artifactId>
+            <version>0.11.0</version>
+        </dependency>
 
         <!-- PostgreSQL Driver & Flyway -->
         <dependency>

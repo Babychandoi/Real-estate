@@ -112,6 +112,9 @@ services:
       APP_SEARCH_INDEX_NAME: ${APP_SEARCH_INDEX_NAME:-bds-listings}
       # HMAC key of search page cursors (>= 32 chars, same value on every instance); production refuses to start without it.
       SEARCH_CURSOR_SECRET: ${SEARCH_CURSOR_SECRET:?Set SEARCH_CURSOR_SECRET}
+      # HMAC key of signed media URLs (drafts/hidden listings, >= 32 chars, same on every instance); production refuses to start without it.
+      MEDIA_SIGNING_SECRET: ${MEDIA_SIGNING_SECRET:?Set MEDIA_SIGNING_SECRET}
+      MEDIA_PREVIOUS_SIGNING_SECRET: ${MEDIA_PREVIOUS_SIGNING_SECRET:-}
       APP_SEARCH_INDEX_REPLICAS: ${APP_SEARCH_INDEX_REPLICAS:-0}
       APP_SEARCH_TIMEOUT: ${APP_SEARCH_TIMEOUT:-PT0.8S}
       APP_SEARCH_BREAKER_OPEN_FOR: ${APP_SEARCH_BREAKER_OPEN_FOR:-PT30S}

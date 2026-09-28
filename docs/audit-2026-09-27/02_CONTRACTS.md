@@ -245,7 +245,9 @@ Frontend: one module `app/features/search/filterSchema.ts` owns parse/serialize/
 ```
 `GET /api/v2/listings/{slugOrId}` → `ListingDetailV2` (summary + `description`, `images[]`, facts, `rentTerms`, `legal`,
 `furnishing`, `revisionNumber`) — `404 LISTING_NOT_FOUND` never existed / `410 LISTING_GONE` exists but not publicly
-visible (body has `slug`, `title` only for the “tin không còn hiển thị” page). ETag + `If-None-Match` → 304.
+visible (body has `slug` + optional `listingTitle`, only for the “tin không còn hiển thị” page; `listingTitle` is
+withheld for moderation-locked listings and for banned sellers — see `streams/s2-search.md` gap 4/5/9 — and the RFC
+9457 problem `title` is always the generic problem title, never the listing's). ETag + `If-None-Match` → 304.
 
 `GET /api/v2/listings/map?<filters>&bbox=…&zoom=3..20` →
 `{ "mode": "points"|"clusters", "points": [{id, slug, lat, lng, price, propertyType}], "clusters": [{lat, lng, count, bbox}],

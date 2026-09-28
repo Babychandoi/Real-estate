@@ -9,10 +9,10 @@
     },
     "/search": {
       "module": "app/routes/_public.search.tsx",
-      "budgetKb": 147,
-      "measuredKb": 145.9,
+      "budgetKb": 148,
+      "measuredKb": 146.4,
       "target": "S2 Review 2: <=130 kB is not reachable at the gzip-1 metric. The shell alone is 120.0 kB, leaving 10 kB for the route, while the code a list page cannot render without (ListingCard + TrustBadge 5.0, filterSchema URL parsing 3.5, listingPath/labels 1.4, LoadMore 0.6, API 0.3) already weighs 10.8 kB before the route's own 8.3 kB (search box, chips, sort, paging hook). MapLibre, the filter form/sheet, the zero-result/error states and the map point sheet all load on demand. Measured at the gzip-9 metric the target was set with, /search is 125.6 kB (under 130). Budget = best achieved (140.6) + 1.4 kB; lowering the shell (not S2) is the remaining lever.",
-      "note": "S6-ENGAGE: +2.5 kB for the favourite button on every card (saved-ids store, heart icon) and the 'Lưu tìm kiếm' button (its dialog is lazy). Reduction target unchanged (S10-PERF)."
+      "note": "W3 merge (UI redesign + S1 + S3b + S6): S6 adds ~2.5 kB (favourite button on every card, 'Lưu tìm kiếm'; dialog lazy). Highest justified value kept; reduction owned by S10-PERF."
     },
     "/listings/:slug": {
       "module": "app/routes/_public.listings.$listingId.tsx",
@@ -27,8 +27,8 @@
     "/nguoi-dang/:sellerId": {
       "module": "app/routes/_public.seller.tsx",
       "budgetKb": 139,
-      "measuredKb": 136.8,
-      "note": "S6-ENGAGE: +1.5 kB favourite button on the seller's cards."
+      "measuredKb": 136.7,
+      "note": "W3 merge: S6 favourite button on the seller's cards (~1.5 kB) on top of the redesign."
     },
     "/about (information pages)": {
       "module": "app/routes/_public.information.tsx",
@@ -62,18 +62,21 @@
     },
     "/my-leads": {
       "module": "app/routes/_account.leads.tsx",
-      "budgetKb": 135,
-      "measuredKb": 122.2
+      "budgetKb": 138,
+      "measuredKb": 134.5,
+      "note": "S3b-LEADS (W3): unified inbox, filters, lazy detail sheet (appointments, history, qualification, assignment) and lazy ROI report. Budget = measured + ~3 kB."
     },
     "/my-inquiries": {
       "module": "app/routes/_account.inquiries.tsx",
-      "budgetKb": 132,
-      "measuredKb": 119.6
+      "budgetKb": 138,
+      "measuredKb": 135.0,
+      "note": "S3b-LEADS (W3): real response state, withdraw dialog; appointments/history lazy on expand. Budget = measured + ~3 kB."
     },
     "/broker/workspace": {
       "module": "app/routes/_account.broker-workspace.tsx",
-      "budgetKb": 131,
-      "measuredKb": 118.2
+      "budgetKb": 138,
+      "measuredKb": 134.8,
+      "note": "S3b-LEADS (W3): SLA metrics, today tasks, team, intake history; ROI report lazy. Budget = measured + ~3 kB."
     },
     "/billing": {
       "module": "app/routes/_account.billing.tsx",
@@ -156,26 +159,26 @@
     "/saved": {
       "module": "app/routes/_account.saved.tsx",
       "budgetKb": 152,
-      "measuredKb": 138.2,
-      "note": "S6-ENGAGE: saved listings tab + cards; the shortlist and saved-search tabs load when opened. Budget = measured + ~10%."
+      "measuredKb": 138.0,
+      "note": "S6-ENGAGE: saved listings tab + cards; shortlist and saved-search tabs lazy. Budget = measured + ~10%."
     },
     "/notifications": {
       "module": "app/routes/_account.notifications.tsx",
       "budgetKb": 143,
-      "measuredKb": 129.8,
+      "measuredKb": 129.5,
       "note": "S6-ENGAGE: notification centre. Budget = measured + ~10%."
     },
     "/shortlists/:token": {
       "module": "app/routes/_public.shortlist.tsx",
       "budgetKb": 148,
-      "measuredKb": 134.4,
-      "note": "S6-ENGAGE: public shared shortlist (cards). Budget = measured + ~10%."
+      "measuredKb": 134.1,
+      "note": "S6-ENGAGE: public shared shortlist. Budget = measured + ~10%."
     },
     "/unsubscribe": {
       "module": "app/routes/_public.unsubscribe.tsx",
       "budgetKb": 140,
-      "measuredKb": 126.9,
-      "note": "S6-ENGAGE: e-mail unsubscribe confirmation. Budget = measured + ~10%."
+      "measuredKb": 126.5,
+      "note": "S6-ENGAGE: unsubscribe confirmation. Budget = measured + ~10%."
     }
   },
   "gzipLevel": 1

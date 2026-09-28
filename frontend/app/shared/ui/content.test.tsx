@@ -136,6 +136,22 @@ describe('ResponsiveImage', () => {
     expect(img.parentElement).toHaveStyle({ aspectRatio: '16 / 10' });
   });
 
+  it('paints the LQIP behind the image but never lets anything else into CSS', () => {
+    const lqip = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA';
+    const { unmount } = render(
+      <ResponsiveImage image={{ ...image, placeholder: { dominantColor: '#c8b8a0', lqip } }} alt="Phòng khách" />,
+    );
+    expect(screen.getByRole('img', { name: 'Phòng khách' }).parentElement?.style.backgroundImage).toContain(lqip);
+    unmount();
+    render(
+      <ResponsiveImage
+        image={{ ...image, placeholder: { lqip: 'data:image/webp;base64,x"); background: url(https://evil' } }}
+        alt="Phòng ngủ"
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'Phòng ngủ' }).parentElement?.style.backgroundImage).toBe('');
+  });
+
   it('falls back to a labelled tile when the image fails or is missing', () => {
     render(<ResponsiveImage image={image} alt="Phòng khách" />);
     fireEvent.error(screen.getByRole('img', { name: 'Phòng khách' }));

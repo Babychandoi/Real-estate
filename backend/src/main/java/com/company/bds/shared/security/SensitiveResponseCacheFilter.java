@@ -33,7 +33,7 @@ public class SensitiveResponseCacheFilter extends OncePerRequestFilter {
     private static final Pattern REPEATED_SLASHES = Pattern.compile("/{2,}");
     private static final List<String> SENSITIVE = List.of(
             "/api/v1/auth/**", "/api/v1/kyc/**", "/api/v1/media/**",
-            "/api/v1/leads/**", "/api/v1/public/leads",
+            "/api/v1/leads/**", "/api/v1/public/leads", "/api/v1/appointments/**",
             "/api/v1/billing/**", "/api/v1/admin/**", "/api/v1/moderation/**",
             "/api/v1/verifications/**", "/api/v1/listings/*/verifications",
             "/api/v1/reports/**", "/api/v1/public/reports",

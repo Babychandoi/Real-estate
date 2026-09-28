@@ -13,7 +13,8 @@ export interface ImageDto {
   width?: number | null;
   height?: number | null;
   srcset?: readonly ImageVariant[] | null;
-  placeholder?: { dominantColor?: string | null } | null;
+  /** `lqip`: tiny blurred WebP data URI of the processed image (S1), painted until the real image covers it. */
+  placeholder?: { dominantColor?: string | null; lqip?: string | null } | null;
 }
 
 /** Adapter for legacy string URLs (v1 APIs): no variants yet, so the browser loads the original. */
@@ -31,6 +32,8 @@ export function srcSetOf(image: ImageDto): string | undefined {
 }
 
 const HEX_COLOR = /^#[0-9a-f]{3,8}$/i;
+// Only our own base64 WebP data URIs reach CSS (no url() injection); CSP img-src already allows data:.
+const LQIP = /^data:image\/webp;base64,[A-Za-z0-9+/]+=*$/;
 
 /** Reserved when neither `aspectRatio` nor a usable `image.width`/`image.height` pair is given (m10): a 4:3 tile is
  * close enough to most listing photos that a fallback/loading tile does not noticeably jump once the real image
@@ -72,6 +75,7 @@ export function ResponsiveImage({
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const failed = Boolean(image && failedUrl === image.url);
   const dominant = image?.placeholder?.dominantColor;
+  const lqip = image?.placeholder?.lqip;
   // Space is always reserved (m10) so a missing/failed image never collapses the tile or shifts surrounding
   // layout: explicit aspectRatio wins, then the image's own intrinsic ratio, then a neutral default.
   const intrinsicRatio =
@@ -79,6 +83,7 @@ export function ResponsiveImage({
   const style: React.CSSProperties = {
     aspectRatio: aspectRatio ?? intrinsicRatio ?? DEFAULT_ASPECT_RATIO,
     backgroundColor: dominant && HEX_COLOR.test(dominant) ? dominant : undefined,
+    ...(lqip && !failed && LQIP.test(lqip) ? { backgroundImage: `url("${lqip}")`, backgroundSize: 'cover' } : {}),
   };
   const srcSet = image ? srcSetOf(image) : undefined;
 

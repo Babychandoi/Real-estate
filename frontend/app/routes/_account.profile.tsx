@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Camera, CheckCircle2, Mail, Phone, Save, ShieldCheck, UserRound } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
+import { rememberSignedMediaUrl, useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 import { validationMessage } from '@/shared/types/problem-details';
 import { NotificationPreferencesSection, PrivacySection } from '@/features/engagement/ui/AccountEngagementSections';
 
-type UploadedImage = { url: string };
+type UploadedImage = { url: string; previewUrl?: string | null; previewExpiresAt?: string | null };
 
 export function AccountProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -16,7 +17,9 @@ export function AccountProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [avatarMessage, setAvatarMessage] = useState('');
-  // A stored avatar URL that no longer loads (object removed, host blocked) falls back to the initials (UI-13).
+  // A new avatar is public only once processed (a second or two); until then the owner sees it through a signed URL.
+  const displayMedia = useSignedMediaUrls([avatarMediaUrl]);
+  // A stored avatar URL that no longer loads falls back to the initials (UI-13, S6).
   const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,7 +42,10 @@ export function AccountProfilePage() {
 
   // The avatar is saved on its own right away, so it works even before a phone number is on file.
   const persistAvatar = async (url: string | null, done: string) => {
-    await apiClient('/auth/me/avatar', { method: 'PUT', body: JSON.stringify({ avatarMediaUrl: url }) });
+    await apiClient('/auth/me/avatar', {
+      method: 'PUT',
+      body: JSON.stringify({ avatarMediaUrl: url }),
+    });
     setAvatarMediaUrl(url ?? '');
     await refreshUser();
     setAvatarMessage(done);
@@ -52,10 +58,14 @@ export function AccountProfilePage() {
     try {
       const body = new FormData();
       body.append('file', file);
-      const uploaded = await apiClient<UploadedImage>('/media/images', { method: 'POST', body });
+      const uploaded = await apiClient<UploadedImage>('/media/images', {
+        method: 'POST',
+        body,
+      });
+      rememberSignedMediaUrl(uploaded.url, uploaded.previewUrl, uploaded.previewExpiresAt);
       await persistAvatar(uploaded.url, 'Đã cập nhật ảnh đại diện.');
     } catch {
-      setAvatarMessage('Không thể tải ảnh. Chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.');
+      setAvatarMessage('Không thể tải ảnh. Chỉ nhận JPEG, PNG hoặc WebP, tối đa 10 MB.');
     } finally {
       setUploading(false);
     }
@@ -80,7 +90,11 @@ export function AccountProfilePage() {
     try {
       await apiClient('/auth/me', {
         method: 'PUT',
-        body: JSON.stringify({ name: name.trim(), phone: phone.trim(), avatarMediaUrl: avatarMediaUrl || null }),
+        body: JSON.stringify({
+          name: name.trim(),
+          phone: phone.trim(),
+          avatarMediaUrl: avatarMediaUrl || null,
+        }),
       });
       await refreshUser();
       setMessage('Đã lưu thông tin cá nhân.');
@@ -92,7 +106,7 @@ export function AccountProfilePage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
+    <section className="mx-auto max-w-3xl px-4 py-8 md:px-8">
       <header className="border-b border-outline-variant/40 pb-6">
         <h1 className="text-2xl font-bold text-on-surface">Thông tin cá nhân</h1>
         <p className="mt-2 text-sm text-on-surface-variant">
@@ -109,7 +123,7 @@ export function AccountProfilePage() {
             <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
               {avatarMediaUrl && brokenAvatar !== avatarMediaUrl ? (
                 <img
-                  src={avatarMediaUrl}
+                  src={displayMedia(avatarMediaUrl)}
                   alt="Ảnh đại diện"
                   className="h-full w-full object-cover"
                   onError={() => setBrokenAvatar(avatarMediaUrl)}
@@ -128,7 +142,7 @@ export function AccountProfilePage() {
               aria-label="Đổi ảnh đại diện"
               className="sr-only"
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/avif"
+              accept="image/jpeg,image/png,image/webp"
               disabled={uploading}
               onChange={(event) => {
                 void uploadAvatar(event.target.files?.[0]);
@@ -137,6 +151,11 @@ export function AccountProfilePage() {
             />
           </label>
           <div className="min-w-0">
+            {avatarMediaUrl && brokenAvatar === avatarMediaUrl && (
+              <p role="status" className="mb-1 text-xs font-semibold text-warning-on-container">
+                Không tải được ảnh đại diện hiện tại. Hãy chọn ảnh khác hoặc gỡ ảnh.
+              </p>
+            )}
             <p className="text-sm font-semibold text-on-surface">
               {uploading
                 ? 'Đang lưu ảnh…'
@@ -147,11 +166,6 @@ export function AccountProfilePage() {
             <p className="mt-1 text-xs text-on-surface-variant">
               Ảnh được lưu ngay và hiển thị công khai trên thẻ tin đăng và trang chi tiết tin của bạn.
             </p>
-            {avatarMediaUrl && brokenAvatar === avatarMediaUrl && (
-              <p role="status" className="mt-1 text-xs font-semibold text-warning-on-container">
-                Không tải được ảnh đại diện hiện tại. Hãy chọn ảnh khác hoặc gỡ ảnh.
-              </p>
-            )}
             {avatarMediaUrl && !uploading && (
               <button
                 type="button"
@@ -241,7 +255,7 @@ export function AccountProfilePage() {
       </form>
       <NotificationPreferencesSection />
       <PrivacySection />
-    </div>
+    </section>
   );
 }
 

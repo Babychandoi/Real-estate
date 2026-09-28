@@ -48,15 +48,31 @@ export function ProductAnalyticsPage() {
 
   const metrics = data
     ? [
-        { label: 'Lead đã nhận', value: formatNumber(data.leadsSubmitted), note: 'Tổng yêu cầu liên hệ' },
-        { label: 'Đã liên hệ', value: formatNumber(data.contactedCount), note: 'Đã xử lý hoặc hẹn xem' },
-        { label: 'Đã chốt', value: formatNumber(data.dealsClosed), note: 'Lead hoàn tất giao dịch' },
-        { label: 'Tỷ lệ chốt', value: formatPercent(data.conversionRatePercent), note: 'Tính trên tổng lead' },
+        {
+          label: 'Lead đã nhận',
+          value: formatNumber(data.leadsSubmitted),
+          note: 'Tổng yêu cầu liên hệ',
+        },
+        {
+          label: 'Đã liên hệ',
+          value: formatNumber(data.contactedCount),
+          note: 'Đã xử lý hoặc hẹn xem',
+        },
+        {
+          label: 'Đã chốt',
+          value: formatNumber(data.dealsClosed),
+          note: 'Lead hoàn tất giao dịch',
+        },
+        {
+          label: 'Tỷ lệ chốt',
+          value: formatPercent(data.conversionRatePercent),
+          note: 'Tính trên tổng lead',
+        },
       ]
     : [];
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
+    <section className="min-h-screen bg-slate-50 py-8">
       <div className="container mx-auto max-w-6xl px-4">
         <header className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
@@ -166,7 +182,7 @@ export function ProductAnalyticsPage() {
           </>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
