@@ -208,6 +208,10 @@ public class UatDataSeeder implements ApplicationRunner {
         }
         jdbc.update("DELETE FROM user_roles WHERE user_id IN " + SYNTHETIC_USERS);
         jdbc.update("DELETE FROM users WHERE " + synthetic("id"));
+        // The read-model triggers (V034, deferred to commit) enqueue search-index jobs for the rows deleted above: fire
+        // them now and drop those jobs too, so nothing synthetic is left behind.
+        jdbc.execute("SET CONSTRAINTS ALL IMMEDIATE");
+        jdbc.update("DELETE FROM background_jobs WHERE dedupe_key ~ 'ee5eed[0-9a-f]{2}-0000-4000-8000-[0-9a-f]{12}'");
     }
 
     private void deleteFromSearchIndex(String listingId) {

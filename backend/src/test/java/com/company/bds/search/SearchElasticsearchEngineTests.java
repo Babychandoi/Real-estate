@@ -51,7 +51,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * data (F06.4, D-08), cursor bound to its engine (F06.2) and visibility decided by PostgreSQL (D-01).
  */
 @BdsIntegrationTest(properties = {BdsIntegrationTestInitializer.ELASTICSEARCH_OPT_IN + "=true", "app.search.bootstrap-on-startup=false",
-        "app.search.cache.first-page=false"})
+        "app.search.cache.first-page=false",
+        // parity is about results, not latency: a loaded CI machine must not trip the 800 ms budget mid-walk
+        "app.search.timeout=PT10S"})
 class SearchElasticsearchEngineTests {
     @Autowired MockMvc mvc;
     @Autowired TestData data;

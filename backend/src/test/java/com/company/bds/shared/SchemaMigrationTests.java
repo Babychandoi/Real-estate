@@ -49,7 +49,8 @@ class SchemaMigrationTests {
     void backfillsSharedSchemaFromLegacyRowsAndIsRepeatable() {
         seedLegacyRows();
 
-        var result = flyway(null).migrate();
+        // Up to the shared-schema migrations of S0-BE (later streams add their own versions after V029).
+        var result = flyway("29").migrate();
         assertThat(result.migrationsExecuted).isEqualTo(3);
         assertThat(result.targetSchemaVersion).endsWith("29");
 
@@ -121,7 +122,9 @@ class SchemaMigrationTests {
                 """, Integer.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pg_proc WHERE proname='bds_enqueue_job'", Integer.class)).isEqualTo(1);
 
-        assertThat(flyway(null).migrate().migrationsExecuted).isZero();
+        assertThat(flyway("29").migrate().migrationsExecuted).isZero();
+        // The later migrations (S2 read model, …) also apply on top of these legacy rows.
+        assertThat(flyway(null).migrate().success).isTrue();
     }
 
     @Test
