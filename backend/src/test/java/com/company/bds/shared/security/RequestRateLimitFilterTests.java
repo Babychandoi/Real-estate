@@ -182,7 +182,7 @@ class RequestRateLimitFilterTests {
 
         assertThat(statuses.subList(0, 5)).containsOnly(401);
         assertThat(statuses.subList(5, 8)).containsOnly(429);
-        verify(authService, times(5)).findByToken(anyString());
+        verify(authService, times(5)).findSession(anyString());
     }
 
     @Test
