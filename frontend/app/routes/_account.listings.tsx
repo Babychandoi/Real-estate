@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AlarmClock, Eye, EyeOff, FileUp, ImageOff, Pencil, PlusCircle, RefreshCw, Send, Users } from 'lucide-react';
 import { Button, ButtonLink } from '@/shared/ui/Button';
@@ -239,15 +239,19 @@ export const MyListingsPage: React.FC = () => {
   const [failed, setFailed] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
 
+  const requestSeq = useRef(0);
   const load = useCallback(async () => {
+    // Only the latest request may update the page (tab/page clicks can overtake each other).
+    const seq = ++requestSeq.current;
     setLoading(true);
     setFailed(false);
     try {
-      setData(await fetchMyListings(tab, page, PAGE_SIZE));
+      const result = await fetchMyListings(tab, page, PAGE_SIZE);
+      if (seq === requestSeq.current) setData(result);
     } catch {
-      setFailed(true);
+      if (seq === requestSeq.current) setFailed(true);
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
   }, [tab, page]);
 

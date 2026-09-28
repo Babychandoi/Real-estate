@@ -48,9 +48,16 @@ export function useDraftAutosave({ fields, listingId, version, onCreated, delayM
   const blocked = AUTOSAVE_BLOCKING.some((key) => validateDraft(fields)[key]);
 
   const saveNow = useCallback(async (): Promise<boolean> => {
-    if (inFlight.current) {
-      await inFlight.current;
+    // One save at a time: debounce, "Tiếp tục", step 4 and submit all queue behind the running save, so a version
+    // (If-Match) is never sent twice. A caller that finds nothing left to save reuses the last result.
+    let waited = false;
+    while (inFlight.current) {
+      const previous = inFlight.current;
+      waited = true;
+      const ok = await previous;
+      if (!dirty.current && ids.current.listingId != null) return ok;
     }
+    if (waited && !dirty.current && ids.current.listingId != null) return true;
     if (AUTOSAVE_BLOCKING.some((key) => validateDraft(latest.current)[key])) return false;
     const snapshot = latest.current;
     dirty.current = false;
