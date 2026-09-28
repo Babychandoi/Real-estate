@@ -233,3 +233,135 @@ tests:
               summary: Chưa có bản sao lưu PostgreSQL nào báo về
               description: Dịch vụ backup chưa chạy hoặc node-exporter chưa đọc BACKUP_METRICS_DIR.
               runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+
+  - name: search index lag above 30 s for 5 minutes fires
+    interval: 30s
+    input_series:
+      - series: 'bds_jobs_lag_seconds{job="bds-backend",queue="search-index"}'
+        values: '5x4 45x20'
+      - series: 'bds_jobs_lag_seconds{job="bds-backend",queue="email"}'
+        values: '45x24'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: BdsSearchIndexLagHigh
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: BdsSearchIndexLagHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Chỉ mục tìm kiếm cập nhật chậm quá 30 giây
+              description: Thay đổi tin đăng chờ hơn 30 giây mới lên kết quả tìm kiếm.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdssearchindexlaghigh
+      - eval_time: 8m
+        alertname: BdsEngageAlertLagHigh
+        exp_alerts: []
+
+  - name: engage alert lag above 2 minutes fires
+    interval: 30s
+    input_series:
+      - series: 'bds_jobs_lag_seconds{job="bds-backend",queue="engage-listing-change"}'
+        values: '150x20'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: BdsEngageAlertLagHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Cảnh báo tin đã lưu/tìm kiếm đã lưu chậm quá 2 phút
+              description: Hàng đợi engage-listing-change có job chờ hơn 120 giây.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsengagealertlaghigh
+
+  - name: search bulk failures and an open breaker
+    interval: 1m
+    input_series:
+      - series: 'bds_search_index_bulk_failures_total{job="bds-backend"}'
+        values: '0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'bds_search_breaker_state{job="bds-backend"}'
+        values: '0 0 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: BdsSearchBulkFailures
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: BdsSearchBulkFailures
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Ghi chỉ mục Elasticsearch bị lỗi
+              description: Có lệnh bulk vào chỉ mục tìm kiếm thất bại trong 10 phút qua (job sẽ thử lại, sau đó vào dead letter).
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdssearchbulkfailures
+      - eval_time: 25m
+        alertname: BdsSearchBulkFailures
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: BdsSearchBreakerOpen
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: BdsSearchBreakerOpen
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Tìm kiếm đang chạy bằng PostgreSQL thay cho Elasticsearch
+              description: Circuit breaker của Elasticsearch mở hơn 5 phút; tìm kiếm vẫn trả kết quả nhưng chậm hơn.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdssearchbreakeropen
+
+  - name: notification fan-out falling back to local delivery
+    interval: 1m
+    input_series:
+      - series: 'bds_notifications_fanout_total{job="bds-backend",outcome="published"}'
+        values: '0+10x20'
+      - series: 'bds_notifications_fanout_total{job="bds-backend",outcome="local_fallback"}'
+        values: '0 0 0 0 0 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: BdsNotificationFanoutFallback
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: BdsNotificationFanoutFallback
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Thông báo thời gian thực chỉ phát trên một instance
+              description: Redis Pub/Sub không dùng được; người dùng ở instance khác chỉ thấy thông báo khi tải lại hoặc kết nối lại.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsnotificationfanoutfallback
+
+  - name: one locked MFA challenge warns, a burst of wrong codes is critical
+    interval: 1m
+    input_series:
+      - series: 'bds_auth_events_total{job="bds-backend",type="MFA_SUCCEEDED"}'
+        values: '0+2x30'
+      - series: 'bds_auth_events_total{job="bds-backend",type="MFA_FAILED"}'
+        values: '0 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 10 20 30 40 40 40 40 40 40 40'
+      - series: 'bds_auth_events_total{job="bds-backend",type="MFA_CHALLENGE_LOCKED"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 2 3 3 3 3 3 3 3'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BdsMfaChallengeLocked
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: BdsMfaFailuresSpike
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: BdsMfaChallengeLocked
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Một phiên đăng nhập quản trị bị khóa vì nhập sai mã MFA 5 lần
+              description: Mật khẩu của một tài khoản nhân viên đã đúng nhưng mã xác thực sai liên tục — có thể mật khẩu đã lộ.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsmfachallengelocked
+      - eval_time: 25m
+        alertname: BdsMfaFailuresSpike
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Nhiều lần nhập sai mã MFA quản trị trong 15 phút
+              description: Hơn 20 lần sai mã xác thực hai lớp ở cổng quản trị trong 15 phút.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsmfafailuresspike
