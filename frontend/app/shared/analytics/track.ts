@@ -6,8 +6,9 @@
  *   need `{ listingId }` (enforced by the types too). An event the server would reject for a required property is
  *   dropped here (with a console.warn) instead of losing the rest of the batch; an invalid *optional* property is
  *   dropped on its own and the event is still sent.
- * - Consent is taken when the event happens. Without "granted" the event carries no anonymous id, session id or
- *   UTM and the batch is sent with `consent: "denied"` (the server stores it without identifiers).
+ * - Consent is taken when the event happens (Decree 13/2023, S8): without an explicit "granted" for the current
+ *   policy version the event is dropped here — nothing is queued or sent and no identifier is written to the
+ *   browser. Withdrawing consent drops events that were still waiting. The server also drops non-granted batches.
  * - Events are batched (flush at 20 waiting events, after 5 s, or at ~60 KB of serialised JSON, whichever comes
  *   first — well under the server's 64 KB body limit and sendBeacon/keepalive limits), flushed with
  *   `fetch(keepalive)` when the tab is hidden and with `navigator.sendBeacon` on `pagehide`.
@@ -145,16 +146,35 @@ function parseUtm(search: string): Record<string, string> | undefined {
   return Object.keys(utm).length ? utm : undefined;
 }
 
+/** Landing UTM kept in memory until the visitor consents (then it is persisted for the session). */
+let landingUtm: Record<string, string> | undefined;
+let landingCaptured = false;
+
 /**
- * Captures the landing UTM parameters into sessionStorage, once per session (m4). Must run before any client-side
- * URL rewrite (e.g. a search page replacing the query string, a listing page redirecting to its canonical slug)
- * can drop them. Safe to call more than once: a no-op once something is stored, even an empty capture.
+ * Captures the landing UTM parameters once per page load (m4). Must run before any client-side URL rewrite (e.g. a
+ * search page replacing the query string, a listing page redirecting to its canonical slug) can drop them. Before
+ * consent the value only lives in memory; with consent it is persisted in sessionStorage for the session. Safe to
+ * call more than once.
  */
 export function captureLandingContext(): void {
   if (typeof window === 'undefined') return;
-  if (readStorage(() => sessionStorage, UTM_KEY) != null) return;
-  const utm = parseUtm(window.location.search);
-  if (utm) writeStorage(() => sessionStorage, UTM_KEY, JSON.stringify(utm));
+  if (!landingCaptured) {
+    landingCaptured = true;
+    landingUtm = parseUtm(window.location.search);
+  }
+  if (getAnalyticsConsent() === 'granted') persistLandingContext();
+}
+
+function persistLandingContext(): void {
+  if (landingUtm && readStorage(() => sessionStorage, UTM_KEY) == null) {
+    writeStorage(() => sessionStorage, UTM_KEY, JSON.stringify(landingUtm));
+  }
+}
+
+/** Test hook: forget the in-memory landing capture (a new page load). */
+export function resetLandingContextForTests(): void {
+  landingCaptured = false;
+  landingUtm = undefined;
 }
 
 function currentDevice(): Device | undefined {
@@ -226,7 +246,7 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
 
   function utm(): Record<string, string> | undefined {
     const stored = readStorage(() => sessionStorage, UTM_KEY);
-    if (!stored) return undefined;
+    if (!stored) return landingUtm;
     try {
       return JSON.parse(stored) as Record<string, string>;
     } catch {
@@ -344,23 +364,22 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
         return;
       }
       const consent = consentOf();
-      const granted = consent === 'granted';
+      // Opt-in only: before (or after withdrawing) consent nothing is recorded.
+      if (consent !== 'granted') return;
       const event: WebEvent = {
         eventId: randomId(),
         name,
         v: WEB_EVENT_CATALOG[name].version,
         occurredAt: now().toISOString(),
-        anonymousId: granted ? anonymousId() : null,
-        sessionId: granted ? sessionId() : null,
+        anonymousId: anonymousId(),
+        sessionId: sessionId(),
         properties: sanitizedProperties,
         page: currentPagePath(),
         device: currentDevice(),
       };
       if (context.listingId) event.listingId = context.listingId;
-      if (granted) {
-        const campaign = utm();
-        if (campaign) event.utm = campaign;
-      }
+      const campaign = utm();
+      if (campaign) event.utm = campaign;
       queue.push({ consent, event, attempts: 0 });
       if (queue.length > maxQueue) queue = queue.slice(-maxQueue);
       if (queue.length >= batchSize) void flush();
@@ -374,14 +393,10 @@ export function createAnalyticsClient(options: AnalyticsClientOptions = {}) {
     if (document.visibilityState === 'hidden') void flush();
   };
   const onPageHide = () => flushWithBeacon();
-  // Withdrawn consent also strips identifiers from events that were not sent yet.
+  // Withdrawn consent drops events that were not sent yet; granted consent persists the landing campaign.
   const unsubscribeConsent = onAnalyticsConsentChange((consent) => {
-    if (consent !== 'denied') return;
-    queue = queue.map((item) => {
-      const event = { ...item.event, anonymousId: null, sessionId: null };
-      delete event.utm;
-      return { ...item, consent: 'denied', event };
-    });
+    if (consent === 'denied') queue = [];
+    else persistLandingContext();
   });
   const lifecycle = options.lifecycle !== false && typeof window !== 'undefined';
   if (lifecycle) {

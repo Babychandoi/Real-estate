@@ -23,6 +23,11 @@ import { AccountNavigation } from '@/shared/ui/AccountNavigation';
 import { ui } from '@/i18n/vi/ui';
 import { canOpen } from '@/shared/auth/routeAccess';
 import { ROLES } from '@/shared/auth/roles';
+import {
+  getStoredAnalyticsConsent,
+  openConsentPreferences,
+  OPEN_CONSENT_PREFERENCES_EVENT,
+} from '@/shared/analytics/consent';
 const accountPaths = new Set([
   '/account',
   '/my-listings',
@@ -39,6 +44,24 @@ const accountPaths = new Set([
 const NotificationBell = lazy(() =>
   import('@/shared/notifications/NotificationBell').then((m) => ({ default: m.NotificationBell })),
 );
+/** S8: consent banner + preferences, a lazy chunk loaded only when a decision is needed or preferences are opened. */
+const ConsentBanner = lazy(() => import('@/features/consent/ConsentBanner'));
+function ConsentGate() {
+  const [view, setView] = useState<'banner' | 'preferences' | null>(() =>
+    getStoredAnalyticsConsent() === null ? 'banner' : null,
+  );
+  useEffect(() => {
+    const open = () => setView('preferences');
+    window.addEventListener(OPEN_CONSENT_PREFERENCES_EVENT, open);
+    return () => window.removeEventListener(OPEN_CONSENT_PREFERENCES_EVENT, open);
+  }, []);
+  if (!view) return null;
+  return (
+    <Suspense fallback={null}>
+      <ConsentBanner key={view} view={view} onClose={() => setView(null)} />
+    </Suspense>
+  );
+}
 /** Account dropdown in the header (UI design styling, audit role gating and labels). */
 function AccountMenu() {
   const { user, isPoster, logout } = useAuth();
@@ -362,6 +385,9 @@ function RootLayoutContent() {
             <Link to="/about">Giới thiệu</Link>
             <Link to="/terms">Điều khoản sử dụng</Link>
             <Link to="/privacy">Quyền riêng tư</Link>
+            <button type="button" className="text-left hover:underline" onClick={openConsentPreferences}>
+              Tùy chọn quyền riêng tư
+            </button>
           </nav>
           <nav className="grid content-start gap-3 text-sm" aria-label="Hỗ trợ">
             <strong>Đồng hành cùng bạn</strong>
@@ -375,6 +401,7 @@ function RootLayoutContent() {
         </div>
       </footer>
       <CompareTray />
+      <ConsentGate />
     </div>
   );
 }

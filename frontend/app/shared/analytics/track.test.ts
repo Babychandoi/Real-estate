@@ -2,14 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { MAX_LISTING_IDS } from './catalog';
 import {
   ANONYMOUS_ID_KEY,
+  CONSENT_POLICY_VERSION,
   CONSENT_STORAGE_KEY,
+  CONSENT_VERSION_KEY,
   getAnalyticsConsent,
   getStoredAnalyticsConsent,
   SESSION_KEY,
   UTM_KEY,
   setAnalyticsConsent,
 } from './consent';
-import { captureLandingContext, createAnalyticsClient, type AnalyticsClient, type EventBatch } from './track';
+import {
+  captureLandingContext,
+  createAnalyticsClient,
+  resetLandingContextForTests,
+  type AnalyticsClient,
+  type EventBatch,
+} from './track';
 
 const LISTING = '5b1d6f0e-2f55-4c1e-9d0a-2a6f5d7e8c01';
 const OTHER = '6c2e7f1f-3a66-4d2f-8e1b-3b7a6e8f9d02';
@@ -45,6 +53,9 @@ beforeEach(() => {
   });
   beacon = vi.fn((_url: string, _body: Blob) => true);
   window.history.replaceState(null, '', '/listings/can-ho-2pn?utm_source=zalo&utm_campaign=thu-9&q=bi-mat');
+  resetLandingContextForTests();
+  // Most tests exercise delivery for a visitor who agreed; the consent tests below clear it first.
+  setAnalyticsConsent('granted');
 });
 
 afterEach(() => {
@@ -96,31 +107,48 @@ describe('track()', () => {
     expect(sent[0].events.map((event) => [event.name, event.listingId])).toEqual([['lead_form_opened', OTHER]]);
   });
 
-  it('without consent sends consent "denied" and no identifiers or UTM', async () => {
+  it('before consent (undecided, denied or given for an older policy) nothing is queued, sent or stored', async () => {
+    for (const setup of [
+      () => localStorage.clear(),
+      () => setAnalyticsConsent('denied'),
+      () => {
+        localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
+        localStorage.setItem(CONSENT_VERSION_KEY, '2020-01-01');
+      },
+    ]) {
+      localStorage.clear();
+      sessionStorage.clear();
+      setup();
+      makeClient();
+      client.track('listing_detail_viewed', detail, { listingId: LISTING });
+      expect(client.pending()).toBe(0);
+      window.dispatchEvent(new Event('pagehide'));
+      await vi.runAllTimersAsync();
+      client.dispose();
+    }
+    expect(send).not.toHaveBeenCalled();
+    expect(beacon).not.toHaveBeenCalled();
+    expect(localStorage.getItem(ANONYMOUS_ID_KEY)).toBeNull();
+    expect(sessionStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(sessionStorage.getItem(UTM_KEY)).toBeNull();
+  });
+
+  it('with consent sends the event envelope the server expects', async () => {
     makeClient();
     client.track('listing_detail_viewed', detail, { listingId: LISTING });
     await vi.runAllTimersAsync();
-
-    expect(sent).toHaveLength(1);
-    expect(sent[0].consent).toBe('denied');
-    const [event] = sent[0].events;
-    expect(event).toMatchObject({
+    expect(sent[0].consent).toBe('granted');
+    expect(sent[0].events[0]).toMatchObject({
       name: 'listing_detail_viewed',
       v: 1,
-      eventId: 'id-1',
       occurredAt: '2026-09-01T03:00:00.000Z',
-      anonymousId: null,
-      sessionId: null,
       listingId: LISTING,
       page: '/listings/can-ho-2pn',
       properties: detail,
     });
-    expect(event.utm).toBeUndefined();
-    expect(localStorage.getItem(ANONYMOUS_ID_KEY)).toBeNull();
   });
 
   it('with consent adds a stable anonymous id, a session id and the landing UTM (not other query params)', async () => {
-    localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
     makeClient();
     client.track('listing_detail_viewed', detail, { listingId: LISTING });
     client.track('compare_opened', { listingIds: [LISTING, OTHER] });
@@ -154,13 +182,15 @@ describe('track()', () => {
     expect(sent.slice(2).map((batch) => batch.events.length)).toEqual([50, 50, 20]);
   });
 
-  it('never mixes consent states in one request', async () => {
+  it('an event tracked before consent is not sent once consent is given later', async () => {
+    localStorage.clear();
     makeClient();
     client.track('compare_opened', { listingIds: [LISTING] });
-    localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
-    client.track('compare_opened', { listingIds: [LISTING] });
+    setAnalyticsConsent('granted');
+    client.track('compare_opened', { listingIds: [OTHER] });
     await vi.runAllTimersAsync();
-    expect(sent.map((batch) => batch.consent)).toEqual(['denied', 'granted']);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].events.map((event) => event.properties.listingIds)).toEqual([[OTHER]]);
   });
 
   it('flushes everything with sendBeacon (text/plain) on pagehide', async () => {
@@ -179,7 +209,7 @@ describe('track()', () => {
       reader.onerror = () => reject(reader.error);
       reader.readAsText(blob);
     });
-    expect(JSON.parse(text)).toMatchObject({ consent: 'denied', events: [{ name: 'compare_opened' }] });
+    expect(JSON.parse(text)).toMatchObject({ consent: 'granted', events: [{ name: 'compare_opened' }] });
     expect(client.pending()).toBe(0);
     expect(send).not.toHaveBeenCalled();
   });
@@ -200,15 +230,15 @@ describe('track()', () => {
     expect(sent.at(-1)?.events[0].properties).toEqual({ context: 'map' });
   });
 
-  it('strips identifiers from waiting events when consent is withdrawn', async () => {
-    localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
+  it('drops waiting events and identifiers when consent is withdrawn', async () => {
     makeClient();
     client.track('listing_detail_viewed', detail, { listingId: LISTING });
+    expect(client.pending()).toBe(1);
     setAnalyticsConsent('denied');
+    expect(client.pending()).toBe(0);
     await vi.runAllTimersAsync();
-    expect(sent[0].consent).toBe('denied');
-    expect(sent[0].events[0]).toMatchObject({ anonymousId: null, sessionId: null });
-    expect(sent[0].events[0].utm).toBeUndefined();
+    expect(send).not.toHaveBeenCalled();
+    expect(localStorage.getItem(ANONYMOUS_ID_KEY)).toBeNull();
   });
 });
 
@@ -287,6 +317,16 @@ describe('batching stays under the byte cap (m3)', () => {
 });
 
 describe('landing UTM is captured once, early (m4)', () => {
+  it('before consent the landing UTM stays in memory only; consent persists it for the session', () => {
+    localStorage.clear();
+    window.history.replaceState(null, '', '/?utm_source=zalo&utm_campaign=thu-9');
+    captureLandingContext();
+    expect(sessionStorage.getItem(UTM_KEY)).toBeNull();
+    makeClient();
+    setAnalyticsConsent('granted');
+    expect(JSON.parse(sessionStorage.getItem(UTM_KEY) ?? '{}')).toEqual({ source: 'zalo', campaign: 'thu-9' });
+  });
+
   it('captureLandingContext persists the UTM once and later URL changes do not overwrite it', () => {
     window.history.replaceState(null, '', '/?utm_source=zalo&utm_campaign=thu-9');
     captureLandingContext();
@@ -303,7 +343,6 @@ describe('landing UTM is captured once, early (m4)', () => {
     // A route effect (e.g. search filters) rewrites the URL, dropping the campaign params — after landing.
     window.history.replaceState(null, '', '/search?purpose=SALE');
 
-    localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
     makeClient();
     client.track('compare_opened', { listingIds: [LISTING] });
     await vi.runAllTimersAsync();
@@ -337,6 +376,16 @@ describe('consent helpers', () => {
   it('treats a missing choice as denied but reports it as undecided', () => {
     expect(getStoredAnalyticsConsent()).toBeNull();
     expect(getAnalyticsConsent()).toBe('denied');
+  });
+
+  it('asks again when the choice was made for another policy version', () => {
+    localStorage.setItem(CONSENT_STORAGE_KEY, 'granted');
+    expect(getStoredAnalyticsConsent()).toBeNull();
+    localStorage.setItem(CONSENT_VERSION_KEY, '2020-01-01');
+    expect(getAnalyticsConsent()).toBe('denied');
+    setAnalyticsConsent('granted');
+    expect(localStorage.getItem(CONSENT_VERSION_KEY)).toBe(CONSENT_POLICY_VERSION);
+    expect(getStoredAnalyticsConsent()).toBe('granted');
   });
 
   it('stores the choice under bds.consent.analytics and clears identifiers on denial', () => {
