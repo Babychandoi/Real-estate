@@ -212,12 +212,6 @@
       "budgetKb": 142,
       "measuredKb": 139.0,
       "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB."
-    },
-    "/__ui": {
-      "module": "app/routes/__ui.tsx",
-      "budgetKb": 155,
-      "measuredKb": 145.0,
-      "note": "S11-UX: closed a pre-existing gap (this route had no budget entry). Dev-only / VITE_ENABLE_UI_CATALOG=true; not part of the production build unless explicitly enabled."
     }
   },
   "gzipLevel": 1
