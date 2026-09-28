@@ -2,12 +2,21 @@ import React, { useRef, useState } from 'react';
 import { ArrowRight, CheckCircle2, Lock, Phone, User, X } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { formatPriceVnd } from '@/entities/listing/model/types';
+import { formatMoney, type Money } from '@/shared/format/money';
 import { useModal } from '@/shared/ui/useModal';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  listing: { id: string; title: string; priceVnd: number; areaM2: number; address: string; imageUrl?: string };
+  listing: {
+    id: string;
+    title: string;
+    priceVnd: number;
+    areaM2: number;
+    address: string;
+    imageUrl?: string;
+    price?: Money;
+  };
 }
 interface LeadResult {
   requestCode: string;
@@ -130,7 +139,8 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{listing.title}</p>
                   <p className="text-sm text-primary font-bold">
-                    {formatPriceVnd(listing.priceVnd)} · {listing.areaM2} m²
+                    {listing.price ? formatMoney(listing.price) : formatPriceVnd(listing.priceVnd)} · {listing.areaM2}{' '}
+                    m²
                   </p>
                   <p className="text-xs text-on-surface-variant truncate">{listing.address}</p>
                 </div>

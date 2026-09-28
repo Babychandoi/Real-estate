@@ -1,6 +1,6 @@
-import { formatMoney, moneyFromLegacy } from '@/shared/format/money';
+import { formatMoney } from '@/shared/format/money';
 import type { DocumentMeta } from '@/shared/seo/useDocumentMeta';
-import { formatPropertyType, type ListingDetail } from './types';
+import { formatArea, propertyTypeLabel, type ListingDetailV2 } from './v2';
 
 const UUID_AT_END = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
@@ -35,46 +35,43 @@ function absoluteImageUrl(url: string, origin: string): string {
   }
 }
 
-/** Route metadata of a public listing: title, description, canonical slug URL, Open Graph and JSON-LD. */
-export function listingDocumentMeta(listing: ListingDetail, origin: string): DocumentMeta {
+/** Route metadata of a public listing (API v2 detail): title, description, canonical slug URL, Open Graph and JSON-LD. */
+export function listingDocumentMeta(listing: ListingDetailV2, origin: string): DocumentMeta {
   const canonicalPath = listingPath(listing);
   const canonicalUrl = new URL(canonicalPath, origin).toString();
   const isRent = listing.purpose === 'RENT';
-  // formatMoney (not the purpose-agnostic formatPriceVnd) so a rent price keeps its "/tháng" suffix everywhere it
-  // is shown, including here (m13): a description or OG card that silently drops the period reads like a one-off
-  // sale price and misleads anyone sharing or previewing the link.
-  const price = formatMoney(moneyFromLegacy(listing.priceVnd, listing.purpose));
-  const description = `${formatPropertyType(listing.propertyType)} ${isRent ? 'cho thuê' : 'cần bán'} tại ${listing.addressSummary}, diện tích ${listing.areaM2} m², giá ${price}.`;
-  const image = listing.imageUrls[0] ? absoluteImageUrl(listing.imageUrls[0], origin) : undefined;
+  // The API price carries its period, so a rent keeps "/tháng" in the description and OG card too (m13).
+  const price = formatMoney(listing.price);
+  const place = listing.location.addressSummary || listing.location.districtName || 'Hà Nội';
+  const description = `${propertyTypeLabel(listing.propertyType)} ${isRent ? 'cho thuê' : 'cần bán'} tại ${place}, diện tích ${formatArea(listing.areaM2)}, giá ${price}.`;
+  const images = listing.images.map((image) => absoluteImageUrl(image.url, origin));
   return {
     title: `${listing.title} | Nhà Đất Chuẩn`,
     description,
     canonical: canonicalUrl,
-    og: { title: listing.title, description, type: 'product', url: canonicalUrl, image },
+    og: { title: listing.title, description, type: 'product', url: canonicalUrl, image: images[0] },
     jsonLd: {
       '@context': 'https://schema.org',
       '@type': 'Product',
       name: listing.title,
       category: 'Bất động sản',
-      description: listing.description,
+      description: listing.description ?? undefined,
       url: canonicalUrl,
-      image: listing.imageUrls.map((url) => absoluteImageUrl(url, origin)),
-      datePosted: listing.createdAt,
-      address: { '@type': 'PostalAddress', streetAddress: listing.addressSummary, addressCountry: 'VN' },
+      image: images,
+      datePosted: listing.freshness.publishedAt,
+      address: { '@type': 'PostalAddress', streetAddress: place, addressLocality: 'Hà Nội', addressCountry: 'VN' },
       offers: {
         '@type': 'Offer',
-        price: listing.priceVnd,
-        priceCurrency: 'VND',
+        price: listing.price.amount,
+        priceCurrency: listing.price.currency,
         availability: 'https://schema.org/InStock',
-        // A rent listing's price is per month (m13): priceSpecification with unitCode "MON" (UN/CEFACT common
-        // code for month) and referenceQuantity 1 says so machine-readably, instead of the bare `price` reading
-        // like a one-time sale amount.
+        // A rent is per month (m13): UnitPriceSpecification with unitCode "MON" says so machine-readably.
         ...(isRent
           ? {
               priceSpecification: {
                 '@type': 'UnitPriceSpecification',
-                price: listing.priceVnd,
-                priceCurrency: 'VND',
+                price: listing.price.amount,
+                priceCurrency: listing.price.currency,
                 unitCode: 'MON',
                 referenceQuantity: { '@type': 'QuantitativeValue', value: 1, unitCode: 'MON' },
               },

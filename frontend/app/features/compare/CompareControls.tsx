@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Building2, Check, Plus, Scale, X } from 'lucide-react';
-import { formatPriceVnd } from '@/entities/listing/model/types';
+import { formatMoney } from '@/shared/format/money';
 import { MAX_COMPARE, compareResultMessage, compareStore, useCompareItems, type CompareItem } from './compareStore';
 
 export function compareHref(items: CompareItem[]) {
@@ -95,15 +95,15 @@ export function CompareTray() {
                 className="flex min-w-[210px] max-w-[260px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1.5 pr-2"
               >
                 <div className="h-10 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-200">
-                  {item.primaryImageUrl ? (
-                    <img src={item.primaryImageUrl} alt="" className="h-full w-full object-cover" />
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
                   ) : (
                     <Building2 className="m-auto mt-2.5 h-5 w-5 text-slate-400" aria-hidden="true" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-bold text-slate-900">{item.title}</p>
-                  <p className="text-xs font-semibold text-emerald-800">{formatPriceVnd(item.priceVnd)}</p>
+                  <p className="text-xs font-semibold text-emerald-800">{formatMoney(item.price) || 'Chưa có giá'}</p>
                 </div>
                 <button
                   type="button"
