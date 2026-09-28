@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react';
-import { moderationApi } from '../entities/moderation/api/moderationApi';
+import { useEffect, useState } from "react";
+import { moderationApi } from "../entities/moderation/api/moderationApi";
 import type {
   FieldDiff,
   ListingDiff,
   ModerationQueueItem,
   StandardReason,
-} from '../entities/moderation/model/types';
-import { formatPriceVnd, formatPropertyType } from '../entities/listing/model/types';
+} from "../entities/moderation/model/types";
+import {
+  formatPriceVnd,
+  formatPropertyType,
+} from "../entities/listing/model/types";
 
 export default function ModerationWorkspacePage() {
   const [queue, setQueue] = useState<ModerationQueueItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<ModerationQueueItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ModerationQueueItem | null>(
+    null,
+  );
   const [diff, setDiff] = useState<ListingDiff | null>(null);
   const [reasons, setReasons] = useState<StandardReason[]>([]);
 
@@ -20,26 +25,30 @@ export default function ModerationWorkspacePage() {
 
   // Rejection modal
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-  const [selectedReasonCode, setSelectedReasonCode] = useState('');
-  const [rejectionDetail, setRejectionDetail] = useState('');
+  const [selectedReasonCode, setSelectedReasonCode] = useState("");
+  const [rejectionDetail, setRejectionDetail] = useState("");
 
   // Approval note
-  const [approvalNote, setApprovalNote] = useState('');
+  const [approvalNote, setApprovalNote] = useState("");
 
   // Alerts
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tabFilter, setTabFilter] = useState<'ALL' | 'FIRST' | 'UPDATE'>('ALL');
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tabFilter, setTabFilter] = useState<"ALL" | "FIRST" | "UPDATE">("ALL");
 
   // Load queue and reasons on mount
   useEffect(() => {
     loadQueue();
-    moderationApi.getRejectionReasons()
+    moderationApi
+      .getRejectionReasons()
       .then((data) => {
         setReasons(data);
         if (data.length > 0) setSelectedReasonCode(data[0].code);
       })
-      .catch((err) => console.error('Lỗi tải lý do từ chối:', err));
+      .catch((err) => console.error("Lỗi tải lý do từ chối:", err));
   }, []);
 
   const loadQueue = async () => {
@@ -54,7 +63,10 @@ export default function ModerationWorkspacePage() {
         setDiff(null);
       }
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Không thể tải hàng đợi kiểm duyệt' });
+      setFeedback({
+        type: "error",
+        message: err.message || "Không thể tải hàng đợi kiểm duyệt",
+      });
     } finally {
       setLoadingQueue(false);
     }
@@ -68,7 +80,10 @@ export default function ModerationWorkspacePage() {
       const diffData = await moderationApi.getDiff(item.listingId);
       setDiff(diffData);
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Không thể tải chi tiết đối chiếu' });
+      setFeedback({
+        type: "error",
+        message: err.message || "Không thể tải chi tiết đối chiếu",
+      });
     } finally {
       setLoadingDiff(false);
     }
@@ -77,10 +92,15 @@ export default function ModerationWorkspacePage() {
   const handleApprove = async () => {
     if (!selectedItem) return;
     if (!approvalNote.trim()) {
-      setFeedback({ type: 'error', message: 'Vui lòng nhập ghi chú duyệt nội dung. Duyệt tin không đồng nghĩa xác minh pháp lý.' });
+      setFeedback({
+        type: "error",
+        message:
+          "Vui lòng nhập ghi chú duyệt nội dung. Duyệt tin không đồng nghĩa xác minh pháp lý.",
+      });
       return;
     }
-    if (!window.confirm(`Xác nhận PHÊ DUYỆT tin đăng "${selectedItem.title}"?`)) return;
+    if (!window.confirm(`Xác nhận PHÊ DUYỆT tin đăng "${selectedItem.title}"?`))
+      return;
 
     setActionLoading(true);
     try {
@@ -88,11 +108,17 @@ export default function ModerationWorkspacePage() {
         revisionId: selectedItem.revisionId,
         note: approvalNote.trim(),
       });
-      setFeedback({ type: 'success', message: `Đã phê duyệt thành công tin đăng #${selectedItem.listingId.substring(0, 8)}!` });
-      setApprovalNote('');
+      setFeedback({
+        type: "success",
+        message: `Đã phê duyệt thành công tin đăng #${selectedItem.listingId.substring(0, 8)}!`,
+      });
+      setApprovalNote("");
       await loadQueue();
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Lỗi khi phê duyệt tin đăng' });
+      setFeedback({
+        type: "error",
+        message: err.message || "Lỗi khi phê duyệt tin đăng",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -108,12 +134,18 @@ export default function ModerationWorkspacePage() {
         reasonCode: selectedReasonCode,
         reasonDetail: rejectionDetail,
       });
-      setFeedback({ type: 'success', message: `Đã từ chối tin đăng #${selectedItem.listingId.substring(0, 8)} với lý do: ${selectedReasonCode}` });
+      setFeedback({
+        type: "success",
+        message: `Đã từ chối tin đăng #${selectedItem.listingId.substring(0, 8)} với lý do: ${selectedReasonCode}`,
+      });
       setIsRejectModalOpen(false);
-      setRejectionDetail('');
+      setRejectionDetail("");
       await loadQueue();
     } catch (err: any) {
-      setFeedback({ type: 'error', message: err.message || 'Lỗi khi từ chối tin đăng' });
+      setFeedback({
+        type: "error",
+        message: err.message || "Lỗi khi từ chối tin đăng",
+      });
     } finally {
       setActionLoading(false);
     }
@@ -121,38 +153,52 @@ export default function ModerationWorkspacePage() {
 
   // Filtered queue
   const filteredQueue = queue.filter((item) => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          item.addressSummary.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch =
+      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.addressSummary.toLowerCase().includes(searchQuery.toLowerCase());
     if (!matchesSearch) return false;
-    if (tabFilter === 'FIRST') return item.isFirstSubmission;
-    if (tabFilter === 'UPDATE') return !item.isFirstSubmission;
+    if (tabFilter === "FIRST") return item.isFirstSubmission;
+    if (tabFilter === "UPDATE") return !item.isFirstSubmission;
     return true;
   });
 
   return (
     <div className="min-h-screen bg-white text-on-surface font-sans">
       {/* Top Command Bar & SLA Counters */}
-      <header className="sticky top-0 z-40 bg-white/95 border-b border-outline-variant/50 backdrop-blur px-6 py-4">
+      <header className="relative z-10 bg-white/95 border-b border-outline-variant/50 backdrop-blur px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center font-bold text-white shadow-lg">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                />
               </svg>
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl font-bold tracking-tight text-white">Bàn Làm Việc Kiểm Duyệt & Thẩm Định Tin</h1>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-emerald-500/30">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-xl font-bold tracking-tight text-on-surface">
+                  Kiểm duyệt tin đăng
+                </h1>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 text-xs font-medium border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 "></span>
                   Hàng đợi kiểm duyệt nội dung
                 </span>
                 <span className="text-xs px-2 py-0.5 rounded bg-surface-container text-on-surface-variant border border-outline-variant/50">
-                  Phân hệ Moderation Monolith
+                  Đối chiếu phiên bản
                 </span>
               </div>
               <p className="text-xs text-on-surface-variant mt-0.5">
-                Đối chiếu Diff song song các phiên bản bất biến (Revision Immutability) • Tiêu chuẩn Waterfall 2026
+                Xem nội dung thay đổi trước khi duyệt hoặc yêu cầu người đăng
+                chỉnh sửa.
               </p>
             </div>
           </div>
@@ -161,68 +207,102 @@ export default function ModerationWorkspacePage() {
             <button
               onClick={loadQueue}
               disabled={loadingQueue}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-slate-700 text-on-surface text-sm font-medium transition border border-outline-variant/50"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-low text-on-surface text-sm font-medium transition border border-outline-variant/50"
             >
-              <svg className={`w-4 h-4 ${loadingQueue ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg
+                className={`w-4 h-4 ${loadingQueue ? "animate-spin" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
               </svg>
               Làm mới hàng đợi
             </button>
-            <span className="px-3 py-1.5 rounded-lg bg-sky-950/60 text-sky-400 text-sm font-semibold border border-sky-800/50">
+            <span className="px-3 py-1.5 rounded-lg bg-sky-50 text-sky-700 text-sm font-semibold border border-sky-800/50">
               Đang chờ duyệt: {queue.length} hồ sơ
             </span>
           </div>
         </div>
 
         {/* SLA Metrics Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-outline-variant/50/80">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-outline-variant/50">
           <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
-            <span className="text-xs text-on-surface-variant">Tin mới nộp (Revision #1)</span>
-            <div className="text-lg font-bold text-sky-400">
+            <span className="text-xs text-on-surface-variant">
+              Tin nộp lần đầu
+            </span>
+            <div className="text-lg font-bold text-sky-700">
               {queue.filter((q) => q.isFirstSubmission).length}
             </div>
           </div>
           <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
-            <span className="text-xs text-on-surface-variant">Cập nhật tin cũ (Revision #2+)</span>
-            <div className="text-lg font-bold text-amber-400">
+            <span className="text-xs text-on-surface-variant">
+              Tin gửi bản sửa
+            </span>
+            <div className="text-lg font-bold text-amber-700">
               {queue.filter((q) => !q.isFirstSubmission).length}
             </div>
           </div>
           <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
-            <span className="text-xs text-on-surface-variant">Thay đổi đang hiển thị</span>
-            <div className="text-lg font-bold text-emerald-400">{diff?.diffs.length ?? 0} trường</div>
+            <span className="text-xs text-on-surface-variant">
+              Thay đổi đang hiển thị
+            </span>
+            <div className="text-lg font-bold text-emerald-700">
+              {diff?.diffs.length ?? 0} trường
+            </div>
           </div>
           <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
-            <span className="text-xs text-on-surface-variant">Phạm vi duyệt</span>
-            <div className="text-lg font-bold text-purple-400">Nội dung tin</div>
+            <span className="text-xs text-on-surface-variant">
+              Phạm vi duyệt
+            </span>
+            <div className="text-lg font-bold text-purple-700">
+              Nội dung tin
+            </div>
           </div>
         </div>
       </header>
 
       {/* Feedback notification */}
       {feedback && (
-        <div className={`mx-6 mt-4 px-4 py-3 rounded-lg flex items-center justify-between text-sm ${
-          feedback.type === 'success'
-            ? 'bg-emerald-950/80 border border-emerald-600/50 text-emerald-200'
-            : 'bg-rose-950/80 border border-rose-600/50 text-rose-200'
-        }`}>
+        <div
+          className={`mx-6 mt-4 px-4 py-3 rounded-lg flex items-center justify-between text-sm ${
+            feedback.type === "success"
+              ? "bg-emerald-50 border border-emerald-600/50 text-emerald-800"
+              : "bg-rose-50 border border-rose-600/50 text-rose-800"
+          }`}
+        >
           <span>{feedback.message}</span>
-          <button onClick={() => setFeedback(null)} className="text-on-surface-variant hover:text-white">✕</button>
+          <button
+            onClick={() => setFeedback(null)}
+            className="text-on-surface-variant hover:text-on-surface"
+          >
+            ✕
+          </button>
         </div>
       )}
 
       {/* Main Split Layout */}
       <div className="flex flex-col lg:flex-row min-h-[calc(100vh-160px)]">
         {/* Left Panel: Moderation Queue List */}
-        <div className="w-full lg:w-96 border-r border-outline-variant/50 bg-black/50 p-4 flex flex-col gap-3 shrink-0">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-white text-sm uppercase tracking-wider">Hàng Đợi Thẩm Định</h2>
-            <span className="text-xs text-on-surface-variant">Sắp xếp theo thời gian nộp</span>
+        <div className="w-full lg:w-96 border-r border-outline-variant/50 bg-surface-container-low p-4 flex flex-col gap-3 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-semibold text-on-surface text-sm uppercase tracking-wider">
+              Hàng Đợi Thẩm Định
+            </h2>
+            <span className="text-xs text-on-surface-variant">
+              Sắp xếp theo thời gian nộp
+            </span>
           </div>
 
           {/* Search box */}
           <input
             type="text"
+            aria-label="Tìm trong hàng đợi"
             placeholder="Tìm theo tiêu đề hoặc địa chỉ..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -232,20 +312,20 @@ export default function ModerationWorkspacePage() {
           {/* Tabs Filter */}
           <div className="flex rounded-lg bg-white p-1 border border-outline-variant/50 text-xs font-medium">
             <button
-              onClick={() => setTabFilter('ALL')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'ALL' ? 'bg-surface-container text-white' : 'text-on-surface-variant hover:text-on-surface'}`}
+              onClick={() => setTabFilter("ALL")}
+              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === "ALL" ? "bg-surface-container text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
             >
               Tất cả ({queue.length})
             </button>
             <button
-              onClick={() => setTabFilter('FIRST')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'FIRST' ? 'bg-surface-container text-sky-400' : 'text-on-surface-variant hover:text-on-surface'}`}
+              onClick={() => setTabFilter("FIRST")}
+              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === "FIRST" ? "bg-surface-container text-sky-700" : "text-on-surface-variant hover:text-on-surface"}`}
             >
               Tin mới
             </button>
             <button
-              onClick={() => setTabFilter('UPDATE')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'UPDATE' ? 'bg-surface-container text-amber-400' : 'text-on-surface-variant hover:text-on-surface'}`}
+              onClick={() => setTabFilter("UPDATE")}
+              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === "UPDATE" ? "bg-surface-container text-amber-700" : "text-on-surface-variant hover:text-on-surface"}`}
             >
               Bản sửa
             </button>
@@ -254,12 +334,12 @@ export default function ModerationWorkspacePage() {
           {/* Items List */}
           <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-340px)] pr-1">
             {loadingQueue ? (
-              <div className="text-center py-12 text-slate-500 text-sm">
+              <div className="text-center py-12 text-on-surface-variant text-sm">
                 <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                 Đang tải hàng đợi kiểm duyệt...
               </div>
             ) : filteredQueue.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 text-sm">
+              <div className="text-center py-12 text-on-surface-variant text-sm">
                 Không có tin đăng nào cần duyệt.
               </div>
             ) : (
@@ -271,20 +351,27 @@ export default function ModerationWorkspacePage() {
                     onClick={() => selectListing(item)}
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       isSelected
-                        ? 'bg-sky-950/40 border-sky-500 shadow-md ring-1 ring-sky-500/50'
-                        : 'bg-white/70 border-outline-variant/50 hover:border-outline-variant/50 hover:bg-white'
+                        ? "bg-sky-50 border-sky-500 shadow-md ring-1 ring-sky-500/50"
+                        : "bg-white/70 border-outline-variant/50 hover:border-outline-variant/50 hover:bg-white"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                        item.isFirstSubmission
-                          ? 'bg-sky-950 text-sky-300 border border-sky-800/60'
-                          : 'bg-amber-950 text-amber-300 border border-amber-800/60'
-                      }`}>
-                        {item.isFirstSubmission ? 'Tin Mới #Rev 1' : `Bản Cập Nhật #Rev ${item.revisionNumber}`}
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded font-semibold ${
+                          item.isFirstSubmission
+                            ? "bg-sky-950 text-sky-800 border border-sky-800/60"
+                            : "bg-amber-950 text-amber-800 border border-amber-800/60"
+                        }`}
+                      >
+                        {item.isFirstSubmission
+                          ? "Tin Mới #Rev 1"
+                          : `Bản Cập Nhật #Rev ${item.revisionNumber}`}
                       </span>
                       <span className="text-xs text-on-surface-variant">
-                        {new Date(item.submittedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(item.submittedAt).toLocaleTimeString(
+                          "vi-VN",
+                          { hour: "2-digit", minute: "2-digit" },
+                        )}
                       </span>
                     </div>
 
@@ -293,14 +380,14 @@ export default function ModerationWorkspacePage() {
                     </h3>
 
                     <div className="flex items-center justify-between text-xs text-on-surface-variant">
-                      <span className="font-bold text-emerald-400">
+                      <span className="font-bold text-emerald-700">
                         {formatPriceVnd(item.priceVnd)}
                       </span>
                       <span>{item.areaM2} m²</span>
                       <span>{item.mediaCount} ảnh</span>
                     </div>
 
-                    <p className="text-xs text-slate-500 truncate mt-1">
+                    <p className="text-xs text-on-surface-variant truncate mt-1">
                       {item.addressSummary}
                     </p>
                   </div>
@@ -318,17 +405,29 @@ export default function ModerationWorkspacePage() {
               <div className="p-5 rounded-2xl bg-white border border-outline-variant/50 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-xs font-mono text-on-surface-variant">Mã: {selectedItem.listingId.substring(0, 8)}...</span>
-                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800">
-                      Loại: {formatPropertyType(selectedItem.propertyType)} • {selectedItem.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
+                    <span className="text-xs font-mono text-on-surface-variant">
+                      Mã: {selectedItem.listingId.substring(0, 8)}...
                     </span>
-                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800">
+                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800">
+                      Loại: {formatPropertyType(selectedItem.propertyType)} •{" "}
+                      {selectedItem.purpose === "SALE" ? "Bán" : "Cho thuê"}
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-950 text-amber-800 border border-amber-800">
                       Revision: #{selectedItem.revisionNumber}
                     </span>
                   </div>
-                  <h2 className="text-lg font-bold text-white">{selectedItem.title}</h2>
+                  <h2 className="text-lg font-bold text-on-surface">
+                    {selectedItem.title}
+                  </h2>
                   <p className="text-xs text-on-surface-variant mt-1">
-                    Địa chỉ: <span className="text-on-surface-variant">{selectedItem.addressSummary}</span> • Chủ tin: <span className="font-mono text-on-surface-variant">{selectedItem.ownerId.substring(0, 8)}...</span>
+                    Địa chỉ:{" "}
+                    <span className="text-on-surface-variant">
+                      {selectedItem.addressSummary}
+                    </span>{" "}
+                    • Chủ tin:{" "}
+                    <span className="font-mono text-on-surface-variant">
+                      {selectedItem.ownerId.substring(0, 8)}...
+                    </span>
                   </p>
                 </div>
 
@@ -337,10 +436,20 @@ export default function ModerationWorkspacePage() {
                   <button
                     onClick={() => setIsRejectModalOpen(true)}
                     disabled={actionLoading}
-                    className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40 text-sm font-semibold transition flex items-center gap-2 shadow-sm"
+                    className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-800 border border-rose-600/40 text-sm font-semibold transition flex items-center gap-2 shadow-sm"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
                     </svg>
                     Từ chối
                   </button>
@@ -353,8 +462,18 @@ export default function ModerationWorkspacePage() {
                     {actionLoading ? (
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                     ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                     )}
                     Phê Duyệt & Xuất Bản
@@ -366,17 +485,29 @@ export default function ModerationWorkspacePage() {
               <div className="p-5 rounded-2xl bg-white border border-outline-variant/50 shadow-sm flex flex-col gap-4">
                 <div className="flex items-center justify-between pb-3 border-b border-outline-variant/50">
                   <div className="flex items-center gap-3">
-                    <h3 className="font-bold text-white text-base">Đối Chiếu Thay Đổi Hai Cột (Side-by-Side Diff)</h3>
+                    <h3 className="font-bold text-on-surface text-base">
+                      Đối Chiếu Thay Đổi Hai Cột (Side-by-Side Diff)
+                    </h3>
                     {diff && (
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                        diff.changedCount > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-surface-container text-white'
-                      }`}>
-                        {diff.isFirstSubmission ? 'Nộp duyệt lần đầu' : `Phát hiện ${diff.changedCount} trường thay đổi`}
+                      <span
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
+                          diff.changedCount > 0
+                            ? "bg-amber-950 text-amber-800 border border-amber-800"
+                            : "bg-surface-container text-on-surface"
+                        }`}
+                      >
+                        {diff.isFirstSubmission
+                          ? "Nộp duyệt lần đầu"
+                          : `Phát hiện ${diff.changedCount} trường thay đổi`}
                       </span>
                     )}
                   </div>
                   <span className="text-xs text-on-surface-variant">
-                    Bản cũ: {diff?.previousRevisionNumber ? `Revision #${diff.previousRevisionNumber}` : '(Trống)'} ➔ Bản mới: Revision #{diff?.currentRevisionNumber}
+                    Bản cũ:{" "}
+                    {diff?.previousRevisionNumber
+                      ? `Revision #${diff.previousRevisionNumber}`
+                      : "(Trống)"}{" "}
+                    ➔ Bản mới: Revision #{diff?.currentRevisionNumber}
                   </span>
                 </div>
 
@@ -390,8 +521,12 @@ export default function ModerationWorkspacePage() {
                     {/* Headers for two columns */}
                     <div className="grid grid-cols-12 gap-4 px-3 py-2 bg-white/80 rounded-lg text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                       <div className="col-span-3">Trường dữ liệu</div>
-                      <div className="col-span-4 text-on-surface-variant">Bản Đang Lưu Hành / Cũ</div>
-                      <div className="col-span-5 text-emerald-400">Bản Mới Nộp Duyệt</div>
+                      <div className="col-span-4 text-on-surface-variant">
+                        Bản Đang Lưu Hành / Cũ
+                      </div>
+                      <div className="col-span-5 text-emerald-700">
+                        Bản Mới Nộp Duyệt
+                      </div>
                     </div>
 
                     {/* Diff Rows */}
@@ -400,15 +535,19 @@ export default function ModerationWorkspacePage() {
                         key={d.fieldName}
                         className={`grid grid-cols-12 gap-4 p-3 rounded-xl border transition ${
                           d.isChanged
-                            ? 'bg-amber-950/15 border-amber-500/40'
-                            : 'bg-white/30 border-outline-variant/50/60'
+                            ? "bg-amber-50 border-amber-500/40"
+                            : "bg-white/30 border-outline-variant/50"
                         }`}
                       >
                         <div className="col-span-3 flex flex-col justify-center">
-                          <span className="text-sm font-medium text-on-surface">{d.fieldLabel}</span>
-                          <span className="text-xs font-mono text-slate-500">{d.fieldName}</span>
+                          <span className="text-sm font-medium text-on-surface">
+                            {d.fieldLabel}
+                          </span>
+                          <span className="text-xs font-mono text-on-surface-variant">
+                            {d.fieldName}
+                          </span>
                           {d.isChanged && (
-                            <span className="inline-block mt-1 text-xs font-semibold text-amber-400">
+                            <span className="inline-block mt-1 text-xs font-semibold text-amber-700">
                               ● ĐÃ THAY ĐỔI
                             </span>
                           )}
@@ -416,15 +555,21 @@ export default function ModerationWorkspacePage() {
 
                         {/* Old value column */}
                         <div className="col-span-4 p-2.5 rounded-lg bg-white/80 border border-outline-variant/50 text-sm text-on-surface-variant break-words line-through-slate-600">
-                          {d.oldValue || <span className="italic text-slate-600">(Chưa có)</span>}
+                          {d.oldValue || (
+                            <span className="italic text-slate-600">
+                              (Chưa có)
+                            </span>
+                          )}
                         </div>
 
                         {/* New value column */}
-                        <div className={`col-span-5 p-2.5 rounded-lg border text-sm break-words ${
-                          d.isChanged
-                            ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200 font-medium'
-                            : 'bg-white/80 border-outline-variant/50 text-on-surface-variant'
-                        }`}>
+                        <div
+                          className={`col-span-5 p-2.5 rounded-lg border text-sm break-words ${
+                            d.isChanged
+                              ? "bg-emerald-50 border-emerald-500/50 text-emerald-800 font-medium"
+                              : "bg-white/80 border-outline-variant/50 text-on-surface-variant"
+                          }`}
+                        >
                           {d.newValue}
                         </div>
                       </div>
@@ -436,29 +581,51 @@ export default function ModerationWorkspacePage() {
               {/* Legal Check & Verification Panel */}
               <div className="p-5 rounded-2xl bg-white border border-outline-variant/50 shadow-sm flex flex-col gap-4">
                 <div className="flex items-center justify-between pb-3 border-b border-outline-variant/50">
-                  <h3 className="font-bold text-white text-base flex items-center gap-2">
-                    <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <h3 className="font-bold text-on-surface text-base flex items-center gap-2">
+                    <svg
+                      className="w-5 h-5 text-sky-700"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
                     </svg>
                     Chứng cứ và kiểm tra bổ sung
                   </h3>
-                  <span className="text-xs px-2.5 py-1 rounded bg-amber-950 text-amber-300 border border-amber-800 font-medium">
+                  <span className="text-xs px-2.5 py-1 rounded bg-amber-950 text-amber-800 border border-amber-800 font-medium">
                     Chưa có kết quả xác minh pháp lý
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div className="p-3 rounded-xl bg-white border border-outline-variant/50">
-                    <span className="text-xs text-on-surface-variant">Tình trạng giấy tờ</span>
-                    <div className="font-semibold text-amber-300 mt-1">Chưa được đối chiếu tại màn hình này</div>
+                    <span className="text-xs text-on-surface-variant">
+                      Tình trạng giấy tờ
+                    </span>
+                    <div className="font-semibold text-amber-800 mt-1">
+                      Chưa được đối chiếu tại màn hình này
+                    </div>
                   </div>
                   <div className="p-3 rounded-xl bg-white border border-outline-variant/50">
-                    <span className="text-xs text-on-surface-variant">Kiểm tra watermark / SĐT ảo</span>
-                    <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
+                    <span className="text-xs text-on-surface-variant">
+                      Kiểm tra watermark / SĐT ảo
+                    </span>
+                    <div className="font-semibold text-amber-800 mt-1">
+                      Chưa có kết quả kiểm tra
+                    </div>
                   </div>
                   <div className="p-3 rounded-xl bg-white border border-outline-variant/50">
-                    <span className="text-xs text-on-surface-variant">Kiểm tra trùng lặp ranh đất</span>
-                    <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
+                    <span className="text-xs text-on-surface-variant">
+                      Kiểm tra trùng lặp ranh đất
+                    </span>
+                    <div className="font-semibold text-amber-800 mt-1">
+                      Chưa có kết quả kiểm tra
+                    </div>
                   </div>
                 </div>
 
@@ -478,11 +645,24 @@ export default function ModerationWorkspacePage() {
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-96 text-slate-500 text-sm">
-              <svg className="w-16 h-16 text-slate-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            <div className="flex flex-col items-center justify-center h-96 text-on-surface-variant text-sm">
+              <svg
+                className="w-16 h-16 text-slate-700 mb-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                />
               </svg>
-              <span>Vui lòng chọn một tin đăng từ hàng đợi bên trái để bắt đầu thẩm định.</span>
+              <span>
+                Vui lòng chọn một tin đăng từ hàng đợi bên trái để bắt đầu thẩm
+                định.
+              </span>
             </div>
           )}
         </div>
@@ -494,12 +674,16 @@ export default function ModerationWorkspacePage() {
           <div className="bg-white border border-outline-variant/50 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5">
             <div className="flex items-center justify-between pb-3 border-b border-outline-variant/50">
               <div>
-                <h3 className="font-bold text-lg text-white">Từ Chối Phê Duyệt Tin Đăng</h3>
-                <p className="text-xs text-on-surface-variant mt-0.5">Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}</p>
+                <h3 className="font-bold text-lg text-on-surface">
+                  Từ Chối Phê Duyệt Tin Đăng
+                </h3>
+                <p className="text-xs text-on-surface-variant mt-0.5">
+                  Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}
+                </p>
               </div>
               <button
                 onClick={() => setIsRejectModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-slate-700 text-on-surface-variant hover:text-white flex items-center justify-center"
+                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-surface-container-low text-on-surface-variant hover:text-on-surface flex items-center justify-center"
               >
                 ✕
               </button>
@@ -542,8 +726,8 @@ export default function ModerationWorkspacePage() {
               <button
                 type="button"
                 onClick={() => setIsRejectModalOpen(false)}
-                    disabled={actionLoading || !approvalNote.trim()}
-                className="px-4 py-2 rounded-xl bg-surface-container hover:bg-slate-700 text-on-surface-variant text-sm font-medium transition"
+                disabled={actionLoading || !approvalNote.trim()}
+                className="px-4 py-2 rounded-xl bg-surface-container hover:bg-surface-container-low text-on-surface-variant text-sm font-medium transition"
               >
                 Hủy bỏ
               </button>
@@ -553,7 +737,9 @@ export default function ModerationWorkspacePage() {
                 disabled={actionLoading || !selectedReasonCode}
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-rose-950/50"
               >
-                {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                {actionLoading && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                )}
                 Xác Nhận Từ Chối
               </button>
             </div>
@@ -563,4 +749,3 @@ export default function ModerationWorkspacePage() {
     </div>
   );
 }
-

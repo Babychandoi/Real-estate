@@ -2,7 +2,7 @@ export interface Listing {
   id: string;
   slug: string;
   title: string;
-  purpose: 'SALE' | 'RENT';
+  purpose: "SALE" | "RENT";
   propertyType: string;
   priceVnd: number;
   areaM2: number;
@@ -26,7 +26,8 @@ export interface Listing {
   sellerAvatarUrl?: string;
 }
 
-export interface ListingDetail extends Omit<Listing, 'primaryImageUrl' | 'publishedAt'> {
+export interface ListingDetail
+  extends Omit<Listing, "primaryImageUrl" | "publishedAt"> {
   ownerId: string;
   status: string;
   revisionNumber: number;
@@ -45,29 +46,35 @@ export interface PublicSellerProfile {
 }
 
 const PROPERTY_TYPE_LABELS: Record<string, string> = {
-  APARTMENT: 'Căn hộ',
-  HOUSE: 'Nhà riêng',
-  VILLA: 'Biệt thự',
-  TOWNHOUSE: 'Nhà phố',
-  LAND: 'Đất',
+  APARTMENT: "Căn hộ",
+  HOUSE: "Nhà riêng",
+  VILLA: "Biệt thự",
+  TOWNHOUSE: "Nhà phố",
+  LAND: "Đất",
 };
 
 export function formatPropertyType(propertyType: string): string {
-  return PROPERTY_TYPE_LABELS[propertyType] ?? 'Bất động sản';
+  return PROPERTY_TYPE_LABELS[propertyType] ?? "Bất động sản";
 }
 
 const LISTING_STATUS_LABELS: Record<string, string> = {
-  PAUSED: 'Tạm ẩn', EXPIRED: 'Hết hạn', LOCKED: 'Đã khóa',
-  DRAFT: 'Bản nháp', PENDING_REVIEW: 'Chờ duyệt', ACTIVE: 'Đang hiển thị',
-  REJECTED: 'Bị từ chối', ARCHIVED: 'Đã lưu trữ', SUSPENDED: 'Tạm dừng',
+  PAUSED: "Tạm ẩn",
+  EXPIRED: "Hết hạn",
+  LOCKED: "Đã khóa",
+  DRAFT: "Bản nháp",
+  PENDING_REVIEW: "Chờ duyệt",
+  ACTIVE: "Đang hiển thị",
+  REJECTED: "Bị từ chối",
+  ARCHIVED: "Đã lưu trữ",
+  SUSPENDED: "Tạm dừng",
 };
 
 export function formatListingStatus(status: string): string {
-  return LISTING_STATUS_LABELS[status] ?? 'Chưa xác định';
+  return LISTING_STATUS_LABELS[status] ?? "Chưa xác định";
 }
 
 export interface ListingSearchParams {
-  purpose?: 'SALE' | 'RENT';
+  purpose?: "SALE" | "RENT";
   propertyType?: string;
   minPrice?: number;
   maxPrice?: number;
@@ -78,7 +85,7 @@ export interface ListingSearchParams {
   maxLat?: number;
   minLng?: number;
   maxLng?: number;
-  sortBy?: 'LATEST' | 'PRICE_ASC' | 'PRICE_DESC' | 'AREA_DESC';
+  sortBy?: "LATEST" | "PRICE_ASC" | "PRICE_DESC" | "AREA_DESC";
   page?: number;
   size?: number;
 }
@@ -86,23 +93,27 @@ export interface ListingSearchParams {
 export function formatPriceVnd(price: number): string {
   if (price >= 1_000_000_000) {
     const billions = price / 1_000_000_000;
-    return `${billions.toFixed(billions % 1 === 0 ? 0 : 2)} tỷ`;
+    return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(billions)} tỷ`;
   }
   if (price >= 1_000_000) {
     const millions = price / 1_000_000;
-    return `${millions.toFixed(millions % 1 === 0 ? 0 : 1)} triệu`;
+    return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 }).format(millions)} triệu`;
   }
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(price);
 }
 
 export function calculateUnitPrice(price: number, area: number): string {
-  if (!area || area <= 0) return '';
+  if (!area || area <= 0) return "";
   const pricePerM2 = price / area;
   if (pricePerM2 >= 1_000_000) {
     return `~${(pricePerM2 / 1_000_000).toFixed(1)} tr/m²`;
   }
-  return '';
+  return "";
 }
 
-
-export function formatListingPrice(price: number, purpose: string): string { return formatPriceVnd(price) + (purpose === 'RENT' ? '/tháng' : ''); }
+export function formatListingPrice(price: number, purpose: string): string {
+  return formatPriceVnd(price) + (purpose === "RENT" ? "/tháng" : "");
+}

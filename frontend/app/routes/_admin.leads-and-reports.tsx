@@ -303,7 +303,7 @@ export default function LeadsAndReportsPage() {
           }`}
         >
           <span
-            className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${view === "leads" ? "bg-blue-700 text-white" : "bg-blue-50 text-blue-700"}`}
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${view === "leads" ? "bg-blue-700 text-on-surface" : "bg-blue-50 text-blue-700"}`}
           >
             <Users className="h-5 w-5" />
           </span>
@@ -330,7 +330,7 @@ export default function LeadsAndReportsPage() {
           }`}
         >
           <span
-            className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${view === "reports" ? "bg-rose-700 text-white" : "bg-rose-50 text-rose-700"}`}
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${view === "reports" ? "bg-rose-700 text-on-surface" : "bg-rose-50 text-rose-700"}`}
           >
             <ShieldAlert className="h-5 w-5" />
           </span>
@@ -808,4 +808,3 @@ export default function LeadsAndReportsPage() {
     </section>
   );
 }
-

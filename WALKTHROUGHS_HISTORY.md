@@ -557,3 +557,46 @@ npm run build
 # 2026-09-26 - Profile avatar camera badge
 
 - `_account.profile.tsx`: only the photo is clipped to the circle; the camera badge sits on its edge with a white ring instead of being cut by `overflow-hidden`. Frontend build passed; verified by Playwright screenshot on the demo stack.
+
+
+## CR-UI-2026-09 — Bàn giao giao diện sản phẩm (28/09/2026)
+
+### Phạm vi và module
+
+- Shared UI: `Dialog`, `Feedback`, `RouteFailure`, `AccountNavigation`, Button/Badge/Avatar; root shell công khai, account navigation theo vai trò và AdminShell sáng/responsive. Font, focus, spacing, card và form dùng token chung.
+- Public: home, tìm kiếm bằng URL + 24 tin/trang, giá thuê theo tháng, bản đồ lazy-load và fallback, card/compare tách action khỏi navigation; gallery hiển thị toàn bộ ảnh, metadata được dọn khi rời detail. Các trang seller/information/auth dùng shell mới.
+- Account: làm lại my-listings với filter/trạng thái/busy/retry, phân trang client 9 tin; đồng bộ form và navigation ở profile/leads/inquiries/broker/billing/KYC/đăng-sửa tin. Giữ API và nghiệp vụ hiện hữu.
+- Admin: sidebar/mobile dialog, theme sáng, tương phản moderation/CMS, filter users không tràn tablet; prefix admin chuyển tới moderation; CMS loading/error/retry. Giữ phân quyền và API.
+- Preview/test: `frontend/scripts/preview-ui.mjs`, `tests/ui/fixtures.mjs`, `tests/ui/product-ui.spec.ts`, `playwright.ui.config.ts`; cập nhật 2 test hành vi cũ theo UI thực tế. Fixture ngoài `app/`, có banner mô phỏng và không thay API production.
+- Tài liệu: `docs/ui/README.md`, `DESIGN_SYSTEM.md`, `FIGMA_HANDOFF.md`, `design-tokens.json`, `PAGE_MATRIX.md`, `PERFORMANCE_HANDOFF.md`, `QA.md`, `qa-summary.json`; ADR SPA hiện hữu là đề xuất review, chưa được duyệt.
+
+### Bảng tổng hợp kiểm thử của đợt
+
+| Kiểm tra | Kết quả |
+| --- | --- |
+| UI regression / route smoke / keyboard / axe | 192/192 đạt; 4 viewport Chromium; 0 bỏ qua; retries=0 |
+| TypeScript strict + script lint | Đạt, không lỗi; lint hiện là tsc |
+| Frontend Vite build | Đạt; MapLibre vẫn có cảnh báo chunk >500 kB |
+| Backend Maven wrapper verify | Chưa chạy được test: DNS tải parent POM từ Maven Central thất bại |
+| Backend thật / Safari / Firefox / tải lớn / visual baseline cũ | Chưa nghiệm thu trong đợt UI |
+
+Bằng chứng và giới hạn chi tiết ở `docs/ui/QA.md`. Không gộp số test backend từ các đợt cũ vào kết quả đợt này.
+
+### Vận hành và user flows
+
+Chuyển nhánh `feat/ui-product-design-20260928`, vào `frontend`, `npm ci`, `npm run preview:ui`, mở `http://127.0.0.1:4173`. Login mô phỏng bằng `preview@example.test` và mật khẩu không rỗng; đổi vai trò bằng `-- --role=BROKER|USER|MODERATOR|ADMIN`. Chạy `npm run dev` với backend thật cho nghiệm thu nghiệp vụ; fixture không xử lý giao dịch thật.
+
+Luồng đã kiểm tra: tìm mua/thuê → filter → trang 2 → refresh/back → detail/gallery; chọn 2 tin → compare → refresh; login → tài khoản; my-listings → nộp duyệt/ẩn tin và lỗi API; CMS lỗi tải → retry. Backend/upload/KYC/payment cần môi trường tích hợp.
+
+### Bảng ánh xạ route cập nhật
+
+| Nhóm | Route |
+| --- | --- |
+| Public khám phá | `/`, `/search`, `/listings/:listingId`, `/compare`, `/nguoi-dang/:sellerId` |
+| Public thông tin/auth | `/about`, `/terms`, `/privacy`, `/contact`, `/forgot-password`, `/reset-password`, `/verify-email`, `*`; login/register modal |
+| Account | `/account`, `/my-listings`, `/my-leads`, `/my-inquiries`, `/broker/workspace`, `/billing`, `/kyc` |
+| Đăng/sửa | `/listings/new`, `/listings/new?edit=:id` |
+| Admin prefix `/2026/nhadatchuan/admin` | index → moderation; `/login`, `/moderation`, `/listings`, `/users`, `/leads-and-reports`, `/verification`, `/billing`, `/analytics`, `/projects`, `/cms` |
+| Redirect legacy | `/admin/*`, `/2026/nhadatchua/admin/*` |
+
+Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAGE_MATRIX.md`. Đây là bộ mã chạy được; chưa tạo file Figma native và chưa triển khai production.

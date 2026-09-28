@@ -1,0 +1,90 @@
+{
+  "name": "Nhà Đất Chuẩn UI",
+  "version": "2026-09-28",
+  "source": [
+    "frontend/tailwind.config.js",
+    "frontend/app/styles/index.css"
+  ],
+  "description": "Documentation export; Tailwind/CSS remain runtime source of truth.",
+  "colors": {
+    "primary": "#00355f",
+    "primaryHover": "#0f4c81",
+    "onPrimary": "#ffffff",
+    "secondary": "#006c4a",
+    "surface": "#f8f9ff",
+    "surfaceLowest": "#ffffff",
+    "surfaceLow": "#eff4ff",
+    "surfaceContainer": "#e5eeff",
+    "text": "#0b1c30",
+    "textSecondary": "#42474f",
+    "border": "#dce3eb",
+    "inputBorder": "#c2c7d1",
+    "error": "#ba1a1a",
+    "errorSurface": "#ffdad6",
+    "onErrorSurface": "#93000a"
+  },
+  "typography": {
+    "family": "Be Vietnam Pro",
+    "fallback": "system-ui, sans-serif",
+    "heroMobilePx": 30,
+    "heroDesktopPx": 48,
+    "sectionTitlePx": 24,
+    "bodyPx": 16,
+    "secondaryPx": 14,
+    "captionPx": 12
+  },
+  "spacingPx": [
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64
+  ],
+  "radiusPx": {
+    "sm": 4,
+    "default": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 16,
+    "full": 9999
+  },
+  "layout": {
+    "maxContentWidthPx": 1280,
+    "headerMinHeightPx": 80,
+    "controlMinHeightPx": 44,
+    "gutterPx": {
+      "mobile": 16,
+      "tablet": 24,
+      "desktop": 32
+    },
+    "listingColumns": {
+      "base": 1,
+      "sm": 2,
+      "lg": 3
+    },
+    "breakpointsPx": {
+      "sm": 640,
+      "md": 768,
+      "lg": 1024,
+      "xl": 1280
+    },
+    "reviewWidthsPx": [
+      360,
+      768,
+      1024,
+      1440
+    ]
+  },
+  "focus": {
+    "color": "#0f4c81",
+    "widthPx": 3,
+    "offsetPx": 3
+  },
+  "shadow": "0 12px 32px rgb(11 28 48 / 7%)"
+}

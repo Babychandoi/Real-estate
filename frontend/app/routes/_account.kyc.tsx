@@ -70,12 +70,14 @@ export function KycPage() {
     apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
       .then(setProfile)
       .catch((reason: unknown) => {
-        if (!(
-          reason &&
-          typeof reason === "object" &&
-          "problem" in reason &&
-          (reason as { problem: { status?: number } }).problem.status === 404
-        ))
+        if (
+          !(
+            reason &&
+            typeof reason === "object" &&
+            "problem" in reason &&
+            (reason as { problem: { status?: number } }).problem.status === 404
+          )
+        )
           setError(
             "Không thể kiểm tra trạng thái eKYC. Vui lòng tải lại trang.",
           );
@@ -113,11 +115,14 @@ export function KycPage() {
     };
   }, [access, documents]);
 
-  useEffect(() => () => {
-    Object.values(uploadPreviewUrls.current).forEach((url) => {
-      if (url) URL.revokeObjectURL(url);
-    });
-  }, []);
+  useEffect(
+    () => () => {
+      Object.values(uploadPreviewUrls.current).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    },
+    [],
+  );
 
   const upload = async (field: DocumentField, file?: File) => {
     if (!file) return;
@@ -137,10 +142,14 @@ export function KycPage() {
       setUploadPreviews((current) => ({ ...current, [field]: previewUrl }));
       setForm((current) => ({ ...current, [field]: result.url }));
     } catch (reason: unknown) {
-      const detail = reason && typeof reason === "object" && "problem" in reason
-        ? (reason as { problem?: { detail?: string } }).problem?.detail
-        : undefined;
-      setError(detail || "Không thể tải ảnh lên. Chỉ dùng JPEG, PNG, WebP hoặc AVIF tối đa 10 MB.");
+      const detail =
+        reason && typeof reason === "object" && "problem" in reason
+          ? (reason as { problem?: { detail?: string } }).problem?.detail
+          : undefined;
+      setError(
+        detail ||
+          "Không thể tải ảnh lên. Chỉ dùng JPEG, PNG, WebP hoặc AVIF tối đa 10 MB.",
+      );
     } finally {
       setUploading("");
     }
@@ -162,11 +171,26 @@ export function KycPage() {
         }),
       );
     } catch (reason: unknown) {
-      const problem = reason && typeof reason === "object" && "problem" in reason
-        ? (reason as { problem?: { detail?: string; errors?: Array<{ message: string }> } }).problem
-        : undefined;
-      const validationMessage = problem?.errors?.map((item) => item.message).filter(Boolean).join(" ");
-      setError(validationMessage || problem?.detail || "Không thể gửi hồ sơ eKYC. Kiểm tra thông tin và thử lại.");
+      const problem =
+        reason && typeof reason === "object" && "problem" in reason
+          ? (
+              reason as {
+                problem?: {
+                  detail?: string;
+                  errors?: Array<{ message: string }>;
+                };
+              }
+            ).problem
+          : undefined;
+      const validationMessage = problem?.errors
+        ?.map((item) => item.message)
+        .filter(Boolean)
+        .join(" ");
+      setError(
+        validationMessage ||
+          problem?.detail ||
+          "Không thể gửi hồ sơ eKYC. Kiểm tra thông tin và thử lại.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -453,4 +477,3 @@ export function KycPage() {
 }
 
 export default KycPage;
-

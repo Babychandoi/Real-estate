@@ -1,202 +1,268 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { PlusCircle, Clock, Eye, EyeOff, Send, Building2, Pencil } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
-import { Card } from '@/shared/ui/Card';
-import { Badge } from '@/shared/ui/Badge';
-import { apiClient } from '@/shared/api/client';
-import { formatPriceVnd } from '@/entities/listing/model/types';
-import { listingPath } from '@/entities/listing/model/seo';
-
-interface MyListingItem {
-  id: string;
-  slug: string;
-  status: string;
-  revisionNumber: number;
-  revisionStatus: string;
-  title: string;
-  purpose: string;
-  propertyType: string;
-  priceVnd: number;
-  areaM2: number;
-  addressSummary: string;
-  isVerified: boolean;
-  imageUrls: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export const MyListingsPage: React.FC = () => {
-  const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'PENDING_REVIEW' | 'DRAFT'>('ALL');
-  const [listings, setListings] = useState<MyListingItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const fetchMyListings = async () => {
-    setIsLoading(true);
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Building2, Plus } from "lucide-react";
+import { Button } from "@/shared/ui/Button";
+import { StatePanel, ListingSkeleton } from "@/shared/ui/Feedback";
+import { apiClient } from "@/shared/api/client";
+import {
+  formatListingPrice,
+  formatListingStatus,
+  type ListingDetail,
+} from "@/entities/listing/model/types";
+import { listingPath } from "@/entities/listing/model/seo";
+const tabs = [
+  ["ALL", "Tất cả"],
+  ["ACTIVE", "Đang hiển thị"],
+  ["PENDING_REVIEW", "Chờ duyệt"],
+  ["DRAFT", "Bản nháp"],
+  ["PAUSED", "Tạm ẩn"],
+  ["REJECTED", "Bị từ chối"],
+] as const;
+export function MyListingsPage() {
+  const [filter, setFilter] = useState("ALL"),
+    [page, setPage] = useState(1);
+  const [items, setItems] = useState<ListingDetail[]>([]);
+  const [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(""),
+    [notice, setNotice] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
-      const data = await apiClient<MyListingItem[]>('/listings/my-listings');
-      setListings(data);
-    } catch (err) {
-      console.error('Lỗi khi tải kho tin cá nhân:', err);
+      setItems(await apiClient<ListingDetail[]>("/listings/my-listings"));
+    } catch {
+      setError("Không tải được kho tin. Vui lòng thử lại.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchMyListings();
   }, []);
-
-  const handleQuickSubmit = async (listingId: string) => {
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const act = async (
+    item: ListingDetail,
+    action: "submit" | "hide" | "show",
+  ) => {
+    setBusy(item.id);
+    setError("");
+    setNotice("");
     try {
-      await apiClient(`/listings/${listingId}/submit`, { method: 'POST' });
-      fetchMyListings();
-    } catch (err) {
-      console.error('Không thể nộp duyệt:', err);
+      await apiClient(
+        `/listings/${item.id}/${action === "submit" ? "submit" : "visibility"}`,
+        {
+          method: "POST",
+          ...(action === "submit"
+            ? {}
+            : { body: JSON.stringify({ hidden: action === "hide" }) }),
+        },
+      );
+      setNotice(
+        action === "submit"
+          ? "Tin đã được gửi duyệt."
+          : action === "hide"
+            ? "Đã tạm ẩn tin."
+            : "Tin đã được hiển thị lại.",
+      );
+      await load();
+    } catch {
+      setError("Thao tác chưa được lưu. Vui lòng thử lại.");
+    } finally {
+      setBusy("");
     }
   };
-
-  const changeVisibility = async (listingId: string, hidden: boolean) => {
-    try { await apiClient(`/listings/${listingId}/visibility`, { method: 'POST', body: JSON.stringify({ hidden }) }); fetchMyListings(); }
-    catch (err) { console.error('Không thể thay đổi trạng thái hiển thị:', err); }
-  };
-
-  const filteredListings = listings.filter((item) => {
-    if (filterTab === 'ALL') return true;
-    return item.status === filterTab;
-  });
-
-  const activeCount = listings.filter((l) => l.status === 'ACTIVE').length;
-  const pendingCount = listings.filter((l) => l.status === 'PENDING_REVIEW').length;
-  const draftCount = listings.filter((l) => l.status === 'DRAFT').length;
-
+  const filtered = items.filter(
+    (item) => filter === "ALL" || item.status === filter,
+  );
+  const pages = Math.max(1, Math.ceil(filtered.length / 9));
+  const current = Math.min(page, pages);
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 flex flex-col gap-6">
-      {/* Header Dashboard & Nút Tạo Tin Mới */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="ndc-page py-8">
+      <div className="ndc-section-heading">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Quản lý kho tin đăng</h1>
-          <p className="text-xs md:text-sm text-on-surface-variant mt-0.5">
-            Theo dõi trạng thái kiểm duyệt, chỉnh sửa bản nháp và nộp duyệt phiên bản mới.
-          </p>
+          <h1 className="text-3xl font-semibold">Quản lý kho tin đăng</h1>
+          <p>Theo dõi kiểm duyệt, cập nhật nội dung và quản lý hiển thị.</p>
         </div>
-        <Link to="/listings/new">
-          <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-            Đăng tin mới
-          </Button>
+        <Link to="/listings/new" className="ndc-primary-link">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Đăng tin mới
         </Link>
       </div>
-
-      {/* Thẻ thống kê nhanh */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-on-surface-variant font-medium">Tổng tin đăng</span>
-          <span className="text-2xl font-extrabold text-on-surface mt-1">{listings.length}</span>
-        </Card>
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-secondary font-medium">Đang hiển thị</span>
-          <span className="text-2xl font-extrabold text-secondary mt-1">{activeCount}</span>
-        </Card>
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-tertiary-container font-medium">Chờ kiểm duyệt</span>
-          <span className="text-2xl font-extrabold text-tertiary-container mt-1">{pendingCount}</span>
-        </Card>
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-outline font-medium">Bản nháp đang soạn</span>
-          <span className="text-2xl font-extrabold text-on-surface-variant mt-1">{draftCount}</span>
-        </Card>
-      </div>
-
-      {/* Tabs lọc trạng thái */}
-      <div className="flex border-b border-outline-variant/40 text-sm gap-6 overflow-x-auto no-scrollbar">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { id: 'ALL', label: 'Tất cả tin', count: listings.length },
-          { id: 'ACTIVE', label: 'Đang hiển thị', count: activeCount },
-          { id: 'PENDING_REVIEW', label: 'Chờ duyệt', count: pendingCount },
-          { id: 'DRAFT', label: 'Bản nháp', count: draftCount },
-        ].map((tab) => (
+          ["Tổng tin", items.length],
+          [
+            "Đang hiển thị",
+            items.filter((item) => item.status === "ACTIVE").length,
+          ],
+          [
+            "Chờ duyệt",
+            items.filter((item) => item.status === "PENDING_REVIEW").length,
+          ],
+          ["Bản nháp", items.filter((item) => item.status === "DRAFT").length],
+        ].map(([name, count]) => (
+          <div key={String(name)} className="rounded-xl border bg-white p-5">
+            <p className="text-sm text-on-surface-variant">{name}</p>
+            <strong className="mt-2 block text-3xl text-primary">
+              {loading || (error && !items.length) ? "—" : count}
+            </strong>
+          </div>
+        ))}
+      </div>
+      <div
+        className="mb-6 flex gap-2 overflow-x-auto"
+        aria-label="Trạng thái tin"
+      >
+        {tabs.map(([value, label]) => (
           <button
-            key={tab.id}
             type="button"
-            onClick={() => setFilterTab(tab.id as 'ALL' | 'ACTIVE' | 'PENDING_REVIEW' | 'DRAFT')}
-            className={`pb-3 font-semibold flex items-center gap-1.5 transition-all relative ${
-              filterTab === tab.id
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-on-surface-variant hover:text-on-surface'
-            }`}
+            key={value}
+            className={`ndc-nav-link shrink-0 border ${filter === value ? "is-active" : "bg-white"}`}
+            aria-pressed={filter === value}
+            onClick={() => {
+              setFilter(value);
+              setPage(1);
+            }}
           >
-            {tab.label}
-            <span className="px-1.5 py-0.2 rounded-full text-xs bg-surface-container-high">
-              {tab.count}
-            </span>
+            {label}
           </button>
         ))}
       </div>
-
-      {/* Danh sách tin */}
-      {isLoading ? (
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-28 bg-surface-container rounded-xl animate-pulse"></div>
-          ))}
-        </div>
-      ) : filteredListings.length > 0 ? (
-        <div className="grid auto-rows-[400px] gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filteredListings.map((item) => (
-            <Card key={item.id} className="flex h-full min-w-0 flex-col overflow-hidden p-0">
-              <div className="relative h-48 shrink-0 bg-surface-container">
-                  {item.imageUrls[0] ? <img
+      {notice && (
+        <p
+          role="status"
+          className="mb-4 rounded-lg bg-emerald-50 p-4 text-emerald-900"
+        >
+          {notice}
+        </p>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className="mb-4 rounded-lg bg-rose-50 p-4 text-rose-900"
+        >
+          {error}{" "}
+          <button
+            className="underline"
+            type="button"
+            onClick={() => void load()}
+          >
+            Tải lại
+          </button>
+        </p>
+      )}
+      {loading ? (
+        <ListingSkeleton />
+      ) : !filtered.length && !error ? (
+        <StatePanel
+          title="Chưa có tin trong mục này"
+          description="Tạo tin đăng để giới thiệu bất động sản tới người tìm nhà."
+          action={
+            <Link to="/listings/new" className="ndc-primary-link">
+              Tạo tin mới
+            </Link>
+          }
+        />
+      ) : (
+        <div className="ndc-listing-grid">
+          {filtered.slice((current - 1) * 9, current * 9).map((item) => (
+            <article className="ndc-listing-card" key={item.id}>
+              <div className="aspect-video bg-surface-container">
+                {item.imageUrls[0] ? (
+                  <img
                     src={item.imageUrls[0]}
-                    alt={item.title}
+                    alt=""
+                    loading="lazy"
                     className="h-full w-full object-cover"
-                  /> : <div className="grid h-full place-items-center text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
-                    <Building2 className="h-7 w-7" aria-hidden="true" />
-                  </div>}
-                  <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-xs font-bold">
-                    v{item.revisionNumber}
-                  </div>
-                </div>
-              <div className="flex flex-1 flex-col p-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {item.status === 'ACTIVE' && <Badge variant="verified">Đang hiển thị</Badge>}
-                    {item.status === 'PENDING_REVIEW' && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-tertiary/10 text-tertiary-container flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Chờ thẩm định
-                      </span>
-                    )}
-                    {item.status === 'DRAFT' && <Badge variant="neutral">Bản nháp</Badge>}
-                    <span className="text-xs font-semibold text-primary">{formatPriceVnd(item.priceVnd)}</span><span className="text-xs text-on-surface-variant">· {item.areaM2} m²</span>
-                  </div>
-                  <h3 className="mt-3 text-base font-bold text-on-surface line-clamp-2 hover:text-primary">
-                    <Link to={listingPath(item)}>{item.title || 'Tin đăng chưa đặt tiêu đề'}</Link>
-                  </h3>
-                  <p className="mt-1 text-xs text-on-surface-variant line-clamp-1">{item.addressSummary}</p>
-                <div className="mt-auto flex items-center gap-2 border-t border-outline-variant/30 pt-3">
-                  <Link to={listingPath(item)}><Button variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>Xem</Button></Link>
-                  {item.status !== 'PENDING_REVIEW' && <Link to={`/listings/new?edit=${item.id}`}><Button variant="outline" size="sm" leftIcon={<Pencil className="w-4 h-4" />}>Chỉnh sửa</Button></Link>}
-                  {item.status === 'DRAFT' && <Button variant="primary" size="sm" onClick={() => handleQuickSubmit(item.id)} leftIcon={<Send className="w-4 h-4" />}>Nộp duyệt</Button>}
-                  {item.status === 'ACTIVE' && <Button variant="outline" size="sm" onClick={() => changeVisibility(item.id, true)} leftIcon={<EyeOff className="w-4 h-4" />}>Ẩn tin</Button>}
-                  {item.status === 'PAUSED' && <Button variant="primary" size="sm" onClick={() => changeVisibility(item.id, false)} leftIcon={<Eye className="w-4 h-4" />}>Hiện lại</Button>}
+                  />
+                ) : (
+                  <span className="grid h-full place-items-center">
+                    <Building2
+                      className="h-10 w-10 text-outline"
+                      aria-hidden="true"
+                    />
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-1 flex-col p-5">
+                <p className="text-xs font-semibold text-secondary">
+                  {formatListingStatus(item.status)}
+                </p>
+                <h2 className="mt-2 line-clamp-2 font-semibold">
+                  {item.title || "Tin chưa đặt tiêu đề"}
+                </h2>
+                <p className="mt-2 text-sm text-on-surface-variant">
+                  {item.addressSummary}
+                </p>
+                <p className="my-4 font-semibold text-primary">
+                  {formatListingPrice(item.priceVnd, item.purpose)} ·{" "}
+                  {item.areaM2} m²
+                </p>
+                <div className="mt-auto flex flex-wrap gap-2 border-t pt-3">
+                  <Link className="ndc-nav-link border" to={listingPath(item)}>
+                    Xem
+                  </Link>
+                  {item.status !== "PENDING_REVIEW" && (
+                    <Link
+                      className="ndc-nav-link border"
+                      to={`/listings/new?edit=${item.id}`}
+                    >
+                      Chỉnh sửa
+                    </Link>
+                  )}
+                  {item.status === "DRAFT" && (
+                    <Button
+                      disabled={!!busy}
+                      isLoading={busy === item.id}
+                      onClick={() => void act(item, "submit")}
+                    >
+                      Nộp duyệt
+                    </Button>
+                  )}
+                  {item.status === "ACTIVE" && (
+                    <Button
+                      variant="outline"
+                      disabled={!!busy}
+                      onClick={() => void act(item, "hide")}
+                    >
+                      Ẩn tin
+                    </Button>
+                  )}
+                  {item.status === "PAUSED" && (
+                    <Button
+                      disabled={!!busy}
+                      onClick={() => void act(item, "show")}
+                    >
+                      Hiện lại
+                    </Button>
+                  )}
                 </div>
               </div>
-            </Card>
+            </article>
           ))}
         </div>
-      ) : (
-        <div className="text-center py-16 bg-surface-container-low rounded-2xl flex flex-col items-center gap-3">
-          <Building2 className="w-10 h-10 text-outline" />
-          <h3 className="font-bold text-base text-on-surface">Chưa có tin đăng nào trong mục này</h3>
-          <p className="text-xs text-on-surface-variant max-w-sm">
-            Bắt đầu tạo tin đăng mới để tiếp cận hàng ngàn khách hàng tiềm năng tìm kiếm bất động sản.
-          </p>
-          <Link to="/listings/new" className="mt-2">
-            <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-              Tạo tin đăng ngay
-            </Button>
-          </Link>
-        </div>
+      )}
+      {!loading && pages > 1 && (
+        <nav className="ndc-pagination" aria-label="Phân trang kho tin">
+          <button
+            className="ndc-nav-link border"
+            disabled={current === 1}
+            onClick={() => setPage(current - 1)}
+          >
+            Trang trước
+          </button>
+          <span>
+            Trang {current}/{pages}
+          </span>
+          <button
+            className="ndc-nav-link border"
+            disabled={current === pages}
+            onClick={() => setPage(current + 1)}
+          >
+            Trang tiếp
+          </button>
+        </nav>
       )}
     </div>
   );
-};
-
+}

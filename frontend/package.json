@@ -10,7 +10,9 @@
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test:e2e:update": "playwright test --update-snapshots"
+    "test:e2e:update": "playwright test --update-snapshots",
+    "test:ui": "playwright test -c playwright.ui.config.ts",
+    "preview:ui": "node scripts/preview-ui.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

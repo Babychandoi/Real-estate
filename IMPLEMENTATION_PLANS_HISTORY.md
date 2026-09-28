@@ -361,3 +361,4 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Phạm vi: shell công khai/tài khoản/quản trị, trang chủ, tìm kiếm URL và phân trang, gallery toàn ảnh, so sánh, chuẩn hóa form/bảng và trạng thái lỗi.
 - Kiểm thử: build/typecheck; browser regression với fixture tách khỏi runtime sản phẩm; viewport 360/768/1024/1440, axe và keyboard. Thử backend verify và ghi rõ nếu môi trường chặn.
 - Bàn giao: nhánh riêng + draft PR, hướng dẫn chạy và ma trận trang. Không merge/deploy trong đợt này.
+- Cập nhật nghiệm thu 28/09: 192/192 test UI đạt trên 4 viewport; bổ sung preview độc lập, đặc tả Figma và ma trận route. Bộ Maven wrapper bị chặn tải dependency do DNS; ghi rõ trong WALKTHROUGHS_HISTORY và docs/ui/QA.md. Giữ visual baseline cũ để review riêng trên UAT.

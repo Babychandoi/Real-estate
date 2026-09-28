@@ -181,7 +181,10 @@ export function InformationPage() {
             ))}
           </div>
           {location.pathname === "/contact" && (
-            <section id="report" className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <section
+              id="report"
+              className="rounded-xl border border-blue-200 bg-blue-50 p-5"
+            >
               <div className="flex gap-3">
                 <Search
                   aria-hidden="true"
@@ -231,4 +234,3 @@ export function NotFoundPage() {
     </section>
   );
 }
-

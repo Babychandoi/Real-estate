@@ -1,9 +1,9 @@
-import React from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { useAuth } from './AuthContext';
-import { ShieldAlert, LogIn, ArrowLeft } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
-import type { UserRole } from './AuthContext';
+import React from "react";
+import { Link, Navigate } from "react-router-dom";
+import { useAuth } from "./AuthContext";
+import { ShieldAlert, LogIn, ArrowLeft } from "lucide-react";
+import { Button } from "@/shared/ui/Button";
+import type { UserRole } from "./AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -14,8 +14,8 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  allowedRoles = ['ADMIN', 'MODERATOR'],
-  moduleName = 'Phân hệ Nội bộ',
+  allowedRoles = ["ADMIN", "MODERATOR"],
+  moduleName = "Phân hệ Nội bộ",
   loginPath,
 }) => {
   const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
@@ -27,7 +27,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     const isLoggedInButNoPermission = isAuthenticated && user;
 
     if (isLoggedInButNoPermission) {
-      return <Navigate to={user.role === 'USER' ? '/my-inquiries' : '/'} replace />;
+      return (
+        <Navigate to={user.role === "USER" ? "/my-inquiries" : "/"} replace />
+      );
     }
 
     return (
@@ -39,23 +41,27 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
           <div>
             <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-xs uppercase tracking-wider mb-2">
-              {isLoggedInButNoPermission ? 'Không đủ quyền' : 'Yêu cầu đăng nhập'}
+              {isLoggedInButNoPermission
+                ? "Không đủ quyền"
+                : "Yêu cầu đăng nhập"}
             </span>
             <h2 className="text-xl font-bold text-on-surface">
               {isLoggedInButNoPermission
-                ? 'Quyền truy cập bị giới hạn'
-                : 'Vui lòng đăng nhập'}
+                ? "Quyền truy cập bị giới hạn"
+                : "Vui lòng đăng nhập"}
             </h2>
             <p className="text-xs text-on-surface-variant mt-2 leading-relaxed">
               {isLoggedInButNoPermission ? (
                 <>
-                  Tài khoản <strong className="text-on-surface">{user.email}</strong> không có quyền
-                  truy cập phân hệ <strong className="text-on-surface">"{moduleName}"</strong>.
+                  Tài khoản{" "}
+                  <strong className="text-on-surface">{user.email}</strong>{" "}
+                  không có quyền truy cập phân hệ{" "}
+                  <strong className="text-on-surface">"{moduleName}"</strong>.
                   Vui lòng liên hệ quản trị viên hệ thống để được cấp quyền.
                 </>
               ) : (
                 <>
-                  Bạn cần đăng nhập để truy cập phân hệ{' '}
+                  Bạn cần đăng nhập để truy cập phân hệ{" "}
                   <strong className="text-on-surface">"{moduleName}"</strong>.
                 </>
               )}
@@ -66,8 +72,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           <div className="w-full bg-surface-container/60 rounded-xl p-3 text-xs text-left border border-outline-variant/30 flex flex-col gap-1 text-on-surface-variant">
             <div className="flex justify-between">
               <span>Trạng thái phiên:</span>
-              <strong className={isAuthenticated ? 'text-blue-600' : 'text-rose-600'}>
-                {isAuthenticated ? `Đã đăng nhập` : 'Chưa đăng nhập'}
+              <strong
+                className={isAuthenticated ? "text-blue-600" : "text-rose-600"}
+              >
+                {isAuthenticated ? `Đã đăng nhập` : "Chưa đăng nhập"}
               </strong>
             </div>
             {isLoggedInButNoPermission && (
@@ -80,13 +88,25 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full pt-2">
             <Link to="/" className="w-full sm:w-1/2">
-              <Button variant="outline" size="sm" className="w-full" leftIcon={<ArrowLeft className="w-4 h-4" />}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                leftIcon={<ArrowLeft className="w-4 h-4" />}
+              >
                 Về Trang chủ
               </Button>
             </Link>
             {loginPath ? (
               <Link to={loginPath} className="w-full sm:w-1/2">
-                <Button variant="primary" size="sm" className="w-full" leftIcon={<LogIn className="w-4 h-4" />}>Đăng nhập quản trị</Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="w-full"
+                  leftIcon={<LogIn className="w-4 h-4" />}
+                >
+                  Đăng nhập quản trị
+                </Button>
               </Link>
             ) : (
               <Button
@@ -107,4 +127,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   return <>{children}</>;
 };
-
