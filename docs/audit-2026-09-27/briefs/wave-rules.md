@@ -1,0 +1,6 @@
+
+ADDITIONAL RULES FOR THIS WAVE (the machine is shared and was overloaded last wave):
+- Shared test infra currently runs only PostgreSQL + Redis. If you need Elasticsearch, Mailpit or MinIO, start just that service with `docker compose -f infra/test/compose.yaml up -d --wait <service>`; never stop or recreate shared services (other agents use them).
+- While iterating, run only the test classes you are working on (`sh mvnw -B -ntp -Dtest=... test`); run the full `mvnw verify` once before finishing, not repeatedly. Never start the demo (`bds-enterprise-stack`) or production stacks. Stop any backend/Vite you start.
+- Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- The W1 foundation is merged into your base (`audit-2026-09-27`): read `docs/audit-2026-09-27/streams/s0-be.md`, `s0-fe.md`, `s5-sec-a.md` for the real APIs (job queue `JobQueue`/`JobHandler`, `bds_enqueue_job`, `ScheduledTaskLock`, `MailOutbox.tryEnqueue`, `AnalyticsRecorder`, `Roles`, `PublicImageResolver`, `@BdsIntegrationTest`, `TestData`, `QueryCount`; frontend kit in `app/shared/ui`, `money.ts`, `useDocumentMeta`, `track()`, `roles.ts`; rate limiter policies in `RateLimitPolicies` — add policies there for any new public endpoint; `SensitiveResponseCacheFilter` path list — add any new private endpoint prefix).
