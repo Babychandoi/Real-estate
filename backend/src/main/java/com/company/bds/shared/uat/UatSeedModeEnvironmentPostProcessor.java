@@ -20,7 +20,9 @@ public class UatSeedModeEnvironmentPostProcessor implements EnvironmentPostProce
             "app.jobs.enabled", "false",
             "app.jobs.metrics.enabled", "false",
             "app.scheduling.enabled", "false",
-            "app.search.sync-on-startup", "false");
+            "app.search.sync-on-startup", "false",
+            // S2: no search index bootstrap/backfill from a seeder JVM
+            "app.search.bootstrap-on-startup", "false");
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
