@@ -39,7 +39,7 @@ class AccessMatrixTests {
             "POST /api/v1/auth/resend-verification", "POST /api/v1/auth/forgot-password", "POST /api/v1/auth/reset-password",
             "GET /api/v1/auth/verify-email", "POST /api/v1/auth/verify-email", "POST /api/v1/auth/password-reset/status",
             "POST /api/v1/auth/admin/mfa/verify", "POST /api/v1/auth/admin/mfa/enroll", "POST /api/v1/auth/admin/mfa/enroll/confirm",
-            "POST /api/v1/public/reports", "POST /api/v1/public/unsubscribe", "POST /api/v1/events",
+            "POST /api/v1/public/reports", "POST /api/v1/public/unsubscribe", "POST /api/v1/events", "POST /api/v1/events/consent",
             "GET /api/v1/listings/search", "GET /api/v1/listings/{id}", "GET /api/v1/billing/plans");
     /** Public GET prefixes (read-only public API; handlers only return published data). */
     static final List<String> PUBLIC_GET_PREFIXES = List.of("/api/v1/public/", "/api/v1/listings/by-slug/", "/api/v2/listings/",
