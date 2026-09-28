@@ -1,7 +1,7 @@
 # Diễn tập khôi phục — môi trường `synthetic` — 2026-09-27
 
 - **Kết quả:** PASS
-- **Bắt đầu:** 2026-09-27T18:51:24Z (UTC); công cụ: `scripts/restore-drill.sh`, image `bds-s5-backup:test`
+- **Bắt đầu:** 2026-09-27T19:57:41Z (UTC); công cụ: `scripts/restore-drill.sh`, image `bds-s5-backup:test`
 - **Nơi khôi phục:** Compose project `bds-drill` cô lập (`infra/drill/compose.drill.yaml`: postgis/postgis:16-3.4, MinIO cùng bản production), không publish cổng, xóa sau diễn tập
 - **Máy chạy:** Darwin arm64, Docker 29.8.0
 - **Nguồn dữ liệu:** chỉ đọc `BACKUP_DIR` (không kết nối tới database/bucket nguồn); khóa age giải mã chỉ mount read-only vào container diễn tập
@@ -10,8 +10,8 @@
 
 | Loại | Set | Tạo lúc (UTC) | Tuổi khi diễn tập | Dung lượng mã hóa | Nội dung | Công cụ |
 |---|---|---|---:|---:|---|---|
-| PostgreSQL | `20260927T184852Z` | 2026-09-27T18:48:52Z | 152s | 236826 B | 30 bảng, 5173 dòng | pgDump pg_dump (PostgreSQL) 16.15, age 1.2.1 |
-| Object (MinIO) | `20260927T184853Z` | 2026-09-27T18:48:54Z | 150s | 15035392 B gốc | 120 object | mc mcli version RELEASE.2025-05-21T01-59-54Z, age 1.2.1 |
+| PostgreSQL | `20260927T195725Z` | 2026-09-27T19:57:26Z | 15s | 236993 B | 30 bảng, 5175 dòng | pgDump pg_dump (PostgreSQL) 16.15, age 1.2.1 |
+| Object (MinIO) | `20260927T195726Z` | 2026-09-27T19:57:27Z | 14s | 15035392 B gốc | 120 object | mc mcli version RELEASE.2025-05-21T01-59-54Z, age 1.2.1 |
 
 Checksum SHA-256 của mọi file mã hóa được kiểm tra với manifest trước khi giải mã.
 
@@ -19,14 +19,14 @@ Checksum SHA-256 của mọi file mã hóa được kiểm tra với manifest tr
 
 | Bước | Thời gian |
 |---|---:|
-| Khởi động PostgreSQL + MinIO cô lập (đến healthy) | 7 s |
-| Giải mã + `pg_restore` vào database mới | 1.0 s |
+| Khởi động PostgreSQL + MinIO cô lập (đến healthy) | 8 s |
+| Giải mã + `pg_restore` vào database mới | 0.9 s |
 | Giải mã + nạp lại object | 3.0 s |
-| Đối soát (đếm dòng từng bảng, sha256 từng object) | 2.4 s |
-| **RTO đo được cho dữ liệu** (hạ tầng + DB + object, chưa gồm deploy ứng dụng và đổi DNS/tunnel) | **11.0 s** |
+| Đối soát (đếm dòng từng bảng, sha256 từng object) | 2.3 s |
+| **RTO đo được cho dữ liệu** (hạ tầng + DB + object, chưa gồm deploy ứng dụng và đổi DNS/tunnel) | **11.9 s** |
 | Toàn bộ diễn tập | 16 s |
 
-**RPO:** tại thời điểm diễn tập, bản DB mới nhất đã 152 giây tuổi và bản object 150 giây tuổi. Với lịch mặc định của
+**RPO:** tại thời điểm diễn tập, bản DB mới nhất đã 15 giây tuổi và bản object 14 giây tuổi. Với lịch mặc định của
 `infra/compose.backup.yaml` (DB mỗi giờ, object mỗi ngày) RPO tối đa là 1 giờ cho dữ liệu DB và 24 giờ cho ảnh; bật
 `infra/compose.pitr.yaml` + `infra/compose.pitr-backup.yaml` để giảm RPO DB xuống khoảng 5–10 phút.
 
@@ -35,8 +35,8 @@ Checksum SHA-256 của mọi file mã hóa được kiểm tra với manifest tr
 | Bảng | Nguồn (manifest) | Sau khôi phục | Khớp |
 |---|---:|---:|---|
 | `public.api_idempotency_keys` | 0 | 0 | có |
-| `public.audit_events` | 1 | 1 | có |
-| `public.auth_sessions` | 1 | 1 | có |
+| `public.audit_events` | 2 | 2 | có |
+| `public.auth_sessions` | 2 | 2 | có |
 | `public.bank_settings` | 0 | 0 | có |
 | `public.broker_sla_settings` | 0 | 0 | có |
 | `public.cms_article_revisions` | 0 | 0 | có |
@@ -65,7 +65,7 @@ Checksum SHA-256 của mọi file mã hóa được kiểm tra với manifest tr
 | `public.user_roles` | 5 | 5 | có |
 | `public.users` | 5 | 5 | có |
 
-Tổng: 30 bảng trong manifest, 30 bảng sau khôi phục; 5173 dòng trong manifest, 5173 dòng sau khôi phục.
+Tổng: 30 bảng trong manifest, 30 bảng sau khôi phục; 5175 dòng trong manifest, 5175 dòng sau khôi phục.
 
 Kết quả: **PASS**
 
@@ -93,6 +93,6 @@ Mọi dòng `media_objects` đều có object tương ứng sau khôi phục.
 
 ## Ghi chú của người chạy
 
-- Dữ liệu TỔNG HỢP, không phải production: database nguồn là database tạm s5_verify trên hạ tầng test dùng chung (schema Flyway V001–V026, tài khoản demo, 6 tin seed, 120 dòng media_objects và 5.000 thông báo tổng hợp); bucket nguồn s5-drill-src chứa 120 object byte ngẫu nhiên. Bản DB được chụp khi backend vẫn đang kết nối (snapshot REPEATABLE READ).
+- Dữ liệu TỔNG HỢP, không phải production: database nguồn là database tạm s5_verify trên hạ tầng test dùng chung (schema Flyway V001–V026, tài khoản demo, 6 tin seed, 120 dòng media_objects và 5.000 thông báo tổng hợp); bucket nguồn s5-drill-src chứa 120 object byte ngẫu nhiên. Snapshot DB lấy bằng giao dịch REPEATABLE READ xuất snapshot; số dòng trong manifest lấy trong cùng snapshot.
 - Quy mô nhỏ (18 MB DB, 15 MB object): thời gian đo được chỉ chứng minh quy trình chạy trọn vẹn, không phải RTO của production. Diễn tập với bản sao lưu production thật phải do chủ hệ thống chạy (EXTERNAL) theo docs/ops/PRODUCTION_TOPOLOGY.md.
-- Đã kiểm tra thêm ngoài script: backup thất bại (sai mật khẩu) không tạo set SUCCESS và ghi bds_backup_last_status=0; retention giữ 1 set vẫn khôi phục được set media dùng hard link; PITR (infra/compose.pitr.yaml) khôi phục tới đúng mốc thời gian, xem báo cáo luồng S5-SEC-A.
+- Đã kiểm tra thêm ngoài script (báo cáo luồng S5-SEC-A): backup thất bại không tạo set SUCCESS và ghi bds_backup_last_status=0; retention giữ 1 set vẫn khôi phục được set media dùng hard link; PITR khôi phục đúng mốc thời gian chỉ từ BACKUP_DIR sau khi xóa volume WAL archive.

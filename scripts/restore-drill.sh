@@ -107,11 +107,12 @@ step() { # step <name> <restore.sh args...>: output in $WORK/<name>.out, errors 
     return 1
   fi
 }
-step restore-db db latest bds_restore || STATUS=FAIL
-step restore-media media latest || STATUS=FAIL
-step verify-db verify-db latest bds_restore || STATUS=FAIL
-step verify-media verify-media latest || STATUS=FAIL
-step verify-references verify-references bds_restore || true
+# Every step uses the set ids resolved above: a backup finishing during the drill must not swap sets mid-way.
+step restore-db db "$DB_ID" bds_restore || STATUS=FAIL
+step restore-media media "$MEDIA_ID" || STATUS=FAIL
+step verify-db verify-db "$DB_ID" bds_restore || STATUS=FAIL
+step verify-media verify-media "$MEDIA_ID" || STATUS=FAIL
+step verify-references verify-references "$MEDIA_ID" bds_restore || true
 [ "$(result_of "$WORK/verify-db.out")" = PASS ] || STATUS=FAIL
 [ "$(result_of "$WORK/verify-media.out")" = PASS ] || STATUS=FAIL
 REFERENCES="$(result_of "$WORK/verify-references.out")"

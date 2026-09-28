@@ -184,6 +184,39 @@ tests:
         alertname: BdsBackupNeverReported
         exp_alerts: []
 
+  - name: WAL shipping older than 30 minutes pages; a failed attempt warns
+    interval: 30s
+    input_series:
+      - series: 'bds_backup_last_success_timestamp_seconds{env="production",kind="wal"}'
+        values: '0x120'
+      - series: 'bds_backup_last_status{env="production",kind="wal"}'
+        values: '1x10 0x110'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: BdsWalShippingStale
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: BdsWalShippingStale
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              env: production
+            exp_annotations:
+              summary: WAL không được gửi ra ngoài trong 30 phút
+              description: Môi trường production; lịch mặc định là mỗi 5 phút, PITR ngoài máy mất dần độ mới.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+      - eval_time: 10m
+        alertname: BdsBackupFailed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              env: production
+              kind: wal
+            exp_annotations:
+              summary: Lần sao lưu gần nhất thất bại
+              description: Loại wal, môi trường production; xem log container backup.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+
   - name: no backup metric at all is reported after two hours
     interval: 30s
     input_series:

@@ -223,6 +223,24 @@ groups:
           summary: Không có bản sao lưu object thành công trong 2 ngày
           description: Môi trường {{ $labels.env }}; lịch mặc định là mỗi ngày.
           runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+      - alert: BdsWalShippingStale
+        expr: time() - max by (env) (bds_backup_last_success_timestamp_seconds{kind="wal"}) > 1800
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: WAL không được gửi ra ngoài trong 30 phút
+          description: Môi trường {{ $labels.env }}; lịch mặc định là mỗi 5 phút, PITR ngoài máy mất dần độ mới.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
+      - alert: BdsBaseBackupStale
+        expr: time() - max by (env) (bds_backup_last_success_timestamp_seconds{kind="base"}) > 2 * 86400
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Không có base backup PITR thành công trong 2 ngày
+          description: Môi trường {{ $labels.env }}; lịch mặc định là mỗi ngày.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsbackupstale
       - alert: BdsBackupFailed
         expr: bds_backup_last_status == 0
         for: 1m

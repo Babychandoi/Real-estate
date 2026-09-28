@@ -7,7 +7,7 @@
 #   restore.sh media <id|latest|path> [bucket-suffix]           decrypt every object into its bucket (+ suffix)
 #   restore.sh verify-db <id|latest|path> <target-database>     row counts per table vs manifest (Markdown report)
 #   restore.sh verify-media <id|latest|path> [bucket-suffix]    objects, bytes and sha256 vs index (Markdown report)
-#   restore.sh verify-references <target-database> [suffix]     media_objects rows vs restored objects (latest media set)
+#   restore.sh verify-references <media-set> <target-database> [suffix]  media_objects rows vs restored objects
 #   restore.sh basebackup <id|latest|path> <empty-dir>          PITR: unpack a physical base backup into a data dir
 #   restore.sh wal <dir>                                        PITR: decrypt every shipped WAL segment into <dir>
 #                                                               (then restore_command = 'cp <dir>/%f %p')
@@ -153,8 +153,8 @@ verify_media() {
 # Database rows that point at objects (media_objects.object_key) vs the restored buckets. Objects uploaded after
 # the media set was taken are expected to be missing when the database set is newer; the drill reports the gap.
 verify_references() {
-  local target="$1" suffix="${2:-}" set started work bucket references missing orphans
-  set="$(resolve_set media latest)"
+  local set target="$2" suffix="${3:-}" started work bucket references missing orphans
+  set="$(resolve_set media "$1")"
   started="$(now_ms)"
   work="$(mktemp -d /tmp/bds-verify-refs.XXXXXX)"
   local has_table
@@ -245,7 +245,7 @@ case "${1:-}" in
   media) restore_media "${2:?set}" "${3:-}" ;;
   verify-db) verify_db "${2:?set}" "${3:?target database}" ;;
   verify-media) verify_media "${2:?set}" "${3:-}" ;;
-  verify-references) verify_references "${2:?target database}" "${3:-}" ;;
+  verify-references) verify_references "${2:?media set}" "${3:?target database}" "${4:-}" ;;
   basebackup) restore_basebackup "${2:?set}" "${3:?target directory}" ;;
   wal) restore_wal "${2:?target directory}" ;;
   *) sed -n '2,18p' "$0" >&2; exit 2 ;;

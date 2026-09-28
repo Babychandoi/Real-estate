@@ -35,6 +35,10 @@ finish_set() { # finish_set <work dir> <final dir>
   iso_now > "$2/SUCCESS"
 }
 
+# Commands run when a job process exits, whether it succeeded or died (temporary files, the snapshot holder).
+CLEANUP=()
+on_exit() { CLEANUP+=("$1"); }
+
 # encrypt_stream <fifo> <sha256 out> <encrypted out> <age args...>: stdin -> age, hashing the plaintext on the way.
 # The hasher reads a FIFO and is waited for by PID; process substitution is not used because `$!` does not reliably
 # name it after a pipeline, and waiting on the wrong job deadlocks with the snapshot holder.
@@ -62,14 +66,15 @@ backup_db() {
   # counts, which import that snapshot, are done: the manifest counts describe exactly the dumped data.
   sync="$(mktemp -d /tmp/bds-db-backup.XXXXXX)"
   export BDS_SYNC="$sync"
-  trap 'touch "$BDS_SYNC/done" 2>/dev/null || true' EXIT
   psql -X -q -At -v ON_ERROR_STOP=1 -v snapshot_file="$sync/snapshot" >"$sync/holder.log" 2>&1 <<'SQL' &
 BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SELECT pg_export_snapshot() \g :snapshot_file
-\! i=0; while [ ! -f "$BDS_SYNC/done" ] && [ $i -lt 86400 ]; do sleep 0.25; i=$((i+1)); done
+\! i=0; while [ -d "$BDS_SYNC" ] && [ ! -f "$BDS_SYNC/done" ] && [ $i -lt 86400 ]; do sleep 0.25; i=$((i+1)); done
 COMMIT;
 SQL
   local holder=$!
+  # On any failure: end the snapshot transaction (it would otherwise hold back VACUUM) and free the tmpfs.
+  on_exit "touch '$sync/done'; kill $holder; rm -rf '$sync'"
   for _ in $(seq 1 240); do
     [ -s "$sync/snapshot" ] && break
     kill -0 "$holder" 2>/dev/null || die "snapshot transaction failed: $(tr '\n' ' ' < "$sync/holder.log")"
@@ -110,8 +115,6 @@ SQL
       counts: {tables: $tables, tableCount: ($tables | length), totalRows: $totalRows}}' > "$work/manifest.json"
   rm -f "$work/counts.tsv"
   finish_set "$work" "$dir"
-  rm -rf "$sync"
-  trap - EXIT
   info "backup_db_done id=$id tables=$(jq '.counts.tableCount' "$dir/manifest.json") rows=$rows bytes=$bytes durationMs=$(( $(now_ms) - started ))"
   write_metrics db 1 "$(( ($(now_ms) - started) / 1000 ))" "$bytes"
 }
@@ -124,6 +127,7 @@ backup_media() {
   dir="$(env_dir)/media/$id"
   work="$dir.partial"
   tmp="$(mktemp -d /tmp/bds-media-backup.XXXXXX)"
+  on_exit "rm -rf '$tmp'"
   mkfifo "$tmp/object.fifo"
   mkdir -p "$work/objects"
   started="$(now_ms)"
@@ -188,22 +192,55 @@ backup_media() {
   write_metrics media 1 "$(( ($(now_ms) - started) / 1000 ))" "$bytes"
 }
 
+# "<timeline> <linear segment number>" of a 24-hex WAL file name (16 MB segments: 256 per log file).
+wal_position() {
+  printf '%s %d\n' "${1:0:8}" $(( 16#${1:8:8} * 256 + 16#${1:16:8} ))
+}
+
 # WAL segments are 16 MB even when forced by archive_timeout on an idle server; zstd shrinks those to a few KB.
+# Only completed archive files are shipped (segments, timeline history, backup labels); basic_archive's in-flight
+# "archtemp.*" files are skipped. A hole between the newest segment shipped before and the ones shipped now means
+# segments were lost before shipping (PITR across it is impossible): the run fails so BdsBackupFailed alerts.
 backup_wal() {
   require_env WAL_ARCHIVE_DIR
-  local age_args dest segment name count=0
+  local age_args dest state last name count=0 gaps=0 previous tl n ptl pn
   mapfile -t age_args < <(age_recipient_args)
   dest="$(env_dir)/wal"
+  state="$dest/.last-segment"
   mkdir -p "$dest"
-  for segment in "$WAL_ARCHIVE_DIR"/*; do
-    [ -f "$segment" ] || continue
-    name="$(basename "$segment")"
+  last="$(cat "$state" 2>/dev/null || true)"
+  while IFS= read -r name; do
     [ -f "$dest/$name.zst.age" ] && continue
-    zstd -q -3 -c "$segment" | age "${age_args[@]}" -o "$dest/$name.zst.age.partial"
+    zstd -q -3 -c "$WAL_ARCHIVE_DIR/$name" | age "${age_args[@]}" -o "$dest/$name.zst.age.partial"
     mv "$dest/$name.zst.age.partial" "$dest/$name.zst.age"
     count=$((count + 1))
-  done
-  info "backup_wal_done new_segments=$count"
+  done < <(find "$WAL_ARCHIVE_DIR" -maxdepth 1 -type f -printf '%f\n' \
+             | grep -E '^([0-9A-F]{24}|[0-9A-F]{8}\.history|[0-9A-F]{24}\.[0-9A-F]{8}\.backup)$' | sort || true)
+
+  previous="$last"
+  while IFS= read -r name; do
+    if [ -n "$previous" ]; then
+      read -r ptl pn <<<"$(wal_position "$previous")"
+      read -r tl n <<<"$(wal_position "$name")"
+      if [ "$tl" = "$ptl" ] && [ "$n" -ne $((pn + 1)) ]; then
+        warn "wal_gap after=$previous next=$name"
+        gaps=$((gaps + 1))
+      fi
+    fi
+    previous="$name"
+  done < <(find "$dest" -maxdepth 1 -type f -name '*.zst.age' -printf '%f\n' | sed -n 's/^\([0-9A-F]\{24\}\)\.zst\.age$/\1/p' \
+             | sort | awk -v last="$last" '($0 "") > (last "")')   # string compare: all-digit names overflow awk numbers
+  [ -z "$previous" ] || printf '%s\n' "$previous" > "$state"
+
+  # With shipping enabled the local archive is pruned here, and only for segments that were shipped.
+  if [ -n "${WAL_ARCHIVE_PRUNE_MINUTES:-}" ] && [ -w "$WAL_ARCHIVE_DIR" ]; then
+    while IFS= read -r name; do
+      [ -f "$dest/$name.zst.age" ] && rm -f "$WAL_ARCHIVE_DIR/$name"
+    done < <(find "$WAL_ARCHIVE_DIR" -maxdepth 1 -type f -mmin +"$WAL_ARCHIVE_PRUNE_MINUTES" -printf '%f\n' | grep -E '^[0-9A-F]{24}$' || true)
+  fi
+
+  [ "$gaps" -eq 0 ] || die "wal_gap_detected gaps=$gaps (take a new base backup; see docs/ops/PRODUCTION_TOPOLOGY.md)"
+  info "backup_wal_done new_segments=$count newest=${previous:-none}"
   write_metrics wal 1 0 "$(du -sb "$dest" | cut -f1)"
 }
 
@@ -217,6 +254,7 @@ backup_basebackup() {
   dir="$(env_dir)/base/$id"
   work="$dir.partial"
   tmp="$(mktemp -d /tmp/bds-basebackup.XXXXXX)"
+  on_exit "rm -rf '$tmp'"
   mkfifo "$tmp/plain.fifo"
   mkdir -p "$work"
   started="$(now_ms)"
@@ -273,20 +311,46 @@ prune() {
       db) prune_kind db "$RETENTION_DB_HOURS" "$RETENTION_DB_DAYS" ;;
       media) prune_kind media 0 "$RETENTION_MEDIA_DAYS" ;;
       basebackup) prune_kind base 0 "$RETENTION_BASE_DAYS" ;;
-      wal) [ ! -d "$(env_dir)/wal" ] || find "$(env_dir)/wal" -type f -name '*.age' -mtime +"$RETENTION_WAL_DAYS" -delete ;;
+      wal) prune_wal ;;
     esac
   done
 }
 
+# Shipped WAL older than RETENTION_WAL_DAYS goes, but never WAL that the oldest kept base backup needs to replay
+# (base sets are kept by count even when new base backups keep failing).
+prune_wal() {
+  local dir cutoff oldest base_epoch
+  dir="$(env_dir)/wal"
+  [ -d "$dir" ] || return 0
+  cutoff=$(( $(date +%s) - RETENTION_WAL_DAYS * 86400 ))
+  oldest="$(list_sets base | head -n 1)"
+  if [ -n "$oldest" ]; then
+    base_epoch=$(( $(id_epoch "$(basename "$oldest")") - 3600 ))
+    [ "$base_epoch" -lt "$cutoff" ] && cutoff="$base_epoch"
+  fi
+  find "$dir" -maxdepth 1 -type f -name '*.zst.age' ! -newermt "@$cutoff" -delete
+}
+
 # Each job runs as its own process (see schedule): bash ignores `set -e` inside anything whose exit status is being
 # tested, so a job must never run as `if job` / `job || ...` in the same shell or a failed pg_dump would continue.
+# The EXIT trap (not ERR, which `die`/`exit` never fire) runs the cleanup hooks and records a failed attempt.
+JOB_KIND=""
+JOB_STARTED=0
+job_exit() {
+  local status=$? command
+  for command in ${CLEANUP[@]+"${CLEANUP[@]}"}; do eval "$command" >/dev/null 2>&1 || true; done
+  if [ "$status" -ne 0 ] && [ -n "$JOB_KIND" ]; then
+    warn "backup_failed kind=$JOB_KIND status=$status"
+    write_metrics "$JOB_KIND" 0 "$(( $(date +%s) - JOB_STARTED ))" 0
+  fi
+}
+
 run_job() {
-  local kind="$1" started
-  started="$(date +%s)"
-  # errtrace also runs the trap inside command substitutions; report once, from the main shell.
-  trap 'if [ "$BASH_SUBSHELL" -eq 0 ]; then warn "backup_failed kind='"$kind"'"; write_metrics '"$kind"' 0 "$(( $(date +%s) - '"$started"' ))" 0; fi' ERR
-  "backup_$kind"
-  trap - ERR
+  JOB_KIND="$1"
+  [ "$JOB_KIND" = basebackup ] && JOB_KIND=base
+  JOB_STARTED="$(date +%s)"
+  trap job_exit EXIT
+  "backup_$1"
 }
 
 schedule() {

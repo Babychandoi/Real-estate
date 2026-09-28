@@ -5,6 +5,18 @@
     X-Content-Type-Options nosniff
     Referrer-Policy strict-origin-when-cross-origin
   }
-  handle /api/* { reverse_proxy backend:8080 }
-  handle { reverse_proxy frontend:3000 }
+  # The backend and Nginx trust client-address headers from this proxy (Docker network), so Caddy must overwrite
+  # them with the peer it saw instead of passing client-supplied values through.
+  handle /api/* {
+    reverse_proxy backend:8080 {
+      header_up X-Real-IP {remote_host}
+      header_up -CF-Connecting-IP
+    }
+  }
+  handle {
+    reverse_proxy frontend:3000 {
+      header_up X-Real-IP {remote_host}
+      header_up -CF-Connecting-IP
+    }
+  }
 }

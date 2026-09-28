@@ -113,8 +113,11 @@ phát từ instance B. Khi chạy 2 instance, bộ đếm rate limit dùng chung
 - Cổng 3000 chỉ publish trên `127.0.0.1`: không máy nào trong LAN nói chuyện trực tiếp với Nginx được.
 - Nếu chuyển từ tunnel sang DNS proxied tới IP public của VM: thêm các dải IP của Cloudflare vào `set_real_ip_from`,
   chặn mọi nguồn khác bằng firewall (hoặc Authenticated Origin Pulls), không nới dải Docker.
-- Nếu đặt một reverse proxy khác trước backend (ví dụ `infra/compose.production-overlay.yaml` với Caddy): backend
-  đọc `X-Forwarded-For` từ phải sang trái và bỏ qua các hop là proxy tin cậy, nên không cần cấu hình thêm.
+- Nếu đặt một reverse proxy khác trước backend (ví dụ `infra/compose.production-overlay.yaml` với Caddy): backend ưu
+  tiên hop ngoài cùng bên phải của `X-Forwarded-For` không phải proxy tin cậy (client chỉ chèn được vào bên trái), và
+  chỉ dùng `X-Real-IP` khi không có `X-Forwarded-For`. Proxy đó vẫn phải **ghi đè** `X-Real-IP` và bỏ
+  `CF-Connecting-IP` do client gửi (`infra/production/Caddyfile` đã làm), vì mọi container trong mạng Compose đều là
+  proxy tin cậy.
 
 ## 6. Sao lưu, PITR, RPO/RTO
 

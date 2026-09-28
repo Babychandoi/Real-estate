@@ -12,8 +12,15 @@ services:
       WAL_ARCHIVE_DIR: /wal-archive
       WAL_INTERVAL_SECONDS: ${BACKUP_WAL_INTERVAL_SECONDS:-300}
       RETENTION_WAL_DAYS: ${BACKUP_RETENTION_WAL_DAYS:-7}
+      # Local segments are deleted only once shipped and older than this.
+      WAL_ARCHIVE_PRUNE_MINUTES: ${WAL_ARCHIVE_KEEP_MINUTES:-4320}
     volumes:
-      - postgres-wal-archive:/wal-archive:ro
+      - postgres-wal-archive:/wal-archive
+  postgres-wal-archive-prune:
+    # With shipping on, the age-based pruner is only a backstop against a full disk if shipping stops for a week
+    # (BdsWalShippingStale alerts after 30 minutes).
+    environment:
+      KEEP_MINUTES: ${WAL_ARCHIVE_KEEP_MINUTES_UNSHIPPED:-10080}
   postgres-basebackup:
     # Shares PostgreSQL's network namespace: pg_basebackup connects to 127.0.0.1, where the image's default
     # pg_hba.conf accepts local replication; nothing else can reach it.
