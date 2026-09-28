@@ -31,7 +31,7 @@ public class ReportDeskService {
     private static final Set<String> OPEN = Set.of("PENDING", "WAITING_REPLY", "APPEALED");
     private static final Set<String> STATUSES = Set.of("PENDING", "WAITING_REPLY", "APPEALED", "RESOLVED", "DISMISSED");
     private static final Set<String> EVENT_TYPES = Set.of("SUBMITTED", "CLAIMED", "RELEASED", "EMERGENCY_HIDDEN", "RESOLVED",
-            "DISMISSED", "APPEALED", "OWNER_RESPONSE", "AUTO_PAUSED", "NOTE");
+            "DISMISSED", "APPEALED", "OWNER_RESPONSE", "AUTO_PAUSED", "ESCALATED", "NOTE");
     private static final String SLA_MINUTES = "CASE r.severity WHEN 'P0_EMERGENCY' THEN 60 WHEN 'HIGH' THEN 240 WHEN 'MEDIUM' THEN 1440 ELSE 4320 END";
 
     private final JdbcTemplate jdbc;
@@ -147,12 +147,22 @@ public class ReportDeskService {
         if (changed > 0) recordEvent(reportId, "RELEASED", actorId, null, null);
     }
 
-    /** Actions on a case are refused while another staff member holds a live claim on it. */
-    @Transactional(readOnly = true)
+    /**
+     * Locks the case row for the rest of the caller's transaction and checks that an action may run: the case exists
+     * (404), is still open (409 {@code REPORT_CLOSED}: a resolved or dismissed case is never re-resolved) and no other
+     * staff member holds a live claim (409 {@code CLAIM_CONFLICT}). Two concurrent actions serialise on the row lock and
+     * the second one sees the closed status, so each case has exactly one closing effect.
+     */
+    @Transactional
     public void assertActionable(UUID reportId, UUID actorId) {
-        List<UUID> holder = jdbc.query("SELECT claimed_by FROM listing_reports WHERE id = ? AND claimed_until > ?",
-                (rs, n) -> rs.getObject(1, UUID.class), reportId, Timestamp.from(clock.instant()));
-        if (!holder.isEmpty() && holder.get(0) != null && !holder.get(0).equals(actorId)) throw conflict(reportId);
+        Timestamp now = Timestamp.from(clock.instant());
+        List<Object[]> rows = jdbc.query("""
+                SELECT status, CASE WHEN claimed_until > ? THEN claimed_by END FROM listing_reports WHERE id = ? FOR UPDATE
+                """, (rs, n) -> new Object[]{rs.getString(1), rs.getObject(2, UUID.class)}, now, reportId);
+        if (rows.isEmpty()) throw ApiException.notFound("REPORT_NOT_FOUND", "Không tìm thấy vụ việc.");
+        if (!OPEN.contains((String) rows.get(0)[0])) throw ApiException.conflict("REPORT_CLOSED", "Vụ việc đã đóng, không thể xử lý lại.");
+        UUID holder = (UUID) rows.get(0)[1];
+        if (holder != null && !holder.equals(actorId)) throw conflict(reportId);
     }
 
     /** Closes the claim and records who closed the case. */
@@ -169,11 +179,10 @@ public class ReportDeskService {
         catch (IllegalArgumentException ex) { throw ApiException.badRequest("INVALID_SEVERITY", "Mức độ không hợp lệ."); }
         String why = reason == null ? "" : reason.trim();
         if (why.length() < 5) throw ApiException.badRequest("REASON_REQUIRED", "Cần nhập lý do (ít nhất 5 ký tự).");
-        assertActionable(reportId, actorId);
-        List<String> previous = jdbc.queryForList("SELECT severity FROM listing_reports WHERE id = ? FOR UPDATE", String.class, reportId);
-        if (previous.isEmpty()) throw ApiException.notFound("REPORT_NOT_FOUND", "Không tìm thấy vụ việc.");
+        assertActionable(reportId, actorId); // takes the row lock before any read of the case
+        List<String> previous = jdbc.queryForList("SELECT severity FROM listing_reports WHERE id = ?", String.class, reportId);
         jdbc.update("UPDATE listing_reports SET severity = ?, updated_at = ? WHERE id = ?", target.name(), Timestamp.from(clock.instant()), reportId);
-        recordEvent(reportId, "NOTE", actorId, why, Map.of("severityFrom", previous.get(0), "severityTo", target.name()));
+        recordEvent(reportId, "ESCALATED", actorId, why, Map.of("severityFrom", previous.get(0), "severityTo", target.name()));
     }
 
     /** Appends one history entry. Public so the supply flow can record OWNER_RESPONSE / AUTO_PAUSED for FAKE_SOLD cases. */

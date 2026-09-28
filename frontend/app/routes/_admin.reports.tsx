@@ -45,6 +45,7 @@ const EVENT_LABELS: Record<string, string> = {
   APPEALED: 'Người đăng khiếu nại',
   OWNER_RESPONSE: 'Chủ tin phản hồi',
   AUTO_PAUSED: 'Tự tạm ẩn (chủ tin không xác nhận)',
+  ESCALATED: 'Đổi mức độ ưu tiên',
   NOTE: 'Ghi chú',
 };
 const OUTCOME: Record<string, string> = {

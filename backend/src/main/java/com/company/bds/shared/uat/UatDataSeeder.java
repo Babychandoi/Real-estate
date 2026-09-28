@@ -583,7 +583,7 @@ public class UatDataSeeder implements ApplicationRunner {
             jdbc.update("""
                     INSERT INTO listing_reports(id,listing_id,case_number,reporter_type,reporter_phone,category,severity,status,description,resolution_note,created_at,resolved_at)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    id(K_REPORT, i + 1), target.id(), String.format("UAT-CASE-%04d", i + 1), "ANONYMOUS", i % 2 == 0 ? fakePhone(300 + i) : null,
+                    id(K_REPORT, i + 1), target.id(), String.format("UAT-CASE-%04d", i + 1), "ANONYMOUS", i % 2 == 0 ? pii.protect(fakePhone(300 + i)).encrypted() : null,
                     reports[i][0], reports[i][1], status, reports[i][3],
                     closed ? (status.equals("RESOLVED") ? "Đã yêu cầu người đăng gỡ tin trùng." : "Nội dung không vi phạm quy định đăng tin.") : null,
                     ago(Duration.ofHours(6 + i * 17L)), closed ? ago(Duration.ofHours(2 + i * 5L)) : null);

@@ -94,7 +94,40 @@ public class TrustDecisionService {
                     rejection_reason = ? WHERE id = ?
                 """, ts(now), actorId, reason.name(), shown, kycId);
         record("KYC", kycId, userId, null, "REVOKED", reason, note, null, actorId, now);
-        notifyUser(userId, "KYC_REVOKED", "Xác minh danh tính đã bị thu hồi", shown);
+        int cascaded = cascadeOwnershipOfRevokedKyc(kycId, actorId, reason, now);
+        notifyUser(userId, "KYC_REVOKED", "Xác minh danh tính đã bị thu hồi",
+                cascaded == 0 ? shown : shown + ". Đối chiếu giấy tờ của " + cascaded + " tin dựa trên danh tính này cũng đã bị thu hồi.");
+    }
+
+    /**
+     * Ownership checks rest on the identity they were approved with: revoking that identity revokes each of its
+     * VERIFIED_OWNER checks (same reason code, history entry "KYC_REVOKED" note) and turns each listing's badge off unless
+     * another valid check still backs it. Pending checks stay pending: they cannot be approved without a valid identity.
+     * Expiry of an identity does not cascade (each ownership check keeps its own 180-day validity).
+     */
+    private int cascadeOwnershipOfRevokedKyc(UUID kycId, UUID actorId, TrustReason reason, Instant now) {
+        List<UUID[]> rows = jdbc.query("""
+                SELECT id, listing_id FROM listing_verifications WHERE user_kyc_id = ? AND status = 'VERIFIED_OWNER' ORDER BY id FOR UPDATE
+                """, (rs, n) -> new UUID[]{rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)}, kycId);
+        String note = "Danh tính người đăng đã bị thu hồi";
+        for (UUID[] row : rows) {
+            jdbc.update("""
+                    UPDATE listing_verifications SET status = 'REVOKED', revoked_at = ?, decided_by = ?, decision_reason_code = ?,
+                        verifier_note = ? WHERE id = ?
+                    """, ts(now), actorId, reason.name(), reason.getVietnameseLabel() + ": " + note, row[0]);
+            refreshListingFlag(row[1], now);
+            record("OWNERSHIP", row[0], null, row[1], "REVOKED", reason, note, null, actorId, now);
+        }
+        return rows.size();
+    }
+
+    /** The listing badge stays on only while some ownership check of it is VERIFIED_OWNER, not revoked and not expired. */
+    public void refreshListingFlag(UUID listingId, Instant now) {
+        Integer valid = jdbc.queryForObject("""
+                SELECT count(*) FROM listing_verifications WHERE listing_id = ? AND status = 'VERIFIED_OWNER'
+                  AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+                """, Integer.class, listingId, ts(now));
+        setListingVerified(listingId, valid != null && valid > 0, now);
     }
 
     // ------------------------------------------------------------------------------------------------ ownership
@@ -104,12 +137,16 @@ public class TrustDecisionService {
         TrustReason reason = reason(reasonCode, TrustReason.Kind.APPROVE);
         Ownership v = lockOwnership(verificationId, "PENDING");
         notOwn(v.ownerId(), actorId);
-        String kycStatus = jdbc.query("SELECT status FROM user_kyc_profiles WHERE id = ?", (rs, n) -> rs.getString(1), v.kycId())
-                .stream().findFirst().orElse(null);
-        if (!"VERIFIED".equals(kycStatus)) {
-            throw ApiException.conflict("KYC_NOT_VERIFIED", "Không thể duyệt quyền sở hữu khi danh tính người đăng chưa được xác minh.");
-        }
         Instant now = clock.instant();
+        // Contract §6: identity counts only while VERIFIED, not expired and not revoked (an expired identity keeps
+        // status VERIFIED with a past expires_at). Locked so a concurrent identity revocation cannot slip in between.
+        Integer validKyc = jdbc.queryForObject("""
+                SELECT count(*) FROM (SELECT 1 FROM user_kyc_profiles WHERE id = ? AND status = 'VERIFIED' AND revoked_at IS NULL
+                    AND (expires_at IS NULL OR expires_at > ?) FOR SHARE) k
+                """, Integer.class, v.kycId(), ts(now));
+        if (validKyc == null || validKyc == 0) {
+            throw ApiException.conflict("KYC_NOT_VERIFIED", "Không thể duyệt quyền sở hữu khi danh tính người đăng chưa được xác minh hoặc đã hết hạn/bị thu hồi.");
+        }
         Instant expires = now.plus(java.time.Duration.ofDays(OWNERSHIP_VALIDITY.getDays()));
         jdbc.update("""
                 UPDATE listing_verifications SET status = 'VERIFIED_OWNER', verified_at = ?, expires_at = ?, decided_by = ?,
@@ -151,7 +188,7 @@ public class TrustDecisionService {
                 UPDATE listing_verifications SET status = 'REVOKED', revoked_at = ?, decided_by = ?, decision_reason_code = ?,
                     verifier_note = ? WHERE id = ?
                 """, ts(now), actorId, reason.name(), shown, verificationId);
-        setListingVerified(v.listingId(), false, now);
+        refreshListingFlag(v.listingId(), now); // another valid check of the same listing keeps the badge
         record("OWNERSHIP", verificationId, null, v.listingId(), "REVOKED", reason, note, null, actorId, now);
         if (v.ownerId() != null) {
             notifications.notify(v.ownerId(), "OWNERSHIP_REVOKED", "Đối chiếu giấy tờ đã bị thu hồi", "Tin \"" + v.title() + "\": " + shown);

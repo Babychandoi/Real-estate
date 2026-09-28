@@ -125,6 +125,14 @@ public class RandomAuditService {
                 : Arrays.stream(StandardModerationReason.values()).anyMatch(r -> r.name().equals(reasonCode));
         if (!validReason) throw ApiException.badRequest("INVALID_REASON", "Cần chọn lý do trong danh mục chuẩn.");
         Instant now = clock.instant();
+        List<UUID> original = jdbc.query("""
+                SELECT d.moderator_id FROM moderation_audit_samples s
+                LEFT JOIN moderation_decisions d ON d.id = s.original_decision_id WHERE s.id = ?
+                """, (rs, n) -> rs.getObject(1, UUID.class), sampleId);
+        if (!original.isEmpty() && actorId.equals(original.get(0))) {
+            // The second look must come from someone other than the moderator who approved the listing.
+            throw ApiException.conflict("OWN_DECISION", "Không thể tự kiểm tra lại quyết định duyệt của chính mình.");
+        }
         List<UUID[]> sample = jdbc.query("""
                 UPDATE moderation_audit_samples SET status = ?, reviewed_by = ?, reviewed_at = ?, note = ?
                 WHERE id = ? AND status = 'OPEN' RETURNING listing_id, revision_id

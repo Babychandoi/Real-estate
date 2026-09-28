@@ -128,7 +128,11 @@ public class BillingService {
         }
         Plan plan = plans().stream().filter(x -> x.code().equals(planCode) && x.priceVnd() > 0).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Gói dịch vụ không hợp lệ."));
-        // Serialise per user+plan: concurrent requests (with or without a key) see each other's order.
+        // Serialise per user+key first (one key is never bound to two orders, whatever plan each request names), then per
+        // user+plan (concurrent requests with or without a key see each other's order). Always in this order: no deadlock.
+        if (key != null) {
+            jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))", Object.class, "billing-key:" + userId, key);
+        }
         jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtext(?), hashtext(?))", Object.class, "billing-order:" + userId, plan.code());
         String scope = "billing-order:" + userId;
         String requestHash = AuthService.sha256("plan:" + plan.code());
@@ -167,8 +171,12 @@ public class BillingService {
             created = true;
         }
         if (key != null) {
-            jdbc.update("INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id) VALUES(?,?,?,?) ON CONFLICT DO NOTHING",
+            int bound = jdbc.update("INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id) VALUES(?,?,?,?) ON CONFLICT DO NOTHING",
                     scope, key, requestHash, id);
+            if (bound == 0) {
+                // Defence in depth behind the key lock: never leave an order the key does not point at.
+                throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này vừa được dùng cho một yêu cầu khác.");
+            }
         }
         return new CreateResult(load(id, userId, false), created);
     }
@@ -291,19 +299,26 @@ public class BillingService {
         };
     }
 
-    /** Legacy approval of a reported transfer (no receipt details). */
+    /**
+     * Deprecated v1 approval without receipt details. It bypasses amount/reference matching, so it is a manual override
+     * like {@code APPROVE_WITH_NOTE}: ADMIN only (route), a written note of at least 5 characters, only from
+     * TRANSFER_REPORTED under a row lock, 409 {@code ORDER_STATE_CHANGED} otherwise. New clients use {@code /receipt}.
+     */
+    @Deprecated
     @Transactional
     public Order approve(UUID id, UUID adminId, String note) {
-        Order order = load(id, null, true);
-        if (!"TRANSFER_REPORTED".equals(order.status())) return order; // idempotent for an already decided order
-        return applyApproval(order, adminId, trimOrNull(note), "APPROVED_WITH_NOTE", Set.of("TRANSFER_REPORTED"));
+        String why = note == null ? "" : note.trim();
+        if (why.length() < 5) {
+            throw ApiException.badRequest("NOTE_REQUIRED", "Duyệt không qua đối soát cần ghi chú lý do (ít nhất 5 ký tự); hãy dùng ghi nhận khoản nhận.");
+        }
+        Order order = lockForReview(id, Set.of("TRANSFER_REPORTED"));
+        return applyApproval(order, adminId, why, "APPROVED_WITH_NOTE", Set.of("TRANSFER_REPORTED"));
     }
 
     @Transactional
     public Order reject(UUID id, UUID adminId, String reason) {
         if (reason == null || reason.isBlank()) throw new IllegalArgumentException("Cần nhập lý do từ chối đối soát.");
-        Order order = load(id, null, true);
-        if (!"TRANSFER_REPORTED".equals(order.status())) return order;
+        Order order = lockForReview(id, Set.of("TRANSFER_REPORTED"));
         return applyTerminal(order, adminId, reason.trim(), "REJECTED", "REJECTED", "TRANSFER_REPORTED");
     }
 

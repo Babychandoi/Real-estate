@@ -64,8 +64,11 @@ test('moderator claims a submission and approves it with a reason', async ({ pag
   await sheet.getByRole('button', { name: 'Phê duyệt…' }).click();
 
   const decision = page.getByRole('dialog', { name: 'Phê duyệt nội dung tin' });
-  await expect(decision.getByLabel('Lý do')).toBeVisible();
+  await expect(decision.getByLabel('Lý do')).toHaveValue('');
   await decision.getByLabel('Ghi chú nội bộ').fill('Ảnh rõ, địa chỉ khớp bản đồ');
+  await decision.getByRole('button', { name: 'Phê duyệt 1 tin' }).click();
+  await expect(decision.getByText('Cần chọn lý do.')).toBeVisible();
+  await decision.getByLabel('Lý do').selectOption('MEETS_STANDARDS');
   await decision.getByRole('button', { name: 'Phê duyệt 1 tin' }).click();
   await expect(page.getByText(`Đã phê duyệt: ${title}`)).toBeVisible();
 });

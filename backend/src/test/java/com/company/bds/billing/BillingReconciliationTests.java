@@ -84,6 +84,45 @@ class BillingReconciliationTests {
     }
 
     @Test
+    void oneKeyRacedAcrossPlansIsBoundToExactlyOneOrder() throws Exception {
+        TestData.TestUser user = data.user().role("BROKER").create();
+        String a = bearer(user);
+        List<Callable<Integer>> calls = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            String plan = i % 2 == 0 ? "STANDARD" : "PRO";
+            calls.add(() -> perform(a, post("/api/v1/billing/orders", Map.of("planCode", plan)).header("Idempotency-Key", "race-key"))
+                    .andReturn().getResponse().getStatus());
+        }
+        List<Integer> statuses = parallel(calls);
+        assertThat(statuses).containsOnly(200, 409);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM package_orders WHERE user_id = ?", Integer.class, user.id()))
+                .as("one key → one order, the other plan's requests are refused").isEqualTo(1);
+        UUID bound = jdbc.queryForObject("SELECT resource_id FROM api_idempotency_keys WHERE scope = ? AND idempotency_key = 'race-key'",
+                UUID.class, "billing-order:" + user.id());
+        assertThat(jdbc.queryForObject("SELECT user_id FROM package_orders WHERE id = ?", UUID.class, bound)).isEqualTo(user.id());
+    }
+
+    @Test
+    void legacyApproveNeedsANoteAndTheReportedStateAndOtherwiseConflicts() throws Exception {
+        TestData.TestUser buyer = data.user().role("BROKER").plan("FREE", 2).create();
+        String bearer = bearer(buyer);
+        String admin = bearer(data.user().role("ADMIN").create());
+        String order = id(perform(bearer, post("/api/v1/billing/orders", Map.of("planCode", "STANDARD"))));
+        perform(admin, post("/api/v1/billing/admin/reconciliation/" + order + "/approve", Map.of("note", "Đã đối chiếu sao kê")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ORDER_STATE_CHANGED"));
+        perform(bearer, post("/api/v1/billing/orders/" + order + "/reported", null)).andExpect(status().isOk());
+        perform(admin, post("/api/v1/billing/admin/reconciliation/" + order + "/approve", null))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("NOTE_REQUIRED"));
+        perform(admin, post("/api/v1/billing/admin/reconciliation/" + order + "/approve", Map.of("note", "Đã đối chiếu sao kê")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("APPROVED"));
+        perform(admin, post("/api/v1/billing/admin/reconciliation/" + order + "/approve", Map.of("note", "Đã đối chiếu sao kê")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ORDER_STATE_CHANGED"));
+        perform(admin, post("/api/v1/billing/admin/reconciliation/" + order + "/reject", Map.of("reason", "Sai")))
+                .andExpect(status().isConflict());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM invoices WHERE order_id = ?::uuid", Integer.class, order)).isEqualTo(1);
+    }
+
+    @Test
     void bankSettingsUseCompareAndSet() throws Exception {
         String admin1 = bearer(data.user().role("ADMIN").create());
         String admin2 = bearer(data.user().role("ADMIN").create());
@@ -106,8 +145,8 @@ class BillingReconciliationTests {
         String admin1 = bearer(data.user().role("ADMIN").create());
         String admin2 = bearer(data.user().role("ADMIN").create());
         List<Callable<String>> calls = List.of(
-                () -> json.readTree(perform(admin1, post("/api/v1/billing/admin/reconciliation/" + order + "/approve", Map.of("note", "ok")))
-                        .andReturn().getResponse().getContentAsString()).get("status").asText(),
+                () -> json.readTree(perform(admin1, post("/api/v1/billing/admin/reconciliation/" + order + "/approve", Map.of("note", "Đã đối chiếu sao kê")))
+                        .andReturn().getResponse().getContentAsString()).path("status").asText("CONFLICT"),
                 () -> json.readTree(perform(admin2, post("/api/v1/billing/admin/reconciliation/" + order + "/receipt",
                         Map.of("receivedAmountVnd", 199000, "receivedReference", "CK " + reference(order))))
                         .andReturn().getResponse().getContentAsString()).path("status").asText("CONFLICT"));

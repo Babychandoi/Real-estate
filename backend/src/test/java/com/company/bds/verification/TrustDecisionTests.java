@@ -168,6 +168,69 @@ class TrustDecisionTests {
         assertThat(noticeExpiry.toInstant()).isCloseTo(Instant.now().plus(Duration.ofDays(10)), within(Duration.ofMinutes(5)));
     }
 
+    @Test
+    void ownershipIsNotApprovedOnAnExpiredOrRevokedIdentity() throws Exception {
+        String staff = bearer(data.user().role("MODERATOR").create());
+        TestData.TestUser owner = data.user().role("OWNER").verifiedKyc().create();
+        UUID kycId = kycId(owner.id());
+        jdbc.update("UPDATE user_kyc_profiles SET expires_at = now() - interval '1 day' WHERE id = ?", kycId);
+        UUID onExpired = verification(data.listing(owner.id()).create().id(), kycId, "Chủ", "EXP-1");
+        perform(staff, post("/api/v1/verifications/" + onExpired + "/approve", Map.of("reasonCode", "DOCUMENTS_MATCH")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("KYC_NOT_VERIFIED"));
+
+        jdbc.update("UPDATE user_kyc_profiles SET expires_at = now() + interval '1 year', revoked_at = now() WHERE id = ?", kycId);
+        perform(staff, post("/api/v1/verifications/" + onExpired + "/approve", Map.of("reasonCode", "DOCUMENTS_MATCH")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("KYC_NOT_VERIFIED"));
+        assertThat(jdbc.queryForObject("SELECT status FROM listing_verifications WHERE id = ?", String.class, onExpired)).isEqualTo("PENDING");
+    }
+
+    @Test
+    void revokingOneCheckKeepsTheBadgeWhileAnotherIsValidAndRevokingIdentityCascades() throws Exception {
+        String staff = bearer(data.user().role("MODERATOR").create());
+        TestData.TestUser owner = data.user().role("OWNER").verifiedKyc().create();
+        UUID kycId = kycId(owner.id());
+        TestData.TestListing listing = data.listing(owner.id()).create();
+        UUID first = verification(listing.id(), kycId, "Chủ", "R-1");
+        UUID second = verification(listing.id(), kycId, "Chủ", "R-2");
+        TestData.TestListing otherListing = data.listing(owner.id()).create();
+        UUID third = verification(otherListing.id(), kycId, "Chủ", "R-3");
+        for (UUID v : new UUID[]{first, second, third}) {
+            perform(staff, post("/api/v1/verifications/" + v + "/approve", Map.of("reasonCode", "DOCUMENTS_MATCH"))).andExpect(status().isOk());
+        }
+        perform(staff, post("/api/v1/verifications/" + first + "/revoke", Map.of("reason", "Sổ cũ", "reasonCode", "OWNERSHIP_CHANGED")))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT is_verified_owner FROM listings WHERE id = ?", Boolean.class, listing.id()))
+                .as("the second valid check still backs the badge").isTrue();
+
+        perform(staff, post("/api/v1/kyc/" + kycId + "/revoke", Map.of("reason", "Giả mạo", "reasonCode", "FRAUD_CONFIRMED")))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForList("SELECT status FROM listing_verifications WHERE id IN (?,?,?) ORDER BY certificate_number", String.class,
+                first, second, third)).containsExactly("REVOKED", "REVOKED", "REVOKED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM listings WHERE id IN (?,?) AND is_verified_owner", Integer.class,
+                listing.id(), otherListing.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trust_decisions WHERE subject_id IN (?,?) AND decision = 'REVOKED' AND reason_code = 'FRAUD_CONFIRMED'",
+                Integer.class, second, third)).isEqualTo(2);
+    }
+
+    @Test
+    void expiryBacklogLargerThanOneBatchIsClearedInOneRun() {
+        TestData.TestUser owner = data.user().role("OWNER").verifiedKyc().create();
+        UUID kycId = kycId(owner.id());
+        UUID listingId = data.listing(owner.id()).create().id();
+        jdbc.update("""
+                INSERT INTO listing_verifications(id, listing_id, user_kyc_id, verification_type, certificate_number, document_urls,
+                    owner_name_on_doc, status, created_at, verified_at, expires_at)
+                SELECT gen_random_uuid(), ?, ?, 'CERTIFICATE_OF_OWNERSHIP', 'B-' || g, '/x.jpg', 'Chủ', 'VERIFIED_OWNER', now(),
+                       now() - interval '200 days', now() - interval '1 day' - g * interval '1 second'
+                FROM generate_series(1, 450) g
+                """, listingId, kycId);
+        jdbc.update("UPDATE listings SET is_verified_owner = TRUE WHERE id = ?", listingId);
+        expiry.runOnce();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM trust_decisions WHERE listing_id = ? AND decision = 'EXPIRED'", Integer.class, listingId))
+                .isEqualTo(450);
+        assertThat(jdbc.queryForObject("SELECT is_verified_owner FROM listings WHERE id = ?", Boolean.class, listingId)).isFalse();
+    }
+
     // ------------------------------------------------------------------------------------------------ helpers
 
     private UUID kycId(UUID userId) { return jdbc.queryForObject("SELECT id FROM user_kyc_profiles WHERE user_id = ?", UUID.class, userId); }

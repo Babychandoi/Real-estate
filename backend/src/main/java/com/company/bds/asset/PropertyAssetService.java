@@ -25,7 +25,7 @@ import java.util.UUID;
  *   <li>On approval an exact fingerprint links the listing to a {@code property_assets} row (created on first sight),
  *       so several listings of one real property share one asset.</li>
  *   <li>Candidates come from blocking keys only (same district, type, purpose, price bucket ±1, area ±5%) through
- *       {@code idx_listing_fingerprints_block}; pg_trgm similarity is computed only for the rows of that block, so the
+ *       {@code idx_listing_fingerprints_block}, plus exact-fingerprint matches of any price/purpose; pg_trgm similarity is computed only for the rows of that block, so the
  *       work per listing grows with its block, never with the total number of listings (no n² comparison).</li>
  * </ol>
  */
@@ -94,35 +94,43 @@ public class PropertyAssetService {
      */
     @Transactional
     public DetectionResult detectCandidates(UUID listingId) {
+        // The block (blocking keys) plus every exact-fingerprint match whatever its price or purpose (a relisting at a very
+        // different price is still the same property); both arms are index lookups. The cap keeps the most similar rows.
         List<Compared> block = jdbc.query("""
                 SELECT f.listing_id, f.fingerprint = me.fingerprint AS exact, similarity(f.match_text, me.match_text) AS sim,
                        f.area_m2, me.area_m2 AS my_area, f.price_vnd, me.price_vnd AS my_price, l.owner_id = ml.owner_id AS same_owner,
-                       l.status
+                       l.status,
+                       (f.district_code = me.district_code AND f.property_type = me.property_type AND f.purpose = me.purpose
+                        AND f.price_bucket BETWEEN me.price_bucket - 1 AND me.price_bucket + 1
+                        AND f.area_m2 BETWEEN me.area_m2 * 0.95 AND me.area_m2 * 1.05) AS in_block
                 FROM listing_fingerprints me
                 JOIN listing_fingerprints f
-                  ON f.district_code = me.district_code AND f.property_type = me.property_type AND f.purpose = me.purpose
-                 AND f.price_bucket BETWEEN me.price_bucket - 1 AND me.price_bucket + 1
-                 AND f.area_m2 BETWEEN me.area_m2 * 0.95 AND me.area_m2 * 1.05
-                 AND f.listing_id <> me.listing_id
+                  ON f.listing_id <> me.listing_id
+                 AND ((f.district_code = me.district_code AND f.property_type = me.property_type AND f.purpose = me.purpose
+                       AND f.price_bucket BETWEEN me.price_bucket - 1 AND me.price_bucket + 1
+                       AND f.area_m2 BETWEEN me.area_m2 * 0.95 AND me.area_m2 * 1.05)
+                      OR f.fingerprint = me.fingerprint)
                 JOIN listings l ON l.id = f.listing_id
                 JOIN listings ml ON ml.id = me.listing_id
                 WHERE me.listing_id = ?
-                ORDER BY f.listing_id
+                ORDER BY exact DESC, sim DESC, f.listing_id
                 LIMIT ?
                 """, (rs, n) -> new Compared(rs.getObject("listing_id", UUID.class), rs.getBoolean("exact"), rs.getDouble("sim"),
                 rs.getBigDecimal("area_m2"), rs.getBigDecimal("my_area"), rs.getLong("price_vnd"), rs.getLong("my_price"),
-                rs.getBoolean("same_owner"), rs.getString("status")), listingId, MAX_BLOCK);
+                rs.getBoolean("same_owner"), rs.getString("status"), rs.getBoolean("in_block")), listingId, MAX_BLOCK);
         int created = 0;
         Instant now = clock.instant();
         for (Compared c : block) {
             if (!CANDIDATE_STATUSES.contains(c.status())) continue;
             if (!c.exact() && c.similarity() < MIN_SIMILARITY) continue;
-            double areaCloseness = 1 - Math.min(1, c.area().subtract(c.myArea()).abs()
+            double areaCloseness = c.myArea().signum() <= 0 ? 0 : 1 - Math.min(1, c.area().subtract(c.myArea()).abs()
                     .divide(c.myArea().multiply(new BigDecimal("0.05")), 6, RoundingMode.HALF_UP).doubleValue());
             double priceCloseness = c.myPrice() <= 0 ? 0
                     : 1 - Math.min(1, Math.abs(c.price() - c.myPrice()) / (double) Math.max(c.price(), c.myPrice()));
             double score = c.exact() ? 1.0 : Math.min(0.999, 0.7 * c.similarity() + 0.15 * areaCloseness + 0.15 * priceCloseness);
-            List<String> reasons = new ArrayList<>(List.of("SAME_DISTRICT_TYPE", "AREA_WITHIN_5_PERCENT", "PRICE_BUCKET"));
+            List<String> reasons = c.inBlock()
+                    ? new ArrayList<>(List.of("SAME_DISTRICT_TYPE", "AREA_WITHIN_5_PERCENT", "PRICE_BUCKET"))
+                    : new ArrayList<>();
             if (c.exact()) reasons.add(0, "EXACT_FINGERPRINT");
             reasons.add("TEXT_SIMILARITY:" + BigDecimal.valueOf(c.similarity()).setScale(2, RoundingMode.HALF_UP));
             if (c.sameOwner()) reasons.add("SAME_OWNER");
@@ -167,18 +175,57 @@ public class PropertyAssetService {
                 rs.getObject("property_asset_id", UUID.class)), listingId, listingId, listingId, listingId);
     }
 
-    /** Moderator decision on a candidate pair: DISMISSED (different properties) or CONFIRMED (same property). */
+    /**
+     * Moderator decision on an OPEN candidate pair: DISMISSED (different properties) or CONFIRMED (same property). A decided
+     * pair cannot be decided again (409). CONFIRMED links both listings to one property asset (the first listing's asset,
+     * else the other's, else a new asset from the first listing's fingerprint).
+     */
     @Transactional
     public void decide(UUID candidateId, String status, String note, UUID actorId) {
         if (!Set.of("DISMISSED", "CONFIRMED").contains(status)) {
             throw ApiException.badRequest("INVALID_DUPLICATE_DECISION", "Chỉ có thể xác nhận trùng hoặc bỏ qua cặp tin.");
         }
-        int changed = jdbc.update("""
+        List<UUID[]> pair = jdbc.query("""
+                SELECT listing_id, candidate_listing_id, status FROM listing_duplicate_candidates WHERE id = ? FOR UPDATE
+                """, (rs, n) -> "OPEN".equals(rs.getString(3))
+                ? new UUID[]{rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)} : new UUID[0], candidateId);
+        if (pair.isEmpty()) throw ApiException.notFound("DUPLICATE_CANDIDATE_NOT_FOUND", "Không tìm thấy cặp tin nghi trùng.");
+        if (pair.get(0).length == 0) {
+            throw ApiException.conflict("DUPLICATE_ALREADY_DECIDED", "Cặp tin này đã được xử lý.");
+        }
+        Timestamp now = Timestamp.from(clock.instant());
+        jdbc.update("""
                 UPDATE listing_duplicate_candidates SET status = ?, note = ?, decided_by = ?, decided_at = ?, updated_at = ?
                 WHERE id = ?
-                """, status, note == null || note.isBlank() ? null : note.trim(), actorId, Timestamp.from(clock.instant()),
-                Timestamp.from(clock.instant()), candidateId);
-        if (changed == 0) throw ApiException.notFound("DUPLICATE_CANDIDATE_NOT_FOUND", "Không tìm thấy cặp tin nghi trùng.");
+                """, status, note == null || note.isBlank() ? null : note.trim(), actorId, now, now, candidateId);
+        if ("CONFIRMED".equals(status)) linkPair(pair.get(0)[0], pair.get(0)[1], now);
+    }
+
+    private void linkPair(UUID first, UUID second, Timestamp now) {
+        UUID assetId = jdbc.query("""
+                SELECT property_asset_id FROM listings WHERE id IN (?, ?) AND property_asset_id IS NOT NULL
+                ORDER BY (id = ?) DESC LIMIT 1
+                """, (rs, n) -> rs.getObject(1, UUID.class), first, second, first).stream().findFirst().orElse(null);
+        if (assetId == null) {
+            for (UUID source : List.of(first, second)) {
+                jdbc.update("""
+                        INSERT INTO property_assets(id, fingerprint, district_code, property_type, area_m2_rounded, normalized_address, created_at)
+                        SELECT ?, f.fingerprint, f.district_code, f.property_type, round(f.area_m2)::int,
+                               left(bds_normalize_text(r.address_summary), 400), ?
+                        FROM listing_fingerprints f JOIN listing_revisions r ON r.id = f.revision_id
+                        WHERE f.listing_id = ?
+                        ON CONFLICT (fingerprint) DO NOTHING
+                        """, UUID.randomUUID(), now, source);
+                assetId = jdbc.query("""
+                        SELECT a.id FROM property_assets a JOIN listing_fingerprints f ON f.fingerprint = a.fingerprint
+                        WHERE f.listing_id = ?
+                        """, (rs, n) -> rs.getObject(1, UUID.class), source).stream().findFirst().orElse(null);
+                if (assetId != null) break;
+            }
+        }
+        if (assetId == null) return; // neither listing has comparable attributes yet; nothing to link
+        jdbc.update("UPDATE listings SET property_asset_id = ? WHERE id IN (?, ?) AND property_asset_id IS DISTINCT FROM ?",
+                assetId, first, second, assetId);
     }
 
     /** Listings with a submitted revision whose fingerprint is missing or stale (for the periodic sweep). */
@@ -203,7 +250,7 @@ public class PropertyAssetService {
     }
 
     private record Compared(UUID listingId, boolean exact, double similarity, BigDecimal area, BigDecimal myArea, long price,
-                            long myPrice, boolean sameOwner, String status) {}
+                            long myPrice, boolean sameOwner, String status, boolean inBlock) {}
 
     public record DetectionResult(int compared, int created) {}
 

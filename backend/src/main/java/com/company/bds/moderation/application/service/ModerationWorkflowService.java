@@ -175,6 +175,10 @@ public class ModerationWorkflowService {
         }
         Listing listing = listings.findById(listingId)
                 .orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
+        if (actorId.equals(listing.getOwnerId())) {
+            // Four-eyes (DS-13/P-14): nobody decides on their own listing, even an ADMIN who may also post.
+            throw ApiException.conflict("OWN_DECISION", "Không thể tự kiểm duyệt tin đăng của chính mình.");
+        }
         ListingRevision current = latestSubmitted(listing)
                 .orElseThrow(() -> ApiException.conflict("NOT_PENDING", "Tin này không còn chờ kiểm duyệt."));
         if (!current.getId().equals(revisionId)) {

@@ -47,19 +47,24 @@ public class KycDocumentAccessService {
         }
         AuthService.KycDocumentAccess grant = auth.grantKycDocumentAccess(actorId, password);
         jdbc.update("""
-                INSERT INTO kyc_access_log(id, subject_user_id, actor_id, reason, grant_expires_at, created_at) VALUES (?,?,?,?,?,?)
-                """, UUID.randomUUID(), subjectUserId, actorId, why, Timestamp.from(grant.expiresAt()), Timestamp.from(clock.instant()));
+                INSERT INTO kyc_access_log(id, subject_user_id, actor_id, reason, grant_expires_at, grant_token_hash, created_at)
+                VALUES (?,?,?,?,?,?,?)
+                """, UUID.randomUUID(), subjectUserId, actorId, why, Timestamp.from(grant.expiresAt()),
+                AuthService.sha256(grant.token()), Timestamp.from(clock.instant()));
         return new DocumentAccess(grant.token(), grant.expiresAt(), profile.isEmpty() ? null : profile.get(0), ownershipDocuments);
     }
 
-    /** Whether a staff member may stream this private object now (valid grant + logged reason for its owner). */
+    /**
+     * Whether a staff member may stream this private object now: a valid grant whose own log row (bound by the token
+     * hash) names the image's owner with a reason. Another grant of the same actor does not borrow that reason.
+     */
     @Transactional(readOnly = true)
     public boolean staffMayRead(UUID actorId, String grantToken, String objectKey) {
-        if (!auth.hasKycDocumentAccess(actorId, grantToken)) return false;
+        if (grantToken == null || !auth.hasKycDocumentAccess(actorId, grantToken)) return false;
         Integer allowed = jdbc.queryForObject("""
                 SELECT count(*) FROM media_objects m JOIN kyc_access_log a ON a.subject_user_id = m.owner_id
-                WHERE m.object_key = ? AND a.actor_id = ? AND a.grant_expires_at > ?
-                """, Integer.class, objectKey, actorId, Timestamp.from(clock.instant()));
+                WHERE m.object_key = ? AND a.actor_id = ? AND a.grant_expires_at > ? AND a.grant_token_hash = ?
+                """, Integer.class, objectKey, actorId, Timestamp.from(clock.instant()), AuthService.sha256(grantToken));
         return allowed != null && allowed > 0;
     }
 

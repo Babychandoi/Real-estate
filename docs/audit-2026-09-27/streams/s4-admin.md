@@ -89,3 +89,52 @@ contrib, present in the postgis image). New optional properties: `app.moderation
 - **S2:** trust reads: KYC `expires_at`, ownership `expires_at`/`revoked_at` are now set on every decision; `listings.is_verified_owner` is cleared on revoke/expiry.
 - **S5-B:** admin MFA should gate the new admin endpoints; rate-limit policy not needed (no new public endpoint).
 - **S9:** fold `ApiException` into the Problem Details work; OpenAPI snapshot will include the new admin endpoints.
+
+## 9. Review 2 fixes
+
+All findings of Review 2 are fixed. The only new migration is V061. V060 was edited before merge, which is allowed because it never ran outside tests.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| MAJOR 1 | No four-eyes rule in moderation or random audit | `ModerationWorkflowService.decide` returns 409 `OWN_DECISION` when the actor owns the listing. This covers single approve/reject and bulk, where the item outcome is `OWN_DECISION`. `RandomAuditService.review` returns 409 `OWN_DECISION` when the reviewer is the moderator of the original approval. | `ModerationV2Tests.nobodyModeratesTheirOwnListingSingleOrBulk`, `weeklyRandomAuditDrawsOnceAndRecordsTheSecondLook`. `BdsApplicationTests` now approves with a separate moderator. |
+| MAJOR 2 | Ownership approved on an expired identity | Approval requires the identity to be `VERIFIED`, with `revoked_at IS NULL` and `expires_at` null or in the future. The identity row is read `FOR SHARE`. | `TrustDecisionTests.ownershipIsNotApprovedOnAnExpiredOrRevokedIdentity` |
+| 3 | Idempotency-key race across plans | An advisory lock is taken on (user, key) before the (user, plan) lock, always in that order. A key insert that affects 0 rows now returns 409 instead of passing silently. | `BillingReconciliationTests.oneKeyRacedAcrossPlansIsBoundToExactlyOneOrder`: 10 parallel requests, same key, 2 plans → 1 order |
+| 4 | Legacy approve skips reconciliation | Deprecated. The route is ADMIN only. It requires a note of at least 5 characters, like `APPROVE_WITH_NOTE`. The row is locked and the order must be `TRANSFER_REPORTED`, otherwise 409 `ORDER_STATE_CHANGED`. Legacy reject returns 409 on the wrong state. No UI uses legacy approve; new clients use `/receipt`. | `legacyApproveNeedsANoteAndTheReportedStateAndOtherwiseConflicts` |
+| 5 | Report actions not state-guarded | `assertActionable` locks the case row `FOR UPDATE`, then checks it exists (404), is open (409 `REPORT_CLOSED`), and is not claimed by another staff member (409 `CLAIM_CONFLICT`). Concurrent actions serialise on the lock and the second one sees the closed state. The row lock is used instead of an `@Version` column. | `ReportDeskTests.closedCasesCannotBeActedOnAgainAndConcurrentClosingHasOneEffect`: parallel resolve and dismiss → one 200, one 409, one closing event |
+| 6 | Reporter-phone migration gaps | The seeder stores `pii.protect(...)`. The migrator is now `@Scheduled` instead of an `ApplicationRunner`: first run about 30 s after start, then hourly, under a task lock. It no longer blocks readiness, is resumable, and catches plaintext rows written by old instances. | `UatDataSeederTests` asserts no plaintext seeded phones; the migrator tests are unchanged |
+| 7 | Migration lock and index details | V060 adds the FK `NOT VALID`; V061 runs `VALIDATE CONSTRAINT`, which takes SHARE UPDATE EXCLUSIVE. V061 cancels older duplicate `CREATED` orders (with a history event), then creates `uq_package_orders_open_per_plan` if no duplicates remain. | `SchemaMigrationTests` (full migrate + no-op re-run) |
+| 8 | Duplicate-detection quality | The candidate query covers the block OR the exact fingerprint, whatever price or purpose. Rows are ordered by exact match, then similarity, before the 200 cap. `decide` locks the pair and returns 409 `DUPLICATE_ALREADY_DECIDED` unless it is OPEN. CONFIRMED links both listings to one asset: the first one's, else the other's, else a new asset from the fingerprint. | `exactFingerprintIsComparedAcrossPriceBucketsAndConfirmedPairsShareOneAsset`, re-decide 409 in `duplicateCandidatesComeFromTheBlockOnly...` |
+| 9 | Trust semantics | See the rules below this table. | `revokingOneCheckKeepsTheBadgeWhileAnotherIsValidAndRevokingIdentityCascades`, `expiryBacklogLargerThanOneBatchIsClearedInOneRun` (450 rows) |
+| 10 | ReasonDialog preselects a reason | The choice starts empty ("— Chọn lý do —"). Submitting without a choice shows "Cần chọn …". | E2E `admin.spec.ts` moderator journey checks the empty value, the error, then selects a reason |
+| 11 | Admin budgets raised without justification | Measured per chunk at gzip-1. The shared admin kit, cached across admin routes, is about 11.5 kB: adminUi 4.5, DataTable 2.9, Skeleton 1.4, Dialog 0.9, Pagination 0.8, Badge+Chip 1.0. The route chunks add the rest: moderation 7.7 kB, billing 3.4 kB. Budgets stay at measured + about 10%, the same policy as every other route. The breakdown is recorded as `note` in `bundle-budget.json`. | `check:bundle` all ok |
+| NIT | Grant token not bound to its log row | `kyc_access_log.grant_token_hash` is written on open. `staffMayRead` requires the log row of the presented token, so a grant obtained without a reason does not work. | `AdminListingsAndUsersTests.kycDocuments...` (unreasoned grant → false) |
+| NIT | `escalate` checks before locking; escalation logged as `NOTE` | `escalate` takes the row lock first. It records the new event type `ESCALATED`, which V061 adds to the CHECK and to which it backfills old NOTE rows carrying `severityTo`. The UI label is "Đổi mức độ ưu tiên". | `fakeSoldOwnerOutcomeIsShownInTheQueue` |
+
+Trust rules (finding 9):
+- `revokeOwnership` recomputes the listing badge from the remaining valid checks, using `refreshListingFlag`.
+- Revoking an identity revokes every `VERIFIED_OWNER` check approved with that identity. Each revocation uses the same reason code, writes its own history row and recomputes its listing's badge.
+- Pending checks are not revoked; they stay pending but cannot be approved until the identity is valid again.
+- Identity expiry does not cascade: each ownership check keeps its own 180-day validity.
+- `TrustExpiryTask` repeats batches of 200, each in its own transaction, until the backlog is empty (safety cap of 500 rounds).
+
+**Production runbook: open-order index.** If V061 logs `package_orders still has several reported/exception orders...`, list the remaining duplicates with this query:
+
+```sql
+SELECT user_id, plan_code, array_agg(id ORDER BY created_at) FROM package_orders
+WHERE status IN ('CREATED','TRANSFER_REPORTED','EXCEPTION') GROUP BY 1, 2 HAVING count(*) > 1;
+```
+
+Resolve each duplicate through `/billing` by recording a receipt, rejecting it or marking it refunded. Then create the index:
+
+```sql
+CREATE UNIQUE INDEX CONCURRENTLY uq_package_orders_open_per_plan ON package_orders (user_id, plan_code)
+    WHERE status IN ('CREATED','TRANSFER_REPORTED','EXCEPTION');
+```
+
+Until then, the advisory lock keeps order creation serialised.
+
+**Rolling-deploy caveat (reporter phones).** While old-release instances are still serving, they write new reporter phones in plaintext. The hourly migrator re-run encrypts those rows. In the meantime every API response shows only the mask.
+
+**Re-verification.**
+- Backend `mvnw verify`: see the final numbers in the commit/hand-off.
+- Frontend: lint 0, typecheck 0, vitest 15 files / 142 tests, build OK, `check:bundle` all ok.

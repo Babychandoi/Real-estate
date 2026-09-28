@@ -25,8 +25,11 @@ CREATE TABLE property_assets (
     CONSTRAINT uq_property_assets_fingerprint UNIQUE (fingerprint)
 );
 
+-- NOT VALID: no full scan of listings under SHARE ROW EXCLUSIVE here; V061 validates it in its own transaction
+-- (VALIDATE CONSTRAINT only takes SHARE UPDATE EXCLUSIVE, so reads and writes of listings continue meanwhile).
 ALTER TABLE listings
-    ADD CONSTRAINT fk_listings_property_asset FOREIGN KEY (property_asset_id) REFERENCES property_assets (id) ON DELETE SET NULL;
+    ADD CONSTRAINT fk_listings_property_asset FOREIGN KEY (property_asset_id) REFERENCES property_assets (id) ON DELETE SET NULL
+    NOT VALID;
 CREATE INDEX IF NOT EXISTS idx_listings_property_asset ON listings (property_asset_id) WHERE property_asset_id IS NOT NULL;
 
 -- The comparable attributes of a listing's current revision (submitted or public).

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/shared/ui/Badge';
 import { Button, type ButtonVariant } from '@/shared/ui/Button';
@@ -123,25 +123,27 @@ export function ReasonDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset only when the dialog opens (or its catalogue first arrives): callers pass a new `reasons` array on every
-  // render, and resetting on each of those silently replaced the staff member's choice with the first option.
-  const firstCode = reasons?.[0]?.code ?? '';
+  // Reset only when the dialog opens: no reason is preselected, the staff member must choose one explicitly.
+  // (Callers pass a new `reasons` array on every render, so the reset must not depend on it.)
   const validCodes = (reasons ?? []).map((r) => r.code).join('|');
-  const firstCodeRef = useRef(firstCode);
-  firstCodeRef.current = firstCode;
   useEffect(() => {
     if (open) {
-      setCode(firstCodeRef.current);
+      setCode('');
       setNote('');
       setError(null);
     }
   }, [open]);
   useEffect(() => {
-    if (open) setCode((current) => (current && validCodes.split('|').includes(current) ? current : firstCode));
-  }, [open, firstCode, validCodes]);
+    if (open) setCode((current) => (current && validCodes.split('|').includes(current) ? current : ''));
+  }, [open, validCodes]);
 
+  const needsChoice = Boolean(reasons && reasons.length > 0);
   const noteTooShort = note.trim().length < noteMinLength;
   const submit = async () => {
+    if (needsChoice && !code) {
+      setError(`Cần chọn ${choiceLabel.toLowerCase()}.`);
+      return;
+    }
     if (noteTooShort) {
       setError(`${noteLabel} cần ít nhất ${noteMinLength} ký tự.`);
       return;
@@ -184,6 +186,7 @@ export function ReasonDialog({
                 {...control}
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
+                placeholder="— Chọn lý do —"
                 options={reasons.map((reason) => ({ value: reason.code, label: reason.label }))}
               />
             )}

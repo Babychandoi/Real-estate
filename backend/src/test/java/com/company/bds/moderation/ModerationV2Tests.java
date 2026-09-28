@@ -210,12 +210,15 @@ class ModerationV2Tests {
         assertThat(audit.draw(week)).isEqualTo(1);
         assertThat(audit.draw(week)).as("a week is drawn once").isZero();
         UUID sample = jdbc.queryForObject("SELECT id FROM moderation_audit_samples WHERE week_start = ?", UUID.class, java.sql.Date.valueOf(week));
-        postAs(a, "/api/v1/moderation/audit-samples/" + sample + "/review", Map.of("outcome", "FAILED", "reasonCode", "INCORRECT_PRICE", "note", "Giá thấp bất thường"))
-                .andExpect(status().isNoContent());
         postAs(a, "/api/v1/moderation/audit-samples/" + sample + "/review", Map.of("outcome", "PASSED", "reasonCode", "MEETS_STANDARDS"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("OWN_DECISION"));
+        Staff b = staff("MODERATOR", "B");
+        postAs(b, "/api/v1/moderation/audit-samples/" + sample + "/review", Map.of("outcome", "FAILED", "reasonCode", "INCORRECT_PRICE", "note", "Giá thấp bất thường"))
+                .andExpect(status().isNoContent());
+        postAs(b, "/api/v1/moderation/audit-samples/" + sample + "/review", Map.of("outcome", "PASSED", "reasonCode", "MEETS_STANDARDS"))
                 .andExpect(status().isConflict());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM moderation_decisions WHERE listing_id = ? AND decision = 'AUDIT_FAILED' AND moderator_id = ?",
-                Integer.class, listing.id(), a.id())).isEqualTo(1);
+                Integer.class, listing.id(), b.id())).isEqualTo(1);
     }
 
     @Test
@@ -251,6 +254,8 @@ class ModerationV2Tests {
 
         postAs(a, "/api/v1/moderation/duplicates/" + candidates.get(0).get("id").asText(), Map.of("status", "DISMISSED", "note", "Khác tầng"))
                 .andExpect(status().isNoContent());
+        postAs(a, "/api/v1/moderation/duplicates/" + candidates.get(0).get("id").asText(), Map.of("status", "CONFIRMED"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DUPLICATE_ALREADY_DECIDED"));
         assets.detectCandidates(duplicate.id());
         assertThat(jdbc.queryForObject("SELECT status FROM listing_duplicate_candidates WHERE id = ?::uuid", String.class,
                 candidates.get(0).get("id").asText())).as("a decided pair is not reopened").isEqualTo("DISMISSED");
@@ -263,6 +268,55 @@ class ModerationV2Tests {
         UUID assetOfExisting = jdbc.queryForObject("SELECT property_asset_id FROM listings WHERE id = ?", UUID.class, existing.id());
         assertThat(assetOfExisting).isNotNull();
         assertThat(jdbc.queryForObject("SELECT property_asset_id FROM listings WHERE id = ?", UUID.class, sameAsset.id())).isEqualTo(assetOfExisting);
+    }
+
+    @Test
+    void nobodyModeratesTheirOwnListingSingleOrBulk() throws Exception {
+        Staff admin = staff("ADMIN", "Quản trị viên đăng tin");
+        TestData.TestListing own = data.listing(admin.id()).status("PENDING_REVIEW").title("Tin của chính quản trị viên").create();
+        postAs(admin, "/api/v1/moderation/listings/" + own.id() + "/approve",
+                Map.of("revisionId", own.latestRevisionId(), "reasonCode", "MEETS_STANDARDS"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("OWN_DECISION"));
+        postAs(admin, "/api/v1/moderation/listings/" + own.id() + "/reject",
+                Map.of("revisionId", own.latestRevisionId(), "reasonCode", "INCOMPLETE_INFO"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("OWN_DECISION"));
+        postAs(admin, "/api/v1/moderation/listings/" + own.id() + "/claim", null).andExpect(status().isOk());
+        JsonNode bulk = body(postAs(admin, "/api/v1/moderation/bulk", Map.of("action", "APPROVE", "reasonCode", "MEETS_STANDARDS",
+                "items", List.of(Map.of("listingId", own.id(), "revisionId", own.latestRevisionId())))).andExpect(status().isOk()));
+        assertThat(bulk.get("results").get(0).get("outcome").asText()).isEqualTo("OWN_DECISION");
+        assertThat(listingStatus(own)).isEqualTo("PENDING_REVIEW");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM moderation_decisions WHERE listing_id = ?", Integer.class, own.id())).isZero();
+
+        mvc.perform(delete("/api/v1/moderation/listings/" + own.id() + "/claim").header("Authorization", admin.bearer()));
+        Staff other = staff("MODERATOR", "Kiểm duyệt viên khác");
+        postAs(other, "/api/v1/moderation/listings/" + own.id() + "/approve",
+                Map.of("revisionId", own.latestRevisionId(), "reasonCode", "MEETS_STANDARDS")).andExpect(status().isOk());
+    }
+
+    @Test
+    void exactFingerprintIsComparedAcrossPriceBucketsAndConfirmedPairsShareOneAsset() throws Exception {
+        Staff a = staff("MODERATOR", "A");
+        TestData.TestUser owner = data.user().role("BROKER").create();
+        String district = "7" + (100 + Math.floorMod(UUID.randomUUID().hashCode(), 800));
+        TestData.TestListing cheap = data.listing(owner.id()).status("ACTIVE").district(district, "5 Phố Huế, Hai Bà Trưng, Hà Nội")
+                .title("Nhà phố Huế mặt tiền").area("50.00").price(2_000_000_000L).create();
+        propertyAssetService.refreshFingerprint(cheap.id(), cheap.publicRevisionId());
+        TestData.TestListing relisted = data.listing(owner.id()).status("PENDING_REVIEW").district(district, "5 phố Huế, Hai Bà Trưng, Hà Nội")
+                .title("Bán gấp nhà 5 Phố Huế").area("50.00").price(4_000_000_000L).create();
+        propertyAssetService.refreshFingerprint(relisted.id(), relisted.latestRevisionId());
+        com.company.bds.asset.PropertyAssetService.DetectionResult result = propertyAssetService.detectCandidates(relisted.id());
+        assertThat(result.compared()).as("price doubled: outside the price bucket, still an exact match").isEqualTo(1);
+        JsonNode candidates = body(getAs(a, "/api/v1/moderation/listings/" + relisted.id() + "/duplicates"));
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).get("reasons").toString()).contains("EXACT_FINGERPRINT").doesNotContain("PRICE_BUCKET");
+
+        postAs(a, "/api/v1/moderation/duplicates/" + candidates.get(0).get("id").asText(), Map.of("status", "CONFIRMED", "note", "Cùng căn"))
+                .andExpect(status().isNoContent());
+        UUID assetOfCheap = jdbc.queryForObject("SELECT property_asset_id FROM listings WHERE id = ?", UUID.class, cheap.id());
+        assertThat(assetOfCheap).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT property_asset_id FROM listings WHERE id = ?", UUID.class, relisted.id())).isEqualTo(assetOfCheap);
+        postAs(a, "/api/v1/moderation/duplicates/" + candidates.get(0).get("id").asText(), Map.of("status", "DISMISSED"))
+                .andExpect(status().isConflict());
     }
 
     @Autowired com.company.bds.asset.PropertyAssetService propertyAssetService;

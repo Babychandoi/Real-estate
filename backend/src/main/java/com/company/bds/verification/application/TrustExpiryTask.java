@@ -28,7 +28,8 @@ import java.util.UUID;
 @Component
 public class TrustExpiryTask {
     public static final Duration REMINDER_LEAD = Duration.ofDays(30);
-    private static final int BATCH = 200;
+    static final int BATCH = 200;
+    private static final int MAX_ROUNDS = 500;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy").withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
     private final JdbcTemplate jdbc;
@@ -57,9 +58,23 @@ public class TrustExpiryTask {
 
     /** Returns {reminders sent, ownership checks expired}. */
     public int[] runOnce() {
-        Integer reminders = tx.execute(s -> remindKyc() + remindOwnership());
-        Integer expired = tx.execute(s -> expireOwnership() + recordExpiredKyc());
-        return new int[]{reminders == null ? 0 : reminders, expired == null ? 0 : expired};
+        // Each batch in its own short transaction, repeated until the backlog is empty (bounded as a safety net), so a
+        // missed day or a bulk import never leaves stale badges behind.
+        int reminders = drain(this::remindKyc) + drain(this::remindOwnership);
+        int expired = drain(this::expireOwnership);
+        Integer kyc = tx.execute(s -> recordExpiredKyc());
+        return new int[]{reminders, expired + (kyc == null ? 0 : kyc)};
+    }
+
+    private int drain(java.util.function.IntSupplier batch) {
+        int total = 0;
+        for (int round = 0; round < MAX_ROUNDS; round++) {
+            Integer done = tx.execute(s -> batch.getAsInt());
+            int n = done == null ? 0 : done;
+            total += n;
+            if (n < BATCH) break;
+        }
+        return total;
     }
 
     private int remindKyc() {

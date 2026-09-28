@@ -153,8 +153,40 @@ class ReportDeskTests {
                 .andExpect(status().isNoContent());
         JsonNode escalated = item(body(perform(staff, get("/api/v1/reports/queue?size=100"))), report);
         assertThat(escalated.get("severity").asText()).isEqualTo("P0_EMERGENCY");
-        assertThat(body(perform(staff, get("/api/v1/reports/" + report + "/events"))).toString()).contains("severityTo").contains("P0_EMERGENCY");
+        assertThat(body(perform(staff, get("/api/v1/reports/" + report + "/events"))).toString()).contains("severityTo").contains("P0_EMERGENCY")
+                .contains("ESCALATED");
         perform(bearer("USER"), get("/api/v1/reports/queue")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void closedCasesCannotBeActedOnAgainAndConcurrentClosingHasOneEffect() throws Exception {
+        TestData.TestListing listing = data.listing(data.user().role("BROKER").create().id()).status("ACTIVE").create();
+        UUID report = insertReport(listing.id(), "HIGH", Instant.now(), null);
+        String a = bearer("MODERATOR");
+        String b = bearer("ADMIN");
+        List<java.util.concurrent.Callable<Integer>> calls = List.of(
+                () -> perform(a, post("/api/v1/reports/" + report + "/resolve", Map.of("resolutionNote", "Vi phạm rõ", "permanentlyLockListing", true)))
+                        .andReturn().getResponse().getStatus(),
+                () -> perform(b, post("/api/v1/reports/" + report + "/dismiss", Map.of("dismissNote", "Không vi phạm", "resumeListing", true)))
+                        .andReturn().getResponse().getStatus());
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        List<java.util.concurrent.Future<Integer>> futures = new ArrayList<>();
+        for (var call : calls) futures.add(pool.submit(() -> { start.await(); return call.call(); }));
+        start.countDown();
+        List<Integer> statuses = new ArrayList<>();
+        for (var f : futures) statuses.add(f.get());
+        pool.shutdown();
+        assertThat(statuses).containsExactlyInAnyOrder(200, 409);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM report_events WHERE report_id = ? AND type IN ('RESOLVED','DISMISSED')",
+                Integer.class, report)).isEqualTo(1);
+
+        perform(a, post("/api/v1/reports/" + report + "/resolve", Map.of("resolutionNote", "Lần nữa", "permanentlyLockListing", false)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("REPORT_CLOSED"));
+        perform(b, post("/api/v1/reports/" + report + "/dismiss", Map.of("dismissNote", "Lần nữa", "resumeListing", true)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("REPORT_CLOSED"));
+        perform(a, post("/api/v1/reports/" + report + "/severity", Map.of("severity", "LOW", "reason", "Hạ mức độ sau khi đóng")))
+                .andExpect(status().isConflict());
     }
 
     private UUID insertReport(UUID listingId, String severity, Instant createdAt, String phone) {

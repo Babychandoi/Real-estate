@@ -233,7 +233,7 @@ class BdsApplicationTests {
             }
             """, revIdToApprove);
 
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listing1Id + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listing1Id + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(approveBody))
                 .andExpect(status().isOk())
@@ -284,7 +284,7 @@ class BdsApplicationTests {
             }
             """, rev2Id);
 
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listing2Id + "/reject")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listing2Id + "/reject").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(rejectBody))
                 .andExpect(status().isOk())
@@ -331,7 +331,7 @@ class BdsApplicationTests {
         String revId = objectMapper.readTree(diffRes.getResponse().getContentAsString()).get("currentRevisionId").asText();
 
         // Duyệt tin
-        mockMvc.perform(post("/api/v1/moderation/listings/" + id + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + id + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format("{\"revisionId\": \"%s\"}", revId)))
                 .andExpect(status().isOk());
@@ -415,7 +415,7 @@ class BdsApplicationTests {
                 .andReturn();
         String leadRevisionId = objectMapper.readTree(leadDiff.getResponse().getContentAsString())
                 .get("currentRevisionId").asText();
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format("{\"revisionId\":\"%s\"}", leadRevisionId)))
                 .andExpect(status().isOk());
@@ -497,7 +497,7 @@ class BdsApplicationTests {
         mockMvc.perform(post("/api/v1/listings/" + listingId + "/submit")).andExpect(status().isOk());
         MvcResult diffRes = mockMvc.perform(get("/api/v1/moderation/listings/" + listingId + "/diff")).andExpect(status().isOk()).andReturn();
         String revId = objectMapper.readTree(diffRes.getResponse().getContentAsString()).get("currentRevisionId").asText();
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(String.format("{\"revisionId\": \"%s\"}", revId))).andExpect(status().isOk());
 

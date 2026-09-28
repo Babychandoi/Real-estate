@@ -206,6 +206,8 @@ class AdminListingsAndUsersTests {
         }
     }
 
+    @Autowired com.company.bds.iam.application.AuthService authService;
+
     @Test
     void kycDocumentsNeedPasswordAndReasonAndEveryOpeningIsLogged() throws Exception {
         TestData.TestUser adminUser = data.user().role("ADMIN").create();
@@ -233,6 +235,9 @@ class AdminListingsAndUsersTests {
         jdbc.update("INSERT INTO media_objects(object_key, owner_id, content_type, size_bytes, visibility) VALUES (?,?,?,?,'KYC_PRIVATE')",
                 otherKey, otherSubject.id(), "image/jpeg", 10);
         assertThat(kycAccess.staffMayRead(adminUser.id(), token, otherKey)).as("the grant covers only the logged subject").isFalse();
+        // A grant obtained without a reason (plain password re-check) does not borrow the reasoned log row.
+        String unreasoned = authService.grantKycDocumentAccess(adminUser.id(), TestData.DEFAULT_PASSWORD).token();
+        assertThat(kycAccess.staffMayRead(adminUser.id(), unreasoned, objectKey)).isFalse();
 
         JsonNode log = body(perform(admin, get("/api/v1/admin/users/" + subject.id() + "/kyc-access-log")));
         assertThat(log).hasSize(1);
