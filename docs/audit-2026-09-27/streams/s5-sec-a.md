@@ -1,7 +1,8 @@
 # S5-SEC phase A — báo cáo luồng
 
-Nhánh: `audit/s5-sec-a`. Cơ sở: `e77db38`. HEAD: `60da984`. Không có migration Flyway mới (V065 trong dải được cấp
-không dùng tới — mọi thay đổi của pha A là mã ứng dụng và hạ tầng, không đổi schema).
+Nhánh: `audit/s5-sec-a`. Cơ sở: `e77db38`. HEAD: commit cuối cùng trong danh sách bên dưới (chính commit ghi tài liệu
+này, nên không tự trích dẫn hash của chính nó ở đây — tra bằng `git log --oneline -1` trên nhánh). Không có migration
+Flyway mới (V065 trong dải được cấp không dùng tới — mọi thay đổi của pha A là mã ứng dụng và hạ tầng, không đổi schema).
 
 ## Danh sách commit
 
@@ -19,8 +20,13 @@ caefba0 feat(observability): Prometheus, Alertmanager, Grafana and exporters ove
 6b5bd8e fix(security): address rate limiter review findings
 fff81f1 fix(security): WAL gap detection, drill script set pinning, real-IP hardening at Caddy
 60da984 docs(ops): re-run the synthetic restore drill for final verification
+30a4e05 docs(audit): stream report for S5-SEC phase A
+719b542 fix(security): confirm/harden Caddy X-Forwarded-For and stop-leaking stale backup partials
+4719132 docs(ops): re-run the synthetic restore drill after Review 2 fixes
+<this commit>   docs(audit): update stream report with Review 2 findings and fixes
 ```
-83 files changed, 11,580 insertions(+), 127 deletions(-) versus `e77db38`.
+87 files changed vs `e77db38` (four commits added after the first stream report was written, in response to
+independent Review 2). The hash of the last entry is necessarily this commit's own hash — check `git log --oneline -1`.
 
 **Ghi chú quy trình:** `fff81f1` (WAL gap detection, set-id pinning trong `restore-drill.sh`, Caddy real-IP hardening)
 được orchestrator commit thay tôi sau khi phiên làm việc trước đó bị cắt giữa chừng vì giới hạn tốc độ; nội dung đã
@@ -44,11 +50,12 @@ do chính tôi (agent của luồng này) tự tạo ra, không phải một age
   tiếp). Tôi đã sửa và viết test cho toàn bộ, nhưng việc này không thay thế cho một Review 2 thật của orchestrator/agent
   khác đọc mã với góc nhìn hoàn toàn tách biệt.
 
-**Kết luận:** luồng này chưa qua Review 2 độc lập. Orchestrator/agent reviewer nên coi toàn bộ commit của luồng
-`audit/s5-sec-a` là **chưa được review bởi bên thứ ba**, dù đã qua hai vòng tự soát xét (một thủ công, một bằng công
-cụ tự động) có bằng chứng test đi kèm.
+**Cập nhật:** sau khi báo cáo trên được viết, một lượt **Review 2 độc lập thật sự đã diễn ra** — do orchestrator điều
+phối, không phải tôi tự gọi. Reviewer chỉ đọc mã (không có `promtool` trên PATH, không dựng/chạy container), nên phần
+động (chạy container Caddy thật, `promtool`, restore drill) vẫn chỉ được xác nhận lại bằng cách tôi tự chạy lại lần
+nữa — không phải một lượt kiểm thử động độc lập thứ hai. Xem mục "Review 2 (độc lập) — phát hiện và sửa" bên dưới.
 
-## Xác minh cuối (chạy lại tại HEAD `60da984` sau thông báo của orchestrator)
+## Xác minh cuối lần 1 (chạy lại tại HEAD `60da984`, sau thông báo đầu tiên của orchestrator)
 
 | Việc | Lệnh | Kết quả |
 |---|---|---|
@@ -63,6 +70,33 @@ Toàn bộ container/network/volume dùng để xác minh (`bds-s5-frontend`, `b
 `bds-s5-verify-net`, project `bds-drill`, database tạm `s5_verify`) đã bị xóa sau khi xác minh xong; `git status`
 sạch.
 
+## Review 2 (độc lập) — phát hiện và sửa
+
+Một lượt review độc lập do orchestrator điều phối (đọc mã, không dựng/chạy container, không có `promtool` trên PATH)
+đưa ra 1 MAJOR, 1 MINOR, 1 NIT trên `HEAD` cũ (`30a4e05`):
+
+| Mức | Phát hiện | Sửa (commit) | Kiểm chứng |
+|---|---|---|---|
+| MAJOR | `infra/production/Caddyfile` (dùng khi bật `infra/compose.production-overlay.yaml`) chỉ ghi đè `X-Real-IP` và `CF-Connecting-IP` (`fff81f1`); `X-Forwarded-For` chưa được xử lý, trong khi `ClientIpResolver` ưu tiên hop phải nhất của `X-Forwarded-For` chưa tin cậy hơn cả `X-Real-IP`. Giả định "Caddy append vào XFF nên hop phải nhất luôn là thật" chưa được kiểm chứng bằng container Caddy sống. | `719b542`: (a) dựng container Caddy 2.8.4-alpine thật (đúng tag ghim trong `compose.production-overlay.yaml`) trước một stub echo header — xác nhận thực nghiệm rằng `reverse_proxy` của Caddy **ghi đè toàn bộ** `X-Forwarded-For` bằng peer thật, không append (an toàn hơn giả định ban đầu); (b) vẫn thêm `header_up X-Forwarded-For {remote_host}` tường minh làm phòng thủ nhiều lớp phòng khi Caddy đổi hành vi mặc định ở phiên bản sau; (c) thêm `scripts/verify-caddy-forwarding.sh` — dựng mạng cô lập + stub đóng vai cả `backend`/`frontend` + Caddyfile thật không sửa đổi, gửi `X-Forwarded-For`/`X-Real-IP`/`CF-Connecting-IP` giả mạo, khẳng định không giá trị nào sống sót tới upstream. | `scripts/verify-caddy-forwarding.sh` chạy 2 lần liên tiếp: **9/9 checks, 0 failed** cả hai lần. Kiểm tra đột biến: xóa dòng `header_up X-Real-IP` → script phát hiện **2/9 checks FAIL** đúng như kỳ vọng, xác nhận test có khả năng bắt lỗi thật (không phải test rỗng). `caddy validate --config Caddyfile` vẫn hợp lệ sau khi sửa. |
+| MINOR | `infra/backup/backup.sh`: `job_exit` là EXIT trap, không bao giờ chạy khi tiến trình bị SIGKILL (OOM kill, `docker stop -t 0`, host crash) — thư mục `<id>.partial` trong `BACKUP_ROOT` (volume bền vững, không phải tmpfs) có thể tồn tại tới 24 giờ trước khi bị quét bởi `prune` hằng ngày. Không phải lỗi đúng/sai (id có timestamp nên không bao giờ đụng nhau) nhưng lãng phí dung lượng lâu. | `719b542`: thêm `STALE_PARTIAL_MINUTES` (mặc định 180 phút thay vì 1440) và hàm `sweep_stale_partials <kind>` được gọi (1) chủ động ở đầu mỗi job `backup_db`/`backup_media`/`backup_basebackup` — tức lần chạy **tiếp theo** của cùng loại job tự dọn `.partial` cũ của chính nó ngay, không cần chờ cron hằng ngày; (2) vẫn giữ trong `prune_kind` làm lớp quét dự phòng hằng ngày. Đã ghi rõ hành vi SIGKILL trong comment mã nguồn và ở đây. | Kiểm chứng bằng container thật (không phải chỉ đọc mã): gieo một thư mục `.partial` có mtime ép về năm 2020 và một thư mục `.partial` mới tạo trong `BACKUP_ROOT` giả; chạy `prune db` — thư mục 2020 bị xóa, thư mục mới được giữ. Sau đó gieo lại thư mục `.partial` cũ và chạy một job `db` thật (kết nối PostgreSQL thật) — job tự quét và xóa thư mục cũ **ở đầu lần chạy của chính nó** (log `sweeping_stale_partial …`) trước khi tạo bộ sao lưu mới, xong job vẫn hoàn tất bình thường. |
+| NIT | Thiếu comment giải thích vì sao `X-Forwarded-For` được xử lý khác (hoặc giống) `X-Real-IP`/`CF-Connecting-IP`, dễ khiến người sau tưởng là bất đối xứng cần "sửa". | `719b542`: thêm đoạn comment trong `infra/production/Caddyfile` giải thích rõ Caddy mặc định đã ghi đè XFF (đã kiểm chứng), dòng `header_up X-Forwarded-For` chỉ là phòng thủ nhiều lớp, và dặn không xóa/coi là dư thừa. | Đọc lại file. |
+
+## Xác minh cuối lần 2 (chạy lại toàn bộ sau khi sửa Review 2, tại HEAD `4719132`)
+
+| Việc | Lệnh | Kết quả |
+|---|---|---|
+| Backend test suite đầy đủ | `sh mvnw -B -ntp verify` | **69/69 pass**, `BUILD SUCCESS` (không đổi so với lần 1 — hai lỗi Review 2 không chạm mã Java) |
+| Alert rules cú pháp + unit test | `promtool check rules` + `promtool test rules` | `SUCCESS: 26 rules found` + `SUCCESS` (không đổi — hai lỗi Review 2 không chạm Prometheus rules) |
+| Header bảo mật, HTTP thường | `scripts/verify-headers.sh http://127.0.0.1:18136` | **105/105 checks, 0 failed, 0 warnings** |
+| Header bảo mật, mô phỏng HTTPS + phiên thật | `scripts/verify-headers.sh ... --simulate-https` | **106/106 checks, 0 failed, 0 warnings** |
+| **Mới:** Caddy X-Forwarded-For (MAJOR fix) | `scripts/verify-caddy-forwarding.sh` (container Caddy 2.8.4-alpine thật + Caddyfile thật, 2 lần chạy) | **9/9 checks, 0 failed** cả hai lần; kiểm tra đột biến xác nhận test bắt được lỗi thật |
+| **Mới:** quét `.partial` cũ (MINOR fix) | Gieo thư mục `.partial` giả cũ/mới trong `BACKUP_ROOT` giả, chạy `prune db` và một job `db` thật | Thư mục cũ (mtime 2020) bị xóa, thư mục mới được giữ; job thật tự quét `.partial` cũ của chính nó khi khởi động (log `sweeping_stale_partial`) trước khi hoàn tất bình thường |
+| Diễn tập khôi phục | `scripts/restore-drill.sh --env synthetic` (bộ dữ liệu tổng hợp có sẵn từ lần 1, backup set mới) | **PASS**; báo cáo `docs/ops/drills/2026-09-28-synthetic.md` cập nhật tại chỗ (cùng ngày UTC) |
+
+Container/network/volume dùng cho toàn bộ xác minh Review 2 (`bds-s5-caddy-fwd-*`, `bds-s5-frontend`,
+`bds-s5-backend-forwarder`, mạng `bds-s5-verify-net`, project `bds-drill`, database tạm `s5_verify`,
+`bds-s5-stale-test*`) đã bị xóa sau khi xong; `git status` sạch.
+
 ## Yêu cầu → bằng chứng
 
 | ID | Yêu cầu | Trạng thái | Bằng chứng |
@@ -71,7 +105,7 @@ sạch.
 | F10.2 | Không cache KYC/lead/admin ở shared cache | DONE | `SensitiveResponseCacheFilter` (auth, KYC, media riêng tư, leads, billing trừ `/plans`, admin, moderation, verification, reports, transactions, broker, notifications, analytics, CMS/catalog admin, draft) ép `no-store` bất kể controller làm gì; test: `SensitiveResponseCacheTests` (3, tích hợp thật — login/me/logout, 9 route riêng tư theo vai trò, 401/403), `SensitiveResponseCacheFilterTests` (4, đơn vị — prefix match, path đã decode `%6B`, controller cố ý set `public`, media công khai vẫn cache 1 năm) |
 | F11.1 | Header bảo mật có ở mọi location | DONE | `frontend/nginx/security-headers.conf` include ở server block và mọi location (assets, index.html, SPA, SSE, healthz, API, sitemap, backend-health, trang lỗi 503 mới); xác minh bằng `scripts/verify-headers.sh` — 105–106/106 checks trên container cô lập (xem bảng Xác minh cuối) |
 | F11.2 | Kiểm tra response cuối qua CDN/proxy | PARTIAL (công cụ có, domain thật là EXTERNAL) | `scripts/verify-headers.sh` chạy được với `--simulate-https` và test cả CSP/HSTS/no-store; **chưa chạy với domain thật `https://nhadatchuan.online`** — theo brief, việc đó thuộc orchestrator |
-| F13.1 | Chỉ tin proxy khai báo; IP thật qua chuỗi proxy | DONE | `ClientIpResolver`/`IpAddresses` (chỉ literal IP, không DNS lookup; `app.security.trusted-proxies` mặc định loopback + dải Docker); Nginx `realip` từ `CF-Connecting-IP` chỉ ở dải tin cậy; test: `ClientIpResolverTests` 10 case gồm peer không tin cậy, XFF ưu tiên hơn X-Real-IP khi cả hai có mặt (phát hiện qua self-review — Caddy pass-through), chuỗi toàn nội bộ, IPv4-mapped IPv6, IPv6 /64 quota; kiểm chứng thủ công qua Nginx container cô lập (script `ip-chain-check.sh`): 2 client CF khác nhau có quota riêng, X-Real-IP giả mạo từ peer không tin cậy bị bỏ qua |
+| F13.1 | Chỉ tin proxy khai báo; IP thật qua chuỗi proxy | DONE | `ClientIpResolver`/`IpAddresses` (chỉ literal IP, không DNS lookup; `app.security.trusted-proxies` mặc định loopback + dải Docker); Nginx `realip` từ `CF-Connecting-IP` chỉ ở dải tin cậy; test: `ClientIpResolverTests` 10 case gồm peer không tin cậy, XFF ưu tiên hơn X-Real-IP khi cả hai có mặt (phát hiện qua self-review — Caddy pass-through), chuỗi toàn nội bộ, IPv4-mapped IPv6, IPv6 /64 quota; kiểm chứng thủ công qua Nginx container cô lập (script `ip-chain-check.sh`): 2 client CF khác nhau có quota riêng, X-Real-IP giả mạo từ peer không tin cậy bị bỏ qua. Chuỗi Caddy (khi bật `compose.production-overlay.yaml`): xác nhận thực nghiệm bằng container Caddy 2.8.4 thật (Review 2) rằng `reverse_proxy` mặc định ghi đè hoàn toàn `X-Forwarded-For`; thêm ghi đè tường minh + `scripts/verify-caddy-forwarding.sh` (9/9 checks, kiểm tra đột biến xác nhận test bắt được lỗi thật) |
 | F13.2 | Limit theo IP + account + endpoint; counter atomic; không hashCode | DONE | `RateLimitPolicies` (11 policy: auth-login/admin-login/register/forgot/resend/reset/verify-email, kyc-document-access, public-leads/reports, geocoding, analytics-events, media-upload, api-default); khóa = SHA-256 128-bit (không `hashCode`); Redis: một script Lua INCR+PEXPIRE+PTTL nguyên tử, dừng ở rule đầu tiên vượt hạn mức; test: `RateLimiterTests` (8), `RequestRateLimitFilterTests` (10, tích hợp thật với Redis DB 7) |
 | F13.3 | Fallback bị chặn bộ nhớ; policy theo route; Retry-After; dashboard 429 | DONE | `LocalRateLimitStore` (16 phân đoạn LRU có trần cứng, sweep định kỳ), `RateLimitFailureMode` (FAIL_CLOSED cho endpoint xác thực, EVICT cho còn lại); `RequestRateLimitRedisOutageTests` (3: Redis mất vẫn giới hạn, 100k client không vượt trần bộ nhớ, endpoint xác thực fail-closed khi bảng đầy); dashboard "BDS — Rate limit" (`bds-ratelimit.json`) hiển thị `bds_ratelimit_rejected/fallback/redis_available/local_entries` |
 | F20.1 | ADR mô hình session nhất quán | DONE | `docs/adr/0001-session-model.md`; sửa `PROJECT_CODE_RULES_BDS.md` và `Ke_hoach_du_an_website_BDS_Waterfall.md` (đã mô tả sai Spring Session JDBC + cookie HttpOnly) khớp thực tế (bearer token opaque, hash SHA-256 trong `auth_sessions`) |
@@ -93,7 +127,10 @@ sạch.
 
 ## Khoảng trống còn lại (thành thật)
 
-1. **Không có Review 2 độc lập** (xem mục trên) — chỉ có tự soát xét (thủ công + công cụ `code-review` tự gọi).
+1. **Review 2 độc lập đã diễn ra một lượt (đọc mã, không dựng/chạy container/promtool)** — xem mục "Review 2 (độc lập)
+   — phát hiện và sửa". Phần động (Caddy container thật, `promtool`, restore drill) chỉ được xác nhận lại bởi chính
+   tôi sau khi sửa, không phải một lượt kiểm thử động độc lập thứ hai của reviewer. Chưa có ai khác ngoài tôi thực sự
+   *chạy* container/test động trên nhánh này.
 2. F11.2: chưa chạy `scripts/verify-headers.sh` với domain thật qua Cloudflare — cần orchestrator hoặc chủ dự án chạy
    sau khi deploy.
 3. F01.9, F21.3, F21.4 thực thi: cần quyền admin GitHub / quyết định chủ dự án / hạ tầng mới — chỉ có tài liệu và công
@@ -106,6 +143,9 @@ sạch.
 6. Test `RateLimiterTests`/`LocalRateLimitStoreTests` dùng cổng Redis đóng (127.0.0.1:1) để mô phỏng mất kết nối —
    nhanh và ổn định trong CI, nhưng không kiểm tra hành vi khi Redis timeout chậm (kết nối treo) thay vì bị từ chối
    ngay; rủi ro thấp vì Lettuce có `commandTimeout` riêng.
+7. `sweep_stale_partials` chỉ dọn thư mục `.partial` của `db`/`media`/`base`; các file `*.zst.age.partial` riêng lẻ
+   mà `backup_wal` để lại nếu bị SIGKILL giữa lúc nén một segment không được quét chủ động (chỉ tự bị ghi đè ở lần
+   chạy kế tiếp cho đúng segment đó) — rủi ro thấp vì mỗi file chỉ vài KB và không nằm trong đường dẫn khôi phục.
 
 ## Ghi chú triển khai / biến môi trường mới
 
