@@ -226,7 +226,7 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
     // --- SQL building --------------------------------------------------------------------------------------------------
 
     static void where(Sql sql, SearchFilter f) {
-        sql.append("purpose = ?").param(f.purpose());
+        sql.append(" purpose = ?").param(f.purpose());
         if (!f.types().isEmpty()) sql.append(" AND property_type = ANY(CAST(? AS text[]))").param(textArray(f.types()));
         if (f.priceMin() != null) sql.append(" AND price_vnd >= ?").param(f.priceMin());
         if (f.priceMax() != null) sql.append(" AND price_vnd <= ?").param(f.priceMax());
