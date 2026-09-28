@@ -217,6 +217,9 @@ các nhánh trước khi gộp). Xem `docs/audit-2026-09-27/streams/{s2-search,s
 **Cập nhật sau đợt Audit W3 + UI merge (2026-09-28):** nhánh tích hợp sau merge S6 (đã gộp S1-MEDIA, UI redesign,
 S3b-LEADS, S6-ENGAGE): **332 test, 0 lỗi**. Xem `docs/audit-2026-09-27/streams/{s1-media,s3b-leads,s6-engage}.md`.
 
+**Cập nhật sau đợt Audit W4 (2026-09-28):** nhánh tích hợp sau merge S8-ANALYTICS/S5-SEC phase B/S7-SEO: **398 test,
+0 lỗi, 0 skipped, BUILD SUCCESS**. Xem `docs/audit-2026-09-27/streams/{s5b-sec,s7-seo,s8-analytics}.md`.
+
 ---
 
 ### 2. Kết quả kiểm thử đóng gói Frontend (TypeScript & Vite)
@@ -233,6 +236,10 @@ npm run build
 
 **Cập nhật sau đợt Audit W3 + UI merge (2026-09-28):** lint **0**, `tsc` **0 lỗi**, `vitest` **24 file / 178 test**,
 `npm run build` **OK**, `npm run check:bundle` **OK**.
+
+**Cập nhật sau đợt Audit W4 (2026-09-28):** lint **0**, `tsc` **0 lỗi**, `vitest` **215 test**, `npm run build` **OK**,
+`npm run check:bundle` **OK** (mọi route trong ngân sách; `/verify-email`, `/listings/new`, `/kyc`, `/account` nâng
+lên đo được + biên độ sau khi gộp S7/S5B, phần giảm để S10 xử lý).
 
 ---
 
@@ -288,6 +295,22 @@ npm run build
 | Shortlist chia sẻ | `/shortlists/:token` | S6-ENGAGE | OWNER/EDITOR/VIEWER, tắt thông báo |
 | Hủy đăng ký | `/unsubscribe`, `POST /api/v1/public/unsubscribe` | S6-ENGAGE | RFC 8058 one-click |
 | Tài khoản | `/account` | S6-ENGAGE | Tùy chọn thông báo, quyền riêng tư |
+
+**Cập nhật sau đợt Audit W4 (2026-09-28) — S5-SEC phase B, S7-SEO, S8-ANALYTICS:**
+
+| Nhóm chức năng | Đường dẫn Route / API | Luồng | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| Đăng nhập admin (MFA) | `/2026/nhadatchuan/admin/login`, `POST /api/v1/auth/admin/login`, `/api/v1/auth/admin/mfa/**` | S5-SEC phase B | 2 bước mật khẩu → TOTP/mã khôi phục, lần đầu buộc enroll |
+| Bảo mật tài khoản | `/2026/nhadatchuan/admin/security`, `GET/POST /me/sessions*`, `/me/password`, `/me/mfa*`, `/me/security-events` | S5-SEC phase B | Danh sách phiên, thu hồi, đổi mật khẩu, nhật ký |
+| Quản trị MFA người khác | `POST /admin/users/{id}/mfa/reset`, `/admin/users/{id}/sessions/revoke` | S5-SEC phase B | Bắt buộc lý do, ghi lịch sử |
+| Token xác minh/reset | `/verify-email`, `/forgot-password`, `/reset-password` | S5-SEC phase B | `TOKEN_INVALID/EXPIRED/USED/SUPERSEDED`, `returnTo` an toàn |
+| Trang render công khai | `GET /render/**` (sau Nginx `@prerender`), `/`, `/listings/:slug`, `/du-an/:slug`, `/khu-vuc/:slug`, `/tin-tuc/:slug` | S7-SEO | HTML đầy đủ không cần JS; 404/410/301 thật |
+| Sitemap | `GET /sitemap.xml`, `/sitemaps/**` | S7-SEO | Index nhiều phần, snapshot cache 10 phút |
+| Dự án / khu vực / tin tức | `/du-an`, `/khu-vuc`, `/tin-tuc` | S7-SEO | Inventory thật, giá median (≥5 tin), tiện ích có nguồn |
+| CMS admin | `/admin/cms`, `GET/PUT /api/v1/cms/**` | S7-SEO | Revision bất biến, lịch xuất bản, preview token |
+| Trang thông tin | `/about`, `/terms`, `/privacy`, `/contact` | S7-SEO | Khối vận hành từ `APP_OPERATOR_*` |
+| Consent phân tích | `POST /api/v1/events/consent` | S8-ANALYTICS | Opt-in, không lưu gì trước khi `granted` |
+| Dashboard admin analytics | `/admin/analytics`, `GET /api/v1/analytics/dashboard` | S8-ANALYTICS | MEASURED/NOT_MEASURED, cohort, north-star, RUM p75 |
 
 ---
 
@@ -693,3 +716,23 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - **Known E2E caveats**: E2E supply cần seed KYC cho tài khoản đăng tin; test claim admin va chạm khi chạy song song trên hai viewport (cùng dữ liệu claim). **Chưa có Playwright E2E cho các trang S3b và S6** (`/my-leads`, `/my-inquiries`, `/broker/workspace`, `/saved`, `/notifications`, `/shortlists/:token`, `/unsubscribe`) — bàn giao S11.
 - **UI merge — phần thiết kế bị bỏ/điều chỉnh**: phân trang offset (→ cursor v2), `searchState.ts` (→ `filterSchema`), `ListingGallery` (→ `Gallery` S2), MapLibre tải sớm trong wizard (→ lazy), điểm chất lượng tính ở client (→ checklist server); header giữ menu "Mở menu tài khoản", nút đăng nhập/đăng tin hiện ở 320–360 px.
 - Stream reports: `docs/audit-2026-09-27/streams/{s1-media,s3b-leads,s6-engage}.md`, UI: `docs/ui/`; matrix rows `DONE (W3)`/`PARTIAL (W3)` in `01_REQUIREMENTS.md`; Flyway ranges in `00_PLAN.md`.
+
+# 2026-09-28 - Audit W4 merged: staff MFA/sessions, SEO prerender/CMS, analytics/consent/RUM (S5-SEC phase B, S7-SEO, S8-ANALYTICS)
+
+- Merged into `audit-2026-09-27`: S8-ANALYTICS (`70e29cd`), S5-SEC phase B (`8014fe1`), S7-SEO (`66d28da`). Integration fixes: the anonymous consent endpoint allowlisted in the access matrix and `web-vitals` installed (`b4669c5`); S7/S5B textual conflicts resolved keeping both sides in `SensitiveResponseCacheFilter`, `RateLimitPolicies` and `frontend/app/main.tsx`, and `/verify-email`, `/listings/new`, `/kyc`, `/account` bundle budgets raised to measured + margin — the reduction itself stays S10-PERF's (`40323a2`).
+- **Files/modules**: backend `com.company.bds.iam` (TOTP/MFA, session lifecycle, access matrix, token pages, Flyway V087–V089), `com.company.bds.seo`/`com.company.bds.cms` (prerender service, sitemap, JDBC CMS store, Flyway V090–V091), `com.company.bds.analytics` (consent, bot/internal flagging, retention jobs, dashboard, Flyway V095). Frontend staff MFA login/security pages, token-state pages, consent banner + `track()`/RUM (`web-vitals`), admin analytics dashboard, public `/du-an`/`/khu-vuc`/`/tin-tuc` pages, Nginx `@prerender`/`@spa_shell`.
+- **Routes**: admin `/2026/nhadatchuan/admin/login` (MFA challenge), `/2026/nhadatchuan/admin/security`; `/verify-email`, `/forgot-password`, `/reset-password` (token states); `/du-an`, `/du-an/:slug`, `/khu-vuc`, `/khu-vuc/:slug`, `/tin-tuc`, `/tin-tuc/:slug`, `/about`, `/terms`, `/privacy`, `/contact` (prerendered); admin `/analytics` (dashboard v2). API: `POST /api/v1/auth/admin/login` (MFA-shaped response), `/api/v1/auth/admin/mfa/**`, `/me/sessions*`, `/me/password`, `/me/mfa*`, `/me/security-events`, `/admin/users/{id}/mfa/reset`, `/admin/users/{id}/sessions/revoke`; `GET /render/**` (backend, behind Nginx), `GET /sitemap.xml` + `/sitemaps/**`, `GET/PUT /api/v1/cms/**`; `POST /api/v1/events/consent`, `GET /api/v1/analytics/dashboard`.
+- **Backend evidence**: integrated branch `mvnw verify` **398 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS** (per-stream: S5B 367/367 incl. ES/MinIO classes, S7 350, S8 345, with overlap across branches before merge; ES/MinIO started in shared `bds-test` for the full run).
+- **Frontend evidence**: integrated branch — lint **0**, `tsc` **0 errors**, `vitest` **215 tests**, `npm run build` **OK**, `npm run check:bundle` **OK** (every route within budget; `/verify-email`, `/listings/new`, `/kyc`, `/account` raised to measured + margin per the integration fix above).
+- **Other evidence**: `promtool check rules` — 33 rules; `promtool test rules` — SUCCESS (S5B). `scripts/seo-smoke.sh` (real Nginx image) — `verify-prerender` 50/50, `verify-headers` 153/153, backend-down fallback OK (S7).
+- **User flows**: staff đăng nhập qua cổng 2 bước (mật khẩu → TOTP/mã khôi phục), lần đầu buộc thiết lập authenticator, tự quản lý phiên/thiết bị ở "Bảo mật tài khoản", admin có thể "Đăng xuất mọi nơi"/"Đặt lại MFA" của người khác kèm lý do; người dùng gặp link xác minh/reset hết hạn/đã dùng/đã thay biết chính xác lý do và quay lại đúng trang trước khi bị chuyển hướng xác thực; khách truy cập thấy trang chủ/tin/dự án/khu vực/bài viết có nội dung đầy đủ ngay cả khi tắt JavaScript (crawler), 404/410 thật, sitemap chia phần; khách chọn "đồng ý"/"từ chối" phân tích trên banner trung lập trước khi bất kỳ sự kiện nào được ghi; admin xem dashboard phân biệt "chưa đo" và 0 theo nguồn/khu vực/thiết bị, cohort, north-star và phễu SLA.
+- **Production deploy notes**:
+  - **MFA rollout**: migration V088 thu hồi mọi phiên staff đang mở — mọi ADMIN/MODERATOR bị đăng xuất ngay sau deploy, lần đăng nhập kế tiếp buộc thiết lập TOTP. Deploy vào giờ có mặt đội vận hành; báo trước để staff chuẩn bị ứng dụng xác thực. Mất điện thoại admin cuối cùng: xóa hàng `user_mfa`/`user_mfa_recovery_codes` của tài khoản đó bằng SQL trên DB production (không có đường vòng qua ứng dụng). **Không xoay `pii-encryption-key`/`pii-index-key`** mà không có kế hoạch — xoay khóa mã hóa làm MFA đã enroll không giải mã được, xoay khóa index làm mọi mã khôi phục vô hiệu.
+  - **Biến môi trường mới**: `APP_SECURITY_MFA_REQUIRED` (**phải `true` ở production**; backend từ chối khởi động nếu `false` khi `APP_MODE=production`), `APP_SECURITY_MFA_ISSUER`, `APP_SECURITY_SESSION_STAFF_TTL`/`STAFF_IDLE_TIMEOUT`/`USER_TTL`; `APP_SEO_SHELL_LOCATION`/`SHELL_TTL`/`SITEMAP_CHUNK_SIZE`/`SITEMAP_TTL`, `APP_OPERATOR_*`, `APP_CMS_PUBLISH_POLL`; `APP_PUBLIC_BASE_URL` **phải là public origin thật** (canonical/og:url/JSON-LD/sitemap dùng giá trị này); `APP_ANALYTICS_INTERNAL_NETWORKS`, `VITE_RUM_SAMPLE_RATE` (build-time frontend).
+  - **Analytics kill switch**: giữ `APP_ANALYTICS_INGESTION_ENABLED=false` cho tới khi xác nhận rate limit hoạt động, rồi bật `true` trên mọi instance; rollback bằng cách tắt lại (dữ liệu đã thu không mất). Các mốc lưu trữ (90/180/760 ngày, 3 năm) **cần bộ phận pháp lý xác nhận**. Moderator hiện đang thấy doanh thu gói trong dashboard — cân nhắc giới hạn về ADMIN nếu nhạy cảm.
+  - **V095 index**: tạo `idx_leads_created`/`idx_listings_created` trên bảng lớn bằng `CREATE INDEX CONCURRENTLY IF NOT EXISTS` **trước** khi chạy migration ở production (migration mặc định không dùng `CONCURRENTLY`, chấp nhận được ở quy mô hiện tại nhưng không ở bảng lớn).
+  - **Nginx**: `location /` dùng `try_files $uri @prerender`; luồng `@prerender` gọi backend `/render/**`, lỗi 401/403/405/502–504 rơi về `@spa_shell` tĩnh (site không bao giờ down vì SEO). Sau deploy chạy `scripts/verify-prerender.sh https://nhadatchuan.online` (và `verify-headers.sh`). Thứ tự deploy: backend trước (migration cộng thêm), rồi frontend/Nginx.
+  - **Search Console (F16.6)**: các bước ở `streams/s7-seo.md` §6 — thêm Domain property, submit sitemap, URL Inspection, rich results test; cần tài khoản Google của chủ sở hữu.
+  - **Thứ tự migration**: V090/V091 (S7) đứng trước V095 (S8) — ổn cho DB mới và cho production (đang ở V026).
+- **Known gaps carried forward** (chi tiết trong từng `streams/*.md`): chưa có Playwright E2E cho MFA/token pages/banner/trang public mới (S11); SSE stream không bị cắt ngay khi phiên bị thu hồi (S6/S9); `auth_security_events` chưa có retention job (S8); `/analytics/funnel`/`/overview` cũ còn tồn tại nhưng không dùng (S9 dọn); dashboard analytics chưa có Prometheus alert rule; thống kê khu vực/dự án là giá rao bán, không phải giá giao dịch; EXPLAIN ở 1M dòng cho sitemap/`areas()`/dashboard = S10.
+- Stream reports: `docs/audit-2026-09-27/streams/{s5b-sec,s7-seo,s8-analytics}.md`; matrix rows `DONE (W4)`/`PARTIAL (W4)` in `01_REQUIREMENTS.md`.

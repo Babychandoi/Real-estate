@@ -22,6 +22,12 @@ Tích hợp trên merge S6: backend 332 test 0 lỗi; frontend lint 0, tsc 0, vi
 `check:bundle` OK. Bằng chứng: `streams/s1-media.md`, `streams/s3b-leads.md`, `streams/s6-engage.md`; UI: `docs/ui/`.
 Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 
+**Cập nhật sau đợt W4 (28/09/2026):** các dòng đánh `DONE (W4)`/`PARTIAL (W4)` thuộc S5-SEC phase B, S7-SEO,
+S8-ANALYTICS được tích hợp vào `audit-2026-09-27` (S8 `70e29cd`, S5 phase B `8014fe1`, S7 `66d28da`; sửa tích hợp
+`b4669c5`, `40323a2`). Tích hợp: backend `mvnw verify` 398 test 0 lỗi; frontend lint 0, tsc 0, vitest 215 test, build
+OK, `check:bundle` OK. Bằng chứng: `streams/s5b-sec.md`, `streams/s7-seo.md`, `streams/s8-analytics.md`. F16.6 (Search
+Console) và mục tiêu p75 CWV (DS-15) vẫn EXTERNAL — cần tài khoản Search Console và lưu lượng production thật.
+
 ## A. Phát hiện kỹ thuật (mục 6)
 
 | ID | Yêu cầu | Tiêu chí nghiệm thu | Luồng | Trạng thái |
@@ -49,7 +55,7 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | F05.1 | Sự kiện thay đổi tin phát cùng transaction; consumer checkpoint riêng | Trigger/queue `search-index` riêng, không dùng cờ processed chung | S0-BE, S2-SEARCH | DONE (W2): search-index queue separate from other consumers (s2-search) |
 | F05.2 | Bulk indexing, version chống sai thứ tự, delete khi ẩn | Test phát lại không hạ version; ẩn tin → xóa doc | S2-SEARCH | DONE (W2): bulk external version = row_version, delete on hide (s2-search) |
 | F05.3 | Backfill theo batch/keyset; rebuild index mới rồi đổi alias | Test rebuild trong lúc có thay đổi không mất update/delete | S2-SEARCH | DONE (W2): keyset backfill + alias swap rebuild, no lost updates (s2-search) |
-| F05.4 | Retry/backoff, DLQ, cảnh báo lag | Metric lag + DLQ; alert rule | S2-SEARCH, S5-SEC | PARTIAL (W2): retry/backoff/DLQ/metrics done; alert rules not written, left to S5 (s2-search gap) |
+| F05.4 | Retry/backoff, DLQ, cảnh báo lag | Metric lag + DLQ; alert rule | S2-SEARCH, S5-SEC | DONE (W4): retry/backoff/DLQ/metrics (s2-search); `BdsSearchIndexLagHigh`/`BdsSearchBulkFailures`/`BdsSearchBreakerOpen` alert rules, `promtool test rules` SUCCESS (s5b-sec) |
 | F05.5 | Không full scan mỗi thay đổi; lag p95 ≤10 s | Đo lag trong test tích hợp; báo cáo S10 | S2-SEARCH, S10-PERF | PARTIAL (W2): no full scan, p95 lag measured (473ms); S10 load report pending (s2-search) |
 | F06.1 | 400 cho enum/range/bbox sai; sort whitelist + tuple | Test validation | S2-SEARCH | DONE (W2): 400 INVALID_FILTER + sort whitelist (s2-search) |
 | F06.2 | `search_after` (ES) và keyset (DB); cursor ký, có filter hash/sort/version/expiry, không dùng chéo engine | Test cursor giả mạo/hết hạn/đổi engine | S2-SEARCH | DONE (W2): HMAC cursor, tamper/expiry/engine-change tests (s2-search) |
@@ -85,13 +91,13 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | F14.4 | Tin ẩn xử lý asset theo chính sách có chủ đích | Chính sách + test | S1-MEDIA | DONE (W3): serve only while publicly referenced, hide/lock/expire → 404, unhide restores (s1-media) |
 | F15.1 | Dynamic import Map chỉ khi cần | List mobile không tải chunk map | S2-SEARCH | DONE (W2): MapLibre + filter form dynamic-imported, list mode never downloads map (s2-search) |
 | F15.2 | Budget theo route | Script kiểm tra kích thước chunk trong CI | S0-FE | DONE (W1) |
-| F15.3 | Đo LCP/INP/CLS | RUM web-vitals về pipeline analytics | S8-ANALYTICS | TODO |
-| F16.1 | Prerender/SSR cho home, listing, project, area, bài viết | HTML ban đầu có title/canonical/nội dung chính | S7-SEO | TODO |
+| F15.3 | Đo LCP/INP/CLS | RUM web-vitals về pipeline analytics | S8-ANALYTICS | DONE (W4): `web-vitals` sampled after consent, LCP/INP/CLS/TTFB per route, dashboard p75/rating (s8-analytics) |
+| F16.1 | Prerender/SSR cho home, listing, project, area, bài viết | HTML ban đầu có title/canonical/nội dung chính | S7-SEO | DONE (W4): render layer serves title/canonical/OG/JSON-LD + content without JS; `scripts/seo-smoke.sh` 50/50 real Nginx (s7-seo) |
 | F16.2 | Metadata thống nhất theo route, không rò rỉ khi đổi route | Hook meta reset (test) | S0-FE, S7-SEO | DONE (W1) |
-| F16.3 | Status 404/410 đúng; redirect slug | Test HTTP status | S7-SEO | TODO |
-| F16.4 | Sitemap index nhiều phần từ projection, cache snapshot | >10.000 tin không hydrate domain (test) | S7-SEO | TODO |
-| F16.5 | Không index mọi tổ hợp filter | robots/noindex cho trang filter | S7-SEO | TODO |
-| F16.6 | Kiểm tra Search Console | Cần quyền Search Console | S7-SEO | EXTERNAL |
+| F16.3 | Status 404/410 đúng; redirect slug | Test HTTP status | S7-SEO | DONE (W4): 404 unknown/draft, 410 previously-public, 301 id→slug/trailing slash (s7-seo) |
+| F16.4 | Sitemap index nhiều phần từ projection, cache snapshot | >10.000 tin không hydrate domain (test) | S7-SEO | DONE (W4): keyset parts ≤10k URLs from `listing_public_read` window aggregate, 10 min snapshot cache; 10 050-listing test (s7-seo) |
+| F16.5 | Không index mọi tổ hợp filter | robots/noindex cho trang filter | S7-SEO | DONE (W4): only `?purpose=SALE\|RENT` indexable, else noindex+canonical; robots.txt disallows `/api/`,`/render/`,previews,account (s7-seo) |
+| F16.6 | Kiểm tra Search Console | Cần quyền Search Console | S7-SEO | EXTERNAL: steps prepared (`streams/s7-seo.md` §6) — domain property, sitemap submit, URL inspection, rich results test; needs owner's Google account |
 | F17.1 | Quota atomic (không count-then-insert) | 20 request song song không vượt quota (PostgreSQL) | S3b-LEADS | DONE (W3): advisory-lock quota, 20 parallel → exactly 10 (s3b-leads) |
 | F17.2 | Idempotency scoped actor + route + payload hash, có hạn lưu | Khác actor không nhận replay; retry nhận đúng leadId | S3b-LEADS | DONE (W3): actor-scoped key + payload hash, 24 h expiry, 20 parallel → 1 lead (s3b-leads) |
 | F17.3 | Chính sách pause listing cạnh tranh với tạo lead | Test + tài liệu | S3b-LEADS | DONE (W3): listing FOR SHARE + ACTIVE check in the lead transaction (s3b-leads) |
@@ -102,12 +108,12 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | F18.3 | Compare-and-set bank settings | Hai admin sửa → một bên nhận 409 | S4-ADMIN | DONE (W2): bank settings compare-and-set, 409 on stale version (s4-admin) |
 | F18.4 | Audit đầy đủ, trạng thái đối soát bền vững | Lịch sử sự kiện đơn | S4-ADMIN | DONE (W2): package_order_events, paged reconciliation, exception resolution (s4-admin) |
 | F19.1 | Event versioned: search, impression, detail, favorite, lead submitted/qualified, appointment confirmed/completed | Catalog + ingestion | S0-BE, S8 | DONE (W1) |
-| F19.2 | Dedupe event ID; loại bot/internal; consent và retention | Test | S8-ANALYTICS | TODO |
-| F19.3 | Dashboard phân biệt “chưa đo” và 0; theo nguồn/khu vực/thiết bị/thời gian; định nghĩa + độ trễ | Fixture 1 hành trình → funnel đúng một lần | S8-ANALYTICS | TODO |
+| F19.2 | Dedupe event ID; loại bot/internal; consent và retention | Test | S8-ANALYTICS | DONE (W4): opt-in consent (no store before `granted`), `APP_ANALYTICS_INTERNAL_NETWORKS` CIDR + staff-device internal flag, >600 events/h bot flag, event-id dedupe, retention jobs 90/180/760d + 3y (s8-analytics) |
+| F19.3 | Dashboard phân biệt “chưa đo” và 0; theo nguồn/khu vực/thiết bị/thời gian; định nghĩa + độ trễ | Fixture 1 hành trình → funnel đúng một lần | S8-ANALYTICS | DONE (W4): `GET /api/v1/analytics/dashboard` MEASURED/NOT_MEASURED per metric with definition/source, breakdowns, freshness; 1-journey fixture = 1 at every funnel step (s8-analytics) |
 | F20.1 | ADR mô hình session nhất quán | `docs/adr/0001-session-model.md` | S5-SEC | DONE (W1) |
-| F20.2 | Test logout/revoke/expiry | Test tích hợp | S5-SEC | TODO |
-| F20.3 | MFA admin | TOTP + recovery codes; test | S5-SEC | TODO |
-| F20.4 | Least privilege | Rà soát ma trận quyền + test | S5-SEC | TODO |
+| F20.2 | Test logout/revoke/expiry | Test tích hợp | S5-SEC | DONE (W4): `SessionLifecycleTests` (10) — logout scoped to one token, absolute/idle expiry, lock→401, session list/revoke, password/role change revocation (s5b-sec) |
+| F20.3 | MFA admin | TOTP + recovery codes; test | S5-SEC | DONE (W4): RFC 6238 TOTP, sealed secret, 10 recovery codes HMAC-stored, admin reset with reason; `AdminMfaTests` (7) + `TotpAndClientContextTests` (6); prod requires `APP_SECURITY_MFA_REQUIRED=true` (s5b-sec) |
+| F20.4 | Least privilege | Rà soát ma trận quyền + test | S5-SEC | DONE (W4): `AccessMatrixTests` (4) scans every `/api/**` route (>150), mutation-tested allowlist; `docs/security/ACCESS_MATRIX.md` (s5b-sec) |
 | F21.1 | Phân loại backup trong Git LFS | Tài liệu phân loại | S5-SEC | DONE (W1) |
 | F21.2 | Backup mã hóa, ACL, retention, restore drill | Dịch vụ backup + script + biên bản drill | S5-SEC, S10-PERF | DONE (W1) |
 | F21.3 | Kế hoạch xử lý lịch sử Git/rotation (không tự xóa) | Kế hoạch; thực thi cần chủ repo quyết | S5-SEC | EXTERNAL |
@@ -123,7 +129,7 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 
 | ID | Route | Yêu cầu | Luồng | Trạng thái |
 |---|---|---|---|---|
-| UI-01 | `/` | Tìm kiếm và nguồn cung thật lên sớm; không số liệu/demo copy thiếu căn cứ | S7-SEO | TODO |
+| UI-01 | `/` | Tìm kiếm và nguồn cung thật lên sớm; không số liệu/demo copy thiếu căn cứ | S7-SEO | DONE (W4): search form first (works without JS), newest real listings, areas/projects/articles only when they have data, demo title removed (s7-seo) |
 | UI-02 | `/search` | Phân trang, filter server, URL, đơn vị thuê, map/list (split desktop), zero-result gợi ý | S2-SEARCH | DONE (W2): /search rewritten on v2, e2e+a11y 28/28 (s2-search) |
 | UI-03 | `/listings/:id` | Gallery đủ ảnh, giá thuê, trust panel, CTA, metadata | S2-SEARCH | DONE (W2): /listings/:id gallery/rent price/trust panel on v2 (s2-search) |
 | UI-04 | `/nguoi-dang/:id` | Inventory phân trang; tách xác minh danh tính và xác minh từng tin | S2-SEARCH | DONE (W2): seller inventory paged beyond 60 (s2-search) |
@@ -136,18 +142,18 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | UI-11 | `/billing` | Trạng thái đơn/đối soát rõ, snapshot, phân trang lịch sử, chống tạo lặp | S4-ADMIN | DONE (W2): /billing paged history, clear statuses, snapshots (s4-admin) |
 | UI-12 | `/kyc` | Phạm vi, lý do cần giấy tờ, trạng thái/lý do từ chối, gửi lại | S4-ADMIN | PARTIAL (W2): scope/status/resubmission shipped; retention period not configured, shown as placeholder (s4-admin gap) |
 | UI-13 | `/account` | Đồng bộ cache sau sửa, ảnh vỡ, quản lý thông báo/quyền riêng tư | S6-ENGAGE | DONE (W3): notification prefs, privacy section, avatar fallback, cache refresh (s6-engage); no Playwright spec |
-| UI-14 | `/verify-email`, `/forgot-password`, `/reset-password` | Token hết hạn/đã dùng/sai, throttling gửi lại, thông báo trung tính, quay lại mục đích ban đầu | S5-SEC | TODO |
-| UI-15 | `/about`, `/terms`, `/privacy`, `/contact` | Thông tin chủ thể/vận hành thực (cấu hình), liên kết CMS đã duyệt | S7-SEO | TODO |
-| UI-16 | `*` | Status 404 thật ở tầng render/edge | S7-SEO | TODO |
-| UI-17 | Admin login | MFA, kiểm soát phiên, audit | S5-SEC | TODO |
+| UI-14 | `/verify-email`, `/forgot-password`, `/reset-password` | Token hết hạn/đã dùng/sai, throttling gửi lại, thông báo trung tính, quay lại mục đích ban đầu | S5-SEC | DONE (W4): `TOKEN_INVALID/EXPIRED/USED/SUPERSEDED` codes, neutral resend + 60 s cooldown + `Retry-After`, `safeReturnPath` restores original destination (s5b-sec) |
+| UI-15 | `/about`, `/terms`, `/privacy`, `/contact` | Thông tin chủ thể/vận hành thực (cấu hình), liên kết CMS đã duyệt | S7-SEO | DONE (W4): operator block from `APP_OPERATOR_*` ("Chưa có dữ liệu" until set), approved LEGAL_POLICY articles linked (s7-seo); real entity values = EXTERNAL (product owner) |
+| UI-16 | `*` | Status 404 thật ở tầng render/edge | S7-SEO | DONE (W4): real 404 at the render layer, was SPA-fallback 200 (s7-seo) |
+| UI-17 | Admin login | MFA, kiểm soát phiên, audit | S5-SEC | DONE (W4): staff 2-step login (password → TOTP/recovery), enrolment on first login, "Bảo mật tài khoản" page, "Đăng xuất mọi nơi"/"Đặt lại MFA" with reason + history (s5b-sec) |
 | UI-18 | Admin moderation | Phân trang, claim/assignment, SLA, bulk action có phạm vi và lý do | S4-ADMIN | DONE (W2): admin moderation paged, claim/assign, SLA, bulk with scope+reason (s4-admin) |
 | UI-19 | Admin listings | Phân trang server, lọc/truy vết bản sửa, khóa/ẩn có lý do, preview draft không công khai | S4-ADMIN | DONE (W2): admin listings paged, revision trace, lock/hide with reason, private preview (s4-admin) |
 | UI-20 | Admin users | Least privilege, lịch sử khóa/mở và đổi vai trò, hạn chế dữ liệu nhạy cảm | S4-ADMIN | DONE (W2): admin users least-privilege role change, lock history, KYC access logged (s4-admin) |
 | UI-21 | Admin leads-and-reports | Tách hàng đợi lead và báo xấu, SLA, audit | S4-ADMIN | DONE (W2): separate report queue with SLA by severity, audit (s4-admin) |
 | UI-22 | Admin verification | Đối chiếu bằng chứng và quyết định; KYC không vào cache public | S4-ADMIN | DONE (W2): admin verification with evidence comparison, KYC never cached (s4-admin) |
 | UI-23 | Admin billing | Đối soát theo trạng thái, kiểm soát cạnh tranh, ngoại lệ/chênh tiền, lịch sử người duyệt | S4-ADMIN | DONE (W2): admin billing reconciliation, exception resolution, approver history (s4-admin) |
-| UI-24 | Admin analytics | “Chưa đo” khác 0; cohort/khung thời gian | S8-ANALYTICS | TODO |
-| UI-25 | Admin projects/cms | Hoàn tất hành trình public dự án/bài viết | S7-SEO | TODO |
+| UI-24 | Admin analytics | “Chưa đo” khác 0; cohort/khung thời gian | S8-ANALYTICS | DONE (W4): dashboard shows "Chưa đo" with reason vs 0, source/device/area breakdowns, cohort retention, 1–92 day range (s8-analytics) |
+| UI-25 | Admin projects/cms | Hoàn tất hành trình public dự án/bài viết | S7-SEO | DONE (W4): create → draft edits → submit → publish now/schedule → preview link → reject with reason → new revision → unpublish; project profile edit with source/lock (s7-seo) |
 | UI-26 | Alias admin | Regression test redirect alias, không đường cụt/không lộ quyền | S11-UX | TODO |
 | UI-27 | `_account.contracts.tsx` | Gỡ tệp chết/không tính là tính năng | S0-FE | DONE (W1) |
 
@@ -160,14 +166,14 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | P-03 | Hẹn xem | Slot, xác nhận hai bên, nhắc lịch, đổi/hủy, ghi nhận no-show | S3b-LEADS | DONE (W3): slots, two-sided confirm, reminders −24 h/−2 h, reschedule/cancel, no-show (s3b-leads) |
 | P-04 | Trust | Phân loại identity/listing/ownership; bằng chứng còn hiệu lực; báo hết hàng; lịch sử xử lý khiếu nại | S4-ADMIN, S2 | DONE (W2): trust decisions with four-eyes, validity, revoke, evidence comparison; display side on S2 (s4-admin, s2-search) |
 | P-05 | Dữ liệu BĐS | Tài sản thực vs nhiều tin; chống trùng; nguồn, freshness, lịch sử giá | S4-ADMIN (tài sản, chống trùng), S2 (lịch sử giá), S3a (nguồn, freshness) | DONE (W2): property_assets+fingerprint dedupe (s4-admin), price history (s2-search), source/freshness (s3a-supply) |
-| P-06 | Khu vực/dự án | Trang public có inventory, tiện ích có nguồn, phương pháp thống kê, SEO | S7-SEO | TODO |
-| P-07 | Nội dung | CMS đã duyệt lên public, revision, preview, lịch xuất bản, tác giả/nguồn | S7-SEO | TODO |
+| P-06 | Khu vực/dự án | Trang public có inventory, tiện ích có nguồn, phương pháp thống kê, SEO | S7-SEO | DONE (W4): `/du-an`, `/khu-vuc` live inventory, median price with ≥5-listing gate + method text, amenities with source (s7-seo); real project content/sources = staff to enter |
+| P-07 | Nội dung | CMS đã duyệt lên public, revision, preview, lịch xuất bản, tác giả/nguồn | S7-SEO | DONE (W4): immutable revisions, scheduled publishing, preview tokens (24 h, no-store/noindex), author/source/legal reference, allow-list sanitising on write+read (s7-seo) |
 | P-08 | Seller/broker | Import có kiểm tra, chất lượng tin, SLA phản hồi, báo cáo lead đủ điều kiện và ROI | S3a (import, chất lượng), S3b (SLA, ROI) | DONE (W3): import + quality (W2, s3a-supply); qualification, SLA and ROI report (s3b-leads) |
 | P-09 | Chủ nhà | Persona chủ nhà (vai trò OWNER) có capability đăng tin, nhãn rõ | S0-BE, S0-FE, S3a-SUPPLY | DONE (W1) |
-| P-10 | Analytics | Event pipeline, cohort, nguồn traffic/attribution có giới hạn, chất lượng lead | S8-ANALYTICS | TODO |
+| P-10 | Analytics | Event pipeline, cohort, nguồn traffic/attribution có giới hạn, chất lượng lead | S8-ANALYTICS | DONE (W4): weekly first-seen cohorts + week-N retention, first-touch `utm_source` attribution, qualified-lead share (s8-analytics) |
 | P-11 | Thanh toán | Idempotency, audit, exception queue; tách dịch vụ đăng tin khỏi tiền cọc BĐS | S4-ADMIN | DONE (W2): idempotency, audit, exception queue; deposit/escrow gated behind FEATURE_REAL_TRANSACTIONS (s4-admin) |
-| P-12 | AI/3D/chat | Không giả lập; giữ 501 rõ ràng; tiêu chí mở khi có dữ liệu | S7-SEO (tài liệu) | TODO |
-| P-13 | Chỉ số trung tâm | Lịch hẹn hai bên xác nhận / người tìm đủ điều kiện / tuần + zero-result, search→detail, detail→lead đủ ĐK, thời gian phản hồi, lead→hẹn, hẹn diễn ra, tỷ lệ tin hết hàng, quay lại; broker: chi phí/lead đủ ĐK, gia hạn | S8-ANALYTICS | TODO |
+| P-12 | AI/3D/chat | Không giả lập; giữ 501 rõ ràng; tiêu chí mở khi có dữ liệu | S7-SEO (tài liệu) | DONE (W4): `estimate-price`/`quality-score` stay 501; opening criteria documented (`docs/product/ai-3d-chat-criteria.md`) (s7-seo) |
+| P-13 | Chỉ số trung tâm | Lịch hẹn hai bên xác nhận / người tìm đủ điều kiện / tuần + zero-result, search→detail, detail→lead đủ ĐK, thời gian phản hồi, lead→hẹn, hẹn diễn ra, tỷ lệ tin hết hàng, quay lại; broker: chi phí/lead đủ ĐK, gia hạn | S8-ANALYTICS | DONE (W4): north-star + zero-result/search→detail/detail→lead/response time/SLA%/lead→appointment/held/fake-sold/return rate/broker cost per qualified lead/renewal, posting funnel (s8-analytics); definitions need product confirmation |
 | P-14 | Vận hành nguồn cung | Chuẩn hóa ảnh/địa chỉ/giá/xác nhận còn hàng; thu hồi tin không cập nhật; kiểm tra ngẫu nhiên; phản hồi báo cáo | S3a-SUPPLY, S4-ADMIN | DONE (W2): freshness sweep/reminders/sold-check (s3a-supply), random audit + dedupe/report handling (s4-admin) |
 | P-15 | Pilot/phỏng vấn/tuyển nguồn cung | Giả thuyết sản phẩm phải thử với người thật | — | EXTERNAL |
 
@@ -183,7 +189,7 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | D-06 | Keyset tuple khớp sort; chính sách null/tie/đổi giá giữa hai trang | S2-SEARCH | DONE (W2): keyset tuple matches sort, live-keyset policy documented (s2-search) |
 | D-07 | Bbox bằng geometry `&&`/`ST_Intersects`; bán kính bằng geography; không công khai tọa độ chính xác | S2-SEARCH | DONE (W2): bbox && on geometry, precision APPROXIMATE (s2-search) |
 | D-08 | Keyword: FTS/pg_trgm, normalization tiếng Việt có version + bộ test; ES mapping explicit, analyzer tiếng Việt, alias địa danh | S2-SEARCH | DONE (W2): FTS/pg_trgm normalization Java/SQL/TS identical, explicit ES mapping+alias (s2-search) |
-| D-09 | Chính sách cache theo bảng 7.3 (assets, thumbnail, detail, search trang đầu, cluster, dự án/CMS, geocode, dữ liệu nhạy cảm, danh mục) | S2, S1, S7, S5 | PARTIAL (W3): media rows done — public 1 day, signed/KYC no-store (s1-media); S2 rows W2; CMS/geocode rows S7/S5 |
+| D-09 | Chính sách cache theo bảng 7.3 (assets, thumbnail, detail, search trang đầu, cluster, dự án/CMS, geocode, dữ liệu nhạy cảm, danh mục) | S2, S1, S7, S5 | DONE (W4): media rows (s1-media), search/geocode rows (s2-search), sensitive no-store (s5-sec-a); project/area/home/sitemap payloads Redis 10 min keyed by `seo_content_state.generation`, public JSON max-age=300, HTML no-store (s7-seo) |
 | D-10 | Chống trùng: exact hash → candidate theo khu vực/diện tích/giá → similarity trên candidate (không O(n²)) | S4-ADMIN | DONE (W2): exact fingerprint -> block by district/type/price/area -> pg_trgm similarity, capped 200 (s4-admin) |
 | D-11 | Gợi ý top-k rule-based (tin tương tự, zero-result) | S2-SEARCH | DONE (W2): similar listings + zero-result relaxations with counts (s2-search) |
 | D-12 | Nhắc lịch bằng job bền vững có `due_at` index, lease/idempotency | S0-BE, S3b-LEADS | DONE (W3): durable appointment-reminder / lead-sla-reminder jobs, dedupe per version, at most once (s0-be W1, s3b-leads) |
@@ -205,11 +211,11 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | DS-08 | Component tối thiểu và đủ trạng thái (SearchBox, FilterBar/Sheet, ListingCard, TrustBadge/Panel, Gallery, ContactPanel, Compare, FormField, DataTable/Queue, Toast/InlineFeedback) | S0-FE (+ luồng dùng) | PARTIAL (W1) |
 | DS-09 | Tách anchor khỏi nút favorite/compare/link người đăng (không lồng tương tác) | S2-SEARCH | DONE (W2): stretched link, favorite/compare/seller-link not nested (s2-search) |
 | DS-10 | Nhãn xác thực trả lời “xác thực cái gì” | S2-SEARCH | DONE (W2): badges state what was checked (identity/listing/ownership) (s2-search) |
-| DS-11 | UX flow người tìm nhà (khám phá trước đăng nhập, quay về mục đích sau xác minh) | S2, S3b, S5 | PARTIAL (W3): contact intent kept across sign-in and KYC (s3b-leads); E2E journey S11 |
+| DS-11 | UX flow người tìm nhà (khám phá trước đăng nhập, quay về mục đích sau xác minh) | S2, S3b, S5 | PARTIAL (W4): contact intent kept across sign-in and KYC (s3b-leads); `returnTo` same-site-only restores original page after verification/MFA (s5b-sec); E2E journey S11 |
 | DS-12 | UX flow người đăng (draft tự lưu → preview → gửi duyệt → lý do từ chối → quản lý bản công khai/bản sửa → lead → xác nhận còn hàng; tin hết hiệu lực được nhắc) | S3a-SUPPLY | DONE (W2): draft autosave -> preview -> submit -> rejection reason -> public/edit split -> lead flow (s3a-supply) |
 | DS-13 | UX flow admin (ưu tiên → claim → đối chiếu → quyết định có lý do → audit; không dùng màu làm tín hiệu duy nhất; nút chấp nhận/từ chối không sát nhau) | S4-ADMIN | DONE (W2): claim -> compare -> reasoned decision -> audit, approve/reject separated (s4-admin) |
 | DS-14 | Thử tác vụ với 5–8 người mỗi nhóm | Chuẩn bị protocol; thực hiện cần người dùng thật | EXTERNAL |
-| DS-15 | CWV p75 LCP ≤2,5 s, INP ≤200 ms, CLS ≤0,1 bằng RUM; a11y axe + keyboard/screen reader cho dialog, filter sheet, map, gallery | S8, S11 | TODO |
+| DS-15 | CWV p75 LCP ≤2,5 s, INP ≤200 ms, CLS ≤0,1 bằng RUM; a11y axe + keyboard/screen reader cho dialog, filter sheet, map, gallery | S8, S11 | PARTIAL (W4): RUM collection (`web-vitals` sampled, consent-gated) + p75/rating dashboard shipped (s8-analytics); meeting the p75 targets needs production traffic = EXTERNAL; a11y axe/keyboard/screen-reader pass = S11 |
 
 ## F. Điều kiện phát hành (mục 10)
 
@@ -222,4 +228,4 @@ Chưa có Playwright E2E cho các trang S3b/S6 — chuyển S11.
 | R-5 | Query count/p95/p99, index lag, outbox backlog, error rate được đo; fallback có kiểm soát | S10 | TODO |
 | R-6 | Header/IP chain/session kiểm chứng từ response cuối; backup phân loại, restore có bằng chứng | S5, S10 | TODO |
 | R-7 | Core flows mobile/desktop, keyboard, screen reader nghiệm thu; đủ trạng thái giá/empty/error/loading/offline | S11 | TODO |
-| R-8 | Người sở hữu SLA kiểm duyệt/lead/còn hàng/khiếu nại; dashboard phân biệt không đo với 0 | S8 (dashboard) + tổ chức | PARTIAL/EXTERNAL |
+| R-8 | Người sở hữu SLA kiểm duyệt/lead/còn hàng/khiếu nại; dashboard phân biệt không đo với 0 | S8 (dashboard) + tổ chức | PARTIAL (W4): dashboard MEASURED/NOT_MEASURED with definitions shipped (s8-analytics); an org owner committing to the SLA numbers = EXTERNAL |
