@@ -31,6 +31,20 @@ CREATE INDEX idx_report_events_report ON report_events (report_id, created_at, i
 CREATE INDEX IF NOT EXISTS idx_listing_reports_open ON listing_reports (created_at, id)
     WHERE status IN ('PENDING', 'WAITING_REPLY', 'APPEALED');
 
+-- Every new case starts its history, whichever write path creates it (public form, import, tests).
+CREATE OR REPLACE FUNCTION bds_report_submitted_event() RETURNS trigger LANGUAGE plpgsql AS
+$$
+BEGIN
+    INSERT INTO report_events (id, report_id, type, data, created_at)
+    VALUES (uuid_generate_v4(), NEW.id, 'SUBMITTED',
+            jsonb_build_object('severity', NEW.severity, 'category', NEW.category), NEW.created_at);
+    RETURN NEW;
+END
+$$;
+
+CREATE TRIGGER trg_listing_reports_submitted AFTER INSERT ON listing_reports
+    FOR EACH ROW EXECUTE FUNCTION bds_report_submitted_event();
+
 -- History starts with the submission of every existing case (the only fact the old schema recorded with a time).
 INSERT INTO report_events (id, report_id, type, created_at)
 SELECT uuid_generate_v4(), r.id, 'SUBMITTED', r.created_at
