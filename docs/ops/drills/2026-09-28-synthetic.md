@@ -1,7 +1,7 @@
 # Diễn tập khôi phục — môi trường `synthetic` — 2026-09-28
 
 - **Kết quả:** PASS
-- **Bắt đầu:** 2026-09-28T05:44:47Z (UTC); công cụ: `scripts/restore-drill.sh`, image `bds-s5-backup:test`
+- **Bắt đầu:** 2026-09-28T06:05:54Z (UTC); công cụ: `scripts/restore-drill.sh`, image `bds-s5-backup:test`
 - **Nơi khôi phục:** Compose project `bds-drill` cô lập (`infra/drill/compose.drill.yaml`: postgis/postgis:16-3.4, MinIO cùng bản production), không publish cổng, xóa sau diễn tập
 - **Máy chạy:** Darwin arm64, Docker 29.8.0
 - **Nguồn dữ liệu:** chỉ đọc `BACKUP_DIR` (không kết nối tới database/bucket nguồn); khóa age giải mã chỉ mount read-only vào container diễn tập
@@ -10,8 +10,8 @@
 
 | Loại | Set | Tạo lúc (UTC) | Tuổi khi diễn tập | Dung lượng mã hóa | Nội dung | Công cụ |
 |---|---|---|---:|---:|---|---|
-| PostgreSQL | `20260928T054424Z` | 2026-09-28T05:44:25Z | 22s | 236911 B | 30 bảng, 5173 dòng | pgDump pg_dump (PostgreSQL) 16.15, age 1.2.1 |
-| Object (MinIO) | `20260928T054430Z` | 2026-09-28T05:44:33Z | 14s | 15339520 B gốc | 120 object | mc mcli version RELEASE.2025-05-21T01-59-54Z, age 1.2.1 |
+| PostgreSQL | `20260928T060528Z` | 2026-09-28T06:05:29Z | 25s | 236896 B | 30 bảng, 5173 dòng | pgDump pg_dump (PostgreSQL) 16.15, age 1.2.1 |
+| Object (MinIO) | `20260928T060534Z` | 2026-09-28T06:05:38Z | 16s | 15339520 B gốc | 120 object | mc mcli version RELEASE.2025-05-21T01-59-54Z, age 1.2.1 |
 
 Checksum SHA-256 của mọi file mã hóa được kiểm tra với manifest trước khi giải mã.
 
@@ -19,14 +19,14 @@ Checksum SHA-256 của mọi file mã hóa được kiểm tra với manifest tr
 
 | Bước | Thời gian |
 |---|---:|
-| Khởi động PostgreSQL + MinIO cô lập (đến healthy) | 15 s |
-| Giải mã + `pg_restore` vào database mới | 2.6 s |
-| Giải mã + nạp lại object | 7.4 s |
-| Đối soát (đếm dòng từng bảng, sha256 từng object) | 2.9 s |
-| **RTO đo được cho dữ liệu** (hạ tầng + DB + object, chưa gồm deploy ứng dụng và đổi DNS/tunnel) | **25.0 s** |
-| Toàn bộ diễn tập | 31 s |
+| Khởi động PostgreSQL + MinIO cô lập (đến healthy) | 7 s |
+| Giải mã + `pg_restore` vào database mới | 4.3 s |
+| Giải mã + nạp lại object | 5.1 s |
+| Đối soát (đếm dòng từng bảng, sha256 từng object) | 3.1 s |
+| **RTO đo được cho dữ liệu** (hạ tầng + DB + object, chưa gồm deploy ứng dụng và đổi DNS/tunnel) | **16.5 s** |
+| Toàn bộ diễn tập | 27 s |
 
-**RPO:** tại thời điểm diễn tập, bản DB mới nhất đã 22 giây tuổi và bản object 14 giây tuổi. Với lịch mặc định của
+**RPO:** tại thời điểm diễn tập, bản DB mới nhất đã 25 giây tuổi và bản object 16 giây tuổi. Với lịch mặc định của
 `infra/compose.backup.yaml` (DB mỗi giờ, object mỗi ngày) RPO tối đa là 1 giờ cho dữ liệu DB và 24 giờ cho ảnh; bật
 `infra/compose.pitr.yaml` + `infra/compose.pitr-backup.yaml` để giảm RPO DB xuống khoảng 5–10 phút.
 
@@ -94,4 +94,4 @@ Mọi dòng `media_objects` đều có object tương ứng sau khôi phục.
 ## Ghi chú của người chạy
 
 - Dữ liệu TỔNG HỢP, không phải production: database nguồn là database tạm s5_verify trên hạ tầng test dùng chung; bucket nguồn s5-drill-src chứa 120 object byte ngẫu nhiên.
-- Diễn tập cuối cùng chạy lại sau khi hoàn tất mọi sửa lỗi tự soát xét (WAL gap detection, set-id pinning, Caddy real-IP hardening) — xác nhận báo cáo phản ánh đúng phiên bản script cuối cùng.
+- Diễn tập chạy lại sau Review 2 độc lập (đọc mã, không có promtool/container): sửa lỗi MAJOR (Caddy X-Forwarded-For hardening + test tự động scripts/verify-caddy-forwarding.sh) và MINOR (quét .partial cũ chủ động khi job khởi động, không chỉ chờ prune hằng ngày) không ảnh hưởng tới quy trình sao lưu/khôi phục PostgreSQL và MinIO.
