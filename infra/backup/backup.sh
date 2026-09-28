@@ -29,10 +29,28 @@ RETENTION_MEDIA_DAYS="${RETENTION_MEDIA_DAYS:-14}"
 RETENTION_BASE_DAYS="${RETENTION_BASE_DAYS:-7}"
 RETENTION_WAL_DAYS="${RETENTION_WAL_DAYS:-7}"
 RETENTION_MIN_SETS="${RETENTION_MIN_SETS:-3}"
+# A SIGKILL (OOM kill, `docker stop -t 0`, a crashed host) skips the EXIT trap, so a "<id>.partial" work directory
+# from the killed run is left behind in $BACKUP_ROOT. It cannot collide with a later run (each id is a fresh
+# timestamp) so it is not a correctness bug, but it does waste space until swept. Two sweeps cover it: prune_kind's
+# daily pass (now on the same short window, not 24h) and, more importantly, the *next* run of the same job kind
+# sweeping its own stale partials for itself at start, so a kill doesn't have to wait for the daily prune at all.
+STALE_PARTIAL_MINUTES="${STALE_PARTIAL_MINUTES:-180}"
 
 finish_set() { # finish_set <work dir> <final dir>
   mv "$1" "$2"
   iso_now > "$2/SUCCESS"
+}
+
+# sweep_stale_partials <kind>: removes *.partial work directories of that kind older than STALE_PARTIAL_MINUTES.
+# Called both proactively (each backup_* job, before starting its own new set) and from prune_kind (daily backstop).
+sweep_stale_partials() {
+  local kind="$1" dir
+  dir="$(env_dir)/$kind"
+  [ -d "$dir" ] || return 0
+  while IFS= read -r -d '' stale; do
+    warn "sweeping_stale_partial kind=$kind dir=$(basename "$stale") (likely a killed earlier run)"
+    rm -rf "$stale"
+  done < <(find "$dir" -mindepth 1 -maxdepth 1 -name '*.partial' -mmin +"$STALE_PARTIAL_MINUTES" -print0 2>/dev/null)
 }
 
 # Commands run when a job process exits, whether it succeeded or died (temporary files, the snapshot holder).
@@ -54,6 +72,7 @@ encrypt_stream() {
 backup_db() {
   require_env PGHOST PGDATABASE PGUSER
   local age_args id dir work sync started server_version snapshot dump bytes rows
+  sweep_stale_partials db
   mapfile -t age_args < <(age_recipient_args)
   id="$(new_id)"
   dir="$(env_dir)/db/$id"
@@ -121,6 +140,7 @@ SQL
 
 backup_media() {
   local age_args id dir work tmp previous bucket objects bytes copied reused started
+  sweep_stale_partials media
   mapfile -t age_args < <(age_recipient_args)
   minio_alias src
   id="$(new_id)"
@@ -249,6 +269,7 @@ backup_wal() {
 backup_basebackup() {
   require_env PGHOST PGUSER
   local age_args id dir work tmp started bytes
+  sweep_stale_partials base
   mapfile -t age_args < <(age_recipient_args)
   id="$(new_id)"
   dir="$(env_dir)/base/$id"
@@ -299,7 +320,7 @@ prune_kind() {
     fi
     index=$((index + 1))
   done < <(list_sets "$kind" | sort -r)
-  [ -d "$(env_dir)/$kind" ] && find "$(env_dir)/$kind" -mindepth 1 -maxdepth 1 -name '*.partial' -mmin +1440 -exec rm -rf {} + || true
+  sweep_stale_partials "$kind" # backstop: the job itself already sweeps its own kind's stale partials at start
 }
 
 # prune [db|media|basebackup|wal]: one kind (what the scheduler just ran, so two services with different retention
