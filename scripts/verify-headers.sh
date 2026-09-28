@@ -177,6 +177,23 @@ fi
 expect_contains sse Cache-Control no-store "event stream is no-store"
 security_headers sse api
 
+# 8. Prerendered pages (S7): an unknown page is a real 404 HTML page, robots.txt and the sitemap index come from the
+#    backend through Nginx, all with the same security headers.
+fetch missingpage "/verify-headers-missing-page-$$" 20 -H 'Accept: text/html'
+expect_status missingpage "$STATUS" 404
+expect_contains missingpage Content-Type text/html "404 page is HTML"
+expect_contains missingpage X-Robots-Tag noindex "404 page is noindex"
+security_headers missingpage app
+
+fetch robots /robots.txt 20
+expect_status robots "$STATUS" 200
+security_headers robots app
+
+fetch sitemap /sitemap.xml 20
+expect_status sitemap "$STATUS" 200
+expect_contains sitemap Content-Type xml "sitemap index is XML"
+security_headers sitemap app
+
 echo "----"
 echo "$CHECKS checks, $FAILURES failed, $WARNINGS warnings"
 [ "$FAILURES" -eq 0 ]
