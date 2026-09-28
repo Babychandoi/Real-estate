@@ -139,7 +139,58 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ListingDomainException.class)
     public ResponseEntity<ProblemDetails> handleListingDomainException(
             ListingDomainException ex, HttpServletRequest request) {
-        return simple(ex, request, HttpStatus.CONFLICT, ex.getErrorCode(), "Không thể thực hiện thao tác");
+        HttpStatus status = switch (ex.getErrorCode()) {
+            case "LISTING_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "FORBIDDEN" -> HttpStatus.FORBIDDEN;
+            default -> HttpStatus.CONFLICT;
+        };
+        return simple(ex, request, status, ex.getErrorCode(), "Không thể thực hiện thao tác");
+    }
+
+    @ExceptionHandler(com.company.bds.listing.domain.exception.ListingValidationException.class)
+    public ResponseEntity<ProblemDetails> handleListingValidation(
+            com.company.bds.listing.domain.exception.ListingValidationException ex, HttpServletRequest request) {
+        List<ProblemDetails.ValidationErrorItem> errors = ex.issues().stream()
+                .map(issue -> new ProblemDetails.ValidationErrorItem(issue.field(), "INVALID", issue.message())).toList();
+        return ResponseEntity.badRequest().body(new ProblemDetails(URI.create(BASE_PROBLEM_TYPE + "validation-error"),
+                "Dữ liệu không hợp lệ", 400, ex.getMessage(), request.getRequestURI(), "VALIDATION_ERROR",
+                UUID.randomUUID().toString(), errors));
+    }
+
+    /** Lost-update protection (R-4): the client must reload the draft; the current version travels in the ETag. */
+    @ExceptionHandler(com.company.bds.listing.domain.exception.ListingVersionConflictException.class)
+    public ResponseEntity<ProblemDetails> handleVersionConflict(
+            com.company.bds.listing.domain.exception.ListingVersionConflictException ex, HttpServletRequest request) {
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(HttpStatus.CONFLICT);
+        if (ex.currentVersion() != null) builder.eTag("\"v" + ex.currentVersion() + "\"");
+        return builder.body(new ProblemDetails(URI.create(BASE_PROBLEM_TYPE + "version-conflict"),
+                "Dữ liệu đã thay đổi", 409, ex.getMessage(), request.getRequestURI(), "VERSION_CONFLICT",
+                UUID.randomUUID().toString(), null));
+    }
+
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetails> handleOptimisticLock(Exception ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ProblemDetails(
+                URI.create(BASE_PROBLEM_TYPE + "version-conflict"), "Dữ liệu đã thay đổi", 409,
+                "Dữ liệu vừa được cập nhật ở nơi khác. Tải lại rồi thử lại.", request.getRequestURI(),
+                "VERSION_CONFLICT", UUID.randomUUID().toString(), null));
+    }
+
+    /** Malformed JSON or an unknown enum value: 400 naming the field instead of a 500. */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ProblemDetails> handleUnreadable(
+            org.springframework.http.converter.HttpMessageNotReadableException ex, HttpServletRequest request) {
+        List<ProblemDetails.ValidationErrorItem> errors = null;
+        if (ex.getCause() instanceof com.fasterxml.jackson.databind.exc.MismatchedInputException mismatch
+                && !mismatch.getPath().isEmpty()) {
+            String field = mismatch.getPath().stream()
+                    .map(ref -> ref.getFieldName() != null ? ref.getFieldName() : String.valueOf(ref.getIndex()))
+                    .reduce((a, b) -> a + "." + b).orElse(null);
+            errors = List.of(new ProblemDetails.ValidationErrorItem(field, "INVALID_FORMAT", "Giá trị không hợp lệ."));
+        }
+        return ResponseEntity.badRequest().body(new ProblemDetails(URI.create(BASE_PROBLEM_TYPE + "validation-error"),
+                "Dữ liệu không hợp lệ", 400, "Nội dung yêu cầu không đọc được.", request.getRequestURI(),
+                "VALIDATION_ERROR", UUID.randomUUID().toString(), errors));
     }
 
     @ExceptionHandler(UnsupportedOperationException.class)

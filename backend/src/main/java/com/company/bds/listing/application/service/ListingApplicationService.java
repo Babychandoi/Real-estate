@@ -12,6 +12,12 @@ import com.company.bds.listing.domain.exception.ListingDomainException;
 import com.company.bds.listing.domain.model.Listing;
 import com.company.bds.listing.domain.model.ListingMedia;
 import com.company.bds.listing.domain.model.ListingRevision;
+import com.company.bds.listing.domain.model.ListingAttributes;
+import com.company.bds.listing.domain.model.ListingPurpose;
+import com.company.bds.listing.domain.model.LegalStatusCode;
+import com.company.bds.listing.domain.exception.ListingValidationException;
+import com.company.bds.listing.domain.exception.ListingVersionConflictException;
+import com.company.bds.listing.application.port.in.DraftSaved;
 import com.company.bds.verification.domain.model.KycStatus;
 import com.company.bds.verification.domain.port.UserKycPersistencePort;
 import org.springframework.stereotype.Service;
@@ -60,8 +66,9 @@ public class ListingApplicationService implements
 
     @Override
     @Transactional
-    public UUID createDraft(CreateListingDraftCommand command) {
+    public DraftSaved createDraft(CreateListingDraftCommand command) {
         requireVerifiedKyc(command.ownerId());
+        validateAttributes(command.purpose(), command.legalStatus(), command.attributes());
         Instant now = Instant.now(clock);
 
         List<ListingMedia> mediaList = buildMediaList(command.imageUrls());
@@ -86,9 +93,53 @@ public class ListingApplicationService implements
                 mediaList,
                 now
         );
+        listing.getLatestRevision().orElseThrow().updateAttributes(command.attributes());
 
         Listing saved = persistencePort.save(listing);
-        return saved.getId();
+        return new DraftSaved(saved.getId(), saved.getLatestRevision().orElseThrow().getId(), saved.getVersion());
+    }
+
+    /**
+     * Creates a draft marked {@code source=IMPORT} inside the caller's transaction (CSV import, P-08).
+     */
+    @Transactional
+    public DraftSaved createImportedDraft(CreateListingDraftCommand command, UUID importBatchId) {
+        requireVerifiedKyc(command.ownerId());
+        validateAttributes(command.purpose(), command.legalStatus(), command.attributes());
+        Instant now = Instant.now(clock);
+        Listing listing = Listing.createNewDraft(command.ownerId(), allocateSlug(command.title()), command.title(),
+                command.purpose(), command.propertyType(), command.priceVnd(), command.areaM2(),
+                command.bedrooms(), command.bathrooms(), command.floors(), command.frontageM(), command.roadWidthM(),
+                command.direction(), command.legalStatus(), command.description(), command.provinceCode(),
+                command.districtCode(), command.wardCode(), command.addressSummary(), command.publicLatitude(),
+                command.publicLongitude(), buildMediaList(command.imageUrls()), now);
+        listing.getLatestRevision().orElseThrow().updateAttributes(command.attributes());
+        listing.markImported();
+        Listing saved = persistencePort.save(listing);
+        jdbc.update("UPDATE listings SET import_batch_id=? WHERE id=?", importBatchId, saved.getId());
+        return new DraftSaved(saved.getId(), saved.getLatestRevision().orElseThrow().getId(), saved.getVersion());
+    }
+
+    /** Field checks of the structured attributes (contract §2.1): rent terms for RENT only, legal detail, project. */
+    public void validateAttributes(ListingPurpose purpose, String legalStatus, ListingAttributes attributes) {
+        List<ListingValidationException.FieldIssue> issues = new ArrayList<>();
+        ListingAttributes a = attributes == null ? ListingAttributes.EMPTY : attributes;
+        if (purpose != ListingPurpose.RENT) {
+            if (a.monthlyServiceFeeVnd() != null) issues.add(new ListingValidationException.FieldIssue(
+                    "monthlyServiceFeeVnd", "Phí dịch vụ hằng tháng chỉ áp dụng cho tin cho thuê."));
+            if (a.depositVnd() != null) issues.add(new ListingValidationException.FieldIssue(
+                    "depositVnd", "Tiền đặt cọc chỉ áp dụng cho tin cho thuê."));
+        }
+        if (a.legalStatusCode() == LegalStatusCode.OTHER && (legalStatus == null || legalStatus.isBlank())) {
+            issues.add(new ListingValidationException.FieldIssue("legalStatus",
+                    "Mô tả loại giấy tờ pháp lý khi chọn \"Khác\"."));
+        }
+        if (a.projectId() != null) {
+            Integer found = jdbc.queryForObject("SELECT COUNT(*) FROM projects WHERE id=?", Integer.class, a.projectId());
+            if (found == null || found == 0) issues.add(new ListingValidationException.FieldIssue(
+                    "projectId", "Dự án không tồn tại."));
+        }
+        if (!issues.isEmpty()) throw new ListingValidationException(issues);
     }
 
     private String allocateSlug(String title) {
@@ -104,9 +155,20 @@ public class ListingApplicationService implements
 
     @Override
     @Transactional
-    public UUID updateDraft(UpdateListingDraftCommand command) {
+    public DraftSaved updateDraft(UpdateListingDraftCommand command) {
         requireVerifiedKyc(command.requesterId());
+        validateAttributes(command.purpose(), command.legalStatus(), command.attributes());
         Instant now = Instant.now(clock);
+
+        // Serialize concurrent saves of one listing (two tabs, autosave + manual save): the row lock makes the second
+        // writer wait, then its expected version no longer matches and it gets 409 instead of overwriting (R-4).
+        List<Long> locked = jdbc.queryForList("SELECT version FROM listings WHERE id=? FOR UPDATE", Long.class, command.listingId());
+        if (locked.isEmpty()) {
+            throw new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng với ID: " + command.listingId());
+        }
+        if (command.expectedVersion() != null && !command.expectedVersion().equals(locked.get(0))) {
+            throw new ListingVersionConflictException(locked.get(0));
+        }
 
         Listing listing = persistencePort.findById(command.listingId())
                 .orElseThrow(() -> new ListingDomainException("LISTING_NOT_FOUND", "Không tìm thấy tin đăng với ID: " + command.listingId()));
@@ -136,9 +198,10 @@ public class ListingApplicationService implements
                 mediaList,
                 now
         );
+        updatedRevision.updateAttributes(command.attributes());
 
-        persistencePort.save(listing);
-        return updatedRevision.getId();
+        Listing saved = persistencePort.save(listing);
+        return new DraftSaved(saved.getId(), updatedRevision.getId(), saved.getVersion());
     }
 
     @Override
@@ -175,7 +238,9 @@ public class ListingApplicationService implements
         return persistencePort.findByOwnerId(ownerId);
     }
 
+    /** {@code null} keeps the current images of a draft; an empty list removes them. */
     private List<ListingMedia> buildMediaList(List<String> imageUrls) {
+        if (imageUrls == null) return null;
         List<ListingMedia> list = new ArrayList<>();
         if (imageUrls != null) {
             for (int i = 0; i < imageUrls.size(); i++) {
