@@ -53,9 +53,14 @@ export const Button: React.FC<ButtonProps> = ({
   rightIcon,
   className,
   disabled,
+  // Defaults to "button": inside a <form>, a bare <button> submits it. Every kit-internal use (Pagination,
+  // LoadMore, InlineFeedback's action, ErrorState's retry, Toast, Dialog/Sheet…) relies on this default; pass
+  // type="submit" explicitly for the one button in a form that should submit it.
+  type = 'button',
   ...props
 }) => (
   <button
+    type={type}
     className={buttonClasses({ variant, size, className })}
     disabled={disabled || isLoading}
     aria-busy={isLoading || undefined}

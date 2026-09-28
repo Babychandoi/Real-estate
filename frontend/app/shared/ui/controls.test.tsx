@@ -44,6 +44,21 @@ describe('buttons and toggles', () => {
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
 
+  it('defaults to type="button" so it never submits a surrounding form (M1)', () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <Button>Thử lại</Button>
+        <Button type="submit">Gửi</Button>
+      </form>,
+    );
+    expect(screen.getByRole('button', { name: 'Thử lại' })).toHaveAttribute('type', 'button');
+    fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   it('gives icon-only buttons their aria-label as accessible name', () => {
     render(<IconButton icon={Search} aria-label="Tìm kiếm" />);
     expect(screen.getByRole('button', { name: 'Tìm kiếm' })).toHaveAttribute('type', 'button');
