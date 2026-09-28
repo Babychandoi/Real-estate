@@ -9,14 +9,14 @@
     },
     "/search": {
       "module": "app/routes/_public.search.tsx",
-      "budgetKb": 663,
-      "measuredKb": 602.6,
-      "target": "F15.1 (S2-SEARCH): load MapLibre (chunk + worker) only when the map is opened; list view <= 130 kB"
+      "budgetKb": 157,
+      "measuredKb": 142.6,
+      "target": "S2: MapLibre (chunk + worker) and the filter form load on demand; list view = shell (119.7) + 22.9 kB. The <=130 kB target was set against the gzip-9 metric; at the corrected gzip-1 metric the shell alone is ~120 kB."
     },
     "/listings/:slug": {
       "module": "app/routes/_public.listings.$listingId.tsx",
-      "budgetKb": 141,
-      "measuredKb": 127.8
+      "budgetKb": 155,
+      "measuredKb": 140.9
     },
     "/compare": {
       "module": "app/routes/_public.compare.tsx",

@@ -10,18 +10,31 @@ const listing = {
   title: 'Căn hộ 2PN Cầu Giấy view thoáng',
   purpose: 'SALE',
   propertyType: 'APARTMENT',
-  priceVnd: 3_950_000_000,
+  price: { amount: 3_950_000_000, currency: 'VND', period: null },
+  unitPrice: { amount: 56_428_571, per: 'M2' },
   areaM2: 70,
-  addressSummary: 'Dịch Vọng, Cầu Giấy, Hà Nội',
+  bedrooms: 2,
+  bathrooms: 2,
+  location: {
+    districtCode: '005',
+    districtName: 'Cầu Giấy',
+    addressSummary: 'Dịch Vọng, Cầu Giấy, Hà Nội',
+    precision: 'APPROXIMATE',
+  },
+  image: null,
+  imageCount: 0,
+  trust: { identity: { status: 'VERIFIED' }, listing: { status: 'CHECKED' }, ownership: { status: 'NOT_SUBMITTED' } },
+  freshness: { publishedAt: '2026-09-01T03:00:00Z', updatedAt: '2026-09-01T03:00:00Z' },
+  seller: { id: 'owner-1', name: 'Môi giới Demo', role: 'BROKER' },
+  project: null,
+  priceChange: null,
   description: 'Căn hộ hai phòng ngủ.',
-  isVerified: false,
-  ownerId: 'owner-1',
-  status: 'ACTIVE',
+  images: [],
+  facts: { bedrooms: 2, bathrooms: 2 },
+  rentTerms: null,
+  legal: null,
+  furnishing: null,
   revisionNumber: 1,
-  revisionStatus: 'APPROVED',
-  imageUrls: [],
-  createdAt: '2026-09-01T03:00:00Z',
-  updatedAt: '2026-09-01T03:00:00Z',
 };
 
 function mockApi({ found }: { found: boolean }) {
@@ -29,16 +42,15 @@ function mockApi({ found }: { found: boolean }) {
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (found && url.endsWith(`/listings/by-slug/${listing.slug}`)) return Response.json(listing);
-      if (found && url.endsWith('/public/profiles/owner-1')) {
-        return Response.json({
-          displayName: 'Môi giới Demo',
-          identityVerified: true,
-          activeListingCount: 3,
-          memberSince: '2026-01-01T00:00:00Z',
-        });
+      if (found && url.endsWith(`/api/v2/listings/${listing.slug}`)) return Response.json(listing);
+      if (found && url.includes(`/api/v2/listings/${listing.id}/price-history`)) {
+        return Response.json({ listingId: listing.id, purpose: 'SALE', points: [] });
       }
-      return Response.json({ title: 'Not found', status: 404, detail: 'Không tìm thấy' }, { status: 404 });
+      if (found && url.includes(`/api/v2/listings/${listing.id}/similar`)) return Response.json([]);
+      return Response.json(
+        { title: 'Not found', status: 404, detail: 'Không tìm thấy', code: 'LISTING_NOT_FOUND' },
+        { status: 404 },
+      );
     }),
   );
 }
