@@ -85,6 +85,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  // Bumped at every sign-in: a stream stopped by an expired session restarts even for the same account.
+  const [sessionKey, setSessionKey] = useState(0);
 
   useEffect(() => {
     if (!sessionStorage.getItem('bds_access_token')) {
@@ -118,13 +120,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     // One stream per signed-in account: reconnect when the user id changes, not when profile fields update.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, sessionKey]);
 
   // Every action below only touches state setters and module functions, so a stable identity is safe and keeps
   // the context value from changing on each render.
   const accept = useCallback((result: AuthResult) => {
     setAccessToken(result.accessToken);
     setUser(toUser(result.user));
+    setSessionKey((key) => key + 1);
     setIsLoginModalOpen(false);
   }, []);
   const login = useCallback(

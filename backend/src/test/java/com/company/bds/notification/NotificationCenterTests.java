@@ -107,6 +107,8 @@ class NotificationCenterTests {
         call(delete("/api/v1/notifications/" + external), token, 404);
 
         call(get("/api/v1/notifications/feed").param("size", "0"), token, 400);
+        call(get("/api/v1/notifications/feed").param("before", "abc"), token, 400);
+        call(get("/api/v1/notifications/feed").param("size", "x"), token, 400);
         call(get("/api/v1/notifications/feed"), null, 401);
     }
 

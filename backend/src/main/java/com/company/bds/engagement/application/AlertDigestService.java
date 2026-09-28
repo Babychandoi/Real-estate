@@ -107,7 +107,9 @@ public class AlertDigestService {
         shown.forEach(m -> byKind.merge(m.kind(), 1, Integer::sum));
         String summary = summary(byKind);
         String title = shown.size() + " tin khớp tìm kiếm “" + search.name() + "”";
-        String link = "/search?" + query(search.params());
+        String searchLink = "/search?" + query(search.params());
+        // A very long filter does not fit a notification link: the saved-search list opens it instead.
+        String link = searchLink.length() <= NotificationRequest.MAX_LINK ? searchLink : "/saved?tab=searches";
         long lastMatch = matches.stream().mapToLong(Match::id).max().orElse(0);
         String dedupe = "saved-search:" + searchId + ":digest:" + lastMatch;
 
@@ -125,7 +127,7 @@ public class AlertDigestService {
             body.append("\n  ").append(notifications.publicBaseUrl()).append("/listings/").append(row.slug()).append("\n");
         });
         if (shown.size() > EMAIL_LISTINGS) body.append("\n… và ").append(shown.size() - EMAIL_LISTINGS).append(" tin khác.\n");
-        body.append("\nXem tất cả kết quả: ").append(notifications.publicBaseUrl()).append(link).append("\n");
+        body.append("\nXem tất cả kết quả: ").append(notifications.publicBaseUrl()).append(searchLink).append("\n");
         notifications.email(new RealtimeNotificationService.EmailRequest(search.userId(), NotificationCategory.ALERTS, title,
                 body.toString(), dedupe, searchId));
         meters.counter("bds.alerts.digests", "outcome", "sent", "frequency", search.frequency()).increment();

@@ -54,11 +54,20 @@ public class NotificationController {
 
     @GetMapping("/feed")
     public NotificationCenterService.Feed feed(Authentication auth,
-                                               @RequestParam(value = "before", required = false) Long before,
-                                               @RequestParam(value = "size", defaultValue = "20") int size,
-                                               @RequestParam(value = "unread", defaultValue = "false") boolean unread) {
-        if (size < 1 || size > 50) throw ApiException.badRequest("INVALID_SIZE", "Số thông báo mỗi trang phải từ 1 đến 50.");
-        if (before != null && before < 1) throw ApiException.badRequest("INVALID_CURSOR", "Vị trí trang không hợp lệ.");
+                                               @RequestParam(value = "before", required = false) String beforeText,
+                                               @RequestParam(value = "size", defaultValue = "20") String sizeText,
+                                               @RequestParam(value = "unread", defaultValue = "false") String unreadText) {
+        // Parsed here: a malformed value must answer 400, not the framework's type-mismatch path.
+        if (!sizeText.matches("\\d{1,2}") || Integer.parseInt(sizeText) < 1 || Integer.parseInt(sizeText) > 50) {
+            throw ApiException.badRequest("INVALID_SIZE", "Số thông báo mỗi trang phải từ 1 đến 50.");
+        }
+        int size = Integer.parseInt(sizeText);
+        boolean hasBefore = beforeText != null && !beforeText.isBlank();
+        Long before = hasBefore ? parseSeq(beforeText) : null;
+        if (hasBefore && (before == null || before < 1)) {
+            throw ApiException.badRequest("INVALID_CURSOR", "Vị trí trang không hợp lệ.");
+        }
+        boolean unread = "true".equalsIgnoreCase(unreadText);
         return center.feed(CurrentUser.id(auth), before, size, unread);
     }
 
