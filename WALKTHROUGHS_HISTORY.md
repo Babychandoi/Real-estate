@@ -745,3 +745,5 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - First PR CI run `36476964181` built the test MinIO image, but the immediate readiness request was reset during container startup (`curl` exit 56). Added `--retry-all-errors` so the health probe tolerates this startup race; backend tests remain pending the next run.
 
 - PR CI run `36478775976`: backend tests, frontend checks, security scan, navigation, accessibility, auth dialog and authenticated flows passed. Chromium visual snapshots failed for Home/Search on several widths (4–6% pixel difference); retained the blocking gate and added a small diff-only artifact to review the actual images on the next run.
+
+- Reviewed `chromium-visual-diffs-1` from run `36481785223`: Home layout and Compare Android remain structurally consistent; Search now renders 23 default SALE results under the v2 contract versus 46 in the older baseline. Eight CI actual PNGs are used as the new expected snapshots, and their blob SHA-1 hashes were checked against the local files. Backend/frontend/security gates were green in this run; final visual gate awaits CI after the snapshot commit.

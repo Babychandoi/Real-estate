@@ -407,3 +407,5 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Based on main `dcc63c3`: restore the backend integration environment by building and starting the project’s test MinIO at `127.0.0.1:59000`, with explicit `BDS_TEST_MINIO_*` settings and a readiness probe.
 - Add a disposable demo media signing key to `.env.demo.example` so E2E Docker Compose can interpolate the required backend setting. Production still uses separately managed secrets.
 - Validate both independent CI gates on the PR; inspect any subsequent test failures without hiding or skipping suites.
+
+- F01 visual baseline review: inspect CI run `36481785223` actual/diff images for Home/Search and Android Compare; preserve the blocking Chromium gate. Search v2 defaults to SALE and the seeded current catalog reports 23 matching public sale listings, while the older snapshot showed 46; update only the eight mismatched Chromium snapshots with the reviewed CI captures.
