@@ -4,12 +4,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -21,8 +17,11 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import com.company.bds.shared.mail.MailMessage;
+import com.company.bds.shared.mail.MailOutbox;
 import com.company.bds.shared.security.ContactInfoGuard;
 import com.company.bds.shared.security.PiiProtectionService;
+import com.company.bds.shared.security.Roles;
 
 @Service
 public class AuthService {
@@ -31,20 +30,17 @@ public class AuthService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
-    private final String mailFrom;
+    private final MailOutbox mailOutbox;
     private final String publicBaseUrl;
     private final PiiProtectionService piiProtection;
 
     public AuthService(JdbcTemplate jdbc, PasswordEncoder passwordEncoder,
-                       JavaMailSender mailSender,
-                       @Value("${app.mail.from}") String mailFrom,
+                       MailOutbox mailOutbox,
                        @Value("${app.public-base-url}") String publicBaseUrl,
                        PiiProtectionService piiProtection) {
         this.jdbc = jdbc;
         this.passwordEncoder = passwordEncoder;
-        this.mailSender = mailSender;
-        this.mailFrom = mailFrom;
+        this.mailOutbox = mailOutbox;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", "");
         this.piiProtection = piiProtection;
     }
@@ -53,7 +49,7 @@ public class AuthService {
     public RegistrationResult register(String email, String password, String fullName, String accountType) {
         ContactInfoGuard.requireNoContact(fullName);
         String normalizedEmail = normalizeEmail(email);
-        String role = "BROKER".equals(accountType) ? "BROKER" : "USER";
+        String role = accountType != null && Roles.SELF_REGISTRATION.contains(accountType) ? accountType : Roles.USER;
         UUID userId = UUID.randomUUID();
         try {
             jdbc.update("""
@@ -88,12 +84,9 @@ public class AuthService {
 
     private UserAccount authenticate(String email, String password) {
         List<UserAccount> users = jdbc.query("""
-                SELECT u.id, u.full_name, u.email, u.password_hash,
-                       COALESCE((SELECT ur.role FROM user_roles ur WHERE ur.user_id=u.id
-                                 ORDER BY CASE ur.role WHEN 'ADMIN' THEN 1 WHEN 'MODERATOR' THEN 2 WHEN 'BROKER' THEN 3 ELSE 4 END
-                                 LIMIT 1), 'USER') role
+                SELECT u.id, u.full_name, u.email, u.password_hash, %s AS role
                 FROM users u WHERE LOWER(u.email)=?
-                """, (rs, row) -> new UserAccount(
+                """.formatted(Roles.effectiveRoleSql("u.id")), (rs, row) -> new UserAccount(
                 rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getString("email"),
                 rs.getString("password_hash"), rs.getString("role")), normalizeEmail(email));
         String storedHash = users.isEmpty() ? null : users.get(0).passwordHash();
@@ -119,7 +112,7 @@ public class AuthService {
     }
 
     private static boolean isPrivileged(String role) {
-        return "ADMIN".equals(role) || "MODERATOR".equals(role);
+        return Roles.isStaff(role);
     }
 
     @Transactional
@@ -160,18 +153,16 @@ public class AuthService {
         jdbc.update("UPDATE password_reset_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        UUID tokenId = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plus(Duration.ofMinutes(30));
         jdbc.update("INSERT INTO password_reset_tokens(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
-                UUID.randomUUID(), userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofMinutes(30))));
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(mailFrom); message.setTo(normalizeEmail(email));
-                message.setSubject("Đặt lại mật khẩu Nhà Đất Chuẩn");
-                message.setText("Chào bạn,\n\nNhấn vào liên kết sau để đặt lại mật khẩu: " + publicBaseUrl
-                        + "/reset-password?token=" + token + "\n\nLiên kết có hiệu lực trong 30 phút và chỉ dùng một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này.");
-                mailSender.send(message);
-            }
-        });
+                tokenId, userId, sha256(token), Timestamp.from(expiresAt));
+        // Queued in this transaction and sent by the job worker: SMTP never runs inside the request transaction. tryEnqueue
+        // never throws, so the answer stays 202 whatever the stored address is (no account enumeration).
+        mailOutbox.tryEnqueue(MailMessage.text(normalizeEmail(email), "Đặt lại mật khẩu Nhà Đất Chuẩn",
+                "Chào bạn,\n\nNhấn vào liên kết sau để đặt lại mật khẩu: " + publicBaseUrl
+                        + "/reset-password?token=" + token + "\n\nLiên kết có hiệu lực trong 30 phút và chỉ dùng một lần. Nếu bạn không yêu cầu, hãy bỏ qua email này.",
+                "PASSWORD_RESET", "password-reset:" + tokenId).withNotAfter(expiresAt));
     }
 
     @Transactional
@@ -220,29 +211,22 @@ public class AuthService {
         jdbc.update("UPDATE email_verification_tokens SET used_at=CURRENT_TIMESTAMP WHERE user_id=? AND used_at IS NULL", userId);
         byte[] bytes = new byte[32]; RANDOM.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        UUID tokenId = UUID.randomUUID();
+        Instant expiresAt = Instant.now().plus(Duration.ofHours(24));
         jdbc.update("INSERT INTO email_verification_tokens(id,user_id,token_hash,expires_at) VALUES (?,?,?,?)",
-                UUID.randomUUID(), userId, sha256(token), Timestamp.from(Instant.now().plus(Duration.ofHours(24))));
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() {
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(mailFrom); message.setTo(email);
-                message.setSubject("Xác minh tài khoản Nhà Đất Chuẩn");
-                message.setText("Chào bạn,\n\nXác minh email để kích hoạt tài khoản tại:\n" + publicBaseUrl
-                        + "/verify-email?token=" + token + "\n\nLiên kết có hiệu lực trong 24 giờ. Nếu bạn không đăng ký, hãy bỏ qua email này.");
-                mailSender.send(message);
-            }
-        });
+                tokenId, userId, sha256(token), Timestamp.from(expiresAt));
+        mailOutbox.tryEnqueue(MailMessage.text(email, "Xác minh tài khoản Nhà Đất Chuẩn",
+                "Chào bạn,\n\nXác minh email để kích hoạt tài khoản tại:\n" + publicBaseUrl
+                        + "/verify-email?token=" + token + "\n\nLiên kết có hiệu lực trong 24 giờ. Nếu bạn không đăng ký, hãy bỏ qua email này.",
+                "EMAIL_VERIFICATION", "email-verification:" + tokenId).withNotAfter(expiresAt));
     }
 
     public UserAccount findByToken(String rawToken) {
         List<UserAccount> users = jdbc.query("""
-                SELECT u.id, u.full_name, u.email, u.password_hash,
-                       COALESCE((SELECT ur.role FROM user_roles ur WHERE ur.user_id=u.id
-                                 ORDER BY CASE ur.role WHEN 'ADMIN' THEN 1 WHEN 'MODERATOR' THEN 2 WHEN 'BROKER' THEN 3 ELSE 4 END
-                                 LIMIT 1), 'USER') role
+                SELECT u.id, u.full_name, u.email, u.password_hash, %s AS role
                 FROM auth_sessions s JOIN users u ON u.id=s.user_id
                 WHERE s.token_hash=? AND s.revoked_at IS NULL AND s.expires_at>CURRENT_TIMESTAMP AND u.status='ACTIVE'
-                """, (rs, row) -> new UserAccount(
+                """.formatted(Roles.effectiveRoleSql("u.id")), (rs, row) -> new UserAccount(
                 rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getString("email"),
                 null, rs.getString("role")), sha256(rawToken));
         return users.isEmpty() ? null : users.get(0);
@@ -250,9 +234,8 @@ public class AuthService {
 
     private UserAccount loadUser(UUID id) {
         return jdbc.queryForObject("""
-                SELECT u.id,u.full_name,u.email,u.password_hash,ur.role FROM users u
-                JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=?
-                """, (rs, row) -> new UserAccount(rs.getObject("id", UUID.class), rs.getString("full_name"),
+                SELECT u.id,u.full_name,u.email,u.password_hash,%s AS role FROM users u WHERE u.id=?
+                """.formatted(Roles.effectiveRoleSql("u.id")), (rs, row) -> new UserAccount(rs.getObject("id", UUID.class), rs.getString("full_name"),
                 rs.getString("email"), rs.getString("password_hash"), rs.getString("role")), id);
     }
 

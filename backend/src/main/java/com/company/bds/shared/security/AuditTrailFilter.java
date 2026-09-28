@@ -28,8 +28,10 @@ public class AuditTrailFilter extends OncePerRequestFilter {
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
         boolean sensitiveRead = request.getMethod().equals("GET")
                 && request.getRequestURI().matches("/api/v1/leads/[^/]+/contact");
+        // Anonymous analytics beacons are telemetry, not actions: auditing them would let anyone flood the audit chain.
+        boolean analyticsIngestion = request.getRequestURI().equals("/api/v1/events");
         return (!sensitiveRead && List.of("GET", "HEAD", "OPTIONS").contains(request.getMethod()))
-                || !request.getRequestURI().startsWith("/api/");
+                || !request.getRequestURI().startsWith("/api/") || analyticsIngestion;
     }
 
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)

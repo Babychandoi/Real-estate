@@ -127,7 +127,7 @@ public class LeadController {
     }
 
     @GetMapping("/leads/listings")
-    @PreAuthorize("hasAnyRole('ADMIN','MODERATOR','BROKER')")
+    @PreAuthorize("hasAnyRole('ADMIN','MODERATOR','BROKER','OWNER')")
     public LeadListingPageResponse getLeadListings(
             @RequestParam(name = "q", defaultValue = "") String keyword,
             @RequestParam(name = "page", defaultValue = "0") int page,

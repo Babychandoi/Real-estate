@@ -9,6 +9,70 @@ permissions:
   contents: read
 
 jobs:
+  backend-tests:
+    # Integration tests run on PostgreSQL/PostGIS + Flyway (no H2). The service containers mirror
+    # infra/test/compose.yaml and expose the same BDS_TEST_* variables as `scripts/test-infra.sh env`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: bds_test
+          POSTGRES_PASSWORD: bds_test_only
+          POSTGRES_DB: bds_test_admin
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bds_test -d bds_test_admin"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports: ['56379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.5
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: 'false'
+          ES_JAVA_OPTS: '-Xms512m -Xmx512m'
+        ports: ['59200:9200']
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9200/_cluster/health?wait_for_status=yellow || exit 1"
+          --health-interval 10s --health-timeout 10s --health-retries 30
+      mailpit:
+        image: axllent/mailpit:v1.21
+        ports: ['51025:1025', '58025:8025']
+    env:
+      BDS_TEST_PG_URL: jdbc:postgresql://127.0.0.1:55432/bds_test_admin
+      BDS_TEST_PG_USER: bds_test
+      BDS_TEST_PG_PASSWORD: bds_test_only
+      BDS_TEST_ES_URL: http://127.0.0.1:59200
+      BDS_TEST_REDIS_HOST: 127.0.0.1
+      BDS_TEST_REDIS_PORT: '56379'
+      # Service containers cannot pass --databases 64, and CI runs one JVM per job: pin the index.
+      BDS_TEST_REDIS_DB: '1'
+      BDS_TEST_SMTP_HOST: 127.0.0.1
+      BDS_TEST_SMTP_PORT: '51025'
+      BDS_TEST_MAILPIT_API: http://127.0.0.1:58025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Backend tests
+        working-directory: backend
+        run: sh mvnw --batch-mode verify
+      - name: Upload backend test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-reports
+          path: backend/target/surefire-reports
+          retention-days: 7
   verify:
     runs-on: ubuntu-latest
     steps:
@@ -23,9 +87,6 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Backend tests
-        working-directory: backend
-        run: sh mvnw --batch-mode verify
       - name: Frontend checks
         working-directory: frontend
         run: npm ci && npm audit --audit-level=high && npm run lint && npm run build

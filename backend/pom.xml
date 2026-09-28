@@ -20,6 +20,7 @@
     <properties>
         <java.version>17</java.version>
         <postgresql.version>42.7.12</postgresql.version>
+        <datasource-proxy.version>1.11.0</datasource-proxy.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     </properties>
@@ -91,14 +92,13 @@
             <version>2.5.0</version>
         </dependency>
 
-        <!-- H2 Database for lightweight slice/integration test fallback -->
+        <!-- Testing: integration tests run on PostgreSQL/PostGIS + Flyway (see src/test/.../testsupport) -->
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
+            <groupId>net.ttddyy</groupId>
+            <artifactId>datasource-proxy</artifactId>
+            <version>${datasource-proxy.version}</version>
             <scope>test</scope>
         </dependency>
-
-        <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

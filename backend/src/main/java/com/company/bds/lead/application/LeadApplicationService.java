@@ -1,5 +1,6 @@
 package com.company.bds.lead.application;
 
+import com.company.bds.analytics.application.AnalyticsRecorder;
 import com.company.bds.lead.domain.model.Lead;
 import com.company.bds.lead.domain.model.LeadStatus;
 import com.company.bds.lead.domain.model.LeadRequestType;
@@ -30,6 +31,7 @@ public class LeadApplicationService {
     private final JdbcTemplate jdbc;
     private final ObjectProvider<OutboxEventWriter> outbox;
     private final UserKycPersistencePort kycPersistencePort;
+    private final AnalyticsRecorder analytics;
 
     public LeadApplicationService(
             LeadPersistencePort leadPersistencePort,
@@ -37,13 +39,15 @@ public class LeadApplicationService {
             PiiProtectionService piiProtection,
             JdbcTemplate jdbc,
             ObjectProvider<OutboxEventWriter> outbox,
-            UserKycPersistencePort kycPersistencePort) {
+            UserKycPersistencePort kycPersistencePort,
+            AnalyticsRecorder analytics) {
         this.leadPersistencePort = leadPersistencePort;
         this.listingPersistencePort = listingPersistencePort;
         this.piiProtection = piiProtection;
         this.jdbc = jdbc;
         this.outbox = outbox;
         this.kycPersistencePort = kycPersistencePort;
+        this.analytics = analytics;
     }
 
     /**
@@ -114,6 +118,9 @@ public class LeadApplicationService {
                 protectedPhone.blindIndex(), requestType, note, consentPolicy, LeadStatus.NEW, Instant.now());
 
         Lead saved = leadPersistencePort.save(lead);
+        // Same transaction as the lead; the lead id makes it exactly-once even if the request is retried.
+        analytics.recordServer("lead_submitted", 1, saved.getId().toString(), requesterId, listingId,
+                Map.of("leadId", saved.getId().toString(), "requestType", saved.getRequestType().name()));
         OutboxEventWriter writer = outbox.getIfAvailable();
         if (writer != null) {
             writer.append("LEAD", saved.getId(), "LEAD_CREATED", Map.of(
@@ -201,6 +208,9 @@ public class LeadApplicationService {
      * Môi giới hoặc Admin cập nhật tiến trình chăm sóc Lead (NEW -> CONTACTED -> APPOINTED -> CLOSED -> SPAM).
      */
     public Lead updateLeadStatus(UUID leadId, LeadStatus newStatus, UUID actorId, boolean privileged) {
+        if (newStatus == LeadStatus.WITHDRAWN) {
+            throw new IllegalArgumentException("Chỉ người gửi yêu cầu mới có thể rút yêu cầu liên hệ.");
+        }
         Lead lead = leadPersistencePort.findById(leadId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Lead ID: " + leadId));
         Listing listing = listingPersistencePort.findById(lead.getListingId())

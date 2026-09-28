@@ -1,6 +1,7 @@
 package com.company.bds.shared.uat;
 
 import com.company.bds.shared.security.PiiProtectionService;
+import com.company.bds.shared.security.Roles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,6 +11,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -23,7 +25,9 @@ import java.sql.Timestamp;
 import java.text.Normalizer;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -37,6 +41,11 @@ import java.util.UUID;
  * <p>Runs only when {@code app.uat-seed.mode} is {@code seed} or {@code purge}. Every synthetic row uses an id
  * starting with {@code ee5eed} (text keys start with {@code UAT}), so {@code purge} removes exactly what
  * {@code seed} created. Existing accounts are only referenced (as owners/requesters), never modified.
+ *
+ * <p>{@code app.uat-seed.clock=<ISO instant>} makes every timestamp relative to that instant, so E2E fixtures are
+ * identical run after run (e.g. {@code --app.uat-seed.clock=2026-09-01T03:00:00Z}). Outside production,
+ * {@code app.uat-seed.password} gives the synthetic accounts a password so E2E can sign in as a buyer, broker or owner
+ * (their e-mails are {@code uat.<name>@example.invalid}).
  */
 @Component
 @ConditionalOnProperty(name = "app.uat-seed.mode")
@@ -48,6 +57,7 @@ public class UatDataSeeder implements ApplicationRunner {
     private static final int K_USER = 0x01, K_LISTING = 0x02, K_REVISION = 0x03, K_MEDIA = 0x04, K_LEAD = 0x05,
             K_REPORT = 0x06, K_KYC = 0x07, K_VERIFICATION = 0x08, K_PROJECT = 0x09, K_ARTICLE = 0x0a,
             K_ARTICLE_REV = 0x0b, K_ORDER = 0x0c, K_INVOICE = 0x0d;
+    private static final int MIN_PASSWORD_LENGTH = 12;
 
     private final JdbcTemplate jdbc;
     private final PiiProtectionService pii;
@@ -57,14 +67,20 @@ public class UatDataSeeder implements ApplicationRunner {
     private final boolean exitAfterRun;
     private final List<String> accountEmails;
     private final String elasticsearchBase;
-    private final Random random = new Random(20260926L);
-    private final Instant now = Instant.now();
+    private final String searchIndex;
+    private final String passwordHash;
+    private final Instant now;
+    private Random random;
 
     public UatDataSeeder(JdbcTemplate jdbc, PiiProtectionService pii, TransactionTemplate tx, ApplicationContext context,
                          @Value("${app.uat-seed.mode}") String mode,
                          @Value("${app.uat-seed.exit:true}") boolean exitAfterRun,
                          @Value("${app.uat-seed.accounts:phonglop7d@gmail.com,phong01012k2@gmail.com,moderator.test@nhadatchuan.online,phongdq@weconex.vn}") List<String> accountEmails,
-                         @Value("${spring.elasticsearch.uris:http://localhost:9200}") String elasticsearchUris) {
+                         @Value("${spring.elasticsearch.uris:http://localhost:9200}") String elasticsearchUris,
+                         @Value("${app.search.index-name:bds-listings}") String searchIndex,
+                         @Value("${app.uat-seed.clock:}") String clock,
+                         @Value("${app.mode:demo}") String appMode,
+                         @Value("${app.uat-seed.password:}") String password) {
         this.jdbc = jdbc;
         this.pii = pii;
         this.tx = tx;
@@ -73,6 +89,29 @@ public class UatDataSeeder implements ApplicationRunner {
         this.exitAfterRun = exitAfterRun;
         this.accountEmails = accountEmails.stream().map(email -> email.trim().toLowerCase(Locale.ROOT)).filter(email -> !email.isBlank()).toList();
         this.elasticsearchBase = elasticsearchUris.split(",")[0].replaceAll("/+$", "");
+        this.searchIndex = searchIndex;
+        this.now = parseClock(clock);
+        this.passwordHash = hashPassword(password, appMode);
+    }
+
+    private static Instant parseClock(String clock) {
+        if (clock == null || clock.isBlank()) return Instant.now();
+        try {
+            return Instant.parse(clock.trim());
+        } catch (DateTimeParseException ex) {
+            throw new IllegalArgumentException("app.uat-seed.clock must be an ISO-8601 instant such as 2026-09-01T03:00:00Z", ex);
+        }
+    }
+
+    private static String hashPassword(String password, String appMode) {
+        if (password == null || password.isBlank()) return null;
+        if ("production".equalsIgnoreCase(appMode)) {
+            throw new IllegalStateException("app.uat-seed.password is refused in production: synthetic accounts must not be able to sign in");
+        }
+        if (password.length() < MIN_PASSWORD_LENGTH) {
+            throw new IllegalArgumentException("app.uat-seed.password must have at least " + MIN_PASSWORD_LENGTH + " characters");
+        }
+        return new BCryptPasswordEncoder(10).encode(password);
     }
 
     @Override
@@ -80,16 +119,8 @@ public class UatDataSeeder implements ApplicationRunner {
         int exitCode = 0;
         try {
             switch (mode) {
-                case "seed" -> {
-                    tx.executeWithoutResult(status -> purgeRows());
-                    tx.executeWithoutResult(status -> seed());
-                }
-                case "purge" -> {
-                    List<String> listingIds = jdbc.queryForList("SELECT id::text FROM listings WHERE id::text LIKE ?", String.class, ID_PREFIX + "%");
-                    tx.executeWithoutResult(status -> purgeRows());
-                    listingIds.forEach(this::deleteFromSearchIndex);
-                    log.info("UAT seed: purged all synthetic rows ({} listings)", listingIds.size());
-                }
+                case "seed" -> seedNow();
+                case "purge" -> purgeNow();
                 default -> throw new IllegalArgumentException("app.uat-seed.mode must be 'seed' or 'purge'");
             }
         } catch (RuntimeException exception) {
@@ -102,30 +133,86 @@ public class UatDataSeeder implements ApplicationRunner {
         }
     }
 
+    /** Replaces every synthetic row with a fresh data set; identical for a given clock and database state. */
+    public void seedNow() {
+        random = new Random(20260926L);
+        tx.executeWithoutResult(status -> purgeRows());
+        tx.executeWithoutResult(status -> seed());
+    }
+
+    /** Removes every synthetic row (and its search documents); real accounts and their own data stay untouched. */
+    public void purgeNow() {
+        List<String> listingIds = jdbc.queryForList("SELECT id::text FROM listings WHERE id IN " + SYNTHETIC_LISTINGS, String.class);
+        tx.executeWithoutResult(status -> purgeRows());
+        listingIds.forEach(this::deleteFromSearchIndex);
+        log.info("UAT seed: purged all synthetic rows ({} listings)", listingIds.size());
+    }
+
     // ------------------------------------------------------------------ purge
 
+    /**
+     * Every synthetic id has the shape {@code ee5eed<kind>-0000-4000-8000-<n>} (see {@link #id}); a random UUID matches it
+     * with probability about 2^-66, so a real row is never mistaken for a synthetic one (a bare "ee5eed" prefix would be).
+     */
+    static final String SYNTHETIC_ID_PATTERN = "^ee5eed[0-9a-f]{2}-0000-4000-8000-[0-9a-f]{12}$";
+    private static final String SYNTHETIC_USERS = "(SELECT id FROM users WHERE " + synthetic("id") + ")";
+    /** Seeded listings plus every listing a synthetic account created later through the API. */
+    private static final String SYNTHETIC_LISTINGS = "(SELECT id FROM listings WHERE " + synthetic("id") + " OR owner_id IN " + SYNTHETIC_USERS + ")";
+    private static final String SYNTHETIC_LEADS = "(SELECT id FROM leads WHERE " + synthetic("id") + " OR listing_id IN " + SYNTHETIC_LISTINGS
+            + " OR requester_id IN " + SYNTHETIC_USERS + ")";
+    private static final String SYNTHETIC_CONTRACTS = "(SELECT id FROM deposit_contracts WHERE listing_id IN " + SYNTHETIC_LISTINGS
+            + " OR buyer_id IN " + SYNTHETIC_USERS + " OR seller_id IN " + SYNTHETIC_USERS + ")";
+    private static final String SYNTHETIC_ORDERS = "(SELECT id FROM package_orders WHERE " + synthetic("id") + " OR user_id IN " + SYNTHETIC_USERS + ")";
+    /** Per-user rows removed with the synthetic accounts (sessions and tokens created by E2E sign-ins included). */
+    private static final List<String> USER_OWNED_TABLES = List.of("auth_sessions", "email_verification_tokens", "password_reset_tokens",
+            "kyc_document_access_grants", "user_notifications", "broker_sla_settings", "media_objects:owner_id");
+
+    private static String synthetic(String column) {
+        return column + "::text ~ '" + SYNTHETIC_ID_PATTERN + "'";
+    }
+
+    /**
+     * Removes the seeded rows and everything synthetic accounts created afterwards through the API (listings with their
+     * revisions/media, leads, orders/invoices, contracts, sessions, tokens, notifications, uploads, analytics, jobs), in
+     * foreign-key order so neither purge nor a re-seed aborts. Real rows are only touched where they point at synthetic data:
+     * leads/contracts on synthetic listings are removed, links to synthetic projects/reviewers are cleared. The append-only
+     * audit trail is left as is.
+     */
     private void purgeRows() {
-        String like = ID_PREFIX + "%";
-        jdbc.update("DELETE FROM invoices WHERE id::text LIKE ? OR order_id IN (SELECT id FROM package_orders WHERE id::text LIKE ?)", like, like);
-        jdbc.update("DELETE FROM package_orders WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM leads WHERE id::text LIKE ? OR listing_id::text LIKE ?", like, like);
-        jdbc.update("DELETE FROM listing_reports WHERE id::text LIKE ? OR listing_id::text LIKE ?", like, like);
-        jdbc.update("DELETE FROM listing_verifications WHERE id::text LIKE ? OR listing_id::text LIKE ?", like, like);
-        jdbc.update("UPDATE listings SET public_revision_id=NULL WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM listing_revisions WHERE listing_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM listings WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM cms_article_revisions WHERE article_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM cms_articles WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM projects WHERE id::text LIKE ?", like);
-        jdbc.update("DELETE FROM user_kyc_profiles WHERE id::text LIKE ? OR user_id::text LIKE ?", like, like);
-        jdbc.update("DELETE FROM broker_sla_settings WHERE user_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM user_roles WHERE user_id::text LIKE ?", like);
-        jdbc.update("DELETE FROM users WHERE id::text LIKE ?", like);
+        jdbc.update("DELETE FROM analytics_events WHERE listing_id IN " + SYNTHETIC_LISTINGS + " OR user_id IN " + SYNTHETIC_USERS
+                + " OR " + synthetic("listing_id") + " OR " + synthetic("user_id"));
+        jdbc.update("DELETE FROM background_jobs WHERE dedupe_key ~ 'ee5eed[0-9a-f]{2}-0000-4000-8000-[0-9a-f]{12}'");
+        jdbc.update("DELETE FROM api_idempotency_keys WHERE resource_id IN " + SYNTHETIC_LEADS);
+        jdbc.update("DELETE FROM escrow_transactions WHERE contract_id IN " + SYNTHETIC_CONTRACTS + " OR performed_by IN " + SYNTHETIC_USERS);
+        jdbc.update("DELETE FROM deposit_contracts WHERE id IN " + SYNTHETIC_CONTRACTS);
+        jdbc.update("DELETE FROM invoices WHERE " + synthetic("id") + " OR order_id IN " + SYNTHETIC_ORDERS + " OR user_id IN " + SYNTHETIC_USERS);
+        jdbc.update("UPDATE package_orders SET reviewed_by = NULL WHERE reviewed_by IN " + SYNTHETIC_USERS);
+        jdbc.update("DELETE FROM package_orders WHERE id IN " + SYNTHETIC_ORDERS);
+        jdbc.update("DELETE FROM leads WHERE id IN " + SYNTHETIC_LEADS);
+        jdbc.update("DELETE FROM listing_reports WHERE " + synthetic("id") + " OR listing_id IN " + SYNTHETIC_LISTINGS);
+        jdbc.update("DELETE FROM listing_verifications WHERE " + synthetic("id") + " OR listing_id IN " + SYNTHETIC_LISTINGS);
+        jdbc.update("UPDATE listing_verifications SET decided_by = NULL WHERE decided_by IN " + SYNTHETIC_USERS);
+        jdbc.update("UPDATE listings SET public_revision_id = NULL WHERE id IN " + SYNTHETIC_LISTINGS);
+        jdbc.update("DELETE FROM listing_revisions WHERE listing_id IN " + SYNTHETIC_LISTINGS); // listing_media cascades
+        jdbc.update("DELETE FROM listings WHERE id IN " + SYNTHETIC_LISTINGS);
+        // A real revision may point at a synthetic project (linked during UAT); unlink it so the project can be removed.
+        jdbc.update("UPDATE listing_revisions SET project_id = NULL WHERE project_id IN (SELECT id FROM projects WHERE " + synthetic("id") + ")");
+        jdbc.update("DELETE FROM cms_article_revisions WHERE article_id IN (SELECT id FROM cms_articles WHERE " + synthetic("id") + ")");
+        jdbc.update("DELETE FROM cms_articles WHERE " + synthetic("id"));
+        jdbc.update("DELETE FROM projects WHERE " + synthetic("id"));
+        jdbc.update("DELETE FROM user_kyc_profiles WHERE " + synthetic("id") + " OR user_id IN " + SYNTHETIC_USERS);
+        for (String table : USER_OWNED_TABLES) {
+            String[] parts = table.split(":");
+            String column = parts.length > 1 ? parts[1] : "user_id";
+            jdbc.update("DELETE FROM " + parts[0] + " WHERE " + column + " IN " + SYNTHETIC_USERS);
+        }
+        jdbc.update("DELETE FROM user_roles WHERE user_id IN " + SYNTHETIC_USERS);
+        jdbc.update("DELETE FROM users WHERE " + synthetic("id"));
     }
 
     private void deleteFromSearchIndex(String listingId) {
         try {
-            HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(elasticsearchBase + "/bds-listings/_doc/" + listingId))
+            HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(elasticsearchBase + "/" + searchIndex + "/_doc/" + listingId))
                     .timeout(Duration.ofSeconds(3)).DELETE().build(), HttpResponse.BodyHandlers.discarding());
         } catch (Exception ignored) {
             // Search hydration only returns ACTIVE listings from PostgreSQL, so a stale document is harmless.
@@ -156,6 +243,10 @@ public class UatDataSeeder implements ApplicationRunner {
     };
 
     private static final String[] DIRECTIONS = {"Đông", "Tây", "Nam", "Bắc", "Đông Nam", "Đông Bắc", "Tây Nam", "Tây Bắc"};
+    private static final String[] APARTMENT_FURNISHING = {"FULL", "BASIC", "NONE"};
+
+    /** Projects open for listings, by district code: apartments in those districts are linked to them. */
+    private final Map<String, UUID> projectsByDistrict = new HashMap<>();
 
     private void seed() {
         List<Person> real = loadRealAccounts();
@@ -169,10 +260,13 @@ public class UatDataSeeder implements ApplicationRunner {
 
         List<Person> fakeBrokers = new ArrayList<>();
         List<Person> fakeBuyers = new ArrayList<>();
-        seedFakeUsers(fakeBrokers, fakeBuyers);
+        List<Person> fakeOwners = new ArrayList<>();
+        seedFakeUsers(fakeBrokers, fakeBuyers, fakeOwners);
+        projectsByDistrict.clear();
+        int projects = seedProjects();
 
-        List<Person> realSellers = real.stream().filter(p -> p.role().equals("BROKER") || p.role().equals("ADMIN")).toList();
-        List<Person> realBuyers = real.stream().filter(p -> p.role().equals("USER")).toList();
+        List<Person> realSellers = real.stream().filter(p -> Roles.isPoster(p.role())).toList();
+        List<Person> realBuyers = real.stream().filter(p -> p.role().equals(Roles.USER)).toList();
 
         List<SeededListing> listings = new ArrayList<>();
         int n = 0;
@@ -185,25 +279,29 @@ public class UatDataSeeder implements ApplicationRunner {
         for (Person seller : fakeBrokers) {
             for (String state : fakeMix) listings.add(seedListing(++n, seller, state, imagePool));
         }
+        // Private owners post one or two own properties; the one whose KYC is pending has only a draft.
+        String[][] ownerMixes = {{"ACTIVE", "ACTIVE", "PENDING_REVIEW_EDIT", "DRAFT"}, {"DRAFT"}};
+        for (int i = 0; i < fakeOwners.size(); i++) {
+            for (String state : ownerMixes[i % ownerMixes.length]) listings.add(seedListing(++n, fakeOwners.get(i), state, imagePool));
+        }
 
         int leads = seedLeads(listings, realSellers, realBuyers, fakeBuyers);
         int reports = seedReports(listings);
         int verifications = seedVerifications(listings);
-        int projects = seedProjects();
         int articles = seedArticles(imagePool);
         int orders = seedOrders(real, fakeBrokers);
-        log.info("UAT seed done: accounts found={} {}, fake users={}, listings={}, leads={}, reports={}, verifications={}, projects={}, articles={}, orders={}, image pool={}",
-                real.size(), real.stream().map(p -> p.name() + "/" + p.role()).toList(), fakeBrokers.size() + fakeBuyers.size(),
-                listings.size(), leads, reports, verifications, projects, articles, orders, imagePool.size());
+        log.info("UAT seed done: clock={}, accounts found={} {}, fake users={} (owners={}), listings={}, leads={}, reports={}, verifications={}, projects={}, articles={}, orders={}, image pool={}",
+                now, real.size(), real.stream().map(p -> p.name() + "/" + p.role()).toList(), fakeBrokers.size() + fakeBuyers.size() + fakeOwners.size(),
+                fakeOwners.size(), listings.size(), leads, reports, verifications, projects, articles, orders, imagePool.size());
     }
 
     private List<Person> loadRealAccounts() {
         List<Person> people = new ArrayList<>();
         for (String email : accountEmails) {
             List<Map<String, Object>> rows = jdbc.queryForList("""
-                    SELECT u.id, u.full_name, ur.role, k.id AS kyc_id, k.status AS kyc_status
-                    FROM users u JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN user_kyc_profiles k ON k.user_id=u.id
-                    WHERE LOWER(u.email)=? ORDER BY CASE ur.role WHEN 'ADMIN' THEN 0 WHEN 'MODERATOR' THEN 1 WHEN 'BROKER' THEN 2 ELSE 3 END LIMIT 1""", email);
+                    SELECT u.id, u.full_name, %s AS role, k.id AS kyc_id, k.status AS kyc_status
+                    FROM users u LEFT JOIN user_kyc_profiles k ON k.user_id=u.id
+                    WHERE LOWER(u.email)=? LIMIT 1""".formatted(Roles.effectiveRoleSql("u.id")), email);
             if (rows.isEmpty()) {
                 log.warn("UAT seed: account {} not found, skipped", email);
                 continue;
@@ -215,13 +313,14 @@ public class UatDataSeeder implements ApplicationRunner {
         return people;
     }
 
-    private void seedFakeUsers(List<Person> brokers, List<Person> buyers) {
+    private void seedFakeUsers(List<Person> brokers, List<Person> buyers, List<Person> owners) {
         String[][] people = {
                 {"Nguyễn Minh Tuấn", "BROKER", "VERIFIED"}, {"Trần Thu Hà", "BROKER", "VERIFIED"}, {"Lê Quang Huy", "BROKER", "VERIFIED"},
                 {"Phạm Ngọc Lan", "BROKER", "PENDING"}, {"Hoàng Đức Anh", "BROKER", "VERIFIED"},
                 {"Vũ Thị Mai", "USER", "VERIFIED"}, {"Đặng Văn Long", "USER", "VERIFIED"}, {"Bùi Khánh Linh", "USER", "PENDING"},
                 {"Đỗ Hoàng Nam", "USER", "PENDING"}, {"Ngô Thanh Thảo", "USER", "REJECTED"}, {"Dương Quốc Bảo", "USER", "VERIFIED"},
                 {"Lý Hải Yến", "USER", "PENDING"}, {"Trịnh Công Sơn", "USER", null}, {"Mai Phương Anh", "USER", null},
+                {"Phan Thanh Hải", "OWNER", "VERIFIED"}, {"Tạ Thu Hồng", "OWNER", "PENDING"},
         };
         for (int i = 0; i < people.length; i++) {
             String name = people[i][0], role = people[i][1], kyc = people[i][2];
@@ -232,31 +331,36 @@ public class UatDataSeeder implements ApplicationRunner {
             jdbc.update("""
                     INSERT INTO users(id,phone_lookup_hash,phone_encrypted,full_name,email,password_hash,status,created_at,updated_at,
                                       email_verified_at,plan_code,plan_expires_at,listing_quota_remaining)
-                    VALUES (?,?,?,?,?,NULL,?,?,?,?,?,?,?)""",
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     id, phone.blindIndex(), phone.encrypted(), name, "uat." + slugify(name).replace("-", ".") + "@example.invalid",
-                    status, created, created, status.equals("PENDING_EMAIL_VERIFICATION") ? null : created,
+                    passwordHash, status, created, created, status.equals("PENDING_EMAIL_VERIFICATION") ? null : created,
                     role.equals("BROKER") ? (i % 2 == 0 ? "PRO" : "STANDARD") : "FREE",
                     role.equals("BROKER") ? Timestamp.from(now.plus(Duration.ofDays(12 + i))) : null,
-                    role.equals("BROKER") ? 25 : 2);
+                    role.equals("BROKER") ? 25 : role.equals("OWNER") ? 1 : 2);
             jdbc.update("INSERT INTO user_roles(user_id,role) VALUES (?,?)", id, role);
             UUID kycId = null;
             if (kyc != null) {
                 kycId = id(K_KYC, i + 1);
                 jdbc.update("""
                         INSERT INTO user_kyc_profiles(id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,dob,address,
-                                                      face_match_score,status,rejection_reason,created_at,verified_at)
-                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                                      face_match_score,status,rejection_reason,created_at,verified_at,expires_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         kycId, id, "v1:0012****" + String.format("%04d", 1000 + i) + ":synthetic:synthetic", sha256("uat-kyc-" + id),
                         name, String.format("%02d/%02d/%d", 1 + i % 27, 1 + i % 12, 1978 + i), "Số " + (10 + i) + " " + PLACES[i % PLACES.length].streets()[0] + ", " + PLACES[i % PLACES.length].district() + ", Hà Nội",
                         0.82 + (i % 5) * 0.03, kyc, kyc.equals("REJECTED") ? "Ảnh mặt trước CCCD bị lóa, không đọc được số giấy tờ." : null,
-                        ago(Duration.ofDays(3 + i)), kyc.equals("VERIFIED") ? ago(Duration.ofDays(2 + i)) : null);
+                        ago(Duration.ofDays(3 + i)), kyc.equals("VERIFIED") ? ago(Duration.ofDays(2 + i)) : null,
+                        kyc.equals("VERIFIED") ? Timestamp.from(now.minus(Duration.ofDays(2 + i)).atZone(java.time.ZoneOffset.UTC).plusMonths(24).toInstant()) : null);
             }
             if (role.equals("BROKER")) {
-                jdbc.update("INSERT INTO broker_sla_settings(user_id,first_response_minutes,reminder_enabled,daily_digest_enabled) VALUES (?,?,?,?)",
-                        id, 15 + i * 5, true, i % 2 == 0);
+                jdbc.update("INSERT INTO broker_sla_settings(user_id,first_response_minutes,reminder_enabled,daily_digest_enabled,updated_at) VALUES (?,?,?,?,?)",
+                        id, 15 + i * 5, true, i % 2 == 0, created);
             }
             Person person = new Person(id, name, role, false, "VERIFIED".equals(kyc), kycId);
-            (role.equals("BROKER") ? brokers : buyers).add(person);
+            switch (role) {
+                case "BROKER" -> brokers.add(person);
+                case "OWNER" -> owners.add(person);
+                default -> buyers.add(person);
+            }
         }
     }
 
@@ -330,8 +434,15 @@ public class UatDataSeeder implements ApplicationRunner {
         Duration age = Duration.ofDays(1 + (n * 7L) % 45).plusHours(n % 24);
         UUID listingId = id(K_LISTING, n);
         boolean verifiedOwner = owner.kycVerified() && n % 3 != 0 && (listingStatus.equals("ACTIVE") || listingStatus.equals("PAUSED"));
-        jdbc.update("INSERT INTO listings(id,owner_id,status,is_verified_owner,version,slug,created_at,updated_at) VALUES (?,?,?,?,0,?,?,?)",
-                listingId, owner.id(), listingStatus, verifiedOwner, slugify(title) + "-" + (2600 + n), ago(age), ago(age.dividedBy(3)));
+        boolean live = state.equals("ACTIVE") || state.equals("PAUSED") || state.equals("PENDING_REVIEW_EDIT");
+        // Last availability confirmation: between creation and the last update, so some live listings are stale (> 14 days).
+        Timestamp confirmed = live ? ago(age.dividedBy(1 + n % 3)) : state.equals("EXPIRED") ? ago(age) : null;
+        Timestamp expires = state.equals("ACTIVE") || state.equals("PENDING_REVIEW_EDIT") ? Timestamp.from(now.plus(Duration.ofDays(3 + n % 40)))
+                : state.equals("EXPIRED") ? ago(age.dividedBy(2)) : null;
+        jdbc.update("""
+                INSERT INTO listings(id,owner_id,status,is_verified_owner,version,slug,created_at,updated_at,availability_confirmed_at,expires_at,source)
+                VALUES (?,?,?,?,0,?,?,?,?,?,'SEED')""",
+                listingId, owner.id(), listingStatus, verifiedOwner, slugify(title) + "-" + (2600 + n), ago(age), ago(age.dividedBy(3)), confirmed, expires);
 
         List<String> media = pickImages(images, n);
         UUID publicRevision = null;
@@ -361,6 +472,19 @@ public class UatDataSeeder implements ApplicationRunner {
             default -> throw new IllegalStateException("Unknown listing state " + state);
         }
         if (publicRevision != null) jdbc.update("UPDATE listings SET public_revision_id=? WHERE id=?", publicRevision, listingId);
+        // Structured attributes (contract §2.1), the same on every revision of the listing.
+        String furnishing = switch (type) {
+            case "APARTMENT" -> APARTMENT_FURNISHING[n % APARTMENT_FURNISHING.length];
+            case "HOUSE", "TOWNHOUSE" -> n % 2 == 0 ? "BASIC" : "NONE";
+            case "VILLA" -> "FULL";
+            default -> null;
+        };
+        boolean rent = purpose.equals("RENT");
+        jdbc.update("""
+                UPDATE listing_revisions SET legal_status_code=?, furnishing=?, monthly_service_fee_vnd=?, deposit_vnd=?, project_id=?
+                WHERE listing_id=?""",
+                legalCode(legal), furnishing, rent && type.equals("APARTMENT") ? roundTo(area * 12_000, 10_000L) : null,
+                rent ? price * (1 + n % 2) : null, type.equals("APARTMENT") ? projectsByDistrict.get(place.districtCode()) : null, listingId);
         return new SeededListing(listingId, owner, listingStatus, title, purpose, price);
     }
 
@@ -426,10 +550,17 @@ public class UatDataSeeder implements ApplicationRunner {
 
     private void insertLead(int n, SeededListing listing, Person requester, String note, String status, String type, Duration age) {
         PiiProtectionService.ProtectedValue phone = pii.protect(fakePhone(100 + n));
+        // Leads past NEW were answered by the owner side 10-130 minutes after they arrived (never later than the clock).
+        Duration responseDelay = Duration.ofMinutes(10 + (n * 17L) % 120);
+        Duration responseAge = age.minus(responseDelay).isNegative() ? Duration.ZERO : age.minus(responseDelay);
+        Timestamp created = ago(age);
+        Timestamp firstResponse = status.equals("NEW") ? null : ago(responseAge);
         jdbc.update("""
-                INSERT INTO leads(id,listing_id,full_name,phone_encrypted,phone_lookup_hash,note,consent_policy,status,created_at,request_type,requester_id)
-                VALUES (?,?,?,?,?,?,TRUE,?,?,?,?)""",
-                id(K_LEAD, n), listing.id(), requester.name(), phone.encrypted(), phone.blindIndex(), note, status, ago(age), type, requester.id());
+                INSERT INTO leads(id,listing_id,full_name,phone_encrypted,phone_lookup_hash,note,consent_policy,status,created_at,request_type,
+                                  requester_id,updated_at,first_response_at)
+                VALUES (?,?,?,?,?,?,TRUE,?,?,?,?,?,?)""",
+                id(K_LEAD, n), listing.id(), requester.name(), phone.encrypted(), phone.blindIndex(), note, status, created, type,
+                requester.id(), firstResponse != null ? firstResponse : created, firstResponse);
     }
 
     private int seedReports(List<SeededListing> listings) {
@@ -478,10 +609,12 @@ public class UatDataSeeder implements ApplicationRunner {
                 default -> null;
             };
             jdbc.update("""
-                    INSERT INTO listing_verifications(id,listing_id,user_kyc_id,verification_type,certificate_number,document_urls,owner_name_on_doc,status,verifier_note,created_at,verified_at)
-                    VALUES (?,?,?,?,?,NULL,?,?,?,?,?)""",
+                    INSERT INTO listing_verifications(id,listing_id,user_kyc_id,verification_type,certificate_number,document_urls,owner_name_on_doc,status,verifier_note,created_at,verified_at,expires_at,revoked_at)
+                    VALUES (?,?,?,?,?,NULL,?,?,?,?,?,?,?)""",
                     id(K_VERIFICATION, i + 1), target.id(), target.owner().kycId(), items[i][0], String.format("UAT-GCN-%06d", 482000 + i * 137),
-                    target.owner().name(), status, note, ago(Duration.ofHours(4 + i * 13L)), status.equals("PENDING") ? null : ago(Duration.ofHours(1 + i * 3L)));
+                    target.owner().name(), status, note, ago(Duration.ofHours(4 + i * 13L)), status.equals("PENDING") ? null : ago(Duration.ofHours(1 + i * 3L)),
+                    status.equals("VERIFIED_OWNER") ? Timestamp.from(now.minus(Duration.ofHours(1 + i * 3L)).plus(Duration.ofDays(180))) : null,
+                    status.equals("REVOKED") ? ago(Duration.ofHours(1 + i * 3L)) : null);
         }
         return count;
     }
@@ -499,6 +632,7 @@ public class UatDataSeeder implements ApplicationRunner {
         };
         for (int i = 0; i < projects.length; i++) {
             Object[] p = projects[i];
+            if (!p[8].equals("PLANNING") && !p[8].equals("LOCKED")) projectsByDistrict.putIfAbsent((String) p[2], id(K_PROJECT, i + 1));
             jdbc.update("""
                     INSERT INTO projects(id,name,slug,developer_name,province_code,district_code,address,total_area_m2,total_blocks,total_units,handover_year,legal_license_number,status,created_at,updated_at)
                     VALUES (?,?,?,?,'01',?,?,?,?,?,?,?,?,?,?)""",
@@ -616,6 +750,17 @@ public class UatDataSeeder implements ApplicationRunner {
             default -> "Cần bán lô đất thổ cư tại " + street + ", " + district + ", đường ô tô " + trim(road) + " m, mặt tiền đẹp, nở hậu. "
                     + "Phù hợp xây nhà ở hoặc đầu tư dài hạn. Khu dân cư hiện hữu, điện nước đầy đủ.";
         };
+    }
+
+    /** Same mapping as the V027 backfill for the seeder's fixed legal texts. */
+    private static String legalCode(String legal) {
+        if (legal == null) return null;
+        String text = Normalizer.normalize(legal.replace('đ', 'd').replace('Đ', 'D'), Normalizer.Form.NFD).replaceAll("\\p{M}+", "").toLowerCase(Locale.ROOT);
+        if (text.matches(".*\\bcho( ra| cap)? so\\b.*")) return "PENDING_CERTIFICATE";
+        if (text.contains("so do")) return "RED_BOOK";
+        if (text.contains("so hong")) return "PINK_BOOK";
+        if (text.contains("hop dong mua ban") || text.contains("hdmb")) return "SALE_CONTRACT";
+        return "OTHER";
     }
 
     private static List<String> pickImages(List<String> pool, int n) {

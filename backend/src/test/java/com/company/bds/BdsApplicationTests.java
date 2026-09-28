@@ -2,20 +2,23 @@ package com.company.bds;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import com.company.bds.media.MediaStorageService;
+import com.company.bds.testsupport.BdsIntegrationTest;
+import com.company.bds.testsupport.TestData;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -23,11 +26,10 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
+@BdsIntegrationTest
 @WithMockUser(username = "00000000-0000-0000-0000-000000000001", roles = {"ADMIN", "MODERATOR", "BROKER", "USER"})
 class BdsApplicationTests {
+    private static final UUID MOCK_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Autowired
     private MockMvc mockMvc;
@@ -37,6 +39,15 @@ class BdsApplicationTests {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TestData testData;
+
+    /** Listings, deposits and notifications reference users(id) through foreign keys on PostgreSQL. */
+    @BeforeEach
+    void ensureMockUserExists() {
+        testData.ensureUser(MOCK_USER_ID, "ADMIN");
+    }
 
     @AfterEach
     void removeLeadKycFixture() {
@@ -319,15 +330,24 @@ class BdsApplicationTests {
                         .content(String.format("{\"revisionId\": \"%s\"}", revId)))
                 .andExpect(status().isOk());
 
-        // 2. Tìm kiếm Bounding Box bao trùm Cầu Giấy (21.03 -> 21.05, 105.78 -> 105.80)
-        mockMvc.perform(get("/api/v1/listings/search")
+        // 2. Tìm kiếm Bounding Box bao trùm Cầu Giấy (21.03 -> 21.05, 105.78 -> 105.80).
+        // Dữ liệu seed Flyway cũng có tin trong vùng này, nên kiểm tra tin vừa duyệt theo id và mọi kết quả đều nằm trong vùng.
+        JsonNode inBox = objectMapper.readTree(mockMvc.perform(get("/api/v1/listings/search")
                         .param("minLat", "21.03")
                         .param("maxLat", "21.05")
                         .param("minLng", "105.78")
                         .param("maxLng", "105.80"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].title").value("Nhà mặt phố Cầu Giấy kinh doanh sầm uất"));
+                .andReturn().getResponse().getContentAsString());
+        assertThat(inBox.findValuesAsText("id")).contains(id);
+        for (JsonNode item : inBox) {
+            if (item.get("id").asText().equals(id)) {
+                assertThat(item.get("title").asText()).isEqualTo("Nhà mặt phố Cầu Giấy kinh doanh sầm uất");
+            }
+            assertThat(item.get("publicLatitude").asDouble()).isBetween(21.03, 21.05);
+            assertThat(item.get("publicLongitude").asDouble()).isBetween(105.78, 105.80);
+        }
 
         // 3. Tìm kiếm ngoài vùng Bounding Box (Khu vực Đông Anh 21.13 -> 21.16)
         mockMvc.perform(get("/api/v1/listings/search")
@@ -338,20 +358,28 @@ class BdsApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
 
-        // 4. Tìm kiếm theo khoảng giá (minPrice: 10 tỷ, maxPrice: 15 tỷ) -> Khớp tin Cầu Giấy
-        mockMvc.perform(get("/api/v1/listings/search")
+        // 4. Tìm kiếm theo khoảng giá (minPrice: 10 tỷ, maxPrice: 15 tỷ) -> Khớp tin Cầu Giấy, mọi kết quả trong khoảng giá
+        JsonNode inRange = objectMapper.readTree(mockMvc.perform(get("/api/v1/listings/search")
                         .param("minPrice", "10000000000")
                         .param("maxPrice", "15000000000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].priceVnd").value(12800000000L));
+                .andReturn().getResponse().getContentAsString());
+        assertThat(inRange.findValuesAsText("id")).contains(id);
+        for (JsonNode item : inRange) {
+            assertThat(item.get("priceVnd").asLong()).isBetween(10_000_000_000L, 15_000_000_000L);
+            if (item.get("id").asText().equals(id)) assertThat(item.get("priceVnd").asLong()).isEqualTo(12_800_000_000L);
+        }
     }
 
     @Test
     void leadLifecycleAndCrm_flow() throws Exception {
         jdbcTemplate.update("""
-                MERGE INTO user_kyc_profiles (id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,status,created_at,verified_at)
-                KEY(user_id) VALUES (CAST(? AS UUID),CAST(? AS UUID),?,?,?,'VERIFIED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                INSERT INTO user_kyc_profiles (id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,status,created_at,verified_at)
+                VALUES (CAST(? AS UUID),CAST(? AS UUID),?,?,?,'VERIFIED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET id_number_encrypted=EXCLUDED.id_number_encrypted,
+                    id_number_lookup_hash=EXCLUDED.id_number_lookup_hash, full_name=EXCLUDED.full_name,
+                    status='VERIFIED', verified_at=EXCLUDED.verified_at
                 """, "90000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000001",
                 "v1:000****0000:test:test", "test-verified-kyc", "Người dùng kiểm thử");
         // 1. Tạo một tin đăng để nhận lead
