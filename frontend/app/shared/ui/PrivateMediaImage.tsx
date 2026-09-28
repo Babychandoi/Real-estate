@@ -5,9 +5,11 @@ import { apiFetch } from '@/shared/api/client';
 interface PrivateMediaImageProps {
   src?: string;
   alt: string;
+  /** Short-lived grant from a password re-confirmation (staff access is also logged with a reason). */
+  accessToken?: string;
 }
 
-export function PrivateMediaImage({ src, alt }: PrivateMediaImageProps) {
+export function PrivateMediaImage({ src, alt, accessToken }: PrivateMediaImageProps) {
   const [objectUrl, setObjectUrl] = useState('');
   const [failed, setFailed] = useState(false);
 
@@ -16,7 +18,10 @@ export function PrivateMediaImage({ src, alt }: PrivateMediaImageProps) {
     const controller = new AbortController();
     let localUrl = '';
     setFailed(false);
-    apiFetch(src, { signal: controller.signal, headers: { Accept: 'image/*' } })
+    apiFetch(src, {
+      signal: controller.signal,
+      headers: accessToken ? { Accept: 'image/*', 'X-Kyc-Document-Access': accessToken } : { Accept: 'image/*' },
+    })
       .then((response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.blob();
@@ -32,7 +37,7 @@ export function PrivateMediaImage({ src, alt }: PrivateMediaImageProps) {
       controller.abort();
       if (localUrl) URL.revokeObjectURL(localUrl);
     };
-  }, [src]);
+  }, [src, accessToken]);
 
   if (!src || failed) {
     return (

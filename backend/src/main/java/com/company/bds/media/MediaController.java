@@ -2,6 +2,7 @@ package com.company.bds.media;
 
 import com.company.bds.shared.security.CurrentUser;
 import com.company.bds.iam.application.AuthService;
+import com.company.bds.verification.application.KycDocumentAccessService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
@@ -28,8 +29,11 @@ public class MediaController {
     private static final String OBJECT_KEY = "[0-9a-fA-F-]{36}\\.(?:jpg|png|webp|avif)";
     private final MediaStorageService storage;
     private final AuthService authService;
+    private final KycDocumentAccessService kycAccess;
 
-    public MediaController(MediaStorageService storage, AuthService authService) { this.storage = storage; this.authService = authService; }
+    public MediaController(MediaStorageService storage, AuthService authService, KycDocumentAccessService kycAccess) {
+        this.storage = storage; this.authService = authService; this.kycAccess = kycAccess;
+    }
 
     @PostMapping(path = "/media/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MediaStorageService.UploadedImage> upload(
@@ -47,8 +51,14 @@ public class MediaController {
                                                            @RequestHeader(value = "X-Kyc-Document-Access", required = false) String accessToken,
                                                            Authentication authentication) {
         boolean privileged=authentication.getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_ADMIN")||a.getAuthority().equals("ROLE_MODERATOR"));
-        if (!privileged && !authService.hasKycDocumentAccess(CurrentUser.id(authentication), accessToken)) {
-            throw new org.springframework.security.access.AccessDeniedException("Cần xác nhận lại mật khẩu để xem ảnh định danh.");
+        // Owners re-confirm their password; staff additionally need a logged, reasoned access to this owner's documents.
+        boolean allowed = privileged
+                ? kycAccess.staffMayRead(CurrentUser.id(authentication), accessToken, objectKey)
+                : authService.hasKycDocumentAccess(CurrentUser.id(authentication), accessToken);
+        if (!allowed) {
+            throw new org.springframework.security.access.AccessDeniedException(privileged
+                    ? "Cần nêu lý do và xác nhận mật khẩu trước khi xem giấy tờ định danh."
+                    : "Cần xác nhận lại mật khẩu để xem ảnh định danh.");
         }
         MediaStorageService.StoredImage image=storage.readPrivate(CurrentUser.id(authentication),privileged,objectKey);
         StreamingResponseBody body=output->{try(var input=image.stream()){input.transferTo(output);}};

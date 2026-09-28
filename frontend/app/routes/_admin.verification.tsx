@@ -1,150 +1,360 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, FileCheck2, RefreshCw } from 'lucide-react';
-import {
-  approveVerification,
-  fetchVerificationQueue,
-  rejectVerification,
-} from '@/entities/verification/api/verificationApi';
-import type { ListingVerification } from '@/entities/verification/model/types';
+import { FileLock2, History, RefreshCw } from 'lucide-react';
+import { trustApi } from '@/entities/admin/api/adminApi';
+import type {
+  EvidenceComparison,
+  KycDocumentAccess,
+  TrustReasonOption,
+  VerificationEvidence,
+} from '@/entities/admin/model/types';
+import { fetchVerificationQueue } from '@/entities/verification/api/verificationApi';
+import type { ListingVerification, VerificationStatus } from '@/entities/verification/model/types';
+import { errorMessage } from '@/shared/api/errors';
+import { PasswordReasonDialog, ReasonDialog, StatusBadge, formatDate, formatDateTime } from '@/shared/admin/adminUi';
+import type { BadgeVariant } from '@/shared/ui/Badge';
+import { Button } from '@/shared/ui/Button';
+import { Chip } from '@/shared/ui/Chip';
+import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { PrivateMediaImage } from '@/shared/ui/PrivateMediaImage';
+import { Sheet } from '@/shared/ui/Sheet';
+import { Skeleton } from '@/shared/ui/Skeleton';
 
-const VERIFICATION_TYPE = {
-  CERTIFICATE_OF_OWNERSHIP: 'Giấy chứng nhận quyền sở hữu',
-  POWER_OF_ATTORNEY: 'Giấy ủy quyền',
-  PROJECT_PURCHASE_CONTRACT: 'Hợp đồng mua bán dự án',
-} as const;
+const STATUS: Record<VerificationStatus, { label: string; variant: BadgeVariant }> = {
+  PENDING: { label: 'Chờ đối chiếu', variant: 'info' },
+  VERIFIED_OWNER: { label: 'Đã đối chiếu giấy tờ', variant: 'success' },
+  REJECTED: { label: 'Bị từ chối', variant: 'error' },
+  REVOKED: { label: 'Đã thu hồi', variant: 'warning' },
+};
+const RESULT: Record<EvidenceComparison['result'], { label: string; variant: BadgeVariant }> = {
+  MATCH: { label: 'Khớp', variant: 'success' },
+  MISMATCH: { label: 'Không khớp', variant: 'error' },
+  MISSING: { label: 'Thiếu dữ liệu', variant: 'warning' },
+  UNIQUE: { label: 'Chưa dùng cho người khác', variant: 'success' },
+  USED_ELSEWHERE: { label: 'Đã dùng cho tin của người khác', variant: 'error' },
+  SIMILAR: { label: 'Gần giống', variant: 'success' },
+  DIFFERENT: { label: 'Khác nhau — kiểm tra thêm', variant: 'warning' },
+};
+const DECISION: Record<string, string> = {
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Từ chối',
+  REVOKED: 'Thu hồi',
+  EXPIRED: 'Hết hiệu lực',
+};
 
 export default function VerificationDeskPage() {
-  const [items, setItems] = useState<ListingVerification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState('');
-  const [error, setError] = useState('');
-  const [reason, setReason] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState<VerificationStatus>('PENDING');
+  const [rows, setRows] = useState<ListingVerification[]>([]);
+  const [tableStatus, setTableStatus] = useState<DataTableStatus>('loading');
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState<ListingVerification | null>(null);
+
   const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+    setTableStatus((s) => (s === 'loading' ? 'loading' : 'refreshing'));
     try {
-      setItems(await fetchVerificationQueue());
-    } catch {
-      setError('Không thể tải danh sách giấy tờ tin đăng. Vui lòng thử lại.');
-    } finally {
-      setLoading(false);
+      setRows(await fetchVerificationQueue(status));
+      setTableStatus('ready');
+      setError(null);
+    } catch (err) {
+      setTableStatus('error');
+      setError(errorMessage(err, 'Không thể tải hồ sơ giấy tờ.'));
     }
-  }, []);
+  }, [status]);
   useEffect(() => {
     void load();
   }, [load]);
-  const act = async (id: string, operation: () => Promise<unknown>) => {
-    setBusyId(id);
-    setError('');
-    try {
-      await operation();
-      await load();
-    } catch {
-      setError('Không thể lưu kết quả thẩm định. Kiểm tra dữ liệu và thử lại.');
-    } finally {
-      setBusyId('');
-    }
-  };
+
+  const columns: DataTableColumn<ListingVerification>[] = [
+    {
+      key: 'listing',
+      header: 'Tin đăng',
+      cell: (v) => (
+        <div className="min-w-[12rem]">
+          <p className="font-semibold">{v.listingTitle ?? 'Chưa có tiêu đề'}</p>
+          <p className="text-xs text-on-surface-variant">{v.listingAddress ?? ''}</p>
+        </div>
+      ),
+    },
+    { key: 'owner', header: 'Tên trên giấy tờ', cell: (v) => v.ownerNameOnDoc },
+    { key: 'submitted', header: 'Gửi lúc', cell: (v) => formatDateTime(v.createdAt) },
+    { key: 'status', header: 'Trạng thái', cell: (v) => <StatusBadge {...STATUS[v.status]} /> },
+    {
+      key: 'open',
+      header: 'Thao tác',
+      align: 'end',
+      cell: (v) => (
+        <Button size="sm" onClick={() => setOpen(v)} aria-label={`Đối chiếu ${v.listingTitle ?? v.id}`}>
+          Đối chiếu
+        </Button>
+      ),
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <div className="flex items-center gap-3">
-            <FileCheck2 className="h-7 w-7 text-emerald-700" />
-            <h1 className="text-3xl font-bold tracking-tight text-slate-950">Thẩm định giấy tờ tin đăng</h1>
-          </div>
-          <p className="mt-2 text-sm text-slate-600">
-            Hồ sơ danh tính cá nhân đã được chuyển sang mục Quản lý người dùng.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 font-semibold"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Tải lại
-        </button>
+    <div className="space-y-6" data-ready={tableStatus === 'loading' ? undefined : 'true'}>
+      <header>
+        <h1 className="text-2xl font-bold">Đối chiếu giấy tờ chủ sở hữu</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          So khớp danh tính người đăng với giấy tờ và tin đăng trước khi quyết định. Đã đối chiếu có hiệu lực 180 ngày;
+          không phải xác nhận pháp lý giao dịch.
+        </p>
       </header>
-      {error && (
-        <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-900" role="alert">
-          {error}
-        </p>
-      )}
-      {loading ? (
-        <p className="mt-8" role="status">
-          Đang tải hồ sơ…
-        </p>
-      ) : items.length === 0 ? (
-        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500">
-          Không có giấy tờ tin đăng cần thẩm định.
-        </div>
-      ) : (
-        <div className="mt-8 divide-y divide-slate-200 border-y border-slate-200">
-          {items.map((item) => (
-            <article key={item.id} className="py-6">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-bold text-slate-950">
-                    {item.listingTitle || `Tin ${item.listingId.slice(0, 8)}`}
-                  </h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {VERIFICATION_TYPE[item.verificationType]} · {item.ownerNameOnDoc || 'Chưa có tên người đứng giấy'}
-                  </p>
-                </div>
-                <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                  {item.status === 'PENDING'
-                    ? 'Chờ duyệt'
-                    : item.status === 'VERIFIED_OWNER'
-                      ? 'Đã xác minh chính chủ'
-                      : item.status === 'REJECTED'
-                        ? 'Đã từ chối'
-                        : 'Đã thu hồi'}
-                </span>
-              </div>
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-slate-500">Số giấy tờ</dt>
-                  <dd>{item.certificateNumber || 'Chưa cung cấp'}</dd>
-                </div>
-                <div>
-                  <dt className="text-slate-500">Ngày gửi</dt>
-                  <dd>{new Date(item.createdAt).toLocaleString('vi-VN')}</dd>
-                </div>
-              </dl>
-              {item.status === 'PENDING' && (
-                <div className="mt-4 grid gap-2 sm:grid-cols-[auto_1fr_auto]">
-                  <button
-                    disabled={busyId === item.id}
-                    onClick={() => void act(item.id, () => approveVerification(item.id))}
-                    className="min-h-11 rounded-lg bg-emerald-700 px-4 font-bold text-white disabled:opacity-50"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" />
-                      Xác nhận đạt
-                    </span>
-                  </button>
-                  <input
-                    aria-label={`Lý do từ chối xác minh tin ${item.listingId}`}
-                    value={reason[item.id] || ''}
-                    onChange={(event) => setReason({ ...reason, [item.id]: event.target.value })}
-                    placeholder="Lý do từ chối cụ thể"
-                    className="min-h-11 rounded-lg border border-slate-300 px-3 text-base"
-                  />
-                  <button
-                    disabled={busyId === item.id || !reason[item.id]?.trim()}
-                    onClick={() => void act(item.id, () => rejectVerification(item.id, reason[item.id]))}
-                    className="min-h-11 rounded-lg bg-rose-700 px-4 font-bold text-white disabled:opacity-50"
-                  >
-                    Từ chối
-                  </button>
-                </div>
-              )}
-            </article>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Lọc trạng thái">
+        {(Object.keys(STATUS) as VerificationStatus[]).map((s) => (
+          <Chip key={s} size="sm" selected={status === s} onClick={() => setStatus(s)}>
+            {STATUS[s].label}
+          </Chip>
+        ))}
+        <Button size="sm" variant="ghost" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => void load()}>
+          Tải lại
+        </Button>
+      </div>
+      <DataTable
+        caption="Hồ sơ giấy tờ"
+        columns={columns}
+        rows={rows}
+        getRowId={(v) => v.id}
+        status={tableStatus}
+        errorMessage={error ?? undefined}
+        onRetry={() => void load()}
+        empty={<EmptyState title="Không có hồ sơ nào" />}
+      />
+      {open && <EvidenceSheet verificationId={open.id} onClose={() => setOpen(null)} onChanged={() => void load()} />}
     </div>
+  );
+}
+
+function EvidenceSheet({
+  verificationId,
+  onClose,
+  onChanged,
+}: {
+  verificationId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [evidence, setEvidence] = useState<VerificationEvidence | null>(null);
+  const [reasons, setReasons] = useState<{
+    approve: TrustReasonOption[];
+    reject: TrustReasonOption[];
+    revoke: TrustReasonOption[];
+  } | null>(null);
+  const [decision, setDecision] = useState<'approve' | 'reject' | 'revoke' | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [docs, setDocs] = useState<KycDocumentAccess | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setEvidence(await trustApi.evidence(verificationId));
+    } catch (err) {
+      setError(errorMessage(err, 'Không tải được bằng chứng.'));
+    }
+  }, [verificationId]);
+  useEffect(() => {
+    void load();
+    trustApi
+      .reasons()
+      .then(setReasons)
+      .catch(() => undefined);
+  }, [load]);
+
+  const choices = (kind: 'approve' | 'reject' | 'revoke') =>
+    (reasons?.[kind] ?? []).map((r) => ({ code: r.code, label: r.label }));
+  const privateUrls = [
+    ...(docs?.ownershipDocumentUrls ?? [])
+      .flatMap((u) => u.split(/[,;\s]+/))
+      .filter((u) => u.startsWith('/api/v1/media/kyc/')),
+  ];
+
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={evidence?.listingTitle ?? 'Hồ sơ giấy tờ'}
+      description={
+        evidence ? `${STATUS[evidence.status].label} · gửi ${formatDateTime(evidence.submittedAt)}` : undefined
+      }
+      footer={
+        evidence?.status === 'PENDING' ? (
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <Button onClick={() => setDecision('approve')}>Xác nhận đã đối chiếu…</Button>
+            <Button variant="danger" onClick={() => setDecision('reject')}>
+              Từ chối…
+            </Button>
+          </div>
+        ) : evidence?.status === 'VERIFIED_OWNER' ? (
+          <div className="flex justify-end">
+            <Button variant="danger" onClick={() => setDecision('revoke')}>
+              Thu hồi…
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      {error && <InlineFeedback kind="error" title={error} />}
+      {!evidence ? (
+        <Skeleton className="h-40" />
+      ) : (
+        <div className="space-y-6 text-sm">
+          <section aria-labelledby="compare-heading">
+            <h3 id="compare-heading" className="text-base font-bold">
+              Đối chiếu bằng chứng
+            </h3>
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full">
+                <caption className="sr-only">Danh tính người đăng so với giấy tờ và tin đăng</caption>
+                <thead>
+                  <tr className="text-left text-xs uppercase text-on-surface-variant">
+                    <th scope="col" className="py-2 pr-3">
+                      Nội dung
+                    </th>
+                    <th scope="col" className="py-2 pr-3">
+                      Hồ sơ định danh
+                    </th>
+                    <th scope="col" className="py-2 pr-3">
+                      Giấy tờ / tin đăng
+                    </th>
+                    <th scope="col" className="py-2">
+                      Kết quả
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evidence.comparisons.map((c) => (
+                    <tr key={c.field} className="border-t border-outline-variant">
+                      <th scope="row" className="py-2 pr-3 text-left font-medium">
+                        {c.label}
+                      </th>
+                      <td className="py-2 pr-3">{c.identityValue ?? '—'}</td>
+                      <td className="py-2 pr-3">{c.documentValue ?? '—'}</td>
+                      <td className="py-2">
+                        <StatusBadge {...RESULT[c.result]} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <dt className="text-on-surface-variant">Danh tính người đăng</dt>
+              <dd>
+                {evidence.identity.status === 'VERIFIED'
+                  ? `Đã xác minh, hiệu lực đến ${formatDate(evidence.identity.expiresAt)}`
+                  : evidence.identity.status === 'EXPIRED'
+                    ? 'Xác minh đã hết hạn'
+                    : evidence.identity.status}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-on-surface-variant">Loại giấy tờ · số</dt>
+              <dd>
+                {evidence.verificationType} · {evidence.certificateNumber ?? 'Không có số'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-on-surface-variant">Địa chỉ tin đăng</dt>
+              <dd>{evidence.listingAddress ?? 'Chưa có'}</dd>
+            </div>
+            {evidence.expiresAt && (
+              <div>
+                <dt className="text-on-surface-variant">Hiệu lực đối chiếu</dt>
+                <dd>đến {formatDate(evidence.expiresAt)}</dd>
+              </div>
+            )}
+          </dl>
+          <section aria-labelledby="docs-heading">
+            <h3 id="docs-heading" className="text-base font-bold">
+              Ảnh giấy tờ (riêng tư)
+            </h3>
+            {!docs ? (
+              <Button
+                className="mt-2"
+                variant="outline"
+                leftIcon={<FileLock2 className="h-4 w-4" />}
+                onClick={() => setAsking(true)}
+              >
+                Mở ảnh giấy tờ…
+              </Button>
+            ) : (
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <PrivateMediaImage
+                  src={docs.identity?.idCardFrontUrl ?? undefined}
+                  alt="Mặt trước CCCD người đăng"
+                  accessToken={docs.token}
+                />
+                {privateUrls.map((url, index) => (
+                  <PrivateMediaImage key={url} src={url} alt={`Giấy tờ sở hữu ${index + 1}`} accessToken={docs.token} />
+                ))}
+                {evidence.documentUrls
+                  .filter((u) => !u.startsWith('/api/v1/media/kyc/'))
+                  .map((u) => (
+                    <p key={u} className="break-all text-xs">
+                      Tài liệu ngoài hệ thống: {u}
+                    </p>
+                  ))}
+              </div>
+            )}
+          </section>
+          <section aria-labelledby="trust-history">
+            <h3 id="trust-history" className="flex items-center gap-2 text-base font-bold">
+              <History className="h-4 w-4" aria-hidden="true" /> Lịch sử quyết định
+            </h3>
+            {evidence.history.length === 0 ? (
+              <p className="mt-1 text-on-surface-variant">Chưa có quyết định.</p>
+            ) : (
+              <ol className="mt-2 space-y-2">
+                {evidence.history.map((h) => (
+                  <li key={h.id} className="rounded-md bg-surface-container-low p-2">
+                    <span className="font-semibold">{DECISION[h.decision] ?? h.decision}</span> ·{' '}
+                    {h.actorName ?? 'Hệ thống'} · {formatDateTime(h.createdAt)}
+                    <span className="block text-on-surface-variant">
+                      {h.reasonLabel}
+                      {h.note ? ` — ${h.note}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        </div>
+      )}
+      <PasswordReasonDialog
+        open={asking}
+        title="Mở giấy tờ riêng tư"
+        description="Nhập lại mật khẩu và lý do; lần mở này được ghi vào lịch sử của người đăng."
+        onClose={() => setAsking(false)}
+        onConfirm={async (password, reason) => setDocs(await trustApi.openDocuments(verificationId, password, reason))}
+      />
+      <ReasonDialog
+        open={decision !== null}
+        title={
+          decision === 'approve'
+            ? 'Xác nhận đã đối chiếu giấy tờ'
+            : decision === 'reject'
+              ? 'Từ chối hồ sơ giấy tờ'
+              : 'Thu hồi đối chiếu'
+        }
+        description={
+          decision === 'approve'
+            ? 'Tin sẽ có nhãn "Đã đối chiếu giấy tờ chủ sở hữu" trong 180 ngày.'
+            : 'Người đăng sẽ thấy lý do.'
+        }
+        reasons={decision ? choices(decision) : []}
+        noteMinLength={decision === 'approve' ? 0 : 5}
+        confirmLabel={decision === 'approve' ? 'Xác nhận' : decision === 'reject' ? 'Từ chối' : 'Thu hồi'}
+        confirmVariant={decision === 'approve' ? 'primary' : 'danger'}
+        onClose={() => setDecision(null)}
+        onConfirm={async (code, note) => {
+          if (decision === 'approve') await trustApi.approveOwnership(verificationId, code, note);
+          if (decision === 'reject') await trustApi.rejectOwnership(verificationId, code, note);
+          if (decision === 'revoke') await trustApi.revokeOwnership(verificationId, code, note);
+          await load();
+          onChanged();
+        }}
+      />
+    </Sheet>
   );
 }

@@ -182,7 +182,7 @@ const RootLayoutContent: React.FC = () => {
                       </Link>
 
                       <Link
-                        to="/2026/nhadatchuan/admin/leads-and-reports"
+                        to="/2026/nhadatchuan/admin/reports"
                         onClick={() => setIsAdminOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-rose-50 transition-colors group"
                       >
@@ -191,9 +191,9 @@ const RootLayoutContent: React.FC = () => {
                         </div>
                         <div className="flex flex-col">
                           <span className="text-xs font-semibold text-rose-900 group-hover:text-rose-700 whitespace-nowrap">
-                            Bàn Lead CRM & Báo xấu
+                            Báo cáo vi phạm
                           </span>
-                          <span className="text-xs text-rose-700/80">Điều phối lead, xử lý vi phạm SLA 24h</span>
+                          <span className="text-xs text-rose-700/80">Hàng đợi theo SLA, nhận xử lý, lịch sử</span>
                         </div>
                       </Link>
 

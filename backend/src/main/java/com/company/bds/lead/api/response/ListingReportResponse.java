@@ -29,7 +29,8 @@ public record ListingReportResponse(
                 report.getListingId(),
                 report.getCaseNumber(),
                 report.getReporterType(),
-                report.getReporterPhone(),
+                // Masked (e.g. 098****321): the number is stored encrypted and never returned.
+                com.company.bds.lead.application.ReportDeskService.maskedPhone(report.getReporterPhone()),
                 report.getCategory(),
                 report.getSeverity(),
                 report.getStatus(),

@@ -1,6 +1,10 @@
 package com.company.bds.iam.api;
 
+import com.company.bds.iam.application.AdminUserService;
 import com.company.bds.shared.security.CurrentUser;
+import com.company.bds.verification.application.KycDocumentAccessService;
+import org.springframework.http.CacheControl;
+import org.springframework.web.bind.annotation.PostMapping;
 import com.company.bds.shared.security.Roles;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,9 +34,13 @@ public class AdminUserController {
             + Roles.effectiveRoleSql("u.id") + " AS role) ur ";
     private static final Set<String> STATUSES = Set.of("ACTIVE", "SUSPENDED", "PENDING_EMAIL_VERIFICATION");
     private final JdbcTemplate jdbc;
+    private final AdminUserService adminUsers;
+    private final KycDocumentAccessService kycAccess;
 
-    public AdminUserController(JdbcTemplate jdbc) {
+    public AdminUserController(JdbcTemplate jdbc, AdminUserService adminUsers, KycDocumentAccessService kycAccess) {
         this.jdbc = jdbc;
+        this.adminUsers = adminUsers;
+        this.kycAccess = kycAccess;
     }
 
     @GetMapping
@@ -73,22 +81,37 @@ public class AdminUserController {
         return new UserPage(items, safePage, safeSize, total == null ? 0 : total);
     }
 
+    /** Lock (SUSPENDED) or unlock (ACTIVE) with a mandatory reason; recorded in the account history. */
     @PatchMapping("/{id}/status")
-    @Transactional
     public ResponseEntity<Void> updateStatus(@PathVariable UUID id, @RequestBody UpdateStatusRequest request, Authentication authentication) {
-        String requested = request.status() == null ? "" : request.status().trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("ACTIVE", "SUSPENDED").contains(requested)) throw new IllegalArgumentException("Trạng thái tài khoản không hợp lệ.");
-        if (CurrentUser.id(authentication).equals(id)) throw new IllegalArgumentException("Không thể khóa hoặc mở khóa chính tài khoản đang đăng nhập.");
-        List<TargetUser> targets = jdbc.query("SELECT u.status,ur.role " + USERS_WITH_ROLE + "WHERE u.id=?",
-                (rs, row) -> new TargetUser(rs.getString(1), rs.getString(2)), id);
-        if (targets.isEmpty()) throw new IllegalArgumentException("Không tìm thấy tài khoản.");
-        TargetUser target = targets.get(0);
-        if (Roles.ADMIN.equals(target.role())) throw new IllegalArgumentException("Không thể thay đổi trạng thái của tài khoản quản trị khác.");
-        if ("ACTIVE".equals(requested) && !"SUSPENDED".equals(target.status())) throw new IllegalArgumentException("Chỉ tài khoản đã khóa mới có thể được mở lại.");
-        if ("SUSPENDED".equals(requested) && !"ACTIVE".equals(target.status())) throw new IllegalArgumentException("Chỉ tài khoản đang hoạt động mới có thể bị khóa.");
-        jdbc.update("UPDATE users SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", requested, id);
-        if ("SUSPENDED".equals(requested)) jdbc.update("UPDATE auth_sessions SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND revoked_at IS NULL", id);
+        adminUsers.changeStatus(id, request.status(), request.reason(), CurrentUser.id(authentication));
         return ResponseEntity.noContent().build();
+    }
+
+    /** Role change with a mandatory reason: never one's own role, never the last active ADMIN, one role row afterwards. */
+    @PatchMapping("/{id}/role")
+    public AdminUserService.RoleChange updateRole(@PathVariable UUID id, @RequestBody UpdateRoleRequest request,
+                                                  Authentication authentication) {
+        return adminUsers.changeRole(id, request.role(), request.reason(), CurrentUser.id(authentication));
+    }
+
+    @GetMapping("/{id}/history")
+    public List<AdminUserService.AdminAction> history(@PathVariable UUID id) {
+        return adminUsers.history(id);
+    }
+
+    /** Opens the identity documents of a user: password re-confirmation + reason, logged in kyc_access_log. */
+    @PostMapping("/{id}/kyc-documents")
+    public ResponseEntity<KycDocumentAccessService.DocumentAccess> openKycDocuments(@PathVariable UUID id,
+                                                                                   @RequestBody KycAccessRequest request,
+                                                                                   Authentication authentication) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(kycAccess.open(CurrentUser.id(authentication), id, request.password(), request.reason()));
+    }
+
+    @GetMapping("/{id}/kyc-access-log")
+    public List<KycDocumentAccessService.AccessLogEntry> kycAccessLog(@PathVariable UUID id) {
+        return kycAccess.log(id);
     }
 
     private static String normalizeFilter(String value, Set<String> accepted) {
@@ -104,6 +127,7 @@ public class AdminUserController {
     public record UserSummary(UUID id, String fullName, String email, String role, String status, String kycStatus,
                               String planCode, int listingQuotaRemaining, long listingCount, Instant createdAt,
                               Instant emailVerifiedAt, Instant lastLoginAt, Instant planExpiresAt) {}
-    public record UpdateStatusRequest(String status) {}
-    private record TargetUser(String status, String role) {}
+    public record UpdateStatusRequest(String status, String reason) {}
+    public record UpdateRoleRequest(String role, String reason) {}
+    public record KycAccessRequest(String password, String reason) {}
 }

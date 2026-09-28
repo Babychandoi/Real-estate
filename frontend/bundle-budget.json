@@ -95,33 +95,38 @@
     },
     "admin/moderation": {
       "module": "app/routes/_admin.moderation.tsx",
-      "budgetKb": 136,
-      "measuredKb": 123.1
+      "budgetKb": 150,
+      "measuredKb": 136.8,
+      "note": "S4-ADMIN: shared admin kit loaded once per session and cached across admin routes — adminUi 4.5 + DataTable 2.9 + Skeleton 1.4 + Dialog 0.9 + Pagination 0.8 + Badge/Chip 1.0 ≈ 11.5 kB gzip-1 — plus the route's own chunk (moderation 7.7, billing 3.4 kB). Budget = measured + ~10% as for every other route."
     },
     "admin/listings": {
       "module": "app/routes/_admin.listings.tsx",
-      "budgetKb": 131,
-      "measuredKb": 118.6
+      "budgetKb": 146,
+      "measuredKb": 132.4,
+      "note": "S4-ADMIN: shared admin kit loaded once per session and cached across admin routes — adminUi 4.5 + DataTable 2.9 + Skeleton 1.4 + Dialog 0.9 + Pagination 0.8 + Badge/Chip 1.0 ≈ 11.5 kB gzip-1 — plus the route's own chunk (moderation 7.7, billing 3.4 kB). Budget = measured + ~10% as for every other route."
     },
     "admin/users": {
       "module": "app/routes/_admin.users.tsx",
-      "budgetKb": 135,
-      "measuredKb": 122
+      "budgetKb": 147,
+      "measuredKb": 133.7,
+      "note": "S4-ADMIN: shared admin kit loaded once per session and cached across admin routes — adminUi 4.5 + DataTable 2.9 + Skeleton 1.4 + Dialog 0.9 + Pagination 0.8 + Badge/Chip 1.0 ≈ 11.5 kB gzip-1 — plus the route's own chunk (moderation 7.7, billing 3.4 kB). Budget = measured + ~10% as for every other route."
     },
     "admin/leads-and-reports": {
       "module": "app/routes/_admin.leads-and-reports.tsx",
       "budgetKb": 137,
-      "measuredKb": 123.8
+      "measuredKb": 123.2
     },
     "admin/verification": {
       "module": "app/routes/_admin.verification.tsx",
-      "budgetKb": 131,
-      "measuredKb": 118.8
+      "budgetKb": 146,
+      "measuredKb": 132.4,
+      "note": "S4-ADMIN: shared admin kit loaded once per session and cached across admin routes — adminUi 4.5 + DataTable 2.9 + Skeleton 1.4 + Dialog 0.9 + Pagination 0.8 + Badge/Chip 1.0 ≈ 11.5 kB gzip-1 — plus the route's own chunk (moderation 7.7, billing 3.4 kB). Budget = measured + ~10% as for every other route."
     },
     "admin/billing": {
       "module": "app/routes/_admin.billing.tsx",
-      "budgetKb": 133,
-      "measuredKb": 120.5
+      "budgetKb": 146,
+      "measuredKb": 132.7,
+      "note": "S4-ADMIN: shared admin kit loaded once per session and cached across admin routes — adminUi 4.5 + DataTable 2.9 + Skeleton 1.4 + Dialog 0.9 + Pagination 0.8 + Badge/Chip 1.0 ≈ 11.5 kB gzip-1 — plus the route's own chunk (moderation 7.7, billing 3.4 kB). Budget = measured + ~10% as for every other route."
     },
     "admin/analytics": {
       "module": "app/routes/_admin.analytics.tsx",
@@ -137,6 +142,12 @@
       "module": "app/routes/_admin.cms.tsx",
       "budgetKb": 137,
       "measuredKb": 124.1
+    },
+    "admin/reports": {
+      "module": "app/routes/_admin.reports.tsx",
+      "budgetKb": 145,
+      "measuredKb": 133.9,
+      "note": "S4-ADMIN: shared admin kit loaded once per session and cached across admin routes — adminUi 4.5 + DataTable 2.9 + Skeleton 1.4 + Dialog 0.9 + Pagination 0.8 + Badge/Chip 1.0 ≈ 11.5 kB gzip-1 — plus the route's own chunk (moderation 7.7, billing 3.4 kB). Budget = measured + ~10% as for every other route."
     }
   },
   "gzipLevel": 1

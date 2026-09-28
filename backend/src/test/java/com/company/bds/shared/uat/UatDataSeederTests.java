@@ -132,6 +132,10 @@ class UatDataSeederTests {
     }
 
     private void assertSeededData() {
+        assertThat(count("SELECT COUNT(*) FROM listing_reports WHERE id::text ~ '^ee5eed[0-9a-f]{2}-0000-4000-8000-' AND reporter_phone IS NOT NULL AND reporter_phone NOT LIKE 'v1:%'"))
+                .as("seeded reporter phones are stored encrypted").isZero();
+        assertThat(count("SELECT COUNT(*) FROM listing_reports WHERE id::text ~ '^ee5eed[0-9a-f]{2}-0000-4000-8000-' AND reporter_phone LIKE 'v1:%'"))
+                .isPositive();
         // Timestamps are relative to the clock: fake user #1 was created 20 days before it.
         assertThat(jdbc.queryForObject("SELECT created_at FROM users WHERE id = ?", Timestamp.class, syntheticUser(1)).toInstant())
                 .isEqualTo(NOW.minus(Duration.ofDays(20)));

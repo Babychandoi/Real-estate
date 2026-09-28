@@ -26,6 +26,7 @@ const AdminListingsPage = lazy(() =>
 );
 const AdminUsersPage = lazy(() => import('./routes/_admin.users').then((m) => ({ default: m.AdminUsersPage })));
 const LeadsAndReportsPage = lazy(() => import('./routes/_admin.leads-and-reports'));
+const ReportsQueuePage = lazy(() => import('./routes/_admin.reports').then((m) => ({ default: m.ReportsQueuePage })));
 const VerificationDeskPage = lazy(() => import('./routes/_admin.verification'));
 const BrokerWorkspacePage = lazy(() =>
   import('./routes/_account.broker-workspace').then((m) => ({ default: m.BrokerWorkspacePage })),
@@ -141,7 +142,11 @@ export const router = createBrowserRouter([
       { path: 'users', element: protect(<AdminUsersPage />, 'Quản lý người dùng', ROUTE_ACCESS.adminUsers, true) },
       {
         path: 'leads-and-reports',
-        element: protect(<LeadsAndReportsPage />, 'Lead và báo xấu', ROUTE_ACCESS.adminLeadsAndReports, true),
+        element: protect(<LeadsAndReportsPage />, 'Giám sát khách quan tâm', ROUTE_ACCESS.adminLeadsAndReports, true),
+      },
+      {
+        path: 'reports',
+        element: protect(<ReportsQueuePage />, 'Báo cáo vi phạm', ROUTE_ACCESS.adminReports, true),
       },
       {
         path: 'verification',

@@ -18,9 +18,18 @@ import java.util.stream.Collectors;
 public class ListingReportPersistenceAdapter implements ListingReportPersistencePort {
 
     private final ListingReportJpaRepository reportJpaRepository;
+    private final com.company.bds.shared.security.PiiProtectionService pii;
 
-    public ListingReportPersistenceAdapter(ListingReportJpaRepository reportJpaRepository) {
+    public ListingReportPersistenceAdapter(ListingReportJpaRepository reportJpaRepository,
+                                           com.company.bds.shared.security.PiiProtectionService pii) {
         this.reportJpaRepository = reportJpaRepository;
+        this.pii = pii;
+    }
+
+    /** The reporter's phone is stored only encrypted ("v1:" protected value with an embedded mask). */
+    private String protectPhone(String phone) {
+        if (phone == null || phone.isBlank()) return null;
+        return phone.startsWith("v1:") ? phone : pii.protect(phone).encrypted();
     }
 
     @Override
@@ -75,7 +84,7 @@ public class ListingReportPersistenceAdapter implements ListingReportPersistence
                 domain.getListingId(),
                 domain.getCaseNumber(),
                 domain.getReporterType(),
-                domain.getReporterPhone(),
+                protectPhone(domain.getReporterPhone()),
                 domain.getCategory(),
                 domain.getSeverity(),
                 domain.getStatus(),

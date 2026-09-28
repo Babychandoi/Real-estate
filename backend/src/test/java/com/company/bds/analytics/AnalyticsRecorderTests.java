@@ -125,8 +125,10 @@ class AnalyticsRecorderTests {
         TestData.TestUser owner = data.user().role("OWNER").create();
         TestData.TestListing listing = data.listing(owner.id()).status("PENDING_REVIEW").create();
 
+        // Decisions reference the real moderator account (S4), so the principal must be an existing user.
+        TestData.TestUser moderator = data.user().role("MODERATOR").create();
         mockMvc.perform(post("/api/v1/moderation/listings/" + listing.id() + "/approve")
-                        .with(user(UUID.randomUUID().toString()).roles("MODERATOR"))
+                        .with(user(moderator.id().toString()).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"revisionId\":\"%s\"}".formatted(listing.latestRevisionId())))
                 .andExpect(status().isOk());

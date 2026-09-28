@@ -5,7 +5,11 @@ import com.company.bds.lead.api.request.DismissReportRequest;
 import com.company.bds.lead.api.request.ResolveReportRequest;
 import com.company.bds.lead.api.request.SubmitReportRequest;
 import com.company.bds.lead.api.response.ListingReportResponse;
+import com.company.bds.lead.application.ReportActionService;
+import com.company.bds.lead.application.ReportDeskService;
 import com.company.bds.lead.application.ViolationReportApplicationService;
+import com.company.bds.shared.security.CurrentUser;
+import org.springframework.security.core.Authentication;
 import com.company.bds.lead.domain.model.ListingReport;
 import com.company.bds.lead.domain.model.ReportSeverity;
 import com.company.bds.lead.domain.model.ReportStatus;
@@ -27,9 +31,14 @@ import java.util.stream.Collectors;
 public class ViolationReportController {
 
     private final ViolationReportApplicationService reportApplicationService;
+    private final ReportDeskService desk;
+    private final ReportActionService actions;
 
-    public ViolationReportController(ViolationReportApplicationService reportApplicationService) {
+    public ViolationReportController(ViolationReportApplicationService reportApplicationService, ReportDeskService desk,
+                                     ReportActionService actions) {
         this.reportApplicationService = reportApplicationService;
+        this.desk = desk;
+        this.actions = actions;
     }
 
     /**
@@ -76,16 +85,60 @@ public class ViolationReportController {
         return ResponseEntity.ok(ListingReportResponse.fromDomain(report));
     }
 
+    /** Staff queue: open cases by SLA due time (P0 1 h, HIGH 4 h, MEDIUM 24 h, LOW 72 h), claims, owner outcome. */
+    @GetMapping("/reports/queue")
+    public ReportDeskService.QueuePage queue(@RequestParam(required = false) String status,
+                                             @RequestParam(required = false) String severity,
+                                             @RequestParam(required = false) Boolean breached,
+                                             @RequestParam(defaultValue = "false") boolean mine,
+                                             @RequestParam(defaultValue = "0") int page,
+                                             @RequestParam(defaultValue = "20") int size,
+                                             Authentication authentication) {
+        return desk.queue(status, severity, breached, mine, CurrentUser.id(authentication), page, size);
+    }
+
+    @PostMapping("/reports/{id}/claim")
+    public ReportDeskService.Claim claim(@PathVariable UUID id, Authentication authentication) {
+        return desk.claim(id, CurrentUser.id(authentication));
+    }
+
+    @DeleteMapping("/reports/{id}/claim")
+    public ResponseEntity<Void> release(@PathVariable UUID id, Authentication authentication) {
+        desk.release(id, CurrentUser.id(authentication));
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/reports/{id}/events")
+    public List<ReportDeskService.Event> events(@PathVariable UUID id) {
+        return desk.events(id);
+    }
+
+    @PostMapping("/reports/{id}/notes")
+    public ResponseEntity<Void> addNote(@PathVariable UUID id, @RequestBody Map<String, String> body, Authentication authentication) {
+        String note = body == null ? null : body.get("note");
+        if (note == null || note.isBlank()) throw new IllegalArgumentException("Ghi chú không được để trống.");
+        desk.assertActionable(id, CurrentUser.id(authentication));
+        desk.recordEvent(id, "NOTE", CurrentUser.id(authentication), note, null);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/reports/{id}/severity")
+    public ResponseEntity<Void> escalate(@PathVariable UUID id, @RequestBody Map<String, String> body, Authentication authentication) {
+        desk.escalate(id, body == null ? null : body.get("severity"), body == null ? null : body.get("reason"), CurrentUser.id(authentication));
+        return ResponseEntity.noContent().build();
+    }
+
     /**
      * Tạm ẩn tin đăng khẩn cấp từ Bàn xử lý sự cố (FR27).
      */
     @PostMapping("/reports/{id}/emergency-hide")
     public ResponseEntity<ListingReportResponse> emergencyHideListing(
             @PathVariable("id") UUID id,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestBody(required = false) Map<String, String> body,
+            Authentication authentication) {
 
         String reason = body != null ? body.getOrDefault("reason", "Khẩn cấp: Tạm ẩn để xác minh dấu hiệu vi phạm") : "Tạm ẩn khẩn cấp";
-        ListingReport report = reportApplicationService.emergencyHideListing(id, reason);
+        ListingReport report = actions.emergencyHide(id, reason, CurrentUser.id(authentication));
         return ResponseEntity.ok(ListingReportResponse.fromDomain(report));
     }
 
@@ -95,13 +148,11 @@ public class ViolationReportController {
     @PostMapping("/reports/{id}/resolve")
     public ResponseEntity<ListingReportResponse> resolveReport(
             @PathVariable("id") UUID id,
-            @Valid @RequestBody ResolveReportRequest request) {
+            @Valid @RequestBody ResolveReportRequest request,
+            Authentication authentication) {
 
-        ListingReport report = reportApplicationService.resolveReport(
-                id,
-                request.resolutionNote(),
-                request.permanentlyLockListing()
-        );
+        ListingReport report = actions.resolve(id, request.resolutionNote(), request.permanentlyLockListing(),
+                CurrentUser.id(authentication));
         return ResponseEntity.ok(ListingReportResponse.fromDomain(report));
     }
 
@@ -111,13 +162,10 @@ public class ViolationReportController {
     @PostMapping("/reports/{id}/dismiss")
     public ResponseEntity<ListingReportResponse> dismissReport(
             @PathVariable("id") UUID id,
-            @Valid @RequestBody DismissReportRequest request) {
+            @Valid @RequestBody DismissReportRequest request,
+            Authentication authentication) {
 
-        ListingReport report = reportApplicationService.dismissReport(
-                id,
-                request.dismissNote(),
-                request.resumeListing()
-        );
+        ListingReport report = actions.dismiss(id, request.dismissNote(), request.resumeListing(), CurrentUser.id(authentication));
         return ResponseEntity.ok(ListingReportResponse.fromDomain(report));
     }
 
@@ -127,12 +175,10 @@ public class ViolationReportController {
     @PostMapping("/reports/{id}/appeal")
     public ResponseEntity<ListingReportResponse> appealReport(
             @PathVariable("id") UUID id,
-            @Valid @RequestBody AppealReportRequest request) {
+            @Valid @RequestBody AppealReportRequest request,
+            Authentication authentication) {
 
-        ListingReport report = reportApplicationService.appealReport(
-                id,
-                request.newEvidence()
-        );
+        ListingReport report = actions.appeal(id, request.newEvidence(), CurrentUser.id(authentication));
         return ResponseEntity.ok(ListingReportResponse.fromDomain(report));
     }
 }

@@ -4,11 +4,9 @@ import {
   ArrowLeft,
   Building2,
   CalendarDays,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  EyeOff,
   MessageSquareText,
   Phone,
   RefreshCw,
@@ -16,37 +14,14 @@ import {
   ShieldAlert,
   UserRound,
   Users,
-  XCircle,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import {
-  dismissReport,
-  emergencyHideListing,
-  fetchLeadListings,
-  fetchReports,
-  revealLeadContact,
-  resolveReport,
-  searchLeads,
-  updateLeadStatus,
-} from '@/entities/lead/api/leadApi';
-import type {
-  LeadListingItem,
-  LeadListingPage,
-  LeadPage,
-  ListingReport,
-  LeadStatus,
-} from '@/entities/lead/model/types';
+import { fetchLeadListings, revealLeadContact, searchLeads, updateLeadStatus } from '@/entities/lead/api/leadApi';
+import type { LeadListingItem, LeadListingPage, LeadPage, LeadStatus } from '@/entities/lead/model/types';
 import { Button } from '@/shared/ui/Button';
 
 type View = 'leads' | 'reports';
 
-const REPORT_LABELS: Record<ListingReport['status'], string> = {
-  PENDING: 'Chờ xử lý',
-  WAITING_REPLY: 'Chờ phản hồi',
-  RESOLVED: 'Đã giải quyết',
-  DISMISSED: 'Đã bác bỏ',
-  APPEALED: 'Có khiếu nại',
-};
 const LEAD_LABELS: Record<LeadStatus, string> = {
   NEW: 'Mới nhận',
   CONTACTED: 'Đang liên hệ',
@@ -110,7 +85,6 @@ function Pagination({
 
 export default function LeadsAndReportsPage() {
   const [view, setView] = useState<View>('leads');
-  const [reports, setReports] = useState<ListingReport[]>([]);
   const [listingPage, setListingPage] = useState<LeadListingPage>({
     items: [],
     totalElements: 0,
@@ -134,7 +108,6 @@ export default function LeadsAndReportsPage() {
   const [leadStatus, setLeadStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
-  const [notes, setNotes] = useState<Record<string, string>>({});
   const [phones, setPhones] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
 
@@ -143,9 +116,7 @@ export default function LeadsAndReportsPage() {
       setLoading(true);
       setError('');
       try {
-        const [reportItems, listings] = await Promise.all([fetchReports(), fetchLeadListings(page, 9, listingQuery)]);
-        setReports(reportItems);
-        setListingPage(listings);
+        setListingPage(await fetchLeadListings(page, 9, listingQuery));
       } catch {
         setError('Không thể tải dữ liệu từ máy chủ. Kiểm tra kết nối rồi thử lại.');
       } finally {
@@ -167,31 +138,6 @@ export default function LeadsAndReportsPage() {
     }),
     [leadPage.statusCounts],
   );
-  const pendingReports = reports.filter((report) =>
-    ['PENDING', 'WAITING_REPLY', 'APPEALED'].includes(report.status),
-  ).length;
-
-  const act = async (report: ListingReport, action: 'hide' | 'resolve' | 'dismiss') => {
-    const note = notes[report.id]?.trim() ?? '';
-    if (!note) {
-      setError(`Nhập ghi chú xử lý cho vụ việc #${report.caseNumber}.`);
-      return;
-    }
-    setBusyId(report.id);
-    setError('');
-    try {
-      if (action === 'hide') await emergencyHideListing(report.id, note);
-      if (action === 'resolve') await resolveReport(report.id, note, false);
-      if (action === 'dismiss') await dismissReport(report.id, note, true);
-      setNotes((current) => ({ ...current, [report.id]: '' }));
-      await load(listingPage.page);
-    } catch {
-      setError(`Không thể cập nhật vụ việc #${report.caseNumber}. Dữ liệu máy chủ chưa thay đổi.`);
-    } finally {
-      setBusyId('');
-    }
-  };
-
   const loadListingLeads = useCallback(
     async (listing: LeadListingItem, page = 0, query = leadQuery, status = leadStatus) => {
       setLoading(true);
@@ -245,9 +191,9 @@ export default function LeadsAndReportsPage() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-950">Khách quan tâm và báo cáo vi phạm</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-950">Giám sát khách quan tâm</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Theo dõi người muốn liên hệ tin đăng và xử lý phản ánh vi phạm tại hai khu vực riêng biệt.
+            Theo dõi người muốn liên hệ tin đăng. Báo cáo vi phạm được xử lý ở hàng đợi riêng.
           </p>
         </div>
         <Button variant="outline" onClick={() => void load()} disabled={loading}>
@@ -279,30 +225,20 @@ export default function LeadsAndReportsPage() {
             <span className="mt-0.5 block text-sm opacity-75">Quản lý yêu cầu liên hệ theo từng bài đăng</span>
           </span>
         </button>
-        <button
-          type="button"
-          onClick={() => setView('reports')}
-          aria-current={view === 'reports' ? 'page' : undefined}
-          className={`flex min-h-20 items-center gap-4 rounded-xl border px-5 text-left transition-colors ${
-            view === 'reports'
-              ? 'border-rose-700 bg-rose-50 text-rose-950'
-              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-          }`}
+        <Link
+          to="/2026/nhadatchuan/admin/reports"
+          className="flex min-h-20 items-center gap-4 rounded-xl border border-slate-200 bg-white px-5 text-left text-slate-700 transition-colors hover:border-slate-300"
         >
-          <span
-            className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg ${view === 'reports' ? 'bg-rose-700 text-white' : 'bg-rose-50 text-rose-700'}`}
-          >
-            <ShieldAlert className="h-5 w-5" />
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-700">
+            <ShieldAlert className="h-5 w-5" aria-hidden="true" />
           </span>
           <span className="min-w-0">
-            <span className="block font-bold">
-              Báo cáo vi phạm <span className="tabular-nums">({reports.length})</span>
-            </span>
+            <span className="block font-bold">Báo cáo vi phạm (hàng đợi riêng)</span>
             <span className="mt-0.5 block text-sm opacity-75">
-              Phản ánh tin sai, lừa đảo hoặc nội dung không phù hợp
+              Xử lý theo SLA, nhận xử lý và lịch sử tại trang Báo cáo vi phạm
             </span>
           </span>
-        </button>
+        </Link>
       </nav>
 
       {error && (
@@ -604,94 +540,6 @@ export default function LeadsAndReportsPage() {
                 />
               )}
             </>
-          )}
-        </section>
-      )}
-
-      {!loading && view === 'reports' && (
-        <section className="mt-6" aria-labelledby="reports-title">
-          <div className="border-b border-slate-200 pb-5">
-            <h2 id="reports-title" className="text-xl font-bold text-slate-950">
-              Báo cáo cần kiểm tra
-            </h2>
-            <p className="mt-1 text-sm text-slate-600">
-              {pendingReports} vụ việc đang chờ quyết định. Mọi thao tác đều được lưu vết.
-            </p>
-          </div>
-          {reports.length === 0 ? (
-            <div className="py-16 text-center">
-              <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-600" />
-              <p className="mt-3 font-medium text-slate-700">Không có báo cáo vi phạm cần xử lý</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-200">
-              {reports.map((report) => {
-                const actionable = ['PENDING', 'WAITING_REPLY', 'APPEALED'].includes(report.status);
-                return (
-                  <article key={report.id} className="py-6">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-bold text-slate-950">Vụ việc #{report.caseNumber}</h3>
-                        <p className="mt-1 text-xs text-slate-500">
-                          Tin {report.listingId.slice(0, 8)} · {formatDate(report.createdAt)}
-                        </p>
-                      </div>
-                      <span className="rounded-md bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-800 ring-1 ring-inset ring-rose-200">
-                        {REPORT_LABELS[report.status]}
-                      </span>
-                    </div>
-                    <p className="mt-4 break-words text-sm text-slate-800">{report.description}</p>
-                    {report.resolutionNote && (
-                      <p className="mt-3 rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
-                        <strong>Ghi chú xử lý:</strong> {report.resolutionNote}
-                      </p>
-                    )}
-                    {actionable && (
-                      <div className="mt-5 max-w-3xl">
-                        <label htmlFor={`note-${report.id}`} className="text-sm font-semibold text-slate-800">
-                          Căn cứ xử lý *
-                        </label>
-                        <textarea
-                          id={`note-${report.id}`}
-                          maxLength={1000}
-                          value={notes[report.id] ?? ''}
-                          onChange={(event) =>
-                            setNotes((current) => ({
-                              ...current,
-                              [report.id]: event.target.value,
-                            }))
-                          }
-                          className="mt-1.5 min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-base outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
-                          placeholder="Nhập lý do để lưu vào lịch sử kiểm tra"
-                        />
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button
-                            variant="outline"
-                            disabled={busyId === report.id}
-                            onClick={() => void act(report, 'hide')}
-                          >
-                            <EyeOff className="mr-1 h-4 w-4" />
-                            Tạm ẩn tin
-                          </Button>
-                          <Button disabled={busyId === report.id} onClick={() => void act(report, 'resolve')}>
-                            <CheckCircle2 className="mr-1 h-4 w-4" />
-                            Xác nhận đã xử lý
-                          </Button>
-                          <Button
-                            variant="outline"
-                            disabled={busyId === report.id}
-                            onClick={() => void act(report, 'dismiss')}
-                          >
-                            <XCircle className="mr-1 h-4 w-4" />
-                            Bác bỏ báo cáo
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
           )}
         </section>
       )}

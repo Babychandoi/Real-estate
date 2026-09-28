@@ -1,652 +1,776 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, CircleDot, X } from 'lucide-react';
-import { moderationApi } from '../entities/moderation/api/moderationApi';
-import type { FieldDiff, ListingDiff, ModerationQueueItem, StandardReason } from '../entities/moderation/model/types';
-import { formatPriceVnd, formatPropertyType } from '../entities/listing/model/types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Copy, FileSearch, Hand, History, RefreshCw, ShieldCheck, Undo2 } from 'lucide-react';
+import { moderationV2Api } from '@/entities/admin/api/adminApi';
+import type {
+  AuditSample,
+  BulkItemResult,
+  DecisionView,
+  DuplicateCandidate,
+  ModerationQueueItem,
+  ModerationQueuePage,
+  QueueFilter,
+  ReasonOption,
+} from '@/entities/admin/model/types';
+import { moderationApi } from '@/entities/moderation/api/moderationApi';
+import type { ListingDiff } from '@/entities/moderation/model/types';
+import { formatPriceVnd, formatPropertyType } from '@/entities/listing/model/types';
 import { errorMessage } from '@/shared/api/errors';
-import { useModal } from '@/shared/ui/useModal';
+import { ApiProblemException } from '@/shared/types/problem-details';
+import {
+  ReasonDialog,
+  SlaBadge,
+  StatusBadge,
+  formatAge,
+  formatDateTime,
+  type ReasonChoice,
+} from '@/shared/admin/adminUi';
+import { Badge } from '@/shared/ui/Badge';
+import { Button } from '@/shared/ui/Button';
+import { Chip } from '@/shared/ui/Chip';
+import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Sheet } from '@/shared/ui/Sheet';
+import { Skeleton } from '@/shared/ui/Skeleton';
+import { Tabs } from '@/shared/ui/Tabs';
+
+const FILTERS: Array<{ id: QueueFilter; label: string }> = [
+  { id: 'ALL', label: 'Tất cả' },
+  { id: 'FIRST_SUBMISSION', label: 'Lần đầu' },
+  { id: 'EDIT', label: 'Bản sửa' },
+  { id: 'SLA_BREACH', label: 'Quá hạn 24 giờ' },
+  { id: 'DUPLICATES', label: 'Nghi trùng' },
+  { id: 'MINE', label: 'Tôi đang xử lý' },
+  { id: 'UNCLAIMED', label: 'Chưa ai nhận' },
+];
+
+const OUTCOME_LABELS: Record<string, string> = {
+  APPROVED: 'Đã duyệt',
+  REJECTED: 'Đã từ chối',
+  NOT_CLAIMED: 'Bỏ qua: bạn chưa nhận xử lý',
+  CLAIM_CONFLICT: 'Bỏ qua: người khác đang xử lý',
+  STALE_REVISION: 'Bỏ qua: đã có phiên bản mới',
+  NOT_PENDING: 'Bỏ qua: không còn chờ duyệt',
+  ALREADY_DECIDED: 'Bỏ qua: vừa được xử lý',
+  INVALID: 'Bỏ qua: mục không hợp lệ',
+};
+
+const DECISION_LABELS: Record<DecisionView['decision'], string> = {
+  APPROVED: 'Phê duyệt',
+  REJECTED: 'Từ chối',
+  AUDIT_PASSED: 'Kiểm tra lại: đạt',
+  AUDIT_FAILED: 'Kiểm tra lại: không đạt',
+};
+
+type Decision = { kind: 'approve' | 'reject'; items: ModerationQueueItem[] } | null;
 
 export default function ModerationWorkspacePage() {
-  const [queue, setQueue] = useState<ModerationQueueItem[]>([]);
-  const [selectedItem, setSelectedItem] = useState<ModerationQueueItem | null>(null);
-  const [diff, setDiff] = useState<ListingDiff | null>(null);
-  const [reasons, setReasons] = useState<StandardReason[]>([]);
+  const [tab, setTab] = useState<'queue' | 'audit'>('queue');
+  return (
+    <div className="space-y-6" data-ready="true">
+      <header>
+        <h1 className="text-2xl font-bold text-on-surface">Kiểm duyệt tin đăng</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Ưu tiên tin chờ lâu nhất, nhận xử lý trước khi quyết định, mỗi quyết định đều ghi lý do và người duyệt. Duyệt
+          nội dung không có nghĩa là xác minh pháp lý hay quyền sở hữu.
+        </p>
+      </header>
+      <Tabs
+        label="Khu vực kiểm duyệt"
+        value={tab}
+        onChange={setTab}
+        items={[
+          { id: 'queue', label: 'Hàng đợi', content: <QueuePanel /> },
+          { id: 'audit', label: 'Kiểm tra ngẫu nhiên', content: <AuditPanel /> },
+        ]}
+      />
+    </div>
+  );
+}
 
-  const [loadingQueue, setLoadingQueue] = useState(true);
-  const [loadingDiff, setLoadingDiff] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+function QueuePanel() {
+  const [filter, setFilter] = useState<QueueFilter>('ALL');
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<ModerationQueuePage | null>(null);
+  const [status, setStatus] = useState<DataTableStatus>('loading');
+  const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState<ModerationQueueItem | null>(null);
+  const [reasons, setReasons] = useState<{ approve: ReasonChoice[]; reject: ReasonChoice[] }>({
+    approve: [],
+    reject: [],
+  });
+  const [decision, setDecision] = useState<Decision>(null);
+  const [feedback, setFeedback] = useState<{
+    kind: 'success' | 'error' | 'warning';
+    title: string;
+    results?: BulkItemResult[];
+  } | null>(null);
 
-  // Rejection modal
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-  const [selectedReasonCode, setSelectedReasonCode] = useState('');
-  const [rejectionDetail, setRejectionDetail] = useState('');
-  const rejectPanelRef = useRef<HTMLDivElement>(null);
-  // Shared modal stack (M2): this dialog had no focus trap, no backdrop-close and no focus return at all.
-  useModal({ open: isRejectModalOpen, onClose: () => setIsRejectModalOpen(false), panelRef: rejectPanelRef });
+  const load = useCallback(async () => {
+    setStatus((current) => (current === 'loading' ? 'loading' : 'refreshing'));
+    try {
+      setData(await moderationV2Api.queue(filter, page));
+      setStatus('ready');
+      setError(null);
+    } catch (err) {
+      setStatus(err instanceof ApiProblemException && err.problem.status === 403 ? 'permission-denied' : 'error');
+      setError(errorMessage(err, 'Không thể tải hàng đợi kiểm duyệt.'));
+    }
+  }, [filter, page]);
 
-  // Approval note
-  const [approvalNote, setApprovalNote] = useState('');
-
-  // Alerts
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tabFilter, setTabFilter] = useState<'ALL' | 'FIRST' | 'UPDATE'>('ALL');
-
-  // Load queue and reasons on mount
   useEffect(() => {
-    loadQueue();
-    moderationApi
-      .getRejectionReasons()
-      .then((data) => {
-        setReasons(data);
-        if (data.length > 0) setSelectedReasonCode(data[0].code);
-      })
-      .catch((err) => console.error('Lỗi tải lý do từ chối:', err));
-    // Mount-only: the queue and the reason catalogue load once; later reloads are explicit (after approve/reject).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    const toChoices = (items: ReasonOption[]) => items.map((r) => ({ code: r.code, label: r.vietnameseLabel }));
+    moderationV2Api
+      .reasons()
+      .then((r) => setReasons({ approve: toChoices(r.approve), reject: toChoices(r.reject) }))
+      .catch(() => setFeedback({ kind: 'error', title: 'Không tải được danh mục lý do; vui lòng tải lại trang.' }));
   }, []);
 
-  const loadQueue = async () => {
-    setLoadingQueue(true);
+  const items = useMemo(() => data?.items ?? [], [data]);
+  const selectedItems = items.filter((item) => selected.has(item.listingId));
+  const inScope = selectedItems.filter((item) => item.claim?.mine);
+
+  const claim = async (item: ModerationQueueItem) => {
     try {
-      const data = await moderationApi.getQueue();
-      setQueue(data);
-      if (data.length > 0) {
-        selectListing(data[0]);
-      } else {
-        setSelectedItem(null);
-        setDiff(null);
-      }
+      await moderationV2Api.claim(item.listingId);
+      await load();
     } catch (err) {
-      setFeedback({ type: 'error', message: errorMessage(err, 'Không thể tải hàng đợi kiểm duyệt') });
-    } finally {
-      setLoadingQueue(false);
+      setFeedback({ kind: 'warning', title: errorMessage(err, 'Không thể nhận xử lý tin này.') });
+      await load();
     }
   };
 
-  const selectListing = async (item: ModerationQueueItem) => {
-    setSelectedItem(item);
-    setLoadingDiff(true);
-    setFeedback(null);
-    try {
-      const diffData = await moderationApi.getDiff(item.listingId);
-      setDiff(diffData);
-    } catch (err) {
-      setFeedback({ type: 'error', message: errorMessage(err, 'Không thể tải chi tiết đối chiếu') });
-    } finally {
-      setLoadingDiff(false);
-    }
-  };
+  const columns: DataTableColumn<ModerationQueueItem>[] = [
+    {
+      key: 'listing',
+      header: 'Tin đăng',
+      cell: (item) => (
+        <div className="min-w-[14rem]">
+          <p className="font-semibold text-on-surface">{item.title}</p>
+          <p className="text-xs text-on-surface-variant">
+            {formatPropertyType(item.propertyType)} · {formatPriceVnd(item.priceVnd)} · {item.areaM2} m² ·{' '}
+            {item.addressSummary ?? 'Chưa có địa chỉ'}
+          </p>
+          <p className="text-xs text-on-surface-variant">Người đăng: {item.ownerName}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'kind',
+      header: 'Loại',
+      cell: (item) => (
+        <Badge variant={item.kind === 'EDIT' ? 'info' : 'primary'}>
+          {item.kind === 'EDIT' ? `Bản sửa #${item.revisionNumber}` : 'Lần đầu'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'age',
+      header: 'Đã chờ',
+      cell: (item) => (
+        <div className="space-y-1">
+          <p className="text-sm">{formatAge(item.ageMinutes)}</p>
+          <SlaBadge breached={item.slaBreached} dueAt={item.slaDueAt} />
+        </div>
+      ),
+    },
+    {
+      key: 'duplicates',
+      header: 'Nghi trùng',
+      cell: (item) =>
+        item.openDuplicates > 0 ? (
+          <Badge variant="warning" icon={<Copy className="h-3.5 w-3.5" aria-hidden="true" />}>
+            {item.openDuplicates} tin
+          </Badge>
+        ) : (
+          <span className="text-sm text-on-surface-variant">Không</span>
+        ),
+    },
+    {
+      key: 'claim',
+      header: 'Người xử lý',
+      cell: (item) =>
+        item.claim ? (
+          <p className="text-sm">
+            {item.claim.mine ? 'Bạn' : item.claim.moderatorName}
+            <span className="block text-xs text-on-surface-variant">đến {formatDateTime(item.claim.expiresAt)}</span>
+          </p>
+        ) : (
+          <span className="text-sm text-on-surface-variant">Chưa ai nhận</span>
+        ),
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'end',
+      cell: (item) => (
+        <div className="flex justify-end gap-2">
+          {!item.claim && (
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<Hand className="h-4 w-4" />}
+              onClick={() => claim(item)}
+              aria-label={`Nhận xử lý ${item.title}`}
+            >
+              Nhận xử lý
+            </Button>
+          )}
+          <Button
+            size="sm"
+            leftIcon={<FileSearch className="h-4 w-4" />}
+            onClick={() => setOpen(item)}
+            aria-label={`Đối chiếu ${item.title}`}
+          >
+            Đối chiếu
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
-  const handleApprove = async () => {
-    if (!selectedItem) return;
-    if (!approvalNote.trim()) {
-      setFeedback({
-        type: 'error',
-        message: 'Vui lòng nhập ghi chú duyệt nội dung. Duyệt tin không đồng nghĩa xác minh pháp lý.',
-      });
-      return;
-    }
-    if (!window.confirm(`Xác nhận PHÊ DUYỆT tin đăng "${selectedItem.title}"?`)) return;
-
-    setActionLoading(true);
-    try {
-      await moderationApi.approve(selectedItem.listingId, {
-        revisionId: selectedItem.revisionId,
-        note: approvalNote.trim(),
-      });
-      setFeedback({
-        type: 'success',
-        message: `Đã phê duyệt thành công tin đăng #${selectedItem.listingId.substring(0, 8)}!`,
-      });
-      setApprovalNote('');
-      await loadQueue();
-    } catch (err) {
-      setFeedback({ type: 'error', message: errorMessage(err, 'Lỗi khi phê duyệt tin đăng') });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!selectedItem || !selectedReasonCode) return;
-
-    setActionLoading(true);
-    try {
-      await moderationApi.reject(selectedItem.listingId, {
-        revisionId: selectedItem.revisionId,
-        reasonCode: selectedReasonCode,
-        reasonDetail: rejectionDetail,
-      });
-      setFeedback({
-        type: 'success',
-        message: `Đã từ chối tin đăng #${selectedItem.listingId.substring(0, 8)} với lý do: ${selectedReasonCode}`,
-      });
-      setIsRejectModalOpen(false);
-      setRejectionDetail('');
-      await loadQueue();
-    } catch (err) {
-      setFeedback({ type: 'error', message: errorMessage(err, 'Lỗi khi từ chối tin đăng') });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Filtered queue
-  const filteredQueue = queue.filter((item) => {
-    const matchesSearch =
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.addressSummary.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-    if (tabFilter === 'FIRST') return item.isFirstSubmission;
-    if (tabFilter === 'UPDATE') return !item.isFirstSubmission;
-    return true;
-  });
+  const pageCount = data ? Math.max(1, Math.ceil(data.total / data.size)) : 1;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
-      {/* Top Command Bar & SLA Counters */}
-      <header className="sticky top-0 z-40 bg-slate-950/95 border-b border-slate-800 backdrop-blur px-6 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
-                />
-              </svg>
-            </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl font-bold tracking-tight text-white">Bàn Làm Việc Kiểm Duyệt & Thẩm Định Tin</h1>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-medium border border-emerald-500/30">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  Hàng đợi kiểm duyệt nội dung
-                </span>
-                <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
-                  Phân hệ Moderation Monolith
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Đối chiếu Diff song song các phiên bản bất biến (Revision Immutability) • Tiêu chuẩn Waterfall 2026
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={loadQueue}
-              disabled={loadingQueue}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium transition border border-slate-700"
-            >
-              <svg
-                className={`w-4 h-4 ${loadingQueue ? 'animate-spin' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              Làm mới hàng đợi
-            </button>
-            <span className="px-3 py-1.5 rounded-lg bg-sky-950/60 text-sky-400 text-sm font-semibold border border-sky-800/50">
-              Đang chờ duyệt: {queue.length} hồ sơ
-            </span>
-          </div>
-        </div>
-
-        {/* SLA Metrics Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-800/80">
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Tin mới nộp (Revision #1)</span>
-            <div className="text-lg font-bold text-sky-400">{queue.filter((q) => q.isFirstSubmission).length}</div>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Cập nhật tin cũ (Revision #2+)</span>
-            <div className="text-lg font-bold text-amber-400">{queue.filter((q) => !q.isFirstSubmission).length}</div>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Thay đổi đang hiển thị</span>
-            <div className="text-lg font-bold text-emerald-400">{diff?.diffs.length ?? 0} trường</div>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Phạm vi duyệt</span>
-            <div className="text-lg font-bold text-purple-400">Nội dung tin</div>
-          </div>
-        </div>
-      </header>
-
-      {/* Feedback notification */}
-      {feedback && (
-        <div
-          className={`mx-6 mt-4 px-4 py-3 rounded-lg flex items-center justify-between text-sm ${
-            feedback.type === 'success'
-              ? 'bg-emerald-950/80 border border-emerald-600/50 text-emerald-200'
-              : 'bg-rose-950/80 border border-rose-600/50 text-rose-200'
-          }`}
-        >
-          <span>{feedback.message}</span>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            aria-label="Đóng thông báo"
-            className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:text-white"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </div>
-      )}
-
-      {/* Main Split Layout */}
-      <div className="flex flex-col lg:flex-row min-h-[calc(100vh-160px)]">
-        {/* Left Panel: Moderation Queue List */}
-        <div className="w-full lg:w-96 border-r border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3 shrink-0">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-white text-sm uppercase tracking-wider">Hàng Đợi Thẩm Định</h2>
-            <span className="text-xs text-slate-400">Sắp xếp theo thời gian nộp</span>
-          </div>
-
-          {/* Search box */}
-          <input
-            type="text"
-            placeholder="Tìm theo tiêu đề hoặc địa chỉ..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+    <div className="space-y-4 pt-4">
+      {data && (
+        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Stat label="Đang chờ duyệt" value={String(data.stats.total)} />
+          <Stat
+            label="Quá hạn 24 giờ"
+            value={String(data.stats.slaBreached)}
+            tone={data.stats.slaBreached > 0 ? 'warning' : undefined}
           />
-
-          {/* Tabs Filter */}
-          <div className="flex rounded-lg bg-slate-900 p-1 border border-slate-800 text-xs font-medium">
-            <button
-              onClick={() => setTabFilter('ALL')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'ALL' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              Tất cả ({queue.length})
-            </button>
-            <button
-              onClick={() => setTabFilter('FIRST')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'FIRST' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              Tin mới
-            </button>
-            <button
-              onClick={() => setTabFilter('UPDATE')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'UPDATE' ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              Bản sửa
-            </button>
-          </div>
-
-          {/* Items List */}
-          <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-340px)] pr-1">
-            {loadingQueue ? (
-              <div className="text-center py-12 text-slate-500 text-sm">
-                <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                Đang tải hàng đợi kiểm duyệt...
-              </div>
-            ) : filteredQueue.length === 0 ? (
-              <div className="text-center py-12 text-slate-500 text-sm">Không có tin đăng nào cần duyệt.</div>
-            ) : (
-              filteredQueue.map((item) => {
-                const isSelected = selectedItem?.listingId === item.listingId;
-                return (
-                  <div
-                    key={item.listingId}
-                    className={`relative p-3 rounded-xl border cursor-pointer transition-all focus-within:ring-2 focus-within:ring-sky-400 ${
-                      isSelected
-                        ? 'bg-sky-950/40 border-sky-500 shadow-md ring-1 ring-sky-500/50'
-                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded font-semibold ${
-                          item.isFirstSubmission
-                            ? 'bg-sky-950 text-sky-300 border border-sky-800/60'
-                            : 'bg-amber-950 text-amber-300 border border-amber-800/60'
-                        }`}
-                      >
-                        {item.isFirstSubmission ? 'Tin Mới #Rev 1' : `Bản Cập Nhật #Rev ${item.revisionNumber}`}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {new Date(item.submittedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-
-                    <h3 className="text-sm font-semibold text-slate-100 line-clamp-2 leading-snug mb-2">
-                      {/* The button's overlay makes the whole card clickable while keeping one keyboard stop. */}
-                      <button
-                        type="button"
-                        onClick={() => selectListing(item)}
-                        aria-pressed={isSelected}
-                        className="text-left after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none"
-                      >
-                        {item.title}
-                      </button>
-                    </h3>
-
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span className="font-bold text-emerald-400">{formatPriceVnd(item.priceVnd)}</span>
-                      <span>{item.areaM2} m²</span>
-                      <span>{item.mediaCount} ảnh</span>
-                    </div>
-
-                    <p className="text-xs text-slate-500 truncate mt-1">{item.addressSummary}</p>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Right Panel: Diff Comparison Workspace */}
-        <div className="flex-1 bg-slate-900 p-6 flex flex-col gap-6 overflow-y-auto">
-          {selectedItem ? (
-            <>
-              {/* Header Hồ sơ đang duyệt */}
-              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-xs font-mono text-slate-400">
-                      Mã: {selectedItem.listingId.substring(0, 8)}...
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800">
-                      Loại: {formatPropertyType(selectedItem.propertyType)} •{' '}
-                      {selectedItem.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800">
-                      Revision: #{selectedItem.revisionNumber}
-                    </span>
-                  </div>
-                  <h2 className="text-lg font-bold text-white">{selectedItem.title}</h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Địa chỉ: <span className="text-slate-300">{selectedItem.addressSummary}</span> • Chủ tin:{' '}
-                    <span className="font-mono text-slate-400">{selectedItem.ownerId.substring(0, 8)}...</span>
-                  </p>
-                </div>
-
-                {/* Quick Action Buttons */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setIsRejectModalOpen(true)}
-                    disabled={actionLoading}
-                    className="px-4 py-2.5 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-600/40 text-sm font-semibold transition flex items-center gap-2 shadow-sm"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Từ chối
-                  </button>
-
-                  <button
-                    onClick={handleApprove}
-                    disabled={actionLoading}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-emerald-950/50"
-                  >
-                    {actionLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                    Phê Duyệt & Xuất Bản
-                  </button>
-                </div>
-              </div>
-
-              {/* 2-Column Diff Workspace */}
-              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-sm flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <div className="flex items-center gap-3">
-                    <h3 className="font-bold text-white text-base">Đối Chiếu Thay Đổi Hai Cột (Side-by-Side Diff)</h3>
-                    {diff && (
-                      <span
-                        className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                          diff.changedCount > 0
-                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                            : 'bg-slate-800 text-white'
-                        }`}
-                      >
-                        {diff.isFirstSubmission
-                          ? 'Nộp duyệt lần đầu'
-                          : `Phát hiện ${diff.changedCount} trường thay đổi`}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-slate-400">
-                    Bản cũ: {diff?.previousRevisionNumber ? `Revision #${diff.previousRevisionNumber}` : '(Trống)'}{' '}
-                    <ArrowRight className="inline h-3.5 w-3.5 align-[-2px]" aria-hidden="true" /> Bản mới: Revision #
-                    {diff?.currentRevisionNumber}
-                  </span>
-                </div>
-
-                {loadingDiff ? (
-                  <div className="text-center py-12 text-slate-400 text-sm">
-                    <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    Đang tính toán Diff hai phiên bản...
-                  </div>
-                ) : diff ? (
-                  <div className="flex flex-col gap-3">
-                    {/* Headers for two columns */}
-                    <div className="grid grid-cols-12 gap-4 px-3 py-2 bg-slate-900/80 rounded-lg text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                      <div className="col-span-3">Trường dữ liệu</div>
-                      <div className="col-span-4 text-slate-400">Bản Đang Lưu Hành / Cũ</div>
-                      <div className="col-span-5 text-emerald-400">Bản Mới Nộp Duyệt</div>
-                    </div>
-
-                    {/* Diff Rows */}
-                    {diff.diffs.map((d: FieldDiff) => (
-                      <div
-                        key={d.fieldName}
-                        className={`grid grid-cols-12 gap-4 p-3 rounded-xl border transition ${
-                          d.isChanged ? 'bg-amber-950/15 border-amber-500/40' : 'bg-slate-900/30 border-slate-800/60'
-                        }`}
-                      >
-                        <div className="col-span-3 flex flex-col justify-center">
-                          <span className="text-sm font-medium text-slate-200">{d.fieldLabel}</span>
-                          <span className="text-xs font-mono text-slate-500">{d.fieldName}</span>
-                          {d.isChanged && (
-                            <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-400">
-                              <CircleDot className="h-3 w-3" aria-hidden="true" /> ĐÃ THAY ĐỔI
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Old value column */}
-                        <div className="col-span-4 p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-sm text-slate-400 break-words line-through-slate-600">
-                          {d.oldValue || <span className="italic text-slate-600">(Chưa có)</span>}
-                        </div>
-
-                        {/* New value column */}
-                        <div
-                          className={`col-span-5 p-2.5 rounded-lg border text-sm break-words ${
-                            d.isChanged
-                              ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200 font-medium'
-                              : 'bg-slate-900/80 border-slate-800 text-slate-300'
-                          }`}
-                        >
-                          {d.newValue}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Legal Check & Verification Panel */}
-              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-sm flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                  <h3 className="font-bold text-white text-base flex items-center gap-2">
-                    <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    Chứng cứ và kiểm tra bổ sung
-                  </h3>
-                  <span className="text-xs px-2.5 py-1 rounded bg-amber-950 text-amber-300 border border-amber-800 font-medium">
-                    Chưa có kết quả xác minh pháp lý
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                    <span className="text-xs text-slate-400">Tình trạng giấy tờ</span>
-                    <div className="font-semibold text-amber-300 mt-1">Chưa được đối chiếu tại màn hình này</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                    <span className="text-xs text-slate-400">Kiểm tra watermark / SĐT ảo</span>
-                    <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
-                  </div>
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                    <span className="text-xs text-slate-400">Kiểm tra trùng lặp ranh đất</span>
-                    <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
-                  </div>
-                </div>
-
-                {/* Approval Note Input */}
-                <div className="mt-2">
-                  <label htmlFor="moderation-approval-note" className="block text-xs font-medium text-slate-400 mb-1">
-                    Ghi chú thẩm định nội bộ (Lưu vào nhật ký kiểm toán):
-                  </label>
-                  <input
-                    id="moderation-approval-note"
-                    type="text"
-                    value={approvalNote}
-                    onChange={(e) => setApprovalNote(e.target.value)}
-                    placeholder="Ghi rõ căn cứ duyệt nội dung; không kết luận pháp lý nếu chưa có chứng cứ"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-96 text-slate-500 text-sm">
-              <svg className="w-16 h-16 text-slate-700 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-                />
-              </svg>
-              <span>Vui lòng chọn một tin đăng từ hàng đợi bên trái để bắt đầu thẩm định.</span>
-            </div>
-          )}
-        </div>
+          <Stat label="Chờ lâu nhất từ" value={formatDateTime(data.stats.oldestSubmittedAt)} />
+        </dl>
+      )}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Lọc hàng đợi">
+        {FILTERS.map((f) => (
+          <Chip
+            key={f.id}
+            size="sm"
+            selected={filter === f.id}
+            onClick={() => {
+              setFilter(f.id);
+              setPage(0);
+              setSelected(new Set());
+            }}
+          >
+            {f.label}
+          </Chip>
+        ))}
+        <Button size="sm" variant="ghost" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => void load()}>
+          Tải lại
+        </Button>
       </div>
 
-      {/* Modal từ chối kiểm duyệt */}
-      {isRejectModalOpen && selectedItem && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-          role="presentation"
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setIsRejectModalOpen(false);
-          }}
-        >
-          <div
-            ref={rejectPanelRef}
-            tabIndex={-1}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="moderation-reject-title"
-            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div>
-                <h3 id="moderation-reject-title" className="font-bold text-lg text-white">
-                  Từ Chối Phê Duyệt Tin Đăng
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsRejectModalOpen(false)}
-                aria-label="Đóng"
-                className="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            {/* Select Reason */}
-            <div>
-              <label
-                htmlFor="moderation-reject-reason"
-                className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
-              >
-                Chọn lý do:
-              </label>
-              <select
-                id="moderation-reject-reason"
-                value={selectedReasonCode}
-                onChange={(e) => setSelectedReasonCode(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-rose-500"
-              >
-                {reasons.map((r) => (
-                  <option key={r.code} value={r.code}>
-                    [{r.category}] {r.vietnameseLabel} ({r.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Detail Reason Textarea */}
-            <div>
-              <label
-                htmlFor="moderation-reject-detail"
-                className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2"
-              >
-                Chi Tiết Giải Trình Cho Môi Giới (Hiển thị trong thông báo):
-              </label>
-              <textarea
-                id="moderation-reject-detail"
-                rows={4}
-                value={rejectionDetail}
-                onChange={(e) => setRejectionDetail(e.target.value)}
-                placeholder="VD: Mức giá chưa bao gồm thuế phí hoặc sổ hồng bị mờ phần số vào sổ..."
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-rose-500"
-              />
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsRejectModalOpen(false)}
-                disabled={actionLoading || !approvalNote.trim()}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition"
-              >
-                Hủy bỏ
-              </button>
-              <button
-                type="button"
-                onClick={handleReject}
-                disabled={actionLoading || !selectedReasonCode}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold transition flex items-center gap-2 shadow-lg shadow-rose-950/50"
-              >
-                {actionLoading && (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                )}
-                Xác Nhận Từ Chối
-              </button>
-            </div>
-          </div>
-        </div>
+      {feedback && (
+        <InlineFeedback kind={feedback.kind} title={feedback.title}>
+          {feedback.results && (
+            <ul className="mt-2 space-y-1 text-sm">
+              {feedback.results.map((r) => (
+                <li key={`${r.listingId}-${r.revisionId}`}>
+                  {items.find((i) => i.listingId === r.listingId)?.title ?? r.listingId}:{' '}
+                  {OUTCOME_LABELS[r.outcome] ?? r.outcome}
+                </li>
+              ))}
+            </ul>
+          )}
+        </InlineFeedback>
       )}
+
+      {selectedItems.length > 0 && (
+        <section
+          aria-label="Thao tác hàng loạt"
+          className="rounded-lg border border-outline-variant bg-surface-container-low p-4"
+        >
+          <p className="text-sm font-semibold">
+            Đã chọn {selectedItems.length} tin trên trang này. Chỉ {inScope.length} tin bạn đang nhận xử lý sẽ được áp
+            dụng
+            {selectedItems.length - inScope.length > 0
+              ? `; ${selectedItems.length - inScope.length} tin còn lại sẽ bị bỏ qua`
+              : ''}
+            .
+          </p>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-6">
+            <Button disabled={inScope.length === 0} onClick={() => setDecision({ kind: 'approve', items: inScope })}>
+              Duyệt {inScope.length} tin
+            </Button>
+            <Button
+              variant="danger"
+              disabled={inScope.length === 0}
+              onClick={() => setDecision({ kind: 'reject', items: inScope })}
+            >
+              Từ chối {inScope.length} tin
+            </Button>
+          </div>
+        </section>
+      )}
+
+      <DataTable
+        caption="Hàng đợi kiểm duyệt, tin chờ lâu nhất ở đầu"
+        columns={columns}
+        rows={items}
+        getRowId={(item) => item.listingId}
+        status={status}
+        errorMessage={error ?? undefined}
+        onRetry={() => void load()}
+        selection={{ selectedIds: selected, onChange: setSelected, rowLabel: (item) => item.title }}
+        empty={
+          <EmptyState
+            title="Không có tin nào trong bộ lọc này"
+            description="Hàng đợi đã được xử lý hết hoặc hãy chọn bộ lọc khác."
+          />
+        }
+        footer={
+          data && data.total > data.size ? (
+            <Pagination page={page + 1} pageCount={pageCount} onPageChange={(p) => setPage(p - 1)} />
+          ) : undefined
+        }
+      />
+
+      {open && (
+        <ReviewSheet
+          item={open}
+          onClose={() => setOpen(null)}
+          onChanged={() => void load()}
+          onDecide={(kind) => setDecision({ kind, items: [open] })}
+        />
+      )}
+
+      <ReasonDialog
+        open={decision !== null}
+        title={decision?.kind === 'approve' ? 'Phê duyệt nội dung tin' : 'Từ chối tin'}
+        description={
+          decision?.kind === 'approve'
+            ? 'Tin sẽ hiển thị công khai với nhãn "Nội dung tin đã qua kiểm duyệt". Đây không phải xác nhận pháp lý.'
+            : 'Người đăng sẽ thấy lý do và có thể sửa rồi gửi lại.'
+        }
+        reasons={decision?.kind === 'approve' ? reasons.approve : reasons.reject}
+        noteLabel={decision?.kind === 'approve' ? 'Ghi chú nội bộ' : 'Hướng dẫn cho người đăng'}
+        noteMinLength={decision?.kind === 'reject' ? 5 : 0}
+        confirmLabel={
+          decision?.kind === 'approve'
+            ? `Phê duyệt ${decision?.items.length ?? 0} tin`
+            : `Từ chối ${decision?.items.length ?? 0} tin`
+        }
+        confirmVariant={decision?.kind === 'approve' ? 'primary' : 'danger'}
+        scope={
+          decision && (
+            <div className="rounded-md bg-surface-container-low p-3 text-sm">
+              <p className="font-semibold">Phạm vi áp dụng ({decision.items.length} tin):</p>
+              <ul className="mt-1 list-disc pl-5">
+                {decision.items.slice(0, 10).map((i) => (
+                  <li key={i.listingId}>{i.title}</li>
+                ))}
+                {decision.items.length > 10 && <li>… và {decision.items.length - 10} tin khác</li>}
+              </ul>
+            </div>
+          )
+        }
+        onClose={() => setDecision(null)}
+        onConfirm={async (code, note) => {
+          if (!decision) return;
+          if (decision.items.length === 1 && open) {
+            const item = decision.items[0];
+            if (decision.kind === 'approve') await moderationV2Api.approve(item.listingId, item.revisionId, code, note);
+            else await moderationV2Api.reject(item.listingId, item.revisionId, code, note);
+            setFeedback({
+              kind: 'success',
+              title: `${decision.kind === 'approve' ? 'Đã phê duyệt' : 'Đã từ chối'}: ${item.title}`,
+            });
+            setOpen(null);
+          } else {
+            const result = await moderationV2Api.bulk(
+              decision.kind === 'approve' ? 'APPROVE' : 'REJECT',
+              decision.items.map((i) => ({ listingId: i.listingId, revisionId: i.revisionId })),
+              code,
+              note,
+            );
+            const done = result.results.filter((r) => r.outcome === 'APPROVED' || r.outcome === 'REJECTED').length;
+            setFeedback({
+              kind: done === result.results.length ? 'success' : 'warning',
+              title: `Đã xử lý ${done}/${result.results.length} tin`,
+              results: result.results,
+            });
+            setSelected(new Set());
+          }
+          await load();
+        }}
+      />
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: 'warning' }) {
+  return (
+    <div
+      className={`rounded-lg border p-3 ${tone === 'warning' ? 'border-warning/40 bg-warning-container' : 'border-outline-variant bg-surface-container-lowest'}`}
+    >
+      <dt className="text-xs font-semibold uppercase text-on-surface-variant">{label}</dt>
+      <dd className="mt-1 text-lg font-bold text-on-surface">{value}</dd>
+    </div>
+  );
+}
+
+function ReviewSheet({
+  item,
+  onClose,
+  onChanged,
+  onDecide,
+}: {
+  item: ModerationQueueItem;
+  onClose: () => void;
+  onChanged: () => void;
+  onDecide: (kind: 'approve' | 'reject') => void;
+}) {
+  const [diff, setDiff] = useState<ListingDiff | null>(null);
+  const [duplicates, setDuplicates] = useState<DuplicateCandidate[]>([]);
+  const [history, setHistory] = useState<DecisionView[]>([]);
+  const [claim, setClaim] = useState(item.claim);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadDetails = useCallback(async () => {
+    try {
+      const [d, dup, h] = await Promise.all([
+        moderationApi.getDiff(item.listingId),
+        moderationV2Api.duplicates(item.listingId),
+        moderationV2Api.decisions(item.listingId),
+      ]);
+      setDiff(d);
+      setDuplicates(dup);
+      setHistory(h);
+    } catch (err) {
+      setError(errorMessage(err, 'Không tải được chi tiết đối chiếu.'));
+    }
+  }, [item.listingId]);
+
+  useEffect(() => {
+    void loadDetails();
+  }, [loadDetails]);
+
+  const takeClaim = async () => {
+    try {
+      const c = await moderationV2Api.claim(item.listingId);
+      setClaim(c);
+      setError(null);
+      onChanged();
+    } catch (err) {
+      setError(errorMessage(err, 'Không thể nhận xử lý.'));
+    }
+  };
+  const release = async () => {
+    await moderationV2Api.release(item.listingId);
+    setClaim(null);
+    onChanged();
+  };
+  const decideDuplicate = async (candidate: DuplicateCandidate, status: 'DISMISSED' | 'CONFIRMED') => {
+    await moderationV2Api.decideDuplicate(candidate.id, status);
+    await loadDetails();
+    onChanged();
+  };
+
+  const blocked = claim != null && !claim.mine;
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={item.title}
+      description={`${item.kind === 'EDIT' ? `Bản sửa #${item.revisionNumber} so với bản đang công khai` : 'Lần gửi duyệt đầu tiên'} · chờ ${formatAge(item.ageMinutes)}`}
+      footer={
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <Button disabled={blocked} onClick={() => onDecide('approve')}>
+            Phê duyệt…
+          </Button>
+          <Button variant="danger" disabled={blocked} onClick={() => onDecide('reject')}>
+            Từ chối…
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-6">
+        <section
+          aria-label="Người xử lý"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-surface-container-low p-3"
+        >
+          <p className="text-sm">
+            {claim
+              ? claim.mine
+                ? `Bạn đang nhận xử lý đến ${formatDateTime(claim.expiresAt)}.`
+                : `${claim.moderatorName} đang xử lý đến ${formatDateTime(claim.expiresAt)}; bạn chưa thể quyết định.`
+              : 'Chưa ai nhận xử lý tin này.'}
+          </p>
+          {claim?.mine ? (
+            <Button size="sm" variant="outline" leftIcon={<Undo2 className="h-4 w-4" />} onClick={release}>
+              Trả lại
+            </Button>
+          ) : (
+            !claim && (
+              <Button size="sm" variant="outline" leftIcon={<Hand className="h-4 w-4" />} onClick={takeClaim}>
+                Nhận xử lý 30 phút
+              </Button>
+            )
+          )}
+        </section>
+        {error && <InlineFeedback kind="error" title={error} />}
+
+        <section aria-labelledby="diff-heading">
+          <h3 id="diff-heading" className="text-base font-bold">
+            Bản công khai so với bản gửi duyệt {diff ? `(${diff.changedCount} mục thay đổi)` : ''}
+          </h3>
+          {!diff ? (
+            <Skeleton className="mt-2 h-32" />
+          ) : (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <caption className="sr-only">So sánh từng trường</caption>
+                <thead>
+                  <tr className="text-left text-xs uppercase text-on-surface-variant">
+                    <th scope="col" className="py-2 pr-3">
+                      Trường
+                    </th>
+                    <th scope="col" className="py-2 pr-3">
+                      Đang công khai
+                    </th>
+                    <th scope="col" className="py-2">
+                      Gửi duyệt
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {diff.diffs.map((d) => (
+                    <tr key={d.fieldName} className={d.isChanged ? 'bg-warning-container/40' : undefined}>
+                      <th scope="row" className="py-2 pr-3 text-left font-medium">
+                        {d.fieldLabel}
+                        {d.isChanged && <span className="ml-1 text-xs font-bold">(đã đổi)</span>}
+                      </th>
+                      <td className="py-2 pr-3 align-top whitespace-pre-line break-words">{d.oldValue || 'Trống'}</td>
+                      <td className="py-2 align-top whitespace-pre-line break-words">{d.newValue || 'Trống'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        <section aria-labelledby="dup-heading">
+          <h3 id="dup-heading" className="text-base font-bold">
+            Tin nghi trùng
+          </h3>
+          {duplicates.length === 0 ? (
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Không phát hiện tin nghi trùng trong cùng khu vực, loại hình, diện tích và mức giá.
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-3">
+              {duplicates.map((c) => (
+                <li key={c.id} className="rounded-md border border-outline-variant p-3 text-sm">
+                  <p className="font-semibold">{c.otherTitle ?? c.otherListingId}</p>
+                  <p className="text-on-surface-variant">
+                    {c.otherAddress ?? 'Chưa có địa chỉ'} ·{' '}
+                    {c.otherPriceVnd != null ? formatPriceVnd(c.otherPriceVnd) : 'Chưa có giá'} · {c.otherAreaM2 ?? '?'}{' '}
+                    m²
+                  </p>
+                  <p className="mt-1">
+                    Điểm giống: {Math.round(c.score * 100)}% · {c.reasons.map(reasonLabel).join(', ')}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <StatusBadge
+                      label={
+                        c.status === 'OPEN'
+                          ? 'Chưa kết luận'
+                          : c.status === 'CONFIRMED'
+                            ? 'Đã xác nhận trùng'
+                            : 'Không trùng'
+                      }
+                      variant={c.status === 'CONFIRMED' ? 'warning' : c.status === 'DISMISSED' ? 'neutral' : 'info'}
+                    />
+                    {c.status === 'OPEN' && (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => decideDuplicate(c, 'CONFIRMED')}>
+                          Xác nhận trùng
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => decideDuplicate(c, 'DISMISSED')}>
+                          Không trùng
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section aria-labelledby="history-heading">
+          <h3 id="history-heading" className="flex items-center gap-2 text-base font-bold">
+            <History className="h-4 w-4" aria-hidden="true" /> Lịch sử quyết định
+          </h3>
+          {history.length === 0 ? (
+            <p className="mt-1 text-sm text-on-surface-variant">Chưa có quyết định nào.</p>
+          ) : (
+            <ol className="mt-2 space-y-2 text-sm">
+              {history.map((h) => (
+                <li key={h.id} className="rounded-md bg-surface-container-low p-2">
+                  <span className="font-semibold">{DECISION_LABELS[h.decision]}</span> bản #{h.revisionNumber} ·{' '}
+                  {h.moderatorName ?? 'Không rõ'} · {formatDateTime(h.createdAt)}
+                  <span className="block text-on-surface-variant">
+                    Lý do: {h.reasonCode}
+                    {h.note ? ` — ${h.note}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+    </Sheet>
+  );
+}
+
+function reasonLabel(reason: string): string {
+  if (reason.startsWith('TEXT_SIMILARITY:'))
+    return `mô tả/địa chỉ giống ${Math.round(Number(reason.split(':')[1]) * 100)}%`;
+  return (
+    {
+      EXACT_FINGERPRINT: 'trùng khớp địa chỉ/diện tích/loại',
+      SAME_DISTRICT_TYPE: 'cùng quận và loại hình',
+      AREA_WITHIN_5_PERCENT: 'diện tích lệch dưới 5%',
+      PRICE_BUCKET: 'mức giá tương đương',
+      SAME_OWNER: 'cùng người đăng',
+    }[reason] ?? reason
+  );
+}
+
+function AuditPanel() {
+  const [status, setStatus] = useState<'OPEN' | 'PASSED' | 'FAILED'>('OPEN');
+  const [page, setPage] = useState(0);
+  const [rows, setRows] = useState<AuditSample[]>([]);
+  const [total, setTotal] = useState(0);
+  const [tableStatus, setTableStatus] = useState<DataTableStatus>('loading');
+  const [reviewing, setReviewing] = useState<{ sample: AuditSample; outcome: 'PASSED' | 'FAILED' } | null>(null);
+  const [reasons, setReasons] = useState<{ approve: ReasonChoice[]; reject: ReasonChoice[] }>({
+    approve: [],
+    reject: [],
+  });
+
+  const load = useCallback(async () => {
+    setTableStatus('refreshing');
+    try {
+      const result = await moderationV2Api.auditSamples(status, page);
+      setRows(result.items);
+      setTotal(result.total);
+      setTableStatus('ready');
+    } catch {
+      setTableStatus('error');
+    }
+  }, [status, page]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    moderationV2Api
+      .reasons()
+      .then((r) =>
+        setReasons({
+          approve: r.approve.map((x) => ({ code: x.code, label: x.vietnameseLabel })),
+          reject: r.reject.map((x) => ({ code: x.code, label: x.vietnameseLabel })),
+        }),
+      )
+      .catch(() => undefined);
+  }, []);
+
+  const columns: DataTableColumn<AuditSample>[] = [
+    { key: 'week', header: 'Tuần', cell: (s) => `Từ ${s.weekStart}` },
+    { key: 'title', header: 'Tin đã duyệt', cell: (s) => <span className="font-semibold">{s.title}</span> },
+    {
+      key: 'by',
+      header: 'Người duyệt gốc',
+      cell: (s) => `${s.originalModeratorName ?? 'Không rõ'} · ${formatDateTime(s.approvedAt)}`,
+    },
+    {
+      key: 'actions',
+      header: 'Kết luận',
+      align: 'end',
+      cell: (s) =>
+        s.status === 'OPEN' ? (
+          <div className="flex justify-end gap-4">
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<ShieldCheck className="h-4 w-4" />}
+              onClick={() => setReviewing({ sample: s, outcome: 'PASSED' })}
+            >
+              Đạt
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => setReviewing({ sample: s, outcome: 'FAILED' })}>
+              Không đạt
+            </Button>
+          </div>
+        ) : (
+          <span className="text-sm">
+            {s.status === 'PASSED' ? 'Đạt' : 'Không đạt'} · {s.reviewerName ?? ''}
+          </span>
+        ),
+    },
+  ];
+
+  return (
+    <div className="space-y-4 pt-4">
+      <p className="text-sm text-on-surface-variant">
+        Mỗi thứ Hai hệ thống chọn ngẫu nhiên 5% (tối đa 20) tin đã được duyệt trong tuần trước để một người khác xem
+        lại.
+      </p>
+      <div className="flex gap-2" role="group" aria-label="Lọc mẫu kiểm tra">
+        {(['OPEN', 'PASSED', 'FAILED'] as const).map((s) => (
+          <Chip
+            key={s}
+            size="sm"
+            selected={status === s}
+            onClick={() => {
+              setStatus(s);
+              setPage(0);
+            }}
+          >
+            {s === 'OPEN' ? 'Chưa xem lại' : s === 'PASSED' ? 'Đạt' : 'Không đạt'}
+          </Chip>
+        ))}
+      </div>
+      <DataTable
+        caption="Mẫu kiểm tra ngẫu nhiên"
+        columns={columns}
+        rows={rows}
+        getRowId={(s) => s.id}
+        status={tableStatus}
+        onRetry={() => void load()}
+        empty={<EmptyState title="Không có mẫu nào" description="Mẫu của tuần trước được tạo tự động vào thứ Hai." />}
+        footer={
+          total > 20 ? (
+            <Pagination page={page + 1} pageCount={Math.ceil(total / 20)} onPageChange={(p) => setPage(p - 1)} />
+          ) : undefined
+        }
+      />
+      <ReasonDialog
+        open={reviewing !== null}
+        title={reviewing?.outcome === 'PASSED' ? 'Xác nhận quyết định duyệt là đúng' : 'Quyết định duyệt chưa đúng'}
+        reasons={reviewing?.outcome === 'PASSED' ? reasons.approve : reasons.reject}
+        noteMinLength={reviewing?.outcome === 'FAILED' ? 5 : 0}
+        confirmLabel="Lưu kết luận"
+        confirmVariant={reviewing?.outcome === 'FAILED' ? 'danger' : 'primary'}
+        onClose={() => setReviewing(null)}
+        onConfirm={async (code, note) => {
+          if (!reviewing) return;
+          await moderationV2Api.reviewSample(reviewing.sample.id, reviewing.outcome, code, note);
+          await load();
+        }}
+      />
     </div>
   );
 }

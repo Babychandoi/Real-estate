@@ -3,6 +3,9 @@ import { CheckCircle2, Eye, FileImage, LockKeyhole, ShieldCheck, Upload } from '
 import type { UserKycProfile } from '@/entities/verification/model/types';
 import { apiClient, apiFetch } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
+import { trustApi } from '@/entities/admin/api/adminApi';
+import type { MyKycStatus } from '@/entities/admin/model/types';
+import { KycScopePanel } from '@/features/kyc/KycScopePanel';
 
 type DocumentField = 'idCardFrontUrl' | 'idCardBackUrl' | 'selfieUrl';
 type UploadedImage = { url: string };
@@ -36,6 +39,7 @@ const STATUS_TEXT = {
 export function KycPage() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<UserKycProfile | null>(null);
+  const [myStatus, setMyStatus] = useState<MyKycStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState<DocumentField | ''>('');
@@ -56,6 +60,14 @@ export function KycPage() {
     idCardBackUrl: '',
     selfieUrl: '',
   });
+
+  useEffect(() => {
+    if (!user) return;
+    trustApi
+      .myStatus()
+      .then(setMyStatus)
+      .catch(() => setMyStatus(null));
+  }, [user, profile?.status]);
 
   useEffect(() => {
     if (!user) return;
@@ -197,7 +209,7 @@ export function KycPage() {
         Đang kiểm tra hồ sơ eKYC…
       </div>
     );
-  if (profile && profile.status !== 'REJECTED')
+  if (profile && profile.status !== 'REJECTED' && !(myStatus?.status === 'EXPIRED'))
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
         <section className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
@@ -211,7 +223,11 @@ export function KycPage() {
               Nhân sự kiểm duyệt sẽ đối chiếu ba ảnh bạn đã gửi. Bạn sẽ nhận thông báo ngay khi có kết quả.
             </p>
           )}
+          {myStatus?.expiresAt && profile.status === 'VERIFIED' && (
+            <p className="mt-3 text-sm">Hiệu lực đến {new Date(myStatus.expiresAt).toLocaleDateString('vi-VN')}.</p>
+          )}
         </section>
+        <KycScopePanel status={myStatus} />
         <section className="mt-6 rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
           <div className="flex items-start gap-3">
             <LockKeyhole className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
@@ -303,6 +319,7 @@ export function KycPage() {
           <strong>Hồ sơ cần gửi lại:</strong> {profile.rejectionReason || 'Ảnh hoặc thông tin chưa đủ rõ để đối chiếu.'}
         </p>
       )}
+      <KycScopePanel status={myStatus} />
       {error && (
         <p role="alert" className="mt-6 rounded-xl bg-rose-50 p-4 text-rose-900">
           {error}

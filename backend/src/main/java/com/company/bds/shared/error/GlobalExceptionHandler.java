@@ -193,6 +193,23 @@ public class GlobalExceptionHandler {
                 "VALIDATION_ERROR", UUID.randomUUID().toString(), errors));
     }
 
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<ProblemDetails> handleApiException(ApiException ex, HttpServletRequest request) {
+        return simple(ex, request, ex.status(), ex.code(), ex.status().is4xxClientError()
+                ? "Không thể thực hiện thao tác" : "Lỗi hệ thống");
+    }
+
+    /** Two writers raced on the same row (JPA @Version or a compare-and-set): the loser reloads and retries. */
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetails> handleOptimisticLock(
+            org.springframework.dao.OptimisticLockingFailureException ex, HttpServletRequest request) {
+        ProblemDetails problem = new ProblemDetails(URI.create(BASE_PROBLEM_TYPE + "concurrent_update"),
+                "Dữ liệu vừa được người khác thay đổi", HttpStatus.CONFLICT.value(),
+                "Dữ liệu vừa được thay đổi bởi thao tác khác. Vui lòng tải lại rồi thử lại.",
+                request.getRequestURI(), "CONCURRENT_UPDATE", UUID.randomUUID().toString(), null);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
+    }
+
     @ExceptionHandler(UnsupportedOperationException.class)
     public ResponseEntity<ProblemDetails> handleUnavailable(UnsupportedOperationException ex, HttpServletRequest request) {
         return simple(ex, request, HttpStatus.SERVICE_UNAVAILABLE, "FEATURE_UNAVAILABLE", "Tính năng chưa được cấu hình");

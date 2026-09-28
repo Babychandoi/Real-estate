@@ -47,7 +47,12 @@ class BdsApplicationTests {
     @BeforeEach
     void ensureMockUserExists() {
         testData.ensureUser(MOCK_USER_ID, "ADMIN");
+        testData.ensureUser(REVIEWER_ID, "MODERATOR");
     }
+
+    /** Trust decisions are four-eyes (S4): a second staff account reviews what the mock user submits. */
+    private static final String REVIEWER_ID_TEXT = "00000000-0000-0000-0000-000000000098";
+    private static final java.util.UUID REVIEWER_ID = java.util.UUID.fromString(REVIEWER_ID_TEXT);
 
     @AfterEach
     void removeLeadKycFixture() {
@@ -196,12 +201,13 @@ class BdsApplicationTests {
                 .andExpect(status().isOk());
 
         // 2. Kiểm tra hàng đợi kiểm duyệt /api/v1/moderation/queue
-        MvcResult queueRes = mockMvc.perform(get("/api/v1/moderation/queue"))
+        // F08.2: the queue is a server-paged envelope {items, page, size, total, stats}.
+        MvcResult queueRes = mockMvc.perform(get("/api/v1/moderation/queue").param("size", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.items").isArray())
                 .andReturn();
 
-        JsonNode queueArray = objectMapper.readTree(queueRes.getResponse().getContentAsString());
+        JsonNode queueArray = objectMapper.readTree(queueRes.getResponse().getContentAsString()).get("items");
         boolean foundInQueue = false;
         String revIdToApprove = null;
         for (JsonNode item : queueArray) {
@@ -227,7 +233,7 @@ class BdsApplicationTests {
             }
             """, revIdToApprove);
 
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listing1Id + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listing1Id + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(approveBody))
                 .andExpect(status().isOk())
@@ -278,7 +284,7 @@ class BdsApplicationTests {
             }
             """, rev2Id);
 
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listing2Id + "/reject")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listing2Id + "/reject").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(rejectBody))
                 .andExpect(status().isOk())
@@ -325,7 +331,7 @@ class BdsApplicationTests {
         String revId = objectMapper.readTree(diffRes.getResponse().getContentAsString()).get("currentRevisionId").asText();
 
         // Duyệt tin
-        mockMvc.perform(post("/api/v1/moderation/listings/" + id + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + id + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format("{\"revisionId\": \"%s\"}", revId)))
                 .andExpect(status().isOk());
@@ -409,7 +415,7 @@ class BdsApplicationTests {
                 .andReturn();
         String leadRevisionId = objectMapper.readTree(leadDiff.getResponse().getContentAsString())
                 .get("currentRevisionId").asText();
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format("{\"revisionId\":\"%s\"}", leadRevisionId)))
                 .andExpect(status().isOk());
@@ -491,7 +497,7 @@ class BdsApplicationTests {
         mockMvc.perform(post("/api/v1/listings/" + listingId + "/submit")).andExpect(status().isOk());
         MvcResult diffRes = mockMvc.perform(get("/api/v1/moderation/listings/" + listingId + "/diff")).andExpect(status().isOk()).andReturn();
         String revId = objectMapper.readTree(diffRes.getResponse().getContentAsString()).get("currentRevisionId").asText();
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(String.format("{\"revisionId\": \"%s\"}", revId))).andExpect(status().isOk());
 
@@ -624,7 +630,7 @@ class BdsApplicationTests {
                 .andExpect(jsonPath("$.fullName").value("Trần Văn Bình"));
 
         // 3. Thẩm định viên phê duyệt hồ sơ eKYC
-        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve"))
+        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("VERIFIED"))
                 .andExpect(jsonPath("$.verifiedAt").exists());
@@ -654,7 +660,7 @@ class BdsApplicationTests {
                 .andExpect(status().isCreated())
                 .andReturn();
         String kycId = objectMapper.readTree(kycRes.getResponse().getContentAsString()).get("id").asText();
-        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))).andExpect(status().isOk());
 
         // 2. Tạo tin đăng BĐS
         String listingJson = """
@@ -708,7 +714,7 @@ class BdsApplicationTests {
                 "verifierNote": "Họ tên trên CCCD và Sổ hồng trùng khớp 100%. Đã kiểm tra không tranh chấp quy hoạch."
             }
             """;
-        mockMvc.perform(post("/api/v1/verifications/" + verifId + "/approve")
+        mockMvc.perform(post("/api/v1/verifications/" + verifId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(approveBody))
                 .andExpect(status().isOk())

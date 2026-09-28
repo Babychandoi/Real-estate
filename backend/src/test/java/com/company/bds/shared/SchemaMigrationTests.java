@@ -123,8 +123,9 @@ class SchemaMigrationTests {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pg_proc WHERE proname='bds_enqueue_job'", Integer.class)).isEqualTo(1);
 
         assertThat(flyway("29").migrate().migrationsExecuted).isZero();
-        // The later migrations (S2 read model, …) also apply on top of these legacy rows.
+        // The later migrations (S2 read model, S4 admin, …) also apply on top of these legacy rows; a second run changes nothing.
         assertThat(flyway(null).migrate().success).isTrue();
+        assertThat(flyway(null).migrate().migrationsExecuted).isZero();
     }
 
     @Test
