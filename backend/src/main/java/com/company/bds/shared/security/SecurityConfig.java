@@ -66,6 +66,10 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/admin/login", "/api/v1/auth/register", "/api/v1/auth/resend-verification", "/api/v1/auth/forgot-password", "/api/v1/auth/reset-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/verify-email").permitAll()
+                        // S5-B: token pages and the staff second factor (the challenge token is the credential there).
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/verify-email", "/api/v1/auth/password-reset/status",
+                                "/api/v1/auth/admin/mfa/verify", "/api/v1/auth/admin/mfa/enroll",
+                                "/api/v1/auth/admin/mfa/enroll/confirm").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/public/**", "/api/v1/listings/search", "/api/v1/listings/by-slug/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/public/reports").permitAll()
                         // S6: one-click unsubscribe from alert e-mails (RFC 8058) carries its own token, no session.

@@ -133,6 +133,17 @@ app:
       local-strict-max-entries: 50000
       redis-retry-interval: 5s
       # Per-policy overrides, e.g. policies.auth-login.email.limit: 5 (defaults: RateLimitPolicies.defaults()).
+    # ADR 0001 phase B: staff sessions are shorter and end after 30 minutes without activity.
+    session:
+      user-ttl: ${APP_SECURITY_SESSION_USER_TTL:PT12H}
+      staff-ttl: ${APP_SECURITY_SESSION_STAFF_TTL:PT8H}
+      staff-idle-timeout: ${APP_SECURITY_SESSION_STAFF_IDLE_TIMEOUT:PT30M}
+    mfa:
+      # TOTP second factor for ADMIN/MODERATOR. false only for local demo/E2E stacks; refused when APP_MODE=production.
+      required: ${APP_SECURITY_MFA_REQUIRED:true}
+      issuer: ${APP_SECURITY_MFA_ISSUER:Nhà Đất Chuẩn}
+      challenge-ttl: PT5M
+      challenge-max-attempts: 5
   features:
     real-kyc: ${FEATURE_REAL_KYC:false}
     real-transactions: ${FEATURE_REAL_TRANSACTIONS:false}

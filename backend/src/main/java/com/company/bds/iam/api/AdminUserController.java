@@ -69,7 +69,8 @@ public class AdminUserController {
                        u.plan_code,u.plan_expires_at,u.listing_quota_remaining,ur.role,
                        COALESCE(k.status, 'NOT_SUBMITTED') AS kyc_status,
                        (SELECT MAX(s.created_at) FROM auth_sessions s WHERE s.user_id=u.id) AS last_login_at,
-                       (SELECT COUNT(*) FROM listings l WHERE l.owner_id=u.id) AS listing_count
+                       (SELECT COUNT(*) FROM listings l WHERE l.owner_id=u.id) AS listing_count,
+                       EXISTS (SELECT 1 FROM user_mfa m WHERE m.user_id=u.id) AS mfa_enrolled
                 """ + USERS_WITH_ROLE + """
                 LEFT JOIN user_kyc_profiles k ON k.user_id=u.id
                 """ + where + " ORDER BY u.created_at DESC, u.id DESC LIMIT ? OFFSET ?", (rs, row) -> new UserSummary(
@@ -77,7 +78,8 @@ public class AdminUserController {
                 rs.getString("role"), rs.getString("status"), rs.getString("kyc_status"),
                 rs.getString("plan_code"), rs.getInt("listing_quota_remaining"), rs.getLong("listing_count"),
                 instant(rs.getTimestamp("created_at")), instant(rs.getTimestamp("email_verified_at")),
-                instant(rs.getTimestamp("last_login_at")), instant(rs.getTimestamp("plan_expires_at"))), dataArgs);
+                instant(rs.getTimestamp("last_login_at")), instant(rs.getTimestamp("plan_expires_at")),
+                rs.getBoolean("mfa_enrolled")), dataArgs);
         return new UserPage(items, safePage, safeSize, total == null ? 0 : total);
     }
 
@@ -93,6 +95,20 @@ public class AdminUserController {
     public AdminUserService.RoleChange updateRole(@PathVariable UUID id, @RequestBody UpdateRoleRequest request,
                                                   Authentication authentication) {
         return adminUsers.changeRole(id, request.role(), request.reason(), CurrentUser.id(authentication));
+    }
+
+    /** Lost authenticator: removes the second factor (next staff login enrols again) and signs the account out everywhere. */
+    @PostMapping("/{id}/mfa/reset")
+    public ResponseEntity<Void> resetMfa(@PathVariable UUID id, @RequestBody ReasonRequest request, Authentication authentication) {
+        adminUsers.resetMfa(id, request.reason(), CurrentUser.id(authentication));
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Signs the account out of every device (suspected compromise) with a reason. */
+    @PostMapping("/{id}/sessions/revoke")
+    public AdminUserService.SessionsRevoked revokeSessions(@PathVariable UUID id, @RequestBody ReasonRequest request,
+                                                          Authentication authentication) {
+        return adminUsers.revokeSessions(id, request.reason(), CurrentUser.id(authentication));
     }
 
     @GetMapping("/{id}/history")
@@ -126,7 +142,8 @@ public class AdminUserController {
     public record UserPage(List<UserSummary> items, int page, int size, long total) {}
     public record UserSummary(UUID id, String fullName, String email, String role, String status, String kycStatus,
                               String planCode, int listingQuotaRemaining, long listingCount, Instant createdAt,
-                              Instant emailVerifiedAt, Instant lastLoginAt, Instant planExpiresAt) {}
+                              Instant emailVerifiedAt, Instant lastLoginAt, Instant planExpiresAt, boolean mfaEnrolled) {}
+    public record ReasonRequest(String reason) {}
     public record UpdateStatusRequest(String status, String reason) {}
     public record UpdateRoleRequest(String role, String reason) {}
     public record KycAccessRequest(String password, String reason) {}

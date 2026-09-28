@@ -25,10 +25,13 @@ public class BearerTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ") && SecurityContextHolder.getContext().getAuthentication() == null) {
-            AuthService.UserAccount user = authService.findByToken(header.substring(7));
-            if (user != null) {
+            var session = authService.findSession(header.substring(7));
+            if (session != null) {
+                AuthService.UserAccount user = session.user();
                 var auth = new UsernamePasswordAuthenticationToken(user, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
+                // The session id lets the account mark "this device" in its session list and keep it on password change.
+                auth.setDetails(new CurrentUser.SessionDetails(session.id()));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }

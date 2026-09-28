@@ -65,6 +65,21 @@ public class RateLimitPolicies {
                         rule(IP, 10, Duration.ofMinutes(15))),
                 policy("auth-verify-email", "GET", "/api/v1/auth/verify-email", FAIL_CLOSED,
                         rule(IP, 20, Duration.ofMinutes(15))),
+                // S5-B token pages: the page posts the token in the body; the reset page asks the link state first.
+                policy("auth-verify-email-post", "POST", "/api/v1/auth/verify-email", FAIL_CLOSED,
+                        rule(IP, 20, Duration.ofMinutes(15))),
+                policy("auth-reset-status", "POST", "/api/v1/auth/password-reset/status", FAIL_CLOSED,
+                        rule(IP, 30, Duration.ofMinutes(15))),
+                // S5-B staff second factor: each challenge also burns itself after 5 wrong codes (MfaService).
+                policy("auth-mfa-verify", "POST", "/api/v1/auth/admin/mfa/verify", FAIL_CLOSED,
+                        rule(IP, 20, Duration.ofMinutes(15))),
+                policy("auth-mfa-enroll", "POST", "/api/v1/auth/admin/mfa/**", FAIL_CLOSED,
+                        rule(IP, 20, Duration.ofMinutes(15))),
+                // Re-enters the current password / a TOTP code of the signed-in account.
+                policy("account-password", "POST", "/api/v1/me/password", FAIL_CLOSED,
+                        rule(IP, 20, Duration.ofMinutes(15)), rule(ACCOUNT, 5, Duration.ofMinutes(15))),
+                policy("account-mfa-codes", "POST", "/api/v1/me/mfa/recovery-codes", FAIL_CLOSED,
+                        rule(IP, 20, Duration.ofMinutes(15)), rule(ACCOUNT, 5, Duration.ofMinutes(15))),
                 // Re-enters the account password before private KYC images are shown.
                 policy("kyc-document-access", "POST", "/api/v1/kyc/documents/access", FAIL_CLOSED,
                         rule(IP, 20, Duration.ofMinutes(15)), rule(ACCOUNT, 5, Duration.ofMinutes(15))),
@@ -91,6 +106,11 @@ public class RateLimitPolicies {
                         rule(IP, 120, Duration.ofMinutes(1))),
                 policy("analytics-events", "POST", "/api/v1/events", EVICT,
                         rule(IP, 120, Duration.ofMinutes(1))),
+                // S1 signed media (follow-up): signing is a cheap HMAC, but each signed GET streams an object.
+                policy("media-signed-urls", "POST", "/api/v1/media/signed-urls", EVICT,
+                        rule(IP, 240, Duration.ofMinutes(1)), rule(ACCOUNT, 120, Duration.ofMinutes(1))),
+                policy("media-signed-get", "GET", "/api/v1/media/signed/**", EVICT,
+                        rule(IP, 600, Duration.ofMinutes(1))),
                 // Uploads are scanned by ClamAV and written to object storage: far more expensive than a read.
                 policy("media-upload", "POST", "/api/v1/media/**", EVICT,
                         rule(IP, 120, Duration.ofHours(1)), rule(ACCOUNT, 120, Duration.ofHours(1))),
