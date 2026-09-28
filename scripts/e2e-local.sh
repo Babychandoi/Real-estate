@@ -151,7 +151,9 @@ export APP_GEOCODING_PROVIDER_URL="http://127.0.0.1:9"
 export APP_ALLOWED_ORIGINS="http://127.0.0.1:$FRONTEND_PORT,http://localhost:$FRONTEND_PORT"
 export APP_PUBLIC_BASE_URL="http://127.0.0.1:$FRONTEND_PORT"
 JVM=(java -Xmx768m -jar "$JAR")
-SEED_ARGS=(--app.uat-seed.mode=seed "--app.uat-seed.accounts=$SEED_ACCOUNTS" "--app.uat-seed.clock=$SEED_CLOCK")
+# demo.broker gets a synthetic VERIFIED KYC profile so the supply suite can post listings (S11: no fixture SQL needed).
+SEED_ARGS=(--app.uat-seed.mode=seed "--app.uat-seed.accounts=$SEED_ACCOUNTS" "--app.uat-seed.clock=$SEED_CLOCK"
+  --app.uat-seed.kyc-verified-accounts=demo.broker@bds.local)
 
 wait_ready() {
   for _ in $(seq 1 180); do

@@ -131,6 +131,31 @@ class UatDataSeederTests {
                 .hasMessageContaining("ISO-8601");
     }
 
+    @Test
+    void listedRealAccountsWithoutKycGetASyntheticVerifiedProfileThatPurgeRemovesAndExistingProfilesAreKept() {
+        TestData.TestUser broker = data.user().role("BROKER").create();
+        TestData.TestUser pending = data.user().role("BROKER").kyc("PENDING").create();
+        String unlisted = "unlisted-" + UUID.randomUUID() + "@example.invalid";
+        UatDataSeeder seeder = new UatDataSeeder(jdbc, pii, transaction, context, "seed", false,
+                List.of(broker.email(), pending.email()), "http://127.0.0.1:9", "s0be-unused", CLOCK, "test", "");
+        seeder.setKycVerifiedAccounts(List.of(broker.email().toUpperCase(), pending.email(), unlisted));
+        try {
+            seeder.seedNow();
+            assertThat(jdbc.queryForObject("SELECT status FROM user_kyc_profiles WHERE user_id = ?", String.class, broker.id()))
+                    .isEqualTo("VERIFIED");
+            assertThat(jdbc.queryForObject("SELECT id::text FROM user_kyc_profiles WHERE user_id = ?", String.class, broker.id()))
+                    .startsWith("ee5eed07");
+            assertThat(jdbc.queryForObject("SELECT status FROM user_kyc_profiles WHERE user_id = ?", String.class, pending.id()))
+                    .as("an existing profile is never changed").isEqualTo("PENDING");
+            // The verified real broker gets the full listing lifecycle like any real seller.
+            assertThat(count("SELECT COUNT(*) FROM listings WHERE owner_id = ?", broker.id())).isGreaterThanOrEqualTo(12);
+        } finally {
+            seeder.purgeNow();
+        }
+        assertThat(count("SELECT COUNT(*) FROM user_kyc_profiles WHERE user_id = ?", broker.id())).isZero();
+        assertThat(count("SELECT COUNT(*) FROM user_kyc_profiles WHERE user_id = ?", pending.id())).isOne();
+    }
+
     private void assertSeededData() {
         assertThat(count("SELECT COUNT(*) FROM listing_reports WHERE id::text ~ '^ee5eed[0-9a-f]{2}-0000-4000-8000-' AND reporter_phone IS NOT NULL AND reporter_phone NOT LIKE 'v1:%'"))
                 .as("seeded reporter phones are stored encrypted").isZero();
