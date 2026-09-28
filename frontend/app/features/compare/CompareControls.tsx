@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Building2, Check, Plus, Scale, X } from 'lucide-react';
-import { formatPriceVnd } from '@/entities/listing/model/types';
+import { formatListingPrice } from '@/entities/listing/model/types';
 import { MAX_COMPARE, compareResultMessage, compareStore, useCompareItems, type CompareItem } from './compareStore';
 
 export function compareHref(items: CompareItem[]) {
@@ -77,7 +77,7 @@ export function CompareTray() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-bold text-slate-900">{item.title}</p>
-                <p className="text-xs font-semibold text-emerald-800">{formatPriceVnd(item.priceVnd)}</p>
+                <p className="text-xs font-semibold text-emerald-800">{formatListingPrice(item.priceVnd, item.purpose)}</p>
               </div>
               <button type="button" onClick={() => compareStore.remove(item.id)} aria-label={`Bỏ ${item.title} khỏi so sánh`} className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-500 hover:bg-white hover:text-rose-700">
                 <X className="h-4 w-4" />
@@ -104,3 +104,4 @@ export function CompareTray() {
     </>
   );
 }
+

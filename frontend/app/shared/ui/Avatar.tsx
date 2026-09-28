@@ -5,7 +5,7 @@ export function initialsOf(name?: string | null): string {
   return (name ?? '').trim().split(/\s+/).filter(Boolean).slice(-2).map((part) => part[0]).join('').toLocaleUpperCase('vi-VN');
 }
 
-const SIZES = { xs: 'h-6 w-6 text-[10px]', sm: 'h-8 w-8 text-xs', md: 'h-10 w-10 text-sm', lg: 'h-12 w-12 text-base', xl: 'h-20 w-20 text-lg' };
+const SIZES = { xs: 'h-6 w-6 text-xs', sm: 'h-8 w-8 text-xs', md: 'h-10 w-10 text-sm', lg: 'h-12 w-12 text-base', xl: 'h-20 w-20 text-lg' };
 
 /** Profile photo with an initials fallback; also falls back when the image fails to load. */
 export function Avatar({ name, src, size = 'md', className = '' }: { name?: string | null; src?: string | null; size?: keyof typeof SIZES; className?: string }) {
@@ -19,3 +19,4 @@ export function Avatar({ name, src, size = 'md', className = '' }: { name?: stri
     </span>
   );
 }
+

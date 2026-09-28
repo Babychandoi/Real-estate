@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Building2, CalendarDays, ShieldCheck, ShieldQuestion } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
 import { Avatar } from '@/shared/ui/Avatar';
-import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { ComparableListingCard } from '@/features/compare/ComparableListingCard';
 import type { Listing, PublicSellerProfile } from '@/entities/listing/model/types';
 import { useAuth } from '@/shared/auth/AuthContext';
 
@@ -35,16 +35,16 @@ export function SellerProfilePage() {
   }, [sellerId]);
 
   if (state === 'loading') {
-    return <main className="mx-auto max-w-6xl px-4 py-10"><div className="h-40 animate-pulse rounded-2xl bg-surface-container" /></main>;
+    return <section className="mx-auto max-w-6xl px-4 py-10"><div className="h-40 animate-pulse rounded-2xl bg-surface-container" /></section>;
   }
   if (state !== 'ready' || !profile) {
     return (
-      <main className="mx-auto max-w-xl px-4 py-16 text-center">
+      <section className="mx-auto max-w-xl px-4 py-16 text-center">
         <ShieldQuestion className="mx-auto h-12 w-12 text-outline" aria-hidden="true" />
         <h1 className="mt-3 text-xl font-bold text-on-surface">{state === 'missing' ? 'Không tìm thấy người đăng' : 'Không tải được trang cá nhân'}</h1>
         <p className="mt-2 text-sm text-on-surface-variant">{state === 'missing' ? 'Tài khoản này không tồn tại hoặc đã ngừng hoạt động.' : 'Vui lòng thử lại sau ít phút.'}</p>
         <Link to="/search" className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-primary px-5 text-sm font-bold text-white">Xem tin đăng khác</Link>
-      </main>
+      </section>
     );
   }
 
@@ -54,7 +54,7 @@ export function SellerProfilePage() {
   const memberSince = new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(new Date(profile.memberSince));
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 md:px-6">
+    <section className="mx-auto max-w-6xl px-4 py-8 md:px-6">
       <button type="button" onClick={() => window.history.length > 1 ? window.history.back() : undefined} className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-on-surface-variant hover:text-on-surface">
         <ArrowLeft className="h-4 w-4" /> Quay lại
       </button>
@@ -83,16 +83,17 @@ export function SellerProfilePage() {
           <div className="inline-flex rounded-lg border border-outline-variant/40 bg-surface-container-low p-0.5 text-xs" role="group" aria-label="Lọc theo nhu cầu">
             {([['ALL', `Tất cả (${listings.length})`], ['SALE', `Bán (${saleCount})`], ['RENT', `Cho thuê (${listings.length - saleCount})`]] as const).map(([value, label]) => (
               <button key={value} type="button" onClick={() => setPurpose(value)} aria-pressed={purpose === value}
-                className={`min-h-9 rounded-md px-3 font-semibold ${purpose === value ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-primary'}`}>{label}</button>
+                className={`min-h-11 rounded-md px-3 font-semibold ${purpose === value ? 'bg-primary text-white' : 'text-on-surface-variant hover:text-primary'}`}>{label}</button>
             ))}
           </div>
         </div>
         {shown.length === 0
           ? <p className="rounded-2xl border border-dashed border-outline-variant p-10 text-center text-sm text-on-surface-variant">Chưa có tin nào đang hiển thị.</p>
-          : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 md:gap-5">{shown.map((item) => <ListingCard key={item.id} listing={item} />)}</div>}
+          : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 md:gap-5">{shown.map((item) => <ComparableListingCard key={item.id} listing={item} />)}</div>}
       </section>
-    </main>
+    </section>
   );
 }
 
 export default SellerProfilePage;
+

@@ -21,7 +21,7 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100';
+  const baseStyles = 'inline-flex min-h-11 items-center justify-center font-medium rounded-lg transition-all focus-visible:outline focus:ring-2 focus:ring-primary/20 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none disabled:active:scale-100';
 
   const variants = {
     primary: 'bg-primary text-primary-on hover:bg-primary-container shadow-sm shadow-primary/20',
@@ -52,3 +52,4 @@ export const Button: React.FC<ButtonProps> = ({
     </button>
   );
 };
+

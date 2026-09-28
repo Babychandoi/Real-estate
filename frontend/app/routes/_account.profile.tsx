@@ -54,7 +54,7 @@ export function AccountProfilePage() {
     finally { setSaving(false); }
   };
 
-  return <main className="mx-auto max-w-3xl px-4 py-8 md:px-8">
+  return <section className="mx-auto max-w-3xl px-4 py-8 md:px-8">
     <header className="border-b border-outline-variant/40 pb-6">
       <h1 className="text-2xl font-bold text-on-surface">Thông tin cá nhân</h1>
       <p className="mt-2 text-sm text-on-surface-variant">Quản lý tên hiển thị, ảnh đại diện và số điện thoại liên hệ của bạn.</p>
@@ -84,7 +84,8 @@ export function AccountProfilePage() {
       {message && <p role="status" className={`flex items-center gap-2 text-sm ${message.startsWith('Đã') ? 'text-emerald-800' : 'text-rose-700'}`}>{message.startsWith('Đã') && <CheckCircle2 className="h-4 w-4" />}{message}</p>}
       <button disabled={saving || uploading} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-5 text-sm font-bold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"><Save className="h-4 w-4" />{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</button>
     </form>
-  </main>;
+  </section>;
 }
 
 export default AccountProfilePage;
+

@@ -3,13 +3,13 @@ import * as maplibregl from 'maplibre-gl';
 import type { GeoJSONSource, Map as MlMap } from 'maplibre-gl';
 import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { formatPriceVnd, type Listing } from '@/entities/listing/model/types';
+import { formatListingPrice, type Listing } from '@/entities/listing/model/types';
 import { listingPath } from '@/entities/listing/model/seo';
 import type { GeocodePlace } from '@/shared/api/geocodingApi';
 
 export type MapBounds = { minLat: number; maxLat: number; minLng: number; maxLng: number };
 /** A place to fly to; `key` changes on every new request so re-selecting the same place still moves the map. */
-export type MapFocus = GeocodePlace & { key: number };
+export type MapFocus = GeocodePlace & { key: string | number };
 
 const toBounds = (instance: MlMap): MapBounds => {
   const b = instance.getBounds();
@@ -55,7 +55,7 @@ function listingPopupContent(listing: Listing): HTMLDivElement {
   const body = document.createElement('div');
   body.style.cssText = 'padding:12px';
   const price = document.createElement('p');
-  price.textContent = formatPriceVnd(listing.priceVnd);
+  price.textContent = formatListingPrice(listing.priceVnd, listing.purpose);
   price.style.cssText = 'margin:0 0 4px;font-size:18px;font-weight:800;line-height:1.25;color:#004b7a';
   const title = document.createElement('a');
   title.href = listingPath(listing);
@@ -84,8 +84,6 @@ export function ListingMap({ listings, focus, onSearchArea }: { listings: Listin
   listingsRef.current = listings;
   const focusRef = useRef(focus);
   focusRef.current = focus;
-  const onSearchAreaRef = useRef(onSearchArea);
-  onSearchAreaRef.current = onSearchArea;
   const [bounds, setBounds] = useState<MapBounds>();
 
   useEffect(() => {
@@ -110,7 +108,7 @@ export function ListingMap({ listings, focus, onSearchArea }: { listings: Listin
         const listing = listingsRef.current.find((item) => item.id === String(feature?.properties?.id ?? ''));
         if (feature && listing) new maplibregl.Popup({ maxWidth: '296px', offset: 14 }).setLngLat((feature.geometry as GeoJSON.Point).coordinates as [number, number]).setDOMContent(listingPopupContent(listing)).addTo(instance);
       });
-      if (focusRef.current) applyFocus(instance, focusRef.current, marker, (next) => onSearchAreaRef.current(next));
+      if (focusRef.current) applyFocus(instance, focusRef.current, marker, setBounds);
     });
     instance.on('moveend', () => setBounds(toBounds(instance)));
     return () => { instance.remove(); map.current = undefined; loaded.current = false; };
@@ -118,7 +116,7 @@ export function ListingMap({ listings, focus, onSearchArea }: { listings: Listin
 
   useEffect(() => {
     if (!focus || !map.current || !loaded.current) return;
-    applyFocus(map.current, focus, marker, (next) => onSearchAreaRef.current(next));
+    applyFocus(map.current, focus, marker, setBounds);
   }, [focus?.key]);
 
   useEffect(() => {
@@ -128,3 +126,4 @@ export function ListingMap({ listings, focus, onSearchArea }: { listings: Listin
 
   return <div className="absolute inset-0 z-30"><div ref={host} className="h-full w-full" aria-label="Bản đồ tin đăng tương tác"/><button disabled={!bounds} onClick={() => bounds && onSearchArea(bounds)} className="absolute top-4 left-1/2 -translate-x-1/2 min-h-11 px-5 rounded-full bg-white text-slate-900 font-bold shadow-xl border border-slate-200 disabled:opacity-60">Tìm trong khu vực này</button></div>;
 }
+

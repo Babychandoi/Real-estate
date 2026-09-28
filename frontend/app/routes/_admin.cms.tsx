@@ -416,7 +416,7 @@ export const CmsManagementPage: React.FC = () => {
               <span className="font-bold text-primary text-sm">
                 Quy tắc Tuân thủ Kiểm duyệt Nội dung Độc lập (FR24 & FR32)
               </span>
-              <span className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-primary font-mono font-semibold text-[10px]">
+              <span className="px-1.5 py-0.5 rounded bg-surface-container-lowest text-primary font-mono font-semibold text-xs">
                 Strict Mode Active
               </span>
             </div>
@@ -494,7 +494,7 @@ export const CmsManagementPage: React.FC = () => {
                 }`}
               >
                 <span>{tab.label}</span>
-                <span className={`text-[11px] ${tab.color}`}>
+                <span className={`text-xs ${tab.color}`}>
                   {tab.count.toString().padStart(2, '0')}
                 </span>
               </button>
@@ -589,7 +589,7 @@ export const CmsManagementPage: React.FC = () => {
                           ? 'ĐÃ XUẤT BẢN'
                           : 'BẢN NHÁP'}
                       </span>
-                      <span className="px-2 py-0.5 rounded bg-black/60 text-white text-[11px] font-mono">
+                      <span className="px-2 py-0.5 rounded bg-black/60 text-white text-xs font-mono">
                         Rev #{rev.revisionNumber}
                       </span>
                     </div>
@@ -603,7 +603,7 @@ export const CmsManagementPage: React.FC = () => {
                         <span className="text-xs px-2 py-0.5 rounded bg-surface-container text-primary font-semibold">
                           {art.categoryLabel}
                         </span>
-                        <span className="text-outline text-[11px] font-mono">
+                        <span className="text-outline text-xs font-mono">
                           ID: #{rev.id.slice(0, 12)}
                         </span>
                       </div>
@@ -631,7 +631,7 @@ export const CmsManagementPage: React.FC = () => {
                       </p>
 
                       {/* SEO Specs Accordion FR26 */}
-                      <div className="p-2.5 rounded-lg bg-surface-container-low text-xs space-y-1 font-mono text-[11px]">
+                      <div className="p-2.5 rounded-lg bg-surface-container-low text-xs space-y-1 font-mono text-xs">
                         <div className="flex items-center justify-between">
                           <span className="text-outline">Slug:</span>
                           <span className="text-primary font-semibold">/{art.slug}</span>
@@ -877,3 +877,4 @@ export const CmsManagementPage: React.FC = () => {
 };
 
 export default CmsManagementPage;
+

@@ -1,13 +1,17 @@
+import { ListingGallery } from '@/entities/listing/ui/ListingGallery';
+import { StatePanel } from '@/shared/ui/Feedback';
+import { Dialog } from '@/shared/ui/Dialog';
+import { ApiProblemException } from '@/shared/types/problem-details';
 import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { CompareToggleButton } from '@/features/compare/CompareControls';
 import { Avatar } from '@/shared/ui/Avatar';
 import { useParams, Link } from 'react-router-dom';
-import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, BedDouble, Bath, Building, Ruler, Route, Compass, FileText } from 'lucide-react';
+import { ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, BedDouble, Bath, Building, Ruler, Route, Compass, FileText } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { Badge } from '@/shared/ui/Badge';
 import { Card } from '@/shared/ui/Card';
 import { apiClient } from '@/shared/api/client';
-import { type ListingDetail, type PublicSellerProfile, formatPriceVnd, calculateUnitPrice, formatPropertyType } from '@/entities/listing/model/types';
+import { type ListingDetail, type PublicSellerProfile, formatListingPrice, calculateUnitPrice, formatPropertyType } from '@/entities/listing/model/types';
 import { LeadConsultationModal } from '@/features/lead/ui/LeadConsultationModal';
 import { useAuth } from '@/shared/auth/AuthContext';
 import type { UserKycProfile } from '@/entities/verification/model/types';
@@ -21,6 +25,8 @@ export const ListingDetailPage: React.FC = () => {
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [seller, setSeller] = useState<PublicSellerProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [reportCategory, setReportCategory] = useState('OTHER');
@@ -55,21 +61,14 @@ export const ListingDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
-    async function loadListing() {
-      try {
-        const endpoint = legacyListingId ? `/listings/${legacyListingId}` : `/listings/by-slug/${encodeURIComponent(listingRoute || '')}`;
-        const data = await apiClient<ListingDetail>(endpoint);
-        setListing(data);
-      } catch (err) {
-        console.error('Lỗi khi tải chi tiết tin đăng:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    if (listingRoute) {
-      loadListing();
-    }
-  }, [legacyListingId, listingRoute]);
+    let active = true;
+    setIsLoading(true); setListing(null); setSeller(null); setLoadError(false);
+    const endpoint = legacyListingId ? `/listings/${legacyListingId}` : `/listings/by-slug/${encodeURIComponent(listingRoute || '')}`;
+    apiClient<ListingDetail>(endpoint).then(data => { if (active) setListing(data); }).catch((error: unknown) => {
+      if (active) setLoadError(!(error instanceof ApiProblemException && error.problem.status === 404));
+    }).finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [legacyListingId, listingRoute, attempt]);
 
   useEffect(() => {
     if (!listing?.ownerId) return;
@@ -83,7 +82,7 @@ export const ListingDetailPage: React.FC = () => {
     if (window.location.pathname !== canonicalPath) window.history.replaceState(null, '', canonicalPath);
 
     document.title = `${listing.title} | Nhà Đất Chuẩn`;
-    const description = `${formatPropertyType(listing.propertyType)} ${listing.purpose === 'SALE' ? 'cần bán' : 'cho thuê'} tại ${listing.addressSummary}, diện tích ${listing.areaM2} m², giá ${formatPriceVnd(listing.priceVnd)}.`;
+    const description = `${formatPropertyType(listing.propertyType)} ${listing.purpose === 'SALE' ? 'cần bán' : 'cho thuê'} tại ${listing.addressSummary}, diện tích ${listing.areaM2} m², giá ${formatListingPrice(listing.priceVnd, listing.purpose)}.`;
     const upsertMeta = (selector: string, attributes: Record<string, string>) => {
       let element = document.head.querySelector<HTMLMetaElement>(selector);
       if (!element) { element = document.createElement('meta'); document.head.appendChild(element); }
@@ -124,6 +123,8 @@ export const ListingDetailPage: React.FC = () => {
     );
   }
 
+  if (loadError) return <div className="ndc-page py-10"><StatePanel error onRetry={() => setAttempt(value => value + 1)} /></div>;
+
   if (!listing) {
     return (
       <div className="max-w-md mx-auto my-16 text-center">
@@ -150,32 +151,8 @@ export const ListingDetailPage: React.FC = () => {
         {!isOwnListing && <button type="button" onClick={() => setIsReportOpen(true)} className="ml-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-rose-700"><Flag className="h-4 w-4" /> Báo cáo tin vi phạm</button>}
       </div>
 
-      {/* Hero Gallery ảnh */}
-      <div className="relative rounded-2xl overflow-hidden aspect-[16/9] md:aspect-[21/9] bg-surface-container">
-        {listing.imageUrls[0] ? <img
-          src={listing.imageUrls[0]}
-          alt={listing.title}
-          decoding="async"
-          fetchPriority="high"
-          className="w-full h-full object-cover"
-        /> : <div className="grid h-full place-items-center text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
-          <Building2 className="h-16 w-16" aria-hidden="true" />
-        </div>}
-        <div className="absolute top-4 left-4 flex gap-2">
-          {listing.isVerified && (
-            <Badge variant="verified" icon={<ShieldCheck className="w-4 h-4" />}>
-              Đã xác thực người đăng
-            </Badge>
-          )}
-        </div>
-      </div>
-      {listing.imageUrls.length > 1 && (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5" aria-label="Các ảnh của tin đăng">
-          {listing.imageUrls.slice(1, 6).map((url, index) => (
-            <img key={url} src={url} alt={`Ảnh ${index + 2} của ${listing.title}`} loading="lazy" decoding="async" className="aspect-video w-full rounded-xl object-cover" />
-          ))}
-        </div>
-      )}
+      <ListingGallery key={listing.id} images={listing.imageUrls} title={listing.title} />
+      {listing.isVerified && <div><Badge variant="verified" icon={<ShieldCheck className="h-4 w-4" aria-hidden="true" />}>Tin đã xác thực</Badge></div>}
 
       {/* Chi tiết nội dung và Form liên hệ Lead */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
@@ -184,10 +161,10 @@ export const ListingDetailPage: React.FC = () => {
           <div>
             <div className="flex items-baseline gap-3 flex-wrap">
               <span className="text-3xl font-extrabold text-primary tracking-tight">
-                {formatPriceVnd(listing.priceVnd)}
+                {formatListingPrice(listing.priceVnd, listing.purpose)}
               </span>
               <span className="text-sm font-semibold text-on-surface-variant">
-                {calculateUnitPrice(listing.priceVnd, listing.areaM2)}
+                {listing.purpose === 'SALE' ? calculateUnitPrice(listing.priceVnd, listing.areaM2) : 'Giá thuê mỗi tháng'}
               </span>
             </div>
             <h1 className="text-xl md:text-2xl font-bold text-on-surface mt-2 leading-snug">
@@ -258,7 +235,7 @@ export const ListingDetailPage: React.FC = () => {
 
         {/* Cột phải: tin của chính mình → khối quản lý thay cho form liên hệ */}
         {isOwnListing ? (
-        <div className="lg:col-span-1 sticky top-6">
+        <div className="lg:col-span-1 lg:sticky lg:top-24">
           <Card className="p-5 border border-primary/20 shadow-lg shadow-primary/5">
             <div className="flex items-center gap-3 pb-4 border-b border-outline-variant/40">
               <Avatar name={user?.name} src={user?.avatarMediaUrl} size="md" />
@@ -278,7 +255,7 @@ export const ListingDetailPage: React.FC = () => {
           </Card>
         </div>
         ) : (
-        <div className="lg:col-span-1 sticky top-6">
+        <div className="lg:col-span-1 lg:sticky lg:top-24">
           <Card className="p-5 border border-primary/20 shadow-lg shadow-primary/5">
             <div className="flex items-center gap-2 pb-4 border-b border-outline-variant/40">
               <Link to={`/nguoi-dang/${listing.ownerId}`} aria-label={seller ? `Xem trang cá nhân của ${seller.displayName}` : 'Xem trang cá nhân người đăng'} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
@@ -291,7 +268,7 @@ export const ListingDetailPage: React.FC = () => {
             </div>
 
             <div className="mt-4 flex flex-col gap-3">
-                <p className="text-sm text-on-surface-variant">Gửi một yêu cầu ngắn để hẹn thời gian xem nhà. Hệ thống chỉ ghi nhận thành công khi máy chủ trả về mã yêu cầu.</p>
+                <p className="text-sm text-on-surface-variant">Gửi một yêu cầu ngắn để hẹn thời gian xem nhà. Bạn có thể theo dõi yêu cầu đã gửi trong tài khoản.</p>
                 <Button
                   type="button"
                   variant="outline"
@@ -340,16 +317,16 @@ export const ListingDetailPage: React.FC = () => {
         />
       )}
       {isReportOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="report-title">
+        <Dialog open={isReportOpen} onClose={() => setIsReportOpen(false)} title="Báo cáo tin vi phạm">
           <form onSubmit={submitReport} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6">
-            <h2 id="report-title" className="text-xl font-bold">Báo cáo tin vi phạm</h2>
             <label className="block text-sm font-semibold">Loại vi phạm<select value={reportCategory} onChange={(event) => setReportCategory(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border px-3"><option value="SCAM_DEPOSIT">Có dấu hiệu lừa cọc</option><option value="FAKE_SOLD">Tin không còn đúng hiện trạng</option><option value="INCORRECT_PRICE">Giá không chính xác</option><option value="OTHER">Khác</option></select></label>
             <label className="block text-sm font-semibold">Mô tả<textarea required minLength={10} value={reportDescription} onChange={(event) => setReportDescription(event.target.value)} rows={4} className="mt-1 w-full rounded-lg border p-3" /></label>
             {reportFeedback && <p role="status" className="text-sm">{reportFeedback}</p>}
             <div className="flex justify-end gap-2"><button type="button" onClick={() => setIsReportOpen(false)} className="min-h-11 rounded-lg border px-4">Đóng</button><button disabled={reportBusy || reportDescription.trim().length < 10} className="min-h-11 rounded-lg bg-rose-700 px-4 font-bold text-white disabled:opacity-50">{reportBusy ? 'Đang gửi…' : 'Gửi báo cáo'}</button></div>
           </form>
-        </div>
+        </Dialog>
       )}
     </div>
   );
 };
+

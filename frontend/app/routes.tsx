@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { RouteFailure } from '@/shared/ui/RouteFailure';
 import { RootLayout } from './root';
 import { ProtectedRoute } from '@/shared/auth/ProtectedRoute';
 import { AdminLoginShell, AdminShell } from '@/shared/admin/AdminShell';
@@ -37,7 +38,7 @@ const load = (node: ReactNode) => <Suspense fallback={<div className="max-w-6xl 
 const protect = (node: ReactNode, moduleName: string, allowedRoles: Array<'ADMIN'|'MODERATOR'|'BROKER'|'USER'>, adminLogin = false) => load(<ProtectedRoute moduleName={moduleName} allowedRoles={allowedRoles} loginPath={adminLogin ? '/2026/nhadatchuan/admin/login' : undefined}>{node}</ProtectedRoute>);
 
 export const router = createBrowserRouter([
-  { path: '/', element: <RootLayout />, children: [
+  { path: '/', element: <RootLayout />, errorElement: <RouteFailure />, children: [
     { index: true, element: load(<HomePage />) }, { path: 'search', element: load(<SearchAndMapPage />) },
     { path: 'listings/new', element: protect(<CreateListingPage />, 'Đăng tin', ['ADMIN','BROKER']) }, { path: 'listings/:listingId', element: load(<ListingDetailPage />) },
     { path: 'my-listings', element: protect(<MyListingsPage />, 'Kho tin của tôi', ['ADMIN','BROKER']) }, { path: 'broker/workspace', element: protect(<BrokerWorkspacePage />, 'Không gian môi giới', ['ADMIN','BROKER']) },
@@ -48,7 +49,7 @@ export const router = createBrowserRouter([
     { path: 'about', element: load(<InformationPage />) }, { path: 'terms', element: load(<InformationPage />) }, { path: 'privacy', element: load(<InformationPage />) }, { path: 'contact', element: load(<InformationPage />) }, { path: '*', element: load(<NotFoundPage />) },
   ]},
   { path: '/2026/nhadatchuan/admin/login', element: load(<AdminLoginShell><AdminLoginPage /></AdminLoginShell>) },
-  { path: '/2026/nhadatchuan/admin', element: <AdminShell />, children: [
+  { path: '/2026/nhadatchuan/admin', element: <AdminShell />, errorElement: <RouteFailure />, children: [
     { path: 'moderation', element: protect(<ModerationWorkspacePage />, 'Bàn kiểm duyệt', ['ADMIN','MODERATOR'], true) },
     { path: 'listings', element: protect(<AdminListingsPage />, 'Quản lý tin', ['ADMIN'], true) },
     { path: 'users', element: protect(<AdminUsersPage />, 'Quản lý người dùng', ['ADMIN'], true) },
@@ -62,3 +63,4 @@ export const router = createBrowserRouter([
   { path: '/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/moderation" replace /> },
   { path: '/2026/nhadatchua/admin/*', element: <Navigate to="/2026/nhadatchuan/admin/login" replace /> },
 ]);
+

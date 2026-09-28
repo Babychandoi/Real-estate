@@ -352,3 +352,12 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Compare: replace the auto-picked "first 3 sale listings" with an explicit selection (max 3, same purpose) kept in `features/compare/compareStore.ts`; "+ So sánh" toggles on listing cards and detail page, a floating tray, an in-page listing picker, extended criteria (unit price, rooms, frontage, road, direction, legal) with "Tốt nhất" highlights.
 - Map search: combobox suggestions from `/public/geocoding` (keyword search or "go to place"); choosing a place flies/fits the map, drops a marker and searches listings inside the visible area. The map stays mounted while results reload. Geocoding filters to Vietnam, biases to Hanoi, returns `boundingbox`, versioned cache key `v2:`; the per-IP limiter now targets the real `/api/v1/public/geocoding` path.
 - `shared/uat/UatDataSeeder`: one-off runner (`--app.uat-seed.mode=seed|purge`) creating fake users, listings in every lifecycle state (incl. revision diffs), leads with real PII encryption, reports, verifications, projects, CMS articles and billing orders. All ids start with `ee5eed`, text keys with `UAT`; configured accounts are referenced, never modified; no bank settings are created.
+
+
+## CR-UI-2026-09 — Bộ giao diện toàn tuyến (28/09/2026)
+- Yêu cầu: bộ mã giao diện hoàn chỉnh cho các trang của sản phẩm hiện tại; dùng design system nhất quán, responsive, thao tác bàn phím và trạng thái dữ liệu rõ ràng.
+- Tham chiếu: các prototype trong `design web desktop`, `design app` và báo cáo audit 27/09. Dùng theme navy/teal hiện có, nâng cấp typography, spacing, navigation và component.
+- Kiến trúc: frontend React/TypeScript/Tailwind hiện tại; không đổi schema, API, phân quyền hoặc backend. Ngoại lệ SPA hiện hữu được ghi nhận trong ADR của PR, chưa được coi là đã duyệt.
+- Phạm vi: shell công khai/tài khoản/quản trị, trang chủ, tìm kiếm URL và phân trang, gallery toàn ảnh, so sánh, chuẩn hóa form/bảng và trạng thái lỗi.
+- Kiểm thử: build/typecheck; browser regression với fixture tách khỏi runtime sản phẩm; viewport 360/768/1024/1440, axe và keyboard. Thử backend verify và ghi rõ nếu môi trường chặn.
+- Bàn giao: nhánh riêng + draft PR, hướng dẫn chạy và ma trận trang. Không merge/deploy trong đợt này.

@@ -130,9 +130,9 @@ export default function ModerationWorkspacePage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans">
+    <div className="min-h-screen bg-white text-on-surface font-sans">
       {/* Top Command Bar & SLA Counters */}
-      <header className="sticky top-0 z-40 bg-slate-950/95 border-b border-slate-800 backdrop-blur px-6 py-4">
+      <header className="sticky top-0 z-40 bg-white/95 border-b border-outline-variant/50 backdrop-blur px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg">
@@ -147,11 +147,11 @@ export default function ModerationWorkspacePage() {
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                   Hàng đợi kiểm duyệt nội dung
                 </span>
-                <span className="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                <span className="text-xs px-2 py-0.5 rounded bg-surface-container text-on-surface-variant border border-outline-variant/50">
                   Phân hệ Moderation Monolith
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-on-surface-variant mt-0.5">
                 Đối chiếu Diff song song các phiên bản bất biến (Revision Immutability) • Tiêu chuẩn Waterfall 2026
               </p>
             </div>
@@ -161,7 +161,7 @@ export default function ModerationWorkspacePage() {
             <button
               onClick={loadQueue}
               disabled={loadingQueue}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium transition border border-slate-700"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-slate-700 text-on-surface text-sm font-medium transition border border-outline-variant/50"
             >
               <svg className={`w-4 h-4 ${loadingQueue ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -175,25 +175,25 @@ export default function ModerationWorkspacePage() {
         </div>
 
         {/* SLA Metrics Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-slate-800/80">
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Tin mới nộp (Revision #1)</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-outline-variant/50/80">
+          <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
+            <span className="text-xs text-on-surface-variant">Tin mới nộp (Revision #1)</span>
             <div className="text-lg font-bold text-sky-400">
               {queue.filter((q) => q.isFirstSubmission).length}
             </div>
           </div>
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Cập nhật tin cũ (Revision #2+)</span>
+          <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
+            <span className="text-xs text-on-surface-variant">Cập nhật tin cũ (Revision #2+)</span>
             <div className="text-lg font-bold text-amber-400">
               {queue.filter((q) => !q.isFirstSubmission).length}
             </div>
           </div>
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Thay đổi đang hiển thị</span>
+          <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
+            <span className="text-xs text-on-surface-variant">Thay đổi đang hiển thị</span>
             <div className="text-lg font-bold text-emerald-400">{diff?.diffs.length ?? 0} trường</div>
           </div>
-          <div className="px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-800">
-            <span className="text-xs text-slate-400">Phạm vi duyệt</span>
+          <div className="px-3 py-2 rounded-lg bg-white/80 border border-outline-variant/50">
+            <span className="text-xs text-on-surface-variant">Phạm vi duyệt</span>
             <div className="text-lg font-bold text-purple-400">Nội dung tin</div>
           </div>
         </div>
@@ -207,17 +207,17 @@ export default function ModerationWorkspacePage() {
             : 'bg-rose-950/80 border border-rose-600/50 text-rose-200'
         }`}>
           <span>{feedback.message}</span>
-          <button onClick={() => setFeedback(null)} className="text-slate-400 hover:text-white">✕</button>
+          <button onClick={() => setFeedback(null)} className="text-on-surface-variant hover:text-white">✕</button>
         </div>
       )}
 
       {/* Main Split Layout */}
       <div className="flex flex-col lg:flex-row min-h-[calc(100vh-160px)]">
         {/* Left Panel: Moderation Queue List */}
-        <div className="w-full lg:w-96 border-r border-slate-800 bg-slate-950/60 p-4 flex flex-col gap-3 shrink-0">
+        <div className="w-full lg:w-96 border-r border-outline-variant/50 bg-black/50 p-4 flex flex-col gap-3 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-white text-sm uppercase tracking-wider">Hàng Đợi Thẩm Định</h2>
-            <span className="text-xs text-slate-400">Sắp xếp theo thời gian nộp</span>
+            <span className="text-xs text-on-surface-variant">Sắp xếp theo thời gian nộp</span>
           </div>
 
           {/* Search box */}
@@ -226,26 +226,26 @@ export default function ModerationWorkspacePage() {
             placeholder="Tìm theo tiêu đề hoặc địa chỉ..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+            className="w-full px-3 py-2 rounded-lg bg-white border border-outline-variant/50 text-sm text-on-surface placeholder-slate-500 focus:outline-none focus:border-sky-500"
           />
 
           {/* Tabs Filter */}
-          <div className="flex rounded-lg bg-slate-900 p-1 border border-slate-800 text-xs font-medium">
+          <div className="flex rounded-lg bg-white p-1 border border-outline-variant/50 text-xs font-medium">
             <button
               onClick={() => setTabFilter('ALL')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'ALL' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'ALL' ? 'bg-surface-container text-white' : 'text-on-surface-variant hover:text-on-surface'}`}
             >
               Tất cả ({queue.length})
             </button>
             <button
               onClick={() => setTabFilter('FIRST')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'FIRST' ? 'bg-slate-800 text-sky-400' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'FIRST' ? 'bg-surface-container text-sky-400' : 'text-on-surface-variant hover:text-on-surface'}`}
             >
               Tin mới
             </button>
             <button
               onClick={() => setTabFilter('UPDATE')}
-              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'UPDATE' ? 'bg-slate-800 text-amber-400' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`flex-1 py-1.5 rounded-md transition ${tabFilter === 'UPDATE' ? 'bg-surface-container text-amber-400' : 'text-on-surface-variant hover:text-on-surface'}`}
             >
               Bản sửa
             </button>
@@ -272,7 +272,7 @@ export default function ModerationWorkspacePage() {
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       isSelected
                         ? 'bg-sky-950/40 border-sky-500 shadow-md ring-1 ring-sky-500/50'
-                        : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                        : 'bg-white/70 border-outline-variant/50 hover:border-outline-variant/50 hover:bg-white'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
@@ -283,16 +283,16 @@ export default function ModerationWorkspacePage() {
                       }`}>
                         {item.isFirstSubmission ? 'Tin Mới #Rev 1' : `Bản Cập Nhật #Rev ${item.revisionNumber}`}
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-on-surface-variant">
                         {new Date(item.submittedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
 
-                    <h3 className="text-sm font-semibold text-slate-100 line-clamp-2 leading-snug mb-2">
+                    <h3 className="text-sm font-semibold text-on-surface line-clamp-2 leading-snug mb-2">
                       {item.title}
                     </h3>
 
-                    <div className="flex items-center justify-between text-xs text-slate-400">
+                    <div className="flex items-center justify-between text-xs text-on-surface-variant">
                       <span className="font-bold text-emerald-400">
                         {formatPriceVnd(item.priceVnd)}
                       </span>
@@ -311,14 +311,14 @@ export default function ModerationWorkspacePage() {
         </div>
 
         {/* Right Panel: Diff Comparison Workspace */}
-        <div className="flex-1 bg-slate-900 p-6 flex flex-col gap-6 overflow-y-auto">
+        <div className="flex-1 bg-white p-6 flex flex-col gap-6 overflow-y-auto">
           {selectedItem ? (
             <>
               {/* Header Hồ sơ đang duyệt */}
-              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="p-5 rounded-2xl bg-white border border-outline-variant/50 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <span className="text-xs font-mono text-slate-400">Mã: {selectedItem.listingId.substring(0, 8)}...</span>
+                    <span className="text-xs font-mono text-on-surface-variant">Mã: {selectedItem.listingId.substring(0, 8)}...</span>
                     <span className="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-950 text-indigo-300 border border-indigo-800">
                       Loại: {formatPropertyType(selectedItem.propertyType)} • {selectedItem.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
                     </span>
@@ -327,8 +327,8 @@ export default function ModerationWorkspacePage() {
                     </span>
                   </div>
                   <h2 className="text-lg font-bold text-white">{selectedItem.title}</h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Địa chỉ: <span className="text-slate-300">{selectedItem.addressSummary}</span> • Chủ tin: <span className="font-mono text-slate-400">{selectedItem.ownerId.substring(0, 8)}...</span>
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    Địa chỉ: <span className="text-on-surface-variant">{selectedItem.addressSummary}</span> • Chủ tin: <span className="font-mono text-on-surface-variant">{selectedItem.ownerId.substring(0, 8)}...</span>
                   </p>
                 </div>
 
@@ -363,34 +363,34 @@ export default function ModerationWorkspacePage() {
               </div>
 
               {/* 2-Column Diff Workspace */}
-              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-sm flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="p-5 rounded-2xl bg-white border border-outline-variant/50 shadow-sm flex flex-col gap-4">
+                <div className="flex items-center justify-between pb-3 border-b border-outline-variant/50">
                   <div className="flex items-center gap-3">
                     <h3 className="font-bold text-white text-base">Đối Chiếu Thay Đổi Hai Cột (Side-by-Side Diff)</h3>
                     {diff && (
                       <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${
-                        diff.changedCount > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-slate-800 text-white'
+                        diff.changedCount > 0 ? 'bg-amber-950 text-amber-300 border border-amber-800' : 'bg-surface-container text-white'
                       }`}>
                         {diff.isFirstSubmission ? 'Nộp duyệt lần đầu' : `Phát hiện ${diff.changedCount} trường thay đổi`}
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-on-surface-variant">
                     Bản cũ: {diff?.previousRevisionNumber ? `Revision #${diff.previousRevisionNumber}` : '(Trống)'} ➔ Bản mới: Revision #{diff?.currentRevisionNumber}
                   </span>
                 </div>
 
                 {loadingDiff ? (
-                  <div className="text-center py-12 text-slate-400 text-sm">
+                  <div className="text-center py-12 text-on-surface-variant text-sm">
                     <div className="w-8 h-8 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                     Đang tính toán Diff hai phiên bản...
                   </div>
                 ) : diff ? (
                   <div className="flex flex-col gap-3">
                     {/* Headers for two columns */}
-                    <div className="grid grid-cols-12 gap-4 px-3 py-2 bg-slate-900/80 rounded-lg text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    <div className="grid grid-cols-12 gap-4 px-3 py-2 bg-white/80 rounded-lg text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                       <div className="col-span-3">Trường dữ liệu</div>
-                      <div className="col-span-4 text-slate-400">Bản Đang Lưu Hành / Cũ</div>
+                      <div className="col-span-4 text-on-surface-variant">Bản Đang Lưu Hành / Cũ</div>
                       <div className="col-span-5 text-emerald-400">Bản Mới Nộp Duyệt</div>
                     </div>
 
@@ -401,21 +401,21 @@ export default function ModerationWorkspacePage() {
                         className={`grid grid-cols-12 gap-4 p-3 rounded-xl border transition ${
                           d.isChanged
                             ? 'bg-amber-950/15 border-amber-500/40'
-                            : 'bg-slate-900/30 border-slate-800/60'
+                            : 'bg-white/30 border-outline-variant/50/60'
                         }`}
                       >
                         <div className="col-span-3 flex flex-col justify-center">
-                          <span className="text-sm font-medium text-slate-200">{d.fieldLabel}</span>
+                          <span className="text-sm font-medium text-on-surface">{d.fieldLabel}</span>
                           <span className="text-xs font-mono text-slate-500">{d.fieldName}</span>
                           {d.isChanged && (
-                            <span className="inline-block mt-1 text-[11px] font-semibold text-amber-400">
+                            <span className="inline-block mt-1 text-xs font-semibold text-amber-400">
                               ● ĐÃ THAY ĐỔI
                             </span>
                           )}
                         </div>
 
                         {/* Old value column */}
-                        <div className="col-span-4 p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 text-sm text-slate-400 break-words line-through-slate-600">
+                        <div className="col-span-4 p-2.5 rounded-lg bg-white/80 border border-outline-variant/50 text-sm text-on-surface-variant break-words line-through-slate-600">
                           {d.oldValue || <span className="italic text-slate-600">(Chưa có)</span>}
                         </div>
 
@@ -423,7 +423,7 @@ export default function ModerationWorkspacePage() {
                         <div className={`col-span-5 p-2.5 rounded-lg border text-sm break-words ${
                           d.isChanged
                             ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200 font-medium'
-                            : 'bg-slate-900/80 border-slate-800 text-slate-300'
+                            : 'bg-white/80 border-outline-variant/50 text-on-surface-variant'
                         }`}>
                           {d.newValue}
                         </div>
@@ -434,8 +434,8 @@ export default function ModerationWorkspacePage() {
               </div>
 
               {/* Legal Check & Verification Panel */}
-              <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 shadow-sm flex flex-col gap-4">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="p-5 rounded-2xl bg-white border border-outline-variant/50 shadow-sm flex flex-col gap-4">
+                <div className="flex items-center justify-between pb-3 border-b border-outline-variant/50">
                   <h3 className="font-bold text-white text-base flex items-center gap-2">
                     <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -448,23 +448,23 @@ export default function ModerationWorkspacePage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                    <span className="text-xs text-slate-400">Tình trạng giấy tờ</span>
+                  <div className="p-3 rounded-xl bg-white border border-outline-variant/50">
+                    <span className="text-xs text-on-surface-variant">Tình trạng giấy tờ</span>
                     <div className="font-semibold text-amber-300 mt-1">Chưa được đối chiếu tại màn hình này</div>
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                    <span className="text-xs text-slate-400">Kiểm tra watermark / SĐT ảo</span>
+                  <div className="p-3 rounded-xl bg-white border border-outline-variant/50">
+                    <span className="text-xs text-on-surface-variant">Kiểm tra watermark / SĐT ảo</span>
                     <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
                   </div>
-                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800">
-                    <span className="text-xs text-slate-400">Kiểm tra trùng lặp ranh đất</span>
+                  <div className="p-3 rounded-xl bg-white border border-outline-variant/50">
+                    <span className="text-xs text-on-surface-variant">Kiểm tra trùng lặp ranh đất</span>
                     <div className="font-semibold text-amber-300 mt-1">Chưa có kết quả kiểm tra</div>
                   </div>
                 </div>
 
                 {/* Approval Note Input */}
                 <div className="mt-2">
-                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                  <label className="block text-xs font-medium text-on-surface-variant mb-1">
                     Ghi chú thẩm định nội bộ (Lưu vào nhật ký kiểm toán):
                   </label>
                   <input
@@ -472,7 +472,7 @@ export default function ModerationWorkspacePage() {
                     value={approvalNote}
                     onChange={(e) => setApprovalNote(e.target.value)}
                     placeholder="Ghi rõ căn cứ duyệt nội dung; không kết luận pháp lý nếu chưa có chứng cứ"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-outline-variant/50 text-sm text-on-surface placeholder-slate-500 focus:outline-none focus:border-sky-500"
                   />
                 </div>
               </div>
@@ -491,15 +491,15 @@ export default function ModerationWorkspacePage() {
       {/* Modal từ chối kiểm duyệt */}
       {isRejectModalOpen && selectedItem && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div className="bg-white border border-outline-variant/50 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5">
+            <div className="flex items-center justify-between pb-3 border-b border-outline-variant/50">
               <div>
                 <h3 className="font-bold text-lg text-white">Từ Chối Phê Duyệt Tin Đăng</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}</p>
+                <p className="text-xs text-on-surface-variant mt-0.5">Mã hồ sơ: {selectedItem.listingId.substring(0, 8)}</p>
               </div>
               <button
                 onClick={() => setIsRejectModalOpen(false)}
-                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center"
+                className="w-8 h-8 rounded-lg bg-surface-container hover:bg-slate-700 text-on-surface-variant hover:text-white flex items-center justify-center"
               >
                 ✕
               </button>
@@ -507,13 +507,13 @@ export default function ModerationWorkspacePage() {
 
             {/* Select Reason */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
                 Chọn lý do:
               </label>
               <select
                 value={selectedReasonCode}
                 onChange={(e) => setSelectedReasonCode(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 focus:outline-none focus:border-rose-500"
+                className="w-full px-3 py-2.5 rounded-xl bg-white border border-outline-variant/50 text-sm text-on-surface focus:outline-none focus:border-rose-500"
               >
                 {reasons.map((r) => (
                   <option key={r.code} value={r.code}>
@@ -525,7 +525,7 @@ export default function ModerationWorkspacePage() {
 
             {/* Detail Reason Textarea */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-on-surface-variant uppercase tracking-wider mb-2">
                 Chi Tiết Giải Trình Cho Môi Giới (Hiển thị trong thông báo):
               </label>
               <textarea
@@ -533,7 +533,7 @@ export default function ModerationWorkspacePage() {
                 value={rejectionDetail}
                 onChange={(e) => setRejectionDetail(e.target.value)}
                 placeholder="VD: Mức giá chưa bao gồm thuế phí hoặc sổ hồng bị mờ phần số vào sổ..."
-                className="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                className="w-full p-3 rounded-xl bg-white border border-outline-variant/50 text-sm text-on-surface placeholder-slate-500 focus:outline-none focus:border-rose-500"
               />
             </div>
 
@@ -543,7 +543,7 @@ export default function ModerationWorkspacePage() {
                 type="button"
                 onClick={() => setIsRejectModalOpen(false)}
                     disabled={actionLoading || !approvalNote.trim()}
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition"
+                className="px-4 py-2 rounded-xl bg-surface-container hover:bg-slate-700 text-on-surface-variant text-sm font-medium transition"
               >
                 Hủy bỏ
               </button>
@@ -563,3 +563,4 @@ export default function ModerationWorkspacePage() {
     </div>
   );
 }
+

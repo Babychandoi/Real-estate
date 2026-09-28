@@ -126,7 +126,7 @@ export const MyListingsPage: React.FC = () => {
             }`}
           >
             {tab.label}
-            <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-surface-container-high">
+            <span className="px-1.5 py-0.2 rounded-full text-xs bg-surface-container-high">
               {tab.count}
             </span>
           </button>
@@ -152,7 +152,7 @@ export const MyListingsPage: React.FC = () => {
                   /> : <div className="grid h-full place-items-center text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
                     <Building2 className="h-7 w-7" aria-hidden="true" />
                   </div>}
-                  <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-[10px] font-bold">
+                  <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-xs font-bold">
                     v{item.revisionNumber}
                   </div>
                 </div>
@@ -199,3 +199,4 @@ export const MyListingsPage: React.FC = () => {
     </div>
   );
 };
+

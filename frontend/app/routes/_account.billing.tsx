@@ -176,7 +176,7 @@ export function BillingPage() {
   const currentPlan = plans.find((plan) => plan.code === user?.planCode);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 md:px-8">
+    <section className="mx-auto max-w-6xl px-4 py-10 md:px-8">
       <header className="border-b border-slate-200 pb-8">
         <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
@@ -493,8 +493,9 @@ export function BillingPage() {
           </section>
         </>
       )}
-    </main>
+    </section>
   );
 }
 
 export default BillingPage;
+

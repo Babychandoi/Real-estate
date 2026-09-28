@@ -38,7 +38,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
           </div>
 
           <div>
-            <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-[11px] uppercase tracking-wider mb-2">
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold text-xs uppercase tracking-wider mb-2">
               {isLoggedInButNoPermission ? 'Không đủ quyền' : 'Yêu cầu đăng nhập'}
             </span>
             <h2 className="text-xl font-bold text-on-surface">
@@ -107,3 +107,4 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   return <>{children}</>;
 };
+

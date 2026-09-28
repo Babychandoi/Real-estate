@@ -22,7 +22,7 @@ export function MyInquiriesPage() {
   }, []);
   useEffect(() => { void load(0); }, [load]);
 
-  return <main className="min-h-full bg-white px-4 py-8 md:px-8 lg:py-10"><div className="mx-auto max-w-6xl">
+  return <section className="min-h-full bg-white px-4 py-8 md:px-8 lg:py-10"><div className="mx-auto max-w-6xl">
     <header className="flex flex-col justify-between gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end"><div><h1 className="text-3xl font-bold tracking-tight text-slate-950">Tin đã liên hệ</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Xem lại những bất động sản bạn đã gửi yêu cầu hẹn xem hoặc nhận tư vấn.</p></div><button type="button" onClick={() => void load(result.page)} disabled={loading} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Làm mới</button></header>
     {error && <p role="alert" className="mt-5 rounded-lg bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}
     {loading ? <div className="mt-6 grid gap-4 sm:grid-cols-2">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-52 animate-pulse rounded-xl bg-slate-100" />)}</div> : result.items.length === 0 ? <section className="mt-6 grid min-h-72 place-items-center rounded-xl border border-dashed border-slate-300 p-8 text-center"><div><Building2 className="mx-auto h-11 w-11 text-slate-400" /><h2 className="mt-4 text-lg font-bold text-slate-950">Bạn chưa liên hệ tin nào</h2><p className="mt-2 text-sm text-slate-600">Khi bạn gửi yêu cầu từ trang chi tiết bất động sản, tin đó sẽ xuất hiện tại đây.</p><Link to="/search" className="mt-5 inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-bold text-white">Tìm bất động sản</Link></div></section> : <section className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -45,7 +45,8 @@ export function MyInquiriesPage() {
       </article>)}
     </section>}
     {result.totalPages > 1 && <nav aria-label="Phân trang tin đã liên hệ" className="mt-7 flex items-center justify-between border-t border-slate-200 pt-5"><p className="text-sm text-slate-600">{result.totalElements} tin đã liên hệ</p><div className="flex items-center gap-2"><button type="button" onClick={() => void load(result.page - 1)} disabled={result.page === 0 || loading} aria-label="Trang trước" className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button><span className="text-sm font-semibold">{result.page + 1}/{result.totalPages}</span><button type="button" onClick={() => void load(result.page + 1)} disabled={result.page + 1 >= result.totalPages || loading} aria-label="Trang sau" className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button></div></nav>}
-  </div></main>;
+  </div></section>;
 }
 
 export default MyInquiriesPage;
+

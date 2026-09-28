@@ -150,7 +150,7 @@ export const LoginModal: React.FC = () => {
               <h3 id="auth-dialog-title" className="font-bold text-base text-on-surface">
                 {activeTab === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
               </h3>
-              <p className="text-[11px] text-on-surface-variant">
+              <p className="text-xs text-on-surface-variant">
                 Nhà Đất Chuẩn • Nền tảng đăng tin có kiểm duyệt
               </p>
             </div>
@@ -329,7 +329,7 @@ export const LoginModal: React.FC = () => {
                     <span className={`text-xs font-bold ${regAccountType === 'USER' ? 'text-primary' : 'text-on-surface'}`}>
                       Người tìm nhà
                     </span>
-                    <span className="text-[10px] text-on-surface-variant">Tìm kiếm & so sánh BĐS</span>
+                    <span className="text-xs text-on-surface-variant">Tìm kiếm & so sánh BĐS</span>
                   </div>
                   {regAccountType === 'USER' && <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />}
                 </button>
@@ -352,7 +352,7 @@ export const LoginModal: React.FC = () => {
                     <span className={`text-xs font-bold ${regAccountType === 'BROKER' ? 'text-blue-800' : 'text-on-surface'}`}>
                       Môi giới BĐS
                     </span>
-                    <span className="text-[10px] text-on-surface-variant">Đăng tin & quản lý BĐS</span>
+                    <span className="text-xs text-on-surface-variant">Đăng tin & quản lý BĐS</span>
                   </div>
                   {regAccountType === 'BROKER' && <CheckCircle2 className="w-4 h-4 text-blue-600 ml-auto shrink-0" />}
                 </button>
@@ -471,3 +471,4 @@ export const LoginModal: React.FC = () => {
     </div>
   );
 };
+
