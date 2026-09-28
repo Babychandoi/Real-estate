@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3 } from 'lucide-react';
 import { Badge, type BadgeVariant } from '@/shared/ui/Badge';
 import { Button, type ButtonVariant } from '@/shared/ui/Button';
@@ -123,13 +123,22 @@ export function ReasonDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Reset only when the dialog opens (or its catalogue first arrives): callers pass a new `reasons` array on every
+  // render, and resetting on each of those silently replaced the staff member's choice with the first option.
+  const firstCode = reasons?.[0]?.code ?? '';
+  const validCodes = (reasons ?? []).map((r) => r.code).join('|');
+  const firstCodeRef = useRef(firstCode);
+  firstCodeRef.current = firstCode;
   useEffect(() => {
     if (open) {
-      setCode(reasons?.[0]?.code ?? '');
+      setCode(firstCodeRef.current);
       setNote('');
       setError(null);
     }
-  }, [open, reasons]);
+  }, [open]);
+  useEffect(() => {
+    if (open) setCode((current) => (current && validCodes.split('|').includes(current) ? current : firstCode));
+  }, [open, firstCode, validCodes]);
 
   const noteTooShort = note.trim().length < noteMinLength;
   const submit = async () => {
