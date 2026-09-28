@@ -26,6 +26,9 @@ public final class SearchResults {
     /** A relaxation of a zero-result search: drop these parameters to get {@code total} results. */
     public record Suggestion(String type, List<String> drop, Total total) {}
 
+    /** Cached zero-result suggestions of one filter (Redis value). */
+    public record CachedSuggestions(List<Suggestion> items) {}
+
     public record Page(List<PublicListing> items, boolean hasNext, @Nullable String nextCursor, int size,
                        @Nullable Total total, String engine, boolean degraded, List<String> notices, Instant dataAsOf,
                        List<Suggestion> suggestions) {}

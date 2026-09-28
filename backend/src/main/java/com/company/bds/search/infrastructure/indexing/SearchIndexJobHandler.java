@@ -5,7 +5,6 @@ import com.company.bds.search.domain.PublicListing;
 import com.company.bds.search.infrastructure.JdbcListingReadModelAdapter;
 import com.company.bds.search.infrastructure.ReadModelRefresher;
 import com.company.bds.search.infrastructure.SearchIndexStateRepository;
-import com.company.bds.search.infrastructure.cache.ListingResponseCache;
 import com.company.bds.search.infrastructure.elasticsearch.ElasticsearchHttp;
 import com.company.bds.shared.jobs.ClaimedJob;
 import com.company.bds.shared.jobs.JobBatchResult;
@@ -46,19 +45,17 @@ public class SearchIndexJobHandler implements JobHandler {
     private final SearchIndexStateRepository states;
     private final ListingIndexWriter writer;
     private final SearchIndexSettings settings;
-    private final ListingResponseCache cache;
     private final Clock clock;
     private final Timer lag;
 
     public SearchIndexJobHandler(ReadModelRefresher refresher, JdbcListingReadModelAdapter readModel,
                                  SearchIndexStateRepository states, ListingIndexWriter writer, SearchIndexSettings settings,
-                                 ListingResponseCache cache, Clock clock, ObjectProvider<MeterRegistry> meters) {
+                                 Clock clock, ObjectProvider<MeterRegistry> meters) {
         this.refresher = refresher;
         this.readModel = readModel;
         this.states = states;
         this.writer = writer;
         this.settings = settings;
-        this.cache = cache;
         this.clock = clock;
         this.lag = Timer.builder("bds.search.index.lag")
                 .description("Time from a listing change (first coalesced enqueue) to its search index write")
@@ -135,7 +132,9 @@ public class SearchIndexJobHandler implements JobHandler {
                 }
             }
         }
-        cache.bumpGeneration();
+        // No cache invalidation here: a cached first page holds only listing ids, which are re-read from PostgreSQL and
+        // re-checked against the filter on every hit, so hidden or changed listings are never served from it. New or
+        // re-sorted listings appear when the entry expires (20 s TTL); only an index generation swap bumps the key.
         return result.build();
     }
 }

@@ -152,7 +152,10 @@ public class ListingReadService {
         if (gone != null) {
             return new SearchProblemException(410, "LISTING_GONE", "Tin không còn hiển thị",
                     "Tin đăng này đã được ẩn, hết hạn hoặc bị gỡ.",
-                    Map.of("slug", gone.slug(), "title", ContactInfoGuard.redact(gone.title())));
+                    // listingTitle, not the RFC 9457 "title" (which stays the generic problem title); absent for
+                    // moderation-locked listings and banned sellers (the read model returns null then)
+                    gone.title() == null ? Map.of("slug", gone.slug())
+                            : Map.of("slug", gone.slug(), "listingTitle", ContactInfoGuard.redact(gone.title())));
         }
         return new SearchProblemException(404, "LISTING_NOT_FOUND", "Không tìm thấy tin đăng", "Tin đăng không tồn tại.");
     }

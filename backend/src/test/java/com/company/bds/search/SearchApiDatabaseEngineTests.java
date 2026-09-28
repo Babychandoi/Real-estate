@@ -276,7 +276,8 @@ class SearchApiDatabaseEngineTests {
         JsonNode gone = getJson(get("/api/v2/listings/" + listing.slug()).header("If-None-Match", etag), 410);
         assertThat(gone.path("code").asText()).isEqualTo("LISTING_GONE");
         assertThat(gone.path("slug").asText()).isEqualTo(listing.slug());
-        assertThat(gone.path("title").asText()).isEqualTo("Nhà phố sẽ bị ẩn");
+        assertThat(gone.path("listingTitle").asText()).isEqualTo("Nhà phố sẽ bị ẩn");
+        assertThat(gone.path("title").asText()).isEqualTo("Tin không còn hiển thị");
         assertThat(gone.has("description")).isFalse();
     }
 
@@ -436,5 +437,61 @@ class SearchApiDatabaseEngineTests {
         assertThat(array.get(0).path("id").asText()).isEqualTo(listing.id().toString());
         assertThat(json.readTree(mvc.perform(get("/api/v1/listings/search").param("keyword", token).param("page", "1"))
                 .andReturn().getResponse().getContentAsString())).isEmpty();
+    }
+
+    @Test
+    void contactDetailsInTheDescriptionAreNotSearchable() throws Exception {
+        String token = SearchFixtures.token();
+        TestData.TestUser seller = fixtures.seller("BROKER");
+        TestData.TestListing listing = data.listing(seller.id()).title("Nhà " + token).create();
+        fixtures.revise(listing, "description = ?",
+                "Liên hệ 0912 345 678 hoặc chu.nha@example.com, zalo.me/0912345678. Sổ đỏ chính chủ " + token);
+        assertThat(ids(search(Map.of("q", token)))).containsExactly(listing.id().toString());
+        assertThat(ids(search(Map.of("q", token + " sổ đỏ")))).containsExactly(listing.id().toString());
+        for (String probe : List.of("0912 345 678", "0912345678", "chu.nha@example.com", "example", "zalo")) {
+            assertThat(ids(search(Map.of("q", token + " " + probe)))).as(probe).isEmpty();
+        }
+        String text = jdbc.queryForObject("SELECT search_text FROM listing_public_read WHERE listing_id = ?", String.class, listing.id());
+        assertThat(text).doesNotContain("0912", "345", "example", "chu nha", "zalo");
+    }
+
+    @Test
+    void aBannedSellersListingsDisappearAtOnceWithoutTheJobWorker() throws Exception {
+        String token = SearchFixtures.token();
+        TestData.TestUser seller = fixtures.seller("BROKER");
+        TestData.TestListing listing = data.listing(seller.id()).title("Căn " + token + " của người bị khoá").create();
+        assertThat(ids(search(Map.of("q", token)))).hasSize(1);
+        // the worker is not running in tests: nothing refreshes the read model after this update
+        jdbc.update("UPDATE users SET status = 'LOCKED' WHERE id = ?", seller.id());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM listing_public_read WHERE listing_id = ?", Long.class, listing.id()))
+                .as("row still in the read model").isEqualTo(1);
+        assertThat(ids(search(Map.of("q", token)))).isEmpty();
+        JsonNode gone = getJson(get("/api/v2/listings/" + listing.slug()), 410);
+        assertThat(gone.has("listingTitle")).as("no title for a banned seller").isFalse();
+        assertThat(gone.toString()).doesNotContain(token);
+    }
+
+    @Test
+    void aModerationLockedListingIs410WithoutItsTitle() throws Exception {
+        String token = SearchFixtures.token();
+        TestData.TestUser seller = fixtures.seller("BROKER");
+        TestData.TestListing listing = data.listing(seller.id()).title("Tin " + token + " vi phạm").create();
+        jdbc.update("UPDATE listings SET status = 'LOCKED' WHERE id = ?", listing.id());
+        JsonNode gone = getJson(get("/api/v2/listings/" + listing.slug()), 410);
+        assertThat(gone.path("code").asText()).isEqualTo("LISTING_GONE");
+        assertThat(gone.has("listingTitle")).isFalse();
+        assertThat(gone.toString()).doesNotContain(token);
+    }
+
+    @Test
+    void zeroResultSuggestionsCountAtMostThreeRelaxations() throws Exception {
+        String token = SearchFixtures.token();
+        TestData.TestUser seller = fixtures.seller("BROKER");
+        data.listing(seller.id()).title("Đất " + token).price(5_000_000_000L).bedrooms(2).create();
+        // five applicable relaxations; the page query plus at most three counts
+        String body = QueryCount.assertAtMost(4, () -> mvc.perform(get("/api/v2/listings/search").param("q", token)
+                .param("priceMax", "1000000000").param("areaMin", "500").param("bedsMin", "4").param("verified", "IDENTITY")
+                .param("type", "HOUSE")).andReturn().getResponse().getContentAsString());
+        assertThat(json.readTree(body).path("suggestions").size()).isLessThanOrEqualTo(3);
     }
 }

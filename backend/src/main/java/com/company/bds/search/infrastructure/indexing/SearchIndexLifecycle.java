@@ -6,6 +6,7 @@ import com.company.bds.search.application.SearchProblemException;
 import com.company.bds.search.domain.PublicListing;
 import com.company.bds.search.infrastructure.JdbcListingReadModelAdapter;
 import com.company.bds.search.infrastructure.SearchIndexStateRepository;
+import com.company.bds.search.infrastructure.cache.ListingResponseCache;
 import com.company.bds.search.infrastructure.SearchIndexStateRepository.IndexState;
 import com.company.bds.search.infrastructure.SearchIndexStateRepository.Role;
 import com.company.bds.search.infrastructure.elasticsearch.ElasticsearchIndexClient;
@@ -62,11 +63,14 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
     private final TransactionTemplate tx;
     private final Clock clock;
     private final boolean bootstrapOnStartup;
+    private final ListingResponseCache cache;
 
     public SearchIndexLifecycle(SearchIndexSettings settings, ElasticsearchIndexClient client, SearchIndexStateRepository states,
                                 JdbcListingReadModelAdapter readModel, ListingIndexWriter writer, ScheduledTaskLock taskLock,
                                 JobQueue jobs, JdbcTemplate jdbc, TransactionTemplate tx, Clock clock,
-                                @Value("${app.search.bootstrap-on-startup:true}") boolean bootstrapOnStartup) {
+                                @Value("${app.search.bootstrap-on-startup:true}") boolean bootstrapOnStartup,
+                                ListingResponseCache cache) {
+        this.cache = cache;
         this.settings = settings;
         this.client = client;
         this.states = states;
@@ -176,6 +180,7 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
             states.withRole(alias, Role.ACTIVE).ifPresent(active -> states.setRole(active.indexName(), Role.PREVIOUS));
             states.setRole(index, Role.ACTIVE);
         });
+        cache.bumpGeneration(); // cached first pages carry engine cursors of the previous generation
     }
 
     @Override
@@ -192,6 +197,7 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
             states.setRole(active.indexName(), Role.PREVIOUS);
             states.setRole(previous.indexName(), Role.ACTIVE);
         });
+        cache.bumpGeneration();
         return status();
     }
 

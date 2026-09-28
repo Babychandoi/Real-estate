@@ -205,28 +205,49 @@ public class ListingSearchService {
                 List.copyOf(notices), clock.instant(), suggestions);
     }
 
+    /** At most this many relaxations are counted per zero-result filter (bounded extra database work). */
+    static final int MAX_SUGGESTION_COUNTS = 3;
+    private static final Duration SUGGESTIONS_TTL = Duration.ofSeconds(60);
+
     /**
      * Rule-based relaxations of a zero-result filter (audit D-11): each drops one group of constraints and is counted
-     * on the database; only those with results are returned, most results first, at most three.
+     * on the database; only those with results are returned, most results first. Only the first
+     * {@value #MAX_SUGGESTION_COUNTS} applicable relaxations (in priority order) are counted, each with a capped count,
+     * and the answer is cached per filter hash for {@code SUGGESTIONS_TTL}, so an empty page costs at most three cheap
+     * counts per filter and minute however often it is requested.
      */
     List<Suggestion> suggestions(SearchFilter filter) {
-        List<Suggestion> out = new ArrayList<>();
-        addSuggestion(out, filter, "REMOVE_KEYWORD", filter.keyword() != null, List.of("q"));
-        addSuggestion(out, filter, "REMOVE_PRICE", filter.priceMin() != null || filter.priceMax() != null, List.of("priceMin", "priceMax"));
-        addSuggestion(out, filter, "REMOVE_AREA", filter.areaMin() != null || filter.areaMax() != null, List.of("areaMin", "areaMax"));
-        addSuggestion(out, filter, "REMOVE_BEDROOMS", filter.bedsMin() != null, List.of("bedsMin"));
-        addSuggestion(out, filter, "REMOVE_VERIFIED", filter.verified() != null, List.of("verified"));
-        addSuggestion(out, filter, "REMOVE_ATTRIBUTES", !filter.legal().isEmpty() || !filter.furnishing().isEmpty(), List.of("legal", "furnishing"));
-        addSuggestion(out, filter, "WIDEN_AREA", filter.bbox() != null || !filter.districts().isEmpty(), List.of("bbox", "district"));
-        addSuggestion(out, filter, "REMOVE_TYPE", !filter.types().isEmpty(), List.of("type"));
-        out.sort(Comparator.comparingLong((Suggestion s) -> s.total().value()).reversed());
-        return out.size() > 3 ? List.copyOf(out.subList(0, 3)) : List.copyOf(out);
+        long generation = cache.generation();
+        if (generation < 0) return computeSuggestions(filter);
+        String key = "suggest:" + generation + ":" + filter.filterHash();
+        SearchResults.CachedSuggestions cached = cache.getOrCompute("search-suggestions", key, SUGGESTIONS_TTL,
+                SearchResults.CachedSuggestions.class, () -> new SearchResults.CachedSuggestions(computeSuggestions(filter)));
+        return cached == null ? List.of() : cached.items();
     }
 
-    private void addSuggestion(List<Suggestion> out, SearchFilter filter, String type, boolean applicable, List<String> drop) {
-        if (!applicable) return;
-        long count = readModel.countCapped(filter.without(Set.copyOf(drop)).withSort(SearchSort.NEWEST), 1_000);
-        if (count > 0) out.add(new Suggestion(type, drop, Total.capped(count, 1_000)));
+    List<Suggestion> computeSuggestions(SearchFilter filter) {
+        List<Relaxation> candidates = new ArrayList<>();
+        candidate(candidates, "REMOVE_KEYWORD", filter.keyword() != null, List.of("q"));
+        candidate(candidates, "REMOVE_PRICE", filter.priceMin() != null || filter.priceMax() != null, List.of("priceMin", "priceMax"));
+        candidate(candidates, "REMOVE_AREA", filter.areaMin() != null || filter.areaMax() != null, List.of("areaMin", "areaMax"));
+        candidate(candidates, "REMOVE_BEDROOMS", filter.bedsMin() != null, List.of("bedsMin"));
+        candidate(candidates, "REMOVE_VERIFIED", filter.verified() != null, List.of("verified"));
+        candidate(candidates, "REMOVE_ATTRIBUTES", !filter.legal().isEmpty() || !filter.furnishing().isEmpty(), List.of("legal", "furnishing"));
+        candidate(candidates, "WIDEN_AREA", filter.bbox() != null || !filter.districts().isEmpty(), List.of("bbox", "district"));
+        candidate(candidates, "REMOVE_TYPE", !filter.types().isEmpty(), List.of("type"));
+        List<Suggestion> out = new ArrayList<>();
+        for (Relaxation relaxation : candidates.subList(0, Math.min(MAX_SUGGESTION_COUNTS, candidates.size()))) {
+            long count = readModel.countCapped(filter.without(Set.copyOf(relaxation.drop())).withSort(SearchSort.NEWEST), 1_000);
+            if (count > 0) out.add(new Suggestion(relaxation.type(), relaxation.drop(), Total.capped(count, 1_000)));
+        }
+        out.sort(Comparator.comparingLong((Suggestion s) -> s.total().value()).reversed());
+        return List.copyOf(out);
+    }
+
+    private record Relaxation(String type, List<String> drop) {}
+
+    private static void candidate(List<Relaxation> out, String type, boolean applicable, List<String> drop) {
+        if (applicable) out.add(new Relaxation(type, drop));
     }
 
     private CachedPage toCached(Page page) {

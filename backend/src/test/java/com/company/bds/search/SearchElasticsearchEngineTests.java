@@ -4,6 +4,7 @@ import com.company.bds.search.application.SearchCircuitBreaker;
 import com.company.bds.search.application.SearchIndexSettings;
 import com.company.bds.search.infrastructure.JdbcListingReadModelAdapter;
 import com.company.bds.search.infrastructure.SearchIndexStateRepository;
+import com.company.bds.search.infrastructure.cache.ListingResponseCache;
 import com.company.bds.search.infrastructure.elasticsearch.ElasticsearchIndexClient;
 import com.company.bds.search.infrastructure.elasticsearch.ListingIndexMapping;
 import com.company.bds.search.infrastructure.indexing.ListingIndexWriter;
@@ -71,6 +72,7 @@ class SearchElasticsearchEngineTests {
     @Autowired JobQueue jobs;
     @Autowired TransactionTemplate tx;
     @Autowired Clock clock;
+    @Autowired ListingResponseCache responseCache;
     @Value("${spring.elasticsearch.uris}") String esUrl;
     SearchFixtures fixtures;
     final HttpClient http = HttpClient.newHttpClient();
@@ -151,6 +153,39 @@ class SearchElasticsearchEngineTests {
     }
 
     @Test
+    void contactDetailsAreNotIndexedOrFindableThroughElasticsearch() throws Exception {
+        String token = SearchFixtures.token();
+        TestData.TestUser seller = fixtures.seller("BROKER");
+        TestData.TestListing listing = data.listing(seller.id()).title("Nhà " + token + " gọi 0912345678").create();
+        fixtures.revise(listing, "description = ?", "Liên hệ chu.nha@example.com hoặc 0987 654 321 " + token);
+        jdbc.update("UPDATE listings SET updated_at = now() WHERE id = ?", listing.id());
+        drain();
+        JsonNode source = doc(activeIndex(), listing.id()).path("_source");
+        assertThat(source.toString()).doesNotContain("0912345678", "0987", "example");
+        JsonNode hit = getJson(get("/api/v2/listings/search").param("q", token), 200);
+        assertThat(hit.path("engine").asText()).isEqualTo("search");
+        assertThat(hit.path("items").size()).isEqualTo(1);
+        for (String probe : List.of("0912345678", "0987 654 321", "chu.nha@example.com")) {
+            JsonNode page = getJson(get("/api/v2/listings/search").param("q", token + " " + probe), 200);
+            assertThat(page.path("items").size()).as(probe).isZero();
+        }
+    }
+
+    @Test
+    void theOldFullScanSyncCannotWriteIntoTheNewAlias() throws Exception {
+        lifecycle.bootstrap();
+        // exactly the document shape and call of the pre-S2 ElasticsearchListingIndex.syncAll (internal versioning)
+        String legacyDoc = "{\"listing_id\":\"x\",\"created_at\":\"2026-01-01T00:00:00Z\",\"title\":\"t\","
+                + "\"description\":\"d\",\"purpose\":\"SALE\",\"property_type\":\"HOUSE\",\"price_vnd\":1,"
+                + "\"area_m2\":1,\"address_summary\":\"a\",\"is_verified_owner\":false}";
+        HttpResponse<String> put = http.send(HttpRequest.newBuilder(URI.create(esUrl + "/" + settings.alias() + "/_doc/"
+                        + UUID.randomUUID())).header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(legacyDoc)).build(), HttpResponse.BodyHandlers.ofString());
+        assertThat(put.statusCode()).as(put.body()).isEqualTo(400);
+        assertThat(put.body()).contains("strict_dynamic_mapping_exception");
+    }
+
+    @Test
     void firstStartMigratesALegacyConcreteIndexIntoAnAliasOverAVersionedIndex() throws Exception {
         String alias = "s2-legacy-" + UUID.randomUUID().toString().substring(0, 8);
         HttpResponse<String> created = http.send(HttpRequest.newBuilder(URI.create(esUrl + "/" + alias + "/_doc/old?refresh=true"))
@@ -159,7 +194,7 @@ class SearchElasticsearchEngineTests {
         assertThat(created.statusCode()).isIn(200, 201);
         SearchIndexSettings legacySettings = new SearchIndexSettings(true, alias);
         SearchIndexLifecycle legacyLifecycle = new SearchIndexLifecycle(legacySettings, client, states, readModel, writer, taskLock,
-                jobs, jdbc, tx, clock, false);
+                jobs, jdbc, tx, clock, false, responseCache);
         try {
             assertThat(legacyLifecycle.bootstrap()).isTrue();
             List<String> targets = client.aliasTargets(alias);

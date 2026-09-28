@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.SqlTypeValue;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -43,6 +44,13 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
     static final String DETAIL_COLUMNS = SUMMARY_COLUMNS
             .replace("NULL::text AS description", "description")
             .replace("NULL::text[] AS media_urls", "media_urls");
+
+    /**
+     * The seller account must still be ACTIVE: a ban hides every listing of the seller on the database path at once,
+     * without waiting for the owner fan-out job (which removes the rows and the index documents later).
+     */
+    static final String OWNER_ACTIVE =
+            " AND EXISTS (SELECT 1 FROM users ou WHERE ou.id = listing_public_read.owner_id AND ou.status = 'ACTIVE')";
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -84,7 +92,7 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
     @Override
     public List<PublicListing> findByIds(Collection<UUID> ids) {
         if (ids.isEmpty()) return List.of();
-        return jdbc.query("SELECT " + SUMMARY_COLUMNS + " FROM listing_public_read WHERE listing_id = ANY(CAST(? AS uuid[]))",
+        return jdbc.query("SELECT " + SUMMARY_COLUMNS + " FROM listing_public_read WHERE listing_id = ANY(?)" + OWNER_ACTIVE,
                 ROW, uuidArray(ids));
     }
 
@@ -104,24 +112,29 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
                 SELECT listing_id, row_version,
                        (CASE WHEN identity_status = 'VERIFIED' AND identity_expires_at <= now() THEN 'i' ELSE '' END)
                     || (CASE WHEN ownership_status = 'VERIFIED' AND ownership_expires_at <= now() THEN 'o' ELSE '' END)
-                FROM listing_public_read WHERE """ + (id != null ? " listing_id = ?" : " slug = ?");
+                FROM listing_public_read WHERE """ + (id != null ? " listing_id = ?" : " slug = ?") + OWNER_ACTIVE;
         return jdbc.query(sql, (rs, n) -> new VersionRef(rs.getObject(1, UUID.class), rs.getLong(2), rs.getString(3)),
                 id != null ? id : slugOrId).stream().findFirst();
     }
 
     @Override
     public Optional<PublicListing> findDetail(UUID listingId) {
-        return jdbc.query("SELECT " + DETAIL_COLUMNS + " FROM listing_public_read WHERE listing_id = ?", ROW, listingId)
+        return jdbc.query("SELECT " + DETAIL_COLUMNS + " FROM listing_public_read WHERE listing_id = ?" + OWNER_ACTIVE, ROW, listingId)
                 .stream().findFirst();
     }
 
     @Override
     public Optional<GoneListing> findGone(String slugOrId) {
         UUID id = parseUuid(slugOrId);
+        // the last public title is shown only for listings their owner withdrew (paused, sold, expired...), never for a
+        // listing locked by moderation or one whose seller account is no longer ACTIVE (banned, locked, deleted)
         String sql = """
-                SELECT l.id, l.slug, r.title FROM listings l
+                SELECT l.id, l.slug,
+                       CASE WHEN l.status <> 'LOCKED' AND u.status = 'ACTIVE' THEN r.title END AS title
+                FROM listings l
                 JOIN listing_revisions r ON r.id = l.public_revision_id AND r.status = 'APPROVED'
-                WHERE %s AND NOT EXISTS (SELECT 1 FROM listing_public_read p WHERE p.listing_id = l.id)
+                LEFT JOIN users u ON u.id = l.owner_id
+                WHERE %s AND NOT EXISTS (SELECT 1 FROM listing_public_read p WHERE p.listing_id = l.id AND u.status = 'ACTIVE')
                 """.formatted(id != null ? "l.id = ?" : "l.slug = ?");
         return jdbc.query(sql, (rs, n) -> new GoneListing(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3)),
                 id != null ? id : slugOrId).stream().findFirst();
@@ -129,7 +142,7 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
 
     @Override
     public List<PublicListing> sellerPage(UUID ownerId, ArrayNode after, int limit) {
-        Sql sql = new Sql("SELECT " + SUMMARY_COLUMNS + " FROM listing_public_read WHERE owner_id = ?").param(ownerId);
+        Sql sql = new Sql("SELECT " + SUMMARY_COLUMNS + " FROM listing_public_read WHERE owner_id = ?" + OWNER_ACTIVE).param(ownerId);
         if (after != null) keyset(sql, SearchSort.NEWEST, after);
         sql.append(" ORDER BY published_at DESC, listing_id DESC LIMIT ?").param(limit);
         return jdbc.query(sql.text(), ROW, sql.params());
@@ -138,7 +151,7 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
     @Override
     public long sellerCountCapped(UUID ownerId, int cap) {
         Long count = jdbc.queryForObject(
-                "SELECT count(*) FROM (SELECT 1 FROM listing_public_read WHERE owner_id = ? LIMIT ?) capped",
+                "SELECT count(*) FROM (SELECT 1 FROM listing_public_read WHERE owner_id = ?" + OWNER_ACTIVE + " LIMIT ?) capped",
                 Long.class, ownerId, cap + 1);
         return count == null ? 0 : count;
     }
@@ -170,7 +183,8 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
         long high = Math.round(base.priceVnd() * 1.3);
         return jdbc.query("SELECT " + SUMMARY_COLUMNS + """
                  FROM listing_public_read
-                WHERE purpose = ? AND property_type = ? AND listing_id <> ? AND price_vnd BETWEEN ? AND ?
+                WHERE purpose = ? AND property_type = ? AND listing_id <> ? AND price_vnd BETWEEN ? AND ?""" + OWNER_ACTIVE + """
+
                 ORDER BY (district_code IS NOT DISTINCT FROM ?) DESC, abs(price_vnd - ?) ASC, listing_id ASC
                 LIMIT ?""", ROW, base.purpose(), base.propertyType(), base.listingId(), low, high,
                 base.districtCode(), base.priceVnd(), limit);
@@ -227,21 +241,22 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
 
     static void where(Sql sql, SearchFilter f) {
         sql.append(" purpose = ?").param(f.purpose());
-        if (!f.types().isEmpty()) sql.append(" AND property_type = ANY(CAST(? AS text[]))").param(textArray(f.types()));
+        sql.append(OWNER_ACTIVE);
+        if (!f.types().isEmpty()) sql.append(" AND property_type = ANY(?)").param(textArray(f.types()));
         if (f.priceMin() != null) sql.append(" AND price_vnd >= ?").param(f.priceMin());
         if (f.priceMax() != null) sql.append(" AND price_vnd <= ?").param(f.priceMax());
         if (f.areaMin() != null) sql.append(" AND area_m2 >= ?").param(f.areaMin());
         if (f.areaMax() != null) sql.append(" AND area_m2 <= ?").param(f.areaMax());
         if (f.bedsMin() != null) sql.append(" AND bedrooms >= ?").param(f.bedsMin());
-        if (!f.legal().isEmpty()) sql.append(" AND legal_status_code = ANY(CAST(? AS text[]))").param(textArray(f.legal()));
-        if (!f.furnishing().isEmpty()) sql.append(" AND furnishing = ANY(CAST(? AS text[]))").param(textArray(f.furnishing()));
+        if (!f.legal().isEmpty()) sql.append(" AND legal_status_code = ANY(?)").param(textArray(f.legal()));
+        if (!f.furnishing().isEmpty()) sql.append(" AND furnishing = ANY(?)").param(textArray(f.furnishing()));
         if ("IDENTITY".equals(f.verified())) {
             sql.append(" AND identity_status = 'VERIFIED' AND (identity_expires_at IS NULL OR identity_expires_at > now())");
         }
         if ("OWNERSHIP".equals(f.verified())) {
             sql.append(" AND ownership_status = 'VERIFIED' AND (ownership_expires_at IS NULL OR ownership_expires_at > now())");
         }
-        if (!f.districts().isEmpty()) sql.append(" AND district_code = ANY(CAST(? AS text[]))").param(textArray(f.districts()));
+        if (!f.districts().isEmpty()) sql.append(" AND district_code = ANY(?)").param(textArray(f.districts()));
         if (f.project() != null) sql.append(" AND project_id = ?").param(f.project());
         if (f.keyword() != null) sql.append(" AND search_tsv @@ plainto_tsquery('simple', ?)").param(f.keyword());
         if (f.bbox() != null) {
@@ -278,12 +293,17 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
         return Instant.ofEpochSecond(Math.floorDiv(micros, 1_000_000L), Math.floorMod(micros, 1_000_000L) * 1_000L);
     }
 
-    static String textArray(Collection<String> values) {
-        return "{" + String.join(",", values) + "}";
+    /** A bound SQL array built with {@link java.sql.Connection#createArrayOf} (no textual array literal). */
+    static SqlTypeValue textArray(Collection<String> values) {
+        return array("text", values.toArray());
     }
 
-    static String uuidArray(Collection<UUID> values) {
-        return "{" + String.join(",", values.stream().map(UUID::toString).toList()) + "}";
+    public static SqlTypeValue uuidArray(Collection<UUID> values) {
+        return array("uuid", values.toArray());
+    }
+
+    private static SqlTypeValue array(String elementType, Object[] elements) {
+        return (ps, index, sqlType, typeName) -> ps.setArray(index, ps.getConnection().createArrayOf(elementType, elements));
     }
 
     private static UUID parseUuid(String value) {

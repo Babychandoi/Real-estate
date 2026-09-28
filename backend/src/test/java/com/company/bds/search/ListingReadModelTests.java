@@ -164,4 +164,15 @@ class ListingReadModelTests {
             assertThat(sql).as("normalise(" + sample + ")").isEqualTo(VietnameseNormalizer.normalize(sample));
         }
     }
+
+    @Test
+    void javaAndSqlRedactContactDetailsIdentically() {
+        List<String> samples = List.of("Gọi 0912 345 678 ngay", "LH: +84 912.345.678 hoặc 024 3826 1234",
+                "mail chu.nha@example.com / chu (at) mail.vn", "zalo.me/0912345678 và https://fb.com/nhadat x",
+                "www.nhadat.vn giá 2.5 tỷ, 120m2, 0912345", "số nhà 12, ngõ 34, sđt 0987-654-321.", "không có liên hệ");
+        for (String sample : samples) {
+            String sql = jdbc.queryForObject("SELECT bds_redact_contact(?, '#')", String.class, sample);
+            assertThat(sql).as("redact(" + sample + ")").isEqualTo(com.company.bds.shared.security.ContactInfoGuard.redact(sample, "#"));
+        }
+    }
 }

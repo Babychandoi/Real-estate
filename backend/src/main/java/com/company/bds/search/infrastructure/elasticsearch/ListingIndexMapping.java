@@ -1,6 +1,7 @@
 package com.company.bds.search.infrastructure.elasticsearch;
 
 import com.company.bds.search.domain.PublicListing;
+import com.company.bds.shared.security.ContactInfoGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -83,8 +84,9 @@ public final class ListingIndexMapping {
         putInstant(doc, "ownership_expires_at", row.ownershipExpiresAt());
         if (row.lat() != null && row.lng() != null) doc.putObject("location").put("lat", row.lat()).put("lon", row.lng());
         doc.put("published_at", row.publishedAt().toString());
-        doc.put("title", row.title());
-        doc.put("location_text", String.join(" ", nonNull(row.addressSummary()), nonNull(row.districtName()),
+        // indexed free text is redacted like the display (search_text already is, in SQL: V036 bds_redact_contact)
+        doc.put("title", nonNull(ContactInfoGuard.redact(row.title(), " ")));
+        doc.put("location_text", String.join(" ", nonNull(ContactInfoGuard.redact(row.addressSummary(), " ")), nonNull(row.districtName()),
                 nonNull(row.projectName())).trim());
         doc.put("search_text", row.searchText() == null ? "" : row.searchText());
         doc.put("row_version", row.rowVersion());
