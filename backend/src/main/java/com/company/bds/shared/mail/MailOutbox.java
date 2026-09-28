@@ -33,6 +33,8 @@ public class MailOutbox {
     private static final Logger log = LoggerFactory.getLogger(MailOutbox.class);
     private static final Pattern CATEGORY = Pattern.compile("[A-Z][A-Z0-9_]{0,39}");
     private static final Pattern HEADER_NAME = Pattern.compile("X-[A-Za-z0-9-]{1,60}");
+    /** Standard list headers allowed besides {@code X-*}: one-click unsubscribe for alert e-mails (RFC 2369, RFC 8058). */
+    private static final Set<String> LIST_HEADERS = Set.of("List-Unsubscribe", "List-Unsubscribe-Post");
     private static final Set<String> RESERVED_HEADERS = Set.of("from", "to", "cc", "bcc", "subject", "reply-to", "sender");
 
     public enum Outcome { QUEUED, DUPLICATE, REJECTED }
@@ -119,7 +121,7 @@ public class MailOutbox {
         for (Map.Entry<String, String> header : message.headers().entrySet()) {
             String name = header.getKey();
             String value = header.getValue();
-            if (!HEADER_NAME.matcher(name).matches() || RESERVED_HEADERS.contains(name.toLowerCase(Locale.ROOT))
+            if (!(HEADER_NAME.matcher(name).matches() || LIST_HEADERS.contains(name)) || RESERVED_HEADERS.contains(name.toLowerCase(Locale.ROOT))
                     || value == null || value.matches("(?s).*[\\r\\n].*") || value.length() > 500) {
                 return "invalid_header";
             }

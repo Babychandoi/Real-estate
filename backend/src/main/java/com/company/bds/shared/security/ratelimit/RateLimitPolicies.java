@@ -82,6 +82,13 @@ public class RateLimitPolicies {
                 // Rebuild/rollback/cleanup of the search index: a handful per hour is plenty.
                 policy("admin-search-index", "POST", "/api/v2/admin/search/**", FAIL_CLOSED,
                         rule(ACCOUNT, 20, Duration.ofHours(1))),
+                // S6: token-bearing public endpoints (unsubscribe links, shared shortlist links): bounded guessing.
+                policy("public-unsubscribe", "GET", "/api/v1/public/unsubscribe", EVICT,
+                        rule(IP, 30, Duration.ofMinutes(15))),
+                policy("public-unsubscribe-apply", "POST", "/api/v1/public/unsubscribe", EVICT,
+                        rule(IP, 30, Duration.ofMinutes(15))),
+                policy("public-shortlist", "GET", "/api/v1/public/shortlists/**", EVICT,
+                        rule(IP, 120, Duration.ofMinutes(1))),
                 policy("analytics-events", "POST", "/api/v1/events", EVICT,
                         rule(IP, 120, Duration.ofMinutes(1))),
                 // Uploads are scanned by ClamAV and written to object storage: far more expensive than a read.
