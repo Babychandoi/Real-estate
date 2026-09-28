@@ -1,25 +1,373 @@
-import { useEffect, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, RefreshCw, Search, X } from 'lucide-react';
-import { apiClient } from '@/shared/api/client';
+import { useCallback, useEffect, useState } from 'react';
+import { History, RefreshCw } from 'lucide-react';
+import { billingApi } from '@/entities/admin/api/adminApi';
+import type {
+  AdminOrder,
+  AdminOrderPage,
+  BankSettings,
+  BillingOrder,
+  OrderEvent,
+  OrderStatus,
+} from '@/entities/admin/model/types';
+import { ApiProblemException } from '@/shared/types/problem-details';
+import { errorMessage } from '@/shared/api/errors';
+import { ReasonDialog, StatusBadge, formatDateTime, formatVnd } from '@/shared/admin/adminUi';
+import { ORDER_STATUS } from '@/entities/admin/model/billingStatus';
+import { Button } from '@/shared/ui/Button';
+import { Chip } from '@/shared/ui/Chip';
+import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
+import { Dialog } from '@/shared/ui/Dialog';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { FormField } from '@/shared/ui/FormField';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Sheet } from '@/shared/ui/Sheet';
+import { TextInput } from '@/shared/ui/TextInput';
 
-type Order={id:string;customerName:string;customerEmail:string;planName:string;amountVnd:number;reference:string;status:string;createdAt:string;reportedAt?:string|null;reviewNote?:string|null};
-type Page={items:Order[];page:number;size:number;total:number};
-type Bank={bankBin:string;bankName:string;accountNumber:string;accountName:string;adminEmail:string;version:number};
-const labels:Record<string,string>={CREATED:'Chờ chuyển khoản',TRANSFER_REPORTED:'Chờ đối soát',APPROVED:'Đã xác nhận',REJECTED:'Từ chối',CANCELLED:'Đã hủy'};
-const banks=[['970422','MB Bank'],['970436','Vietcombank'],['970418','BIDV'],['970407','Techcombank'],['970416','ACB'],['970415','VietinBank'],['970423','TPBank'],['970432','VPBank'],['970441','VIB'],['970448','OCB'],['970405','Agribank'],['970403','Sacombank'],['970437','HDBank'],['970443','SHB'],['970454','MSB'],['970412','PVcomBank'],['970414','OceanBank'],['970438','BaoViet Bank'],['970429','SCB'],['970440','SeABank'],['970431','Eximbank'],['970430','PGBank'],['970425','ABBank'],['970424','Shinhan Bank'],['970419','NCB'],['970420','VRB'],['970427','VietABank'],['970428','Nam A Bank'],['970449','LPBank'],['970452','KienlongBank'],['970458','UOB Vietnam'],['970457','Woori Bank']] as const;
-const input='mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm font-normal text-slate-950 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20';
-const fmt=(value:string)=>new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short'}).format(new Date(value));
+const QUEUE: OrderStatus[] = [
+  'TRANSFER_REPORTED',
+  'EXCEPTION',
+  'CREATED',
+  'APPROVED',
+  'REJECTED',
+  'REFUNDED',
+  'CANCELLED',
+];
+const EXCEPTION_LABELS: Record<string, string> = {
+  AMOUNT_MISMATCH: 'Sai số tiền',
+  REFERENCE_MISMATCH: 'Sai nội dung chuyển khoản',
+  AMOUNT_AND_REFERENCE_MISMATCH: 'Sai số tiền và nội dung',
+};
+const RESOLUTIONS = [
+  { code: 'APPROVE_WITH_NOTE', label: 'Duyệt kèm ghi chú (cộng lượt)' },
+  { code: 'REJECT', label: 'Từ chối' },
+  { code: 'REFUNDED_OFFLINE', label: 'Đã hoàn tiền ngoài hệ thống' },
+];
 
-export function AdminBillingPage(){
- const [data,setData]=useState<Page>({items:[],page:0,size:20,total:0});const [bank,setBank]=useState<Bank>({bankBin:'',bankName:'',accountNumber:'',accountName:'',adminEmail:'',version:0});const [status,setStatus]=useState('TRANSFER_REPORTED');const [query,setQuery]=useState('');const [appliedQuery,setAppliedQuery]=useState('');const [notice,setNotice]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState<string|null>(null);const [reasons,setReasons]=useState<Record<string,string>>({});const [manualBank,setManualBank]=useState(false);
- const load=async(page=data.page)=>{setError('');try{const [orders,nextBank]=await Promise.all([apiClient<Page>(`/billing/admin/orders?page=${page}&size=20&status=${encodeURIComponent(status)}&q=${encodeURIComponent(appliedQuery)}`),apiClient<Bank>('/billing/admin/bank')]);setData(orders);if(nextBank)setBank(nextBank)}catch(e){setError(e instanceof Error?e.message:'Không thể tải dữ liệu đối soát.')}};
- useEffect(()=>{void load(0)},[status,appliedQuery]);
- const saveBank=async()=>{setBusy('bank');setNotice('');setError('');try{await apiClient('/billing/admin/bank',{method:'PUT',body:JSON.stringify(bank)});setNotice('Đã lưu tài khoản nhận tiền và mã VietQR mới.');await load()}catch(e){setError(e instanceof Error?e.message:'Không thể lưu tài khoản ngân hàng.')}finally{setBusy(null)}};
- const review=async(id:string,approved:boolean)=>{const reason=reasons[id]?.trim();if(!approved&&!reason){setError('Nhập lý do trước khi từ chối đơn hàng.');return}setBusy(id);setError('');try{await apiClient(`/billing/admin/reconciliation/${id}/${approved?'approve':'reject'}`,{method:'POST',body:JSON.stringify(approved?{note:'Đã kiểm tra sao kê thủ công'}:{reason})});setNotice(approved?'Đã xác nhận thanh toán và cấp gói cho khách hàng.':'Đã từ chối và gửi lý do cho khách hàng.');await load()}catch(e){setError(e instanceof Error?e.message:'Không thể cập nhật đơn hàng.')}finally{setBusy(null)}};
- const knownBank=banks.some(([bin])=>bin===bank.bankBin);const pages=Math.max(1,Math.ceil(data.total/data.size));const chooseBank=(value:string)=>{if(value==='manual'){setManualBank(true);setBank({...bank,bankBin:'',bankName:''});return}const [bankBin,bankName]=value.split('|');setManualBank(false);setBank({...bank,bankBin,bankName})};
- return <section className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8"><header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="text-2xl font-bold text-slate-950">Đơn hàng & đối soát</h2><p className="mt-1 text-sm text-slate-600">VietQR chỉ tạo mã chuyển khoản. Bạn kiểm tra sao kê và xác nhận từng đơn tại đây.</p></div><button type="button" onClick={()=>void load()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4"/>Làm mới</button></header>
- {notice&&<p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{notice}</p>}{error&&<p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}
- <section className="rounded-xl bg-white p-5 shadow-sm"><h3 className="text-base font-bold text-slate-950">Tài khoản nhận chuyển khoản</h3><p className="mt-1 text-sm text-slate-600">Chọn ngân hàng, hệ thống tự điền BIN để sinh VietQR. Không cần nhớ mã BIN.</p><div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="text-xs font-semibold text-slate-700">Ngân hàng nhận tiền<select value={manualBank||(!knownBank&&Boolean(bank.bankBin))?'manual':bank.bankBin?`${bank.bankBin}|${bank.bankName}`:''} onChange={e=>chooseBank(e.target.value)} className={input}><option value="">Chọn ngân hàng</option>{banks.map(([bin,name])=><option key={bin} value={`${bin}|${name}`}>{name}</option>)}<option value="manual">Ngân hàng khác / nhập thủ công</option></select></label>{manualBank&&<><label className="text-xs font-semibold text-slate-700">BIN ngân hàng<input value={bank.bankBin} onChange={e=>setBank({...bank,bankBin:e.target.value})} inputMode="numeric" maxLength={6} className={input}/></label><label className="text-xs font-semibold text-slate-700">Tên ngân hàng<input value={bank.bankName} onChange={e=>setBank({...bank,bankName:e.target.value})} className={input}/></label></>}<label className="text-xs font-semibold text-slate-700">Số tài khoản<input value={bank.accountNumber} onChange={e=>setBank({...bank,accountNumber:e.target.value})} inputMode="numeric" className={input}/></label><label className="text-xs font-semibold text-slate-700">Tên chủ tài khoản<input value={bank.accountName} onChange={e=>setBank({...bank,accountName:e.target.value})} className={input}/></label><label className="text-xs font-semibold text-slate-700">Email báo đơn chờ<input value={bank.adminEmail} onChange={e=>setBank({...bank,adminEmail:e.target.value})} type="email" className={input}/></label></div><button type="button" disabled={busy!==null} onClick={()=>void saveBank()} className="mt-4 min-h-11 rounded-lg bg-primary px-4 text-sm font-bold text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">Lưu tài khoản nhận tiền</button></section>
- <section className="rounded-xl bg-white shadow-sm"><div className="flex flex-col gap-4 border-b border-slate-200 p-5 lg:flex-row lg:items-center lg:justify-between"><div><h3 className="font-bold text-slate-950">Danh sách đơn hàng</h3><p className="mt-1 text-sm text-slate-600">{data.total} đơn hàng</p></div><div className="flex flex-col gap-2 sm:flex-row"><label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm text-slate-500"><Search className="h-4 w-4"/><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')setAppliedQuery(query)}} placeholder="Mã đơn, tên hoặc email" className="w-full bg-transparent text-slate-950 outline-none sm:w-52"/></label><select value={status} onChange={e=>setStatus(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800"><option value="">Tất cả trạng thái</option>{Object.entries(labels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><button type="button" onClick={()=>setAppliedQuery(query)} className="min-h-11 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white">Tìm</button></div></div><div className="overflow-x-auto"><table className="min-w-[900px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Khách hàng</th><th className="px-5 py-3">Gói / số tiền</th><th className="px-5 py-3">Mã chuyển khoản</th><th className="px-5 py-3">Trạng thái</th><th className="px-5 py-3">Thời gian</th><th className="px-5 py-3">Xử lý</th></tr></thead><tbody className="divide-y divide-slate-100">{data.items.map(order=><tr key={order.id} className="align-top"><td className="px-5 py-4 font-semibold text-slate-900">{order.customerName}<span className="mt-0.5 block font-normal text-slate-500">{order.customerEmail}</span></td><td className="px-5 py-4 text-slate-800">{order.planName}<span className="mt-0.5 block font-semibold text-slate-950">{order.amountVnd.toLocaleString('vi-VN')}đ</span></td><td className="px-5 py-4 font-mono text-xs font-semibold text-primary">{order.reference}</td><td className="px-5 py-4"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{labels[order.status]||order.status}</span>{order.reviewNote&&<span className="mt-1 block max-w-52 text-xs text-slate-500">{order.reviewNote}</span>}</td><td className="px-5 py-4 text-slate-600">Tạo: {fmt(order.createdAt)}{order.reportedAt&&<span className="mt-1 block">Báo CK: {fmt(order.reportedAt)}</span>}</td><td className="px-5 py-4">{order.status==='TRANSFER_REPORTED'?<div className="flex min-w-52 flex-col gap-2"><div className="flex gap-2"><button disabled={busy!==null} onClick={()=>void review(order.id,true)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white disabled:opacity-60"><Check className="h-3.5 w-3.5"/>Xác nhận</button><button disabled={busy!==null} onClick={()=>void review(order.id,false)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-rose-300 px-3 text-xs font-bold text-rose-700 disabled:opacity-60"><X className="h-3.5 w-3.5"/>Từ chối</button></div><input value={reasons[order.id]||''} onChange={e=>setReasons({...reasons,[order.id]:e.target.value})} placeholder="Lý do nếu từ chối" className="min-h-9 rounded-lg border border-slate-300 px-2 text-xs outline-none focus:border-primary"/></div>:<span className="text-xs text-slate-500">Không cần thao tác</span>}</td></tr>)}{data.items.length===0&&<tr><td colSpan={6} className="px-5 py-14 text-center text-sm text-slate-500">Chưa có đơn hàng phù hợp. Hãy đổi bộ lọc hoặc làm mới dữ liệu.</td></tr>}</tbody></table></div><footer className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm text-slate-600"><span>Trang {data.page+1}/{pages}</span><div className="flex gap-2"><button type="button" disabled={data.page===0} onClick={()=>void load(data.page-1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-300 disabled:opacity-40" aria-label="Trang trước"><ChevronLeft className="h-4 w-4"/></button><button type="button" disabled={data.page+1>=pages} onClick={()=>void load(data.page+1)} className="grid h-9 w-9 place-items-center rounded-lg border border-slate-300 disabled:opacity-40" aria-label="Trang sau"><ChevronRight className="h-4 w-4"/></button></div></footer></section></section>;
+export function AdminBillingPage() {
+  const [status, setStatus] = useState<OrderStatus>('TRANSFER_REPORTED');
+  const [page, setPage] = useState(0);
+  const [data, setData] = useState<AdminOrderPage | null>(null);
+  const [tableStatus, setTableStatus] = useState<DataTableStatus>('loading');
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; title: string } | null>(null);
+  const [receipt, setReceipt] = useState<AdminOrder | null>(null);
+  const [resolve, setResolve] = useState<AdminOrder | null>(null);
+  const [detail, setDetail] = useState<{ order: BillingOrder; events: OrderEvent[] } | null>(null);
+
+  const load = useCallback(async () => {
+    setTableStatus((s) => (s === 'loading' ? 'loading' : 'refreshing'));
+    try {
+      setData(await billingApi.reconciliation(status, page));
+      setTableStatus('ready');
+    } catch {
+      setTableStatus('error');
+    }
+  }, [status, page]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const columns: DataTableColumn<AdminOrder>[] = [
+    {
+      key: 'order',
+      header: 'Đơn',
+      cell: (o) => (
+        <div>
+          <p className="font-mono font-semibold">{o.reference}</p>
+          <p className="text-xs text-on-surface-variant">
+            {o.customerName} · {o.planName}
+          </p>
+        </div>
+      ),
+    },
+    { key: 'amount', header: 'Số tiền', cell: (o) => formatVnd(o.amountVnd) },
+    {
+      key: 'received',
+      header: 'Đã nhận',
+      cell: (o) =>
+        o.receivedAmountVnd == null ? (
+          'Chưa ghi nhận'
+        ) : (
+          <span>
+            {formatVnd(o.receivedAmountVnd)}
+            {o.exceptionReason && (
+              <span className="block text-xs font-semibold">
+                {EXCEPTION_LABELS[o.exceptionReason] ?? o.exceptionReason}
+              </span>
+            )}
+          </span>
+        ),
+    },
+    { key: 'reported', header: 'Báo chuyển lúc', cell: (o) => formatDateTime(o.reportedAt) },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      cell: (o) => <StatusBadge label={ORDER_STATUS[o.status].label} variant={ORDER_STATUS[o.status].variant} />,
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'end',
+      cell: (o) => (
+        <div className="flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            leftIcon={<History className="h-4 w-4" />}
+            aria-label={`Lịch sử ${o.reference}`}
+            onClick={async () => setDetail(await billingApi.adminOrder(o.id))}
+          >
+            Lịch sử
+          </Button>
+          {(o.status === 'TRANSFER_REPORTED' || o.status === 'CREATED') && (
+            <Button size="sm" onClick={() => setReceipt(o)} aria-label={`Ghi nhận tiền về ${o.reference}`}>
+              Ghi nhận tiền về
+            </Button>
+          )}
+          {o.status === 'EXCEPTION' && (
+            <Button size="sm" onClick={() => setResolve(o)} aria-label={`Xử lý ngoại lệ ${o.reference}`}>
+              Xử lý ngoại lệ
+            </Button>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6" data-ready={tableStatus === 'loading' ? undefined : 'true'}>
+      <header>
+        <h1 className="text-2xl font-bold">Đơn hàng và đối soát</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Ghi nhận đúng số tiền và nội dung đã về tài khoản. Khớp chính xác thì gói được kích hoạt một lần; lệch thì vào
+          hàng ngoại lệ để quyết định có ghi chú.
+        </p>
+      </header>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Lọc theo trạng thái">
+        {QUEUE.map((s) => (
+          <Chip
+            key={s}
+            size="sm"
+            selected={status === s}
+            onClick={() => {
+              setStatus(s);
+              setPage(0);
+            }}
+          >
+            {ORDER_STATUS[s].label}
+            {data?.counts[s] != null ? ` (${data.counts[s]})` : ''}
+          </Chip>
+        ))}
+        <Button size="sm" variant="ghost" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={() => void load()}>
+          Tải lại
+        </Button>
+      </div>
+      {feedback && <InlineFeedback kind={feedback.kind} title={feedback.title} />}
+      <DataTable
+        caption="Đơn cần đối soát, báo chuyển sớm nhất ở đầu"
+        columns={columns}
+        rows={data?.items ?? []}
+        getRowId={(o) => o.id}
+        status={tableStatus}
+        onRetry={() => void load()}
+        empty={<EmptyState title="Không có đơn nào ở trạng thái này" />}
+        footer={
+          data && data.total > data.size ? (
+            <Pagination
+              page={page + 1}
+              pageCount={Math.ceil(data.total / data.size)}
+              onPageChange={(p) => setPage(p - 1)}
+            />
+          ) : undefined
+        }
+      />
+      <BankSettingsPanel />
+      {receipt && (
+        <ReceiptDialog
+          order={receipt}
+          onClose={() => setReceipt(null)}
+          onDone={async (o) => {
+            setFeedback({ kind: 'success', title: `${o.reference}: ${ORDER_STATUS[o.status].label}` });
+            await load();
+          }}
+        />
+      )}
+      <ReasonDialog
+        open={resolve !== null}
+        title={resolve ? `Xử lý ngoại lệ ${resolve.reference}` : ''}
+        description={
+          resolve
+            ? `Cần ${formatVnd(resolve.amountVnd)}, đã nhận ${formatVnd(resolve.receivedAmountVnd)} (${EXCEPTION_LABELS[resolve.exceptionReason ?? ''] ?? ''}).`
+            : undefined
+        }
+        choiceLabel="Cách xử lý"
+        reasons={RESOLUTIONS}
+        noteLabel="Ghi chú xử lý"
+        noteMinLength={5}
+        confirmLabel="Lưu quyết định"
+        onClose={() => setResolve(null)}
+        onConfirm={async (code, note) => {
+          if (!resolve) return;
+          const o = await billingApi.resolve(resolve.id, code as 'APPROVE_WITH_NOTE', note);
+          setFeedback({ kind: 'success', title: `${o.reference}: ${ORDER_STATUS[o.status].label}` });
+          await load();
+        }}
+      />
+      {detail && (
+        <Sheet
+          open
+          onClose={() => setDetail(null)}
+          title={`Lịch sử ${detail.order.reference}`}
+          description={ORDER_STATUS[detail.order.status].label}
+        >
+          <ol className="space-y-2 text-sm">
+            {detail.events.map((e) => (
+              <li key={e.id} className="rounded-md bg-surface-container-low p-2">
+                <span className="font-semibold">{e.type}</span>{' '}
+                {e.fromStatus ? `(${e.fromStatus} sang ${e.toStatus})` : ''} · {e.actorName ?? 'Hệ thống'} ·{' '}
+                {formatDateTime(e.createdAt)}
+                {e.note && <span className="block text-on-surface-variant">{e.note}</span>}
+              </li>
+            ))}
+          </ol>
+        </Sheet>
+      )}
+    </div>
+  );
 }
+
+function ReceiptDialog({
+  order,
+  onClose,
+  onDone,
+}: {
+  order: AdminOrder;
+  onClose: () => void;
+  onDone: (o: AdminOrder) => Promise<void>;
+}) {
+  const [amount, setAmount] = useState(String(order.amountVnd));
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async () => {
+    const value = Number(amount.replace(/\D/g, ''));
+    if (!amount.trim() || Number.isNaN(value)) return setError('Nhập số tiền đã nhận.');
+    setBusy(true);
+    try {
+      const o = await billingApi.receipt(order.id, value, reference, note || undefined);
+      await onDone(o);
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err, 'Không lưu được.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Ghi nhận tiền về: ${order.reference}`}
+      description={`Cần nhận ${formatVnd(order.amountVnd)} với nội dung chứa ${order.reference}.`}
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Hủy
+          </Button>
+          <Button onClick={submit} isLoading={busy}>
+            Lưu đối soát
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <FormField label="Số tiền đã nhận (đ)" required>
+          {(c) => <TextInput {...c} inputMode="numeric" value={amount} onChange={(e) => setAmount(e.target.value)} />}
+        </FormField>
+        <FormField label="Nội dung chuyển khoản trên sao kê" required>
+          {(c) => <TextInput {...c} value={reference} onChange={(e) => setReference(e.target.value)} />}
+        </FormField>
+        <FormField label="Ghi chú">
+          {(c) => <TextInput {...c} value={note} onChange={(e) => setNote(e.target.value)} />}
+        </FormField>
+        {error && <InlineFeedback kind="error" title={error} />}
+      </div>
+    </Dialog>
+  );
+}
+
+function BankSettingsPanel() {
+  const [bank, setBank] = useState<BankSettings | null>(null);
+  const [form, setForm] = useState({ bankBin: '', bankName: '', accountNumber: '', accountName: '', adminEmail: '' });
+  const [msg, setMsg] = useState<{ kind: 'success' | 'error' | 'conflict'; title: string } | null>(null);
+  const load = useCallback(async () => {
+    const b = await billingApi.bank();
+    setBank(b ?? null);
+    if (b)
+      setForm({
+        bankBin: b.bankBin,
+        bankName: b.bankName,
+        accountNumber: b.accountNumber,
+        accountName: b.accountName,
+        adminEmail: b.adminEmail ?? '',
+      });
+  }, []);
+  useEffect(() => {
+    void load().catch(() => undefined);
+  }, [load]);
+  const save = async () => {
+    try {
+      setBank(await billingApi.saveBank({ ...form, adminEmail: form.adminEmail || null }, bank?.version ?? null));
+      setMsg({ kind: 'success', title: 'Đã lưu tài khoản nhận tiền.' });
+    } catch (err) {
+      const conflict = err instanceof ApiProblemException && err.problem.status === 409;
+      setMsg({ kind: conflict ? 'conflict' : 'error', title: errorMessage(err, 'Không lưu được.') });
+    }
+  };
+  const field = (key: keyof typeof form, label: string) => (
+    <FormField label={label}>
+      {(c) => <TextInput {...c} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />}
+    </FormField>
+  );
+  return (
+    <section aria-labelledby="bank-heading" className="rounded-lg border border-outline-variant p-4">
+      <h2 id="bank-heading" className="text-lg font-bold">
+        Tài khoản nhận tiền
+      </h2>
+      <p className="text-sm text-on-surface-variant">
+        Phiên bản {bank?.version ?? 'chưa cấu hình'}. Nếu người khác vừa sửa, bạn sẽ được yêu cầu tải lại trước khi lưu.
+      </p>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {field('bankBin', 'Mã BIN ngân hàng')}
+        {field('bankName', 'Tên ngân hàng')}
+        {field('accountNumber', 'Số tài khoản')}
+        {field('accountName', 'Tên chủ tài khoản')}
+        {field('adminEmail', 'Email nhận thông báo đối soát')}
+      </div>
+      {msg && (
+        <InlineFeedback
+          kind={msg.kind}
+          title={msg.title}
+          className="mt-3"
+          action={
+            msg.kind === 'conflict'
+              ? {
+                  label: 'Tải lại',
+                  onClick: () => {
+                    setMsg(null);
+                    void load();
+                  },
+                }
+              : undefined
+          }
+        />
+      )}
+      <Button className="mt-3" onClick={save}>
+        Lưu
+      </Button>
+    </section>
+  );
+}
+
 export default AdminBillingPage;

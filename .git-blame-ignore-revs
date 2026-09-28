@@ -1,0 +1,8 @@
+# Mechanical formatting commits, skipped by `git blame` (git config blame.ignoreRevsFile .git-blame-ignore-revs;
+# GitHub reads this file automatically).
+
+# style(frontend): add Prettier and format app, tests and config
+5c7a979fcc7c4cb82b927426bcf212c986a7fdfa
+
+# style: whole-tree formatting (F22.1)
+f255dca0cb7a7b10fcd41e8712e9dccd77d218fb

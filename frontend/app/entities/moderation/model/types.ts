@@ -1,19 +1,3 @@
-export interface ModerationQueueItem {
-  listingId: string;
-  revisionId: string;
-  revisionNumber: number;
-  title: string;
-  ownerId: string;
-  priceVnd: number;
-  areaM2: number;
-  purpose: 'SALE' | 'RENT';
-  propertyType: string;
-  addressSummary: string;
-  submittedAt: string;
-  mediaCount: number;
-  isFirstSubmission: boolean;
-}
-
 export interface FieldDiff {
   fieldName: string;
   fieldLabel: string;
@@ -37,15 +21,4 @@ export interface StandardReason {
   code: string;
   vietnameseLabel: string;
   category: string;
-}
-
-export interface ApproveListingPayload {
-  revisionId: string;
-  note?: string;
-}
-
-export interface RejectListingPayload {
-  revisionId: string;
-  reasonCode: string;
-  reasonDetail?: string;
 }

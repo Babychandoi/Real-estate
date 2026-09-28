@@ -1,9 +1,9 @@
 package com.company.bds.listing.api;
 
+import com.company.bds.shared.error.ApiException;
 import com.company.bds.listing.api.request.CreateListingDraftRequest;
 import com.company.bds.listing.api.request.UpdateListingDraftRequest;
 import com.company.bds.listing.api.response.ListingDetailResponse;
-import com.company.bds.listing.api.response.ListingSummaryResponse;
 import com.company.bds.listing.application.command.CreateListingDraftCommand;
 import com.company.bds.listing.application.command.SubmitListingRevisionCommand;
 import com.company.bds.listing.application.command.UpdateListingDraftCommand;
@@ -26,7 +26,6 @@ import com.company.bds.shared.security.MediaUrlPolicy;
 import com.company.bds.media.MediaStorageService;
 import org.springframework.beans.factory.ObjectProvider;
 
-import java.math.BigDecimal;
 import com.company.bds.shared.security.ContactInfoGuard;
 import java.util.ArrayList;
 import java.util.List;
@@ -91,13 +90,17 @@ public class ListingController {
                 request.addressSummary(),
                 request.publicLatitude(),
                 request.publicLongitude(),
-                request.imageUrls()
+                request.imageUrls(),
+                new com.company.bds.listing.domain.model.ListingAttributes(request.monthlyServiceFeeVnd(),
+                        request.depositVnd(), request.furnishing(), request.legalStatusCode(), request.projectId())
         );
 
-        UUID listingId = createDraftUseCase.createDraft(command);
+        com.company.bds.listing.application.port.in.DraftSaved saved = createDraftUseCase.createDraft(command);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "listingId", listingId,
+        return ResponseEntity.status(HttpStatus.CREATED).eTag(etag(saved.version())).body(Map.of(
+                "listingId", saved.listingId(),
+                "revisionId", saved.revisionId(),
+                "version", saved.version(),
                 "status", "DRAFT",
                 "message", "Khởi tạo tin đăng nháp thành công."
         ));
@@ -107,6 +110,7 @@ public class ListingController {
     public ResponseEntity<Map<String, Object>> updateDraft(
             @PathVariable UUID id,
             @Valid @RequestBody UpdateListingDraftRequest request,
+            @RequestHeader(value = "If-Match", required = false) String ifMatch,
             Authentication authentication) {
 
         UUID ownerId = CurrentUser.id(authentication);
@@ -130,16 +134,36 @@ public class ListingController {
                 request.addressSummary(),
                 request.publicLatitude(),
                 request.publicLongitude(),
-                request.imageUrls()
+                request.imageUrls(),
+                new com.company.bds.listing.domain.model.ListingAttributes(request.monthlyServiceFeeVnd(),
+                        request.depositVnd(), request.furnishing(), request.legalStatusCode(), request.projectId()),
+                expectedVersion(ifMatch, request.expectedVersion())
         );
 
-        UUID revisionId = updateDraftUseCase.updateDraft(command);
+        com.company.bds.listing.application.port.in.DraftSaved saved = updateDraftUseCase.updateDraft(command);
 
-        return ResponseEntity.ok(Map.of(
+        return ResponseEntity.ok().eTag(etag(saved.version())).body(Map.of(
                 "listingId", id,
-                "revisionId", revisionId,
+                "revisionId", saved.revisionId(),
+                "version", saved.version(),
                 "message", "Cập nhật bản nháp thành công."
         ));
+    }
+
+    public static String etag(long version) { return "\"v" + version + "\""; }
+
+    /** If-Match {@code "v<version>"} (or a bare number) wins over the body's {@code expectedVersion}. */
+    public static Long expectedVersion(String ifMatch, Long bodyVersion) {
+        if (ifMatch == null || ifMatch.isBlank() || ifMatch.trim().equals("*")) return bodyVersion;
+        String value = ifMatch.trim();
+        if (value.startsWith("W/")) value = value.substring(2);
+        value = value.replace("\"", "");
+        if (value.startsWith("v")) value = value.substring(1);
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("If-Match không hợp lệ.");
+        }
     }
 
     private void validateMedia(UUID ownerId, List<String> imageUrls) {
@@ -152,10 +176,12 @@ public class ListingController {
     public ResponseEntity<Map<String, Object>> submitRevision(@PathVariable UUID id, Authentication authentication) {
         SubmitListingRevisionCommand command = new SubmitListingRevisionCommand(id, CurrentUser.id(authentication));
         submitRevisionUseCase.submitRevision(command);
+        String status = persistencePort.findById(id).map(l -> l.getStatus().name()).orElse("PENDING_REVIEW");
 
         return ResponseEntity.ok(Map.of(
                 "listingId", id,
-                "status", "PENDING_REVIEW",
+                "status", status,
+                "revisionStatus", "SUBMITTED",
                 "message", "Nộp duyệt tin đăng thành công. Hồ sơ đang được chuyển tới hội đồng thẩm định."
         ));
     }
@@ -166,7 +192,7 @@ public class ListingController {
                 .filter(listing -> canView(listing, authentication))
                 .map(this::mapToDetailResponse)
                 .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
     }
 
     @GetMapping("/by-slug/{slug}")
@@ -175,7 +201,7 @@ public class ListingController {
                 .filter(listing -> canView(listing, authentication))
                 .map(this::mapToDetailResponse)
                 .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
     }
 
     @GetMapping("/my-listings")
@@ -212,74 +238,7 @@ public class ListingController {
 
     public record VisibilityRequest(boolean hidden) {}
 
-    @GetMapping("/search")
-    public ResponseEntity<List<ListingSummaryResponse>> searchListings(
-            @RequestParam(required = false) String purpose,
-            @RequestParam(required = false) String propertyType,
-            @RequestParam(required = false) Long minPrice,
-            @RequestParam(required = false) Long maxPrice,
-            @RequestParam(required = false) BigDecimal minArea,
-            @RequestParam(required = false) BigDecimal maxArea,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Double minLat,
-            @RequestParam(required = false) Double maxLat,
-            @RequestParam(required = false) Double minLng,
-            @RequestParam(required = false) Double maxLng,
-            @RequestParam(required = false, defaultValue = "LATEST") String sortBy,
-            @RequestParam(required = false, defaultValue = "0") int page,
-            @RequestParam(required = false, defaultValue = "20") int size) {
-
-        com.company.bds.listing.domain.model.ListingSearchCriteria criteria =
-                com.company.bds.listing.domain.model.ListingSearchCriteria.of(
-                        purpose, propertyType, minPrice, maxPrice, minArea, maxArea,
-                        keyword, minLat, maxLat, minLng, maxLng, sortBy
-                );
-
-        int safePage = Math.max(0, page);
-        int safeSize = Math.max(1, Math.min(size, 100));
-        List<Listing> activeListings = persistencePort.searchListings(criteria, safePage, safeSize);
-
-        if (!activeListings.isEmpty()) {
-            Map<UUID, SellerSummaryQuery.SellerSummary> sellers = sellerSummaryQuery.byOwnerIds(
-                    activeListings.stream().map(Listing::getOwnerId).toList());
-            List<ListingSummaryResponse> results = activeListings.stream()
-                    .map(listing -> {
-                        ListingRevision rev = listing.getPublicRevision().orElseThrow(() ->
-                                new IllegalStateException("ACTIVE listing has no approved public revision: " + listing.getId()));
-                        String imgUrl = "";
-                        if (rev != null && !rev.getMediaList().isEmpty()) {
-                            imgUrl = rev.getMediaList().get(0).mediaUrl();
-                        }
-                            return new ListingSummaryResponse(
-                                listing.getId(),
-                                listing.getSlug(),
-                                ContactInfoGuard.redact(rev.getTitle()),
-                                rev.getPurpose().name(),
-                                rev.getPropertyType().name(),
-                                rev.getPriceVnd(),
-                                rev.getAreaM2(),
-                                ContactInfoGuard.redact(rev.getAddressSummary()),
-                                rev.getPublicLatitude(),
-                                rev.getPublicLongitude(),
-                                listing.isVerifiedOwner(),
-                                false,
-                                imgUrl,
-                                listing.getCreatedAt(),
-                                listing.getOwnerId(),
-                                ContactInfoGuard.redact(seller(sellers, listing).displayName()),
-                                seller(sellers, listing).avatarMediaUrl()
-                        );
-                    })
-                    .collect(Collectors.toList());
-            return ResponseEntity.ok(results);
-        }
-
-        return ResponseEntity.ok(List.of());
-    }
-
-    private static SellerSummaryQuery.SellerSummary seller(Map<UUID, SellerSummaryQuery.SellerSummary> sellers, Listing listing) {
-        return sellers.getOrDefault(listing.getOwnerId(), new SellerSummaryQuery.SellerSummary(null, null));
-    }
+    // GET /api/v1/listings/search moved to search.api.LegacySearchV1Controller (deprecated wrapper over API v2).
 
     private ListingDetailResponse mapToDetailResponse(Listing listing) {
         ListingRevision rev = listing.getPublicRevision().or(listing::getLatestRevision).orElseThrow(() ->

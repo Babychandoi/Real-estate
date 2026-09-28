@@ -1,5 +1,5 @@
 import { apiClient } from '../../../shared/api/client';
-import type { Listing, ListingSearchParams } from '../model/types';
+import type { Listing, ListingDetail, ListingSearchParams } from '../model/types';
 
 export const listingApi = {
   searchListings: (params: ListingSearchParams = {}): Promise<Listing[]> => {
@@ -23,7 +23,7 @@ export const listingApi = {
     return apiClient<Listing[]>(`/listings/search${queryString ? `?${queryString}` : ''}`);
   },
 
-  getListingDetail: (id: string) => apiClient<any>(`/listings/${id}`),
+  getListingDetail: (id: string) => apiClient<ListingDetail>(`/listings/${id}`),
 
   getMyListings: () => apiClient<Listing[]>('/listings/my-listings'),
 };

@@ -1,0 +1,18 @@
+{
+  "date": "2026-09-28",
+  "suite": "npm run test:ui",
+  "browser": "Chromium 140 (Playwright 1.55.1)",
+  "widths": [
+    360,
+    768,
+    1024,
+    1440
+  ],
+  "casesPerWidth": 48,
+  "passed": 192,
+  "failed": 0,
+  "skipped": 0,
+  "retries": 0,
+  "durationMs": 314267,
+  "fixture": "Synthetic local API; font stylesheet stubbed for UI tests; no production transactions."
+}

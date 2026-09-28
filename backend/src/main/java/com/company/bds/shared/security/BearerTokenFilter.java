@@ -17,6 +17,7 @@ import java.util.List;
 
 @Component
 public class BearerTokenFilter extends OncePerRequestFilter {
+    private static final String NOTIFICATION_STREAM = "/api/v1/notifications/stream";
     private final AuthService authService;
     public BearerTokenFilter(AuthService authService) { this.authService = authService; }
 
@@ -25,10 +26,17 @@ public class BearerTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ") && SecurityContextHolder.getContext().getAuthentication() == null) {
-            AuthService.UserAccount user = authService.findByToken(header.substring(7));
-            if (user != null) {
+            // The notification stream reconnects by itself: it proves an open tab, not a person at the keyboard, so it
+            // must not reset the idle timeout of a staff session.
+            String token = header.substring(7);
+            var session = NOTIFICATION_STREAM.equals(request.getRequestURI())
+                    ? authService.findSession(token, false) : authService.findSession(token);
+            if (session != null) {
+                AuthService.UserAccount user = session.user();
                 var auth = new UsernamePasswordAuthenticationToken(user, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
+                // The session id lets the account mark "this device" in its session list and keep it on password change.
+                auth.setDetails(new CurrentUser.SessionDetails(session.id()));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }

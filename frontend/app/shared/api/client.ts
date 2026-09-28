@@ -5,9 +5,19 @@ const TOKEN_KEY = 'bds_access_token';
 
 export const setAccessToken = (token: string) => sessionStorage.setItem(TOKEN_KEY, token);
 export const clearAccessToken = () => sessionStorage.removeItem(TOKEN_KEY);
+/** Fired when a request that carried a session token is answered 401: the session ended (logout elsewhere, idle or
+ * absolute expiry, password change, revocation). AuthContext listens and signs the tab out. */
+export const SESSION_ENDED_EVENT = 'bds:session-ended';
+
+/** Full URL of an API endpoint ("/events" → "/api/v1/events"); absolute and "/api/…" paths pass through. */
+export function apiUrl(endpoint: string): string {
+  return endpoint.startsWith('http') || endpoint.startsWith('/api/')
+    ? endpoint
+    : `${BASE_API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+}
 
 export async function apiFetch(endpoint: string, options: RequestInit = {}): Promise<Response> {
-  const url = endpoint.startsWith('http') || endpoint.startsWith('/api/') ? endpoint : `${BASE_API_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const url = apiUrl(endpoint);
   const token = sessionStorage.getItem(TOKEN_KEY);
   const headers = new Headers(options.headers);
   if (!headers.has('Content-Type') && options.body && !(options.body instanceof FormData)) {
@@ -19,8 +29,13 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}): Pro
 }
 
 export async function apiClient<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const hadToken = !!sessionStorage.getItem(TOKEN_KEY);
   const response = await apiFetch(endpoint, options);
 
+  if (response.status === 401 && hadToken) {
+    clearAccessToken();
+    window.dispatchEvent(new Event(SESSION_ENDED_EVENT));
+  }
   if (!response.ok) {
     let errorBody: ProblemDetails;
     try {

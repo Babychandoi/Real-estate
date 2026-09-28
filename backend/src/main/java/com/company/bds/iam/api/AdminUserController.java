@@ -1,6 +1,11 @@
 package com.company.bds.iam.api;
 
+import com.company.bds.iam.application.AdminUserService;
 import com.company.bds.shared.security.CurrentUser;
+import com.company.bds.verification.application.KycDocumentAccessService;
+import org.springframework.http.CacheControl;
+import org.springframework.web.bind.annotation.PostMapping;
+import com.company.bds.shared.security.Roles;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,12 +28,19 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/admin/users")
 public class AdminUserController {
-    private static final Set<String> ROLES = Set.of("USER", "BROKER", "MODERATOR", "ADMIN");
+    private static final Set<String> ROLES = Roles.ALL;
+    /** One row per user with its effective role (priority order), also for accounts with several role rows. */
+    private static final String USERS_WITH_ROLE = "FROM users u CROSS JOIN LATERAL (SELECT "
+            + Roles.effectiveRoleSql("u.id") + " AS role) ur ";
     private static final Set<String> STATUSES = Set.of("ACTIVE", "SUSPENDED", "PENDING_EMAIL_VERIFICATION");
     private final JdbcTemplate jdbc;
+    private final AdminUserService adminUsers;
+    private final KycDocumentAccessService kycAccess;
 
-    public AdminUserController(JdbcTemplate jdbc) {
+    public AdminUserController(JdbcTemplate jdbc, AdminUserService adminUsers, KycDocumentAccessService kycAccess) {
         this.jdbc = jdbc;
+        this.adminUsers = adminUsers;
+        this.kycAccess = kycAccess;
     }
 
     @GetMapping
@@ -50,43 +62,72 @@ public class AdminUserController {
                   AND (? = '' OR u.status = ?)
                 """;
         Object[] countArgs = {normalizedQuery, normalizedQuery, normalizedQuery, normalizedRole, normalizedRole, normalizedStatus, normalizedStatus};
-        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id=u.id " + where, Long.class, countArgs);
+        Long total = jdbc.queryForObject("SELECT COUNT(*) " + USERS_WITH_ROLE + where, Long.class, countArgs);
         Object[] dataArgs = {normalizedQuery, normalizedQuery, normalizedQuery, normalizedRole, normalizedRole, normalizedStatus, normalizedStatus, safeSize, safePage * safeSize};
         List<UserSummary> items = jdbc.query("""
                 SELECT u.id,u.full_name,u.email,u.status,u.created_at,u.email_verified_at,
                        u.plan_code,u.plan_expires_at,u.listing_quota_remaining,ur.role,
                        COALESCE(k.status, 'NOT_SUBMITTED') AS kyc_status,
                        (SELECT MAX(s.created_at) FROM auth_sessions s WHERE s.user_id=u.id) AS last_login_at,
-                       (SELECT COUNT(*) FROM listings l WHERE l.owner_id=u.id) AS listing_count
-                FROM users u
-                JOIN user_roles ur ON ur.user_id=u.id
+                       (SELECT COUNT(*) FROM listings l WHERE l.owner_id=u.id) AS listing_count,
+                       EXISTS (SELECT 1 FROM user_mfa m WHERE m.user_id=u.id) AS mfa_enrolled
+                """ + USERS_WITH_ROLE + """
                 LEFT JOIN user_kyc_profiles k ON k.user_id=u.id
-                """ + where + " ORDER BY u.created_at DESC LIMIT ? OFFSET ?", (rs, row) -> new UserSummary(
+                """ + where + " ORDER BY u.created_at DESC, u.id DESC LIMIT ? OFFSET ?", (rs, row) -> new UserSummary(
                 rs.getObject("id", UUID.class), rs.getString("full_name"), rs.getString("email"),
                 rs.getString("role"), rs.getString("status"), rs.getString("kyc_status"),
                 rs.getString("plan_code"), rs.getInt("listing_quota_remaining"), rs.getLong("listing_count"),
                 instant(rs.getTimestamp("created_at")), instant(rs.getTimestamp("email_verified_at")),
-                instant(rs.getTimestamp("last_login_at")), instant(rs.getTimestamp("plan_expires_at"))), dataArgs);
+                instant(rs.getTimestamp("last_login_at")), instant(rs.getTimestamp("plan_expires_at")),
+                rs.getBoolean("mfa_enrolled")), dataArgs);
         return new UserPage(items, safePage, safeSize, total == null ? 0 : total);
     }
 
+    /** Lock (SUSPENDED) or unlock (ACTIVE) with a mandatory reason; recorded in the account history. */
     @PatchMapping("/{id}/status")
-    @Transactional
     public ResponseEntity<Void> updateStatus(@PathVariable UUID id, @RequestBody UpdateStatusRequest request, Authentication authentication) {
-        String requested = request.status() == null ? "" : request.status().trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("ACTIVE", "SUSPENDED").contains(requested)) throw new IllegalArgumentException("Trạng thái tài khoản không hợp lệ.");
-        if (CurrentUser.id(authentication).equals(id)) throw new IllegalArgumentException("Không thể khóa hoặc mở khóa chính tài khoản đang đăng nhập.");
-        List<TargetUser> targets = jdbc.query("""
-                SELECT u.status,ur.role FROM users u JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=?
-                """, (rs, row) -> new TargetUser(rs.getString(1), rs.getString(2)), id);
-        if (targets.isEmpty()) throw new IllegalArgumentException("Không tìm thấy tài khoản.");
-        TargetUser target = targets.get(0);
-        if ("ADMIN".equals(target.role())) throw new IllegalArgumentException("Không thể thay đổi trạng thái của tài khoản quản trị khác.");
-        if ("ACTIVE".equals(requested) && !"SUSPENDED".equals(target.status())) throw new IllegalArgumentException("Chỉ tài khoản đã khóa mới có thể được mở lại.");
-        if ("SUSPENDED".equals(requested) && !"ACTIVE".equals(target.status())) throw new IllegalArgumentException("Chỉ tài khoản đang hoạt động mới có thể bị khóa.");
-        jdbc.update("UPDATE users SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", requested, id);
-        if ("SUSPENDED".equals(requested)) jdbc.update("UPDATE auth_sessions SET revoked_at=CURRENT_TIMESTAMP WHERE user_id=? AND revoked_at IS NULL", id);
+        adminUsers.changeStatus(id, request.status(), request.reason(), CurrentUser.id(authentication));
         return ResponseEntity.noContent().build();
+    }
+
+    /** Role change with a mandatory reason: never one's own role, never the last active ADMIN, one role row afterwards. */
+    @PatchMapping("/{id}/role")
+    public AdminUserService.RoleChange updateRole(@PathVariable UUID id, @RequestBody UpdateRoleRequest request,
+                                                  Authentication authentication) {
+        return adminUsers.changeRole(id, request.role(), request.reason(), CurrentUser.id(authentication));
+    }
+
+    /** Lost authenticator: removes the second factor (next staff login enrols again) and signs the account out everywhere. */
+    @PostMapping("/{id}/mfa/reset")
+    public ResponseEntity<Void> resetMfa(@PathVariable UUID id, @RequestBody ReasonRequest request, Authentication authentication) {
+        adminUsers.resetMfa(id, request.reason(), CurrentUser.id(authentication));
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Signs the account out of every device (suspected compromise) with a reason. */
+    @PostMapping("/{id}/sessions/revoke")
+    public AdminUserService.SessionsRevoked revokeSessions(@PathVariable UUID id, @RequestBody ReasonRequest request,
+                                                          Authentication authentication) {
+        return adminUsers.revokeSessions(id, request.reason(), CurrentUser.id(authentication));
+    }
+
+    @GetMapping("/{id}/history")
+    public List<AdminUserService.AdminAction> history(@PathVariable UUID id) {
+        return adminUsers.history(id);
+    }
+
+    /** Opens the identity documents of a user: password re-confirmation + reason, logged in kyc_access_log. */
+    @PostMapping("/{id}/kyc-documents")
+    public ResponseEntity<KycDocumentAccessService.DocumentAccess> openKycDocuments(@PathVariable UUID id,
+                                                                                   @RequestBody KycAccessRequest request,
+                                                                                   Authentication authentication) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(kycAccess.open(CurrentUser.id(authentication), id, request.password(), request.reason()));
+    }
+
+    @GetMapping("/{id}/kyc-access-log")
+    public List<KycDocumentAccessService.AccessLogEntry> kycAccessLog(@PathVariable UUID id) {
+        return kycAccess.log(id);
     }
 
     private static String normalizeFilter(String value, Set<String> accepted) {
@@ -101,7 +142,9 @@ public class AdminUserController {
     public record UserPage(List<UserSummary> items, int page, int size, long total) {}
     public record UserSummary(UUID id, String fullName, String email, String role, String status, String kycStatus,
                               String planCode, int listingQuotaRemaining, long listingCount, Instant createdAt,
-                              Instant emailVerifiedAt, Instant lastLoginAt, Instant planExpiresAt) {}
-    public record UpdateStatusRequest(String status) {}
-    private record TargetUser(String status, String role) {}
+                              Instant emailVerifiedAt, Instant lastLoginAt, Instant planExpiresAt, boolean mfaEnrolled) {}
+    public record ReasonRequest(String reason) {}
+    public record UpdateStatusRequest(String status, String reason) {}
+    public record UpdateRoleRequest(String role, String reason) {}
+    public record KycAccessRequest(String password, String reason) {}
 }

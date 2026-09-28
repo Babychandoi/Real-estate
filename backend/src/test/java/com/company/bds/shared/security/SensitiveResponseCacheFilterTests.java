@@ -1,0 +1,121 @@
+package com.company.bds.shared.security;
+
+import com.company.bds.iam.application.AuthService;
+import com.company.bds.media.MediaController;
+import com.company.bds.media.MediaStorageService;
+import io.minio.GetObjectResponse;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+
+/** Audit F10.2: no-store is enforced for private areas even against the controller; public media keeps its cache. */
+class SensitiveResponseCacheFilterTests {
+    private final SensitiveResponseCacheFilter filter = new SensitiveResponseCacheFilter();
+
+    @Test
+    void privateAreasArePrefixMatchedAndThePublicCatalogueIsExcluded() {
+        for (String path : List.of("/api/v1/kyc/queue", "/api/v1/leads", "/api/v1/leads/12/contact", "/api/v1/public/leads",
+                "/api/v1/billing/orders", "/api/v1/admin/users", "/api/v1/moderation/queue", "/api/v1/auth/login",
+                "/api/v1/media/kyc/0f6f0b8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b.jpg", "/api/v1/listings/abc/draft",
+                "/API/V1/KYC//queue")) {
+            assertThat(filter.isSensitive(path)).as(path).isTrue();
+        }
+        for (String path : List.of("/api/v1/billing/plans", "/api/v1/public/media/0f6f0b8e-1c2d-4e5f-8a9b-0c1d2e3f4a5b.jpg",
+                "/api/v1/listings/search", "/api/v1/public/articles", "/api/v1/leadsx")) {
+            assertThat(filter.isSensitive(path)).as(path).isFalse();
+        }
+    }
+
+    @Test
+    void percentEncodedPrivatePathsAreStillRecognised() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/%6Byc/queue");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getHeader("Cache-Control")).isEqualTo(SensitiveResponseCacheFilter.NO_STORE);
+    }
+
+    @Test
+    void controllerCannotOptAPrivateResponseIntoSharedCaching() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/leads/sent");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        HttpServlet careless = new HttpServlet() {
+            @Override protected void service(HttpServletRequest req, HttpServletResponse res) {
+                res.setHeader("Cache-Control", "public, max-age=600");
+                res.addHeader("Cache-Control", "s-maxage=600");
+                res.setDateHeader("Expires", System.currentTimeMillis() + 600_000);
+                res.setStatus(200);
+            }
+        };
+
+        filter.doFilter(request, response, new MockFilterChain(careless));
+
+        assertThat(response.getHeaders("Cache-Control")).containsExactly(SensitiveResponseCacheFilter.NO_STORE);
+        assertThat(response.getHeader("Expires")).isEqualTo("0");
+        assertThat(response.getHeader("Pragma")).isEqualTo("no-cache");
+    }
+
+    @Test
+    void publicMediaIsCachedForADayWhileSignedAndKycImagesAreNotStored() throws Exception {
+        MediaStorageService storage = mock(MediaStorageService.class);
+        GetObjectResponse body = emptyObject();
+        when(storage.read(anyString())).thenReturn(new MediaStorageService.StoredImage(body, "image/jpeg", 3));
+        when(storage.readPrivate(any(UUID.class), anyBoolean(), anyString()))
+                .thenReturn(new MediaStorageService.StoredImage(body, "image/jpeg", 3));
+        // Staff read a private image only with a logged, reasoned grant (S4); this test grants it to focus on caching.
+        com.company.bds.verification.application.KycDocumentAccessService kycAccess =
+                mock(com.company.bds.verification.application.KycDocumentAccessService.class);
+        when(kycAccess.staffMayRead(any(UUID.class), any(), anyString())).thenReturn(true);
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new MediaController(storage, mock(AuthService.class), kycAccess))
+                .addFilters(filter).build();
+        String key = UUID.randomUUID() + ".jpg";
+
+        MvcResult publicImage = mockMvc.perform(get("/api/v1/public/media/" + key)).andReturn();
+        // S1-MEDIA: public media can be taken down (hidden listing), so shared caches keep it one day, not a year immutable.
+        assertThat(publicImage.getResponse().getHeader("Cache-Control")).contains("max-age=86400").contains("public")
+                .doesNotContain("immutable");
+        when(storage.readSigned(anyString(), org.mockito.ArgumentMatchers.anyLong(), anyString()))
+                .thenReturn(new MediaStorageService.StoredImage(body, "image/jpeg", 3));
+        MvcResult signedImage = mockMvc.perform(
+                get("/api/v1/media/signed/" + key + "?exp=1&sig=x")).andReturn();
+        assertThat(signedImage.getResponse().getHeaders("Cache-Control")).containsExactly(SensitiveResponseCacheFilter.NO_STORE);
+
+        UsernamePasswordAuthenticationToken moderator = UsernamePasswordAuthenticationToken.authenticated(
+                UUID.randomUUID().toString(), null, List.of(new SimpleGrantedAuthority("ROLE_MODERATOR")));
+        MvcResult kycImage = mockMvc.perform(get("/api/v1/media/kyc/" + key).principal(moderator)).andReturn();
+        assertThat(kycImage.getResponse().getStatus()).isEqualTo(200);
+        assertThat(kycImage.getResponse().getHeaders("Cache-Control")).containsExactly(SensitiveResponseCacheFilter.NO_STORE);
+    }
+
+    /** A stored object whose body is empty (a bare mock's read() would return 0 forever). */
+    private static GetObjectResponse emptyObject() {
+        GetObjectResponse object = mock(GetObjectResponse.class);
+        try {
+            when(object.read(org.mockito.ArgumentMatchers.any(byte[].class), org.mockito.ArgumentMatchers.anyInt(),
+                    org.mockito.ArgumentMatchers.anyInt())).thenReturn(-1);
+            when(object.read()).thenReturn(-1);
+        } catch (java.io.IOException e) { throw new IllegalStateException(e); }
+        return object;
+    }
+}

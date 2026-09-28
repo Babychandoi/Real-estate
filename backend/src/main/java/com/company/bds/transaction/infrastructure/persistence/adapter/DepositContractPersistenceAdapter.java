@@ -4,7 +4,7 @@ import com.company.bds.transaction.domain.model.DepositContract;
 import com.company.bds.transaction.domain.model.EscrowTransaction;
 import com.company.bds.transaction.infrastructure.persistence.entity.DepositContractJpaEntity;
 import com.company.bds.transaction.infrastructure.persistence.entity.EscrowTransactionJpaEntity;
-import com.company.bds.transaction.infrastructure.persistence.port.DepositContractPersistencePort;
+import com.company.bds.transaction.application.port.out.DepositContractPersistencePort;
 import com.company.bds.transaction.infrastructure.persistence.repository.DepositContractJpaRepository;
 import org.springframework.stereotype.Component;
 import org.springframework.data.domain.PageRequest;

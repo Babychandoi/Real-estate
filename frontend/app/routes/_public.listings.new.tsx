@@ -1,348 +1,466 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { validationMessage } from '@/shared/types/problem-details';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Building2, Key, Home, Castle, MapPin,
-  CheckCircle2, ArrowRight, ArrowLeft, Save, Send, Sparkles, AlertCircle,
-  ShieldCheck, Image as ImageIcon, Eye, TrendingUp, HelpCircle, Upload, X, ChevronDown
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Cloud,
+  CloudOff,
+  Eye,
+  HelpCircle,
+  Image as ImageIcon,
+  Info,
+  Key,
+  Loader2,
+  MapPin,
+  Send,
+  ShieldCheck,
+  TrendingUp,
+  Upload,
+  X,
 } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
+import { Button, ButtonLink } from '@/shared/ui/Button';
 import { Card } from '@/shared/ui/Card';
+import { Dialog } from '@/shared/ui/Dialog';
+import { FormField } from '@/shared/ui/FormField';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { Select } from '@/shared/ui/Select';
+import { TextArea, TextInput } from '@/shared/ui/TextInput';
+import { Money, UnitPriceText } from '@/shared/ui/Money';
+import { Skeleton } from '@/shared/ui/Skeleton';
 import { apiClient } from '@/shared/api/client';
-import { formatPriceVnd, calculateUnitPrice } from '@/entities/listing/model/types';
+import { formatMoney, formatRentTerms, moneyFromLegacy, unitPriceFromArea } from '@/shared/format/money';
 import { useAuth } from '@/shared/auth/AuthContext';
+import { ROLE_LABELS, ROLES } from '@/shared/auth/roles';
+import { validationMessage } from '@/shared/types/problem-details';
 import type { UserKycProfile } from '@/entities/verification/model/types';
-import * as maplibregl from 'maplibre-gl';
-import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import {
+  EMPTY_DRAFT,
+  fieldsFromDraft,
+  loadDraft,
+  loadPreview,
+  submitDraft,
+  validateDraft,
+  type DraftFields,
+  type DraftView,
+  type FieldErrors,
+  type PreviewView,
+} from '@/features/listing-editor/api';
+import { useDraftAutosave, type SaveState } from '@/features/listing-editor/useDraftAutosave';
+import { QualityChecklist } from '@/features/listing-editor/QualityChecklist';
+import { rememberSignedMediaUrl, useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 
-maplibregl.setWorkerUrl(maplibreWorkerUrl);
+const LocationPicker = lazy(() => import('@/features/listing-editor/LocationPicker'));
 
-function LocationPicker({ latitude, longitude, onChange }: { latitude: number; longitude: number; onChange: (latitude: number, longitude: number) => void }) {
-  const host = useRef<HTMLDivElement>(null);
-  const map = useRef<maplibregl.Map | null>(null);
-  const marker = useRef<maplibregl.Marker | null>(null);
+type Step = 1 | 2 | 3 | 4;
+const STEPS: Array<{ id: Step; label: string; icon: typeof MapPin }> = [
+  { id: 1, label: 'Cơ bản', icon: TrendingUp },
+  { id: 2, label: 'Vị trí', icon: MapPin },
+  { id: 3, label: 'Ảnh', icon: ImageIcon },
+  { id: 4, label: 'Xem trước', icon: Eye },
+];
+const STEP_FIELDS: Record<Step, ReadonlyArray<string>> = {
+  1: [
+    'title',
+    'priceVnd',
+    'areaM2',
+    'legalStatus',
+    'description',
+    'depositVnd',
+    'monthlyServiceFeeVnd',
+    'furnishing',
+    'legalStatusCode',
+  ],
+  2: ['districtCode', 'provinceCode', 'wardCode', 'addressSummary', 'publicLatitude'],
+  3: ['imageUrls'],
+  4: [],
+};
+const PROPERTY_TYPES = [
+  { value: 'APARTMENT', label: 'Căn hộ chung cư' },
+  { value: 'HOUSE', label: 'Nhà riêng' },
+  { value: 'TOWNHOUSE', label: 'Nhà phố' },
+  { value: 'VILLA', label: 'Biệt thự, liền kề' },
+  { value: 'LAND', label: 'Đất nền' },
+];
+const LEGAL_OPTIONS = [
+  { value: 'RED_BOOK', label: 'Sổ đỏ' },
+  { value: 'PINK_BOOK', label: 'Sổ hồng' },
+  { value: 'SALE_CONTRACT', label: 'Hợp đồng mua bán' },
+  { value: 'PENDING_CERTIFICATE', label: 'Đang chờ sổ' },
+  { value: 'OTHER', label: 'Khác' },
+];
+const FURNISHING_OPTIONS = [
+  { value: 'NONE', label: 'Không nội thất' },
+  { value: 'BASIC', label: 'Nội thất cơ bản' },
+  { value: 'FULL', label: 'Đầy đủ nội thất' },
+];
+const DIRECTIONS = ['Đông', 'Tây', 'Nam', 'Bắc', 'Đông Bắc', 'Đông Nam', 'Tây Bắc', 'Tây Nam'].map((d) => ({
+  value: d,
+  label: d,
+}));
 
-  useEffect(() => {
-    if (!host.current || map.current) return;
-    const initial: [number, number] = latitude && longitude ? [longitude, latitude] : [105.8542, 21.0285];
-    const instance = new maplibregl.Map({ container: host.current, style: 'https://tiles.openfreemap.org/styles/positron', center: initial, zoom: latitude && longitude ? 14 : 11 });
-    instance.addControl(new maplibregl.NavigationControl(), 'top-right');
-    const setPoint = (lng: number, lat: number) => {
-      marker.current ??= new maplibregl.Marker({ color: '#0f172a' });
-      marker.current.setLngLat([lng, lat]).addTo(instance);
-      onChange(Number(lat.toFixed(6)), Number(lng.toFixed(6)));
-    };
-    if (latitude && longitude) setPoint(longitude, latitude);
-    instance.on('click', (event) => setPoint(event.lngLat.lng, event.lngLat.lat));
-    map.current = instance;
-    return () => { marker.current?.remove(); instance.remove(); map.current = null; marker.current = null; };
-  }, []);
+/** Digits only ("3.950.000.000" → 3950000000); empty → null. */
+const parseInteger = (value: string): number | null => {
+  const digits = value.replace(/\D/g, '');
+  return digits === '' ? null : Number(digits);
+};
+const parseDecimal = (value: string): number | null => {
+  const normalized = value.replace(',', '.').replace(/[^\d.]/g, '');
+  if (normalized === '') return null;
+  const number = Number(normalized);
+  return Number.isFinite(number) ? number : null;
+};
+const groupDigits = (value: number | null) => (value == null ? '' : new Intl.NumberFormat('vi-VN').format(value));
 
-  return <div ref={host} className="mt-3 h-72 overflow-hidden rounded-lg border border-slate-300" aria-label="Bản đồ chọn tọa độ" />;
+function SaveStatus({ state, onRetry, blocked }: { state: SaveState; onRetry: () => void; blocked: boolean }) {
+  let content: React.ReactNode;
+  if (state.kind === 'saving') {
+    content = (
+      <>
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Đang lưu…
+      </>
+    );
+  } else if (state.kind === 'saved') {
+    content = (
+      <>
+        <CheckCircle2 className="h-4 w-4 text-success" aria-hidden="true" /> Đã lưu lúc{' '}
+        {state.at.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+      </>
+    );
+  } else if (state.kind === 'offline') {
+    content = (
+      <>
+        <CloudOff className="h-4 w-4 text-warning" aria-hidden="true" /> Mất kết nối, sẽ tự lưu khi có mạng
+        <Button size="sm" variant="ghost" onClick={onRetry}>
+          Thử lại
+        </Button>
+      </>
+    );
+  } else if (state.kind === 'error') {
+    content = (
+      <>
+        <CloudOff className="h-4 w-4 text-error" aria-hidden="true" /> Chưa lưu được
+        <Button size="sm" variant="ghost" onClick={onRetry}>
+          Thử lại
+        </Button>
+      </>
+    );
+  } else if (state.kind === 'conflict') {
+    content = 'Có phiên bản mới hơn ở nơi khác';
+  } else {
+    content = (
+      <>
+        <Cloud className="h-4 w-4" aria-hidden="true" />
+        {blocked ? 'Tự lưu khi có tiêu đề, giá và diện tích' : 'Tự động lưu bản nháp'}
+      </>
+    );
+  }
+  return (
+    <p
+      role="status"
+      aria-live="polite"
+      data-testid="autosave-status"
+      data-state={state.kind}
+      className="flex min-h-11 items-center gap-2 text-body-sm text-on-surface-variant"
+    >
+      {content}
+    </p>
+  );
 }
 
 export const CreateListingPage: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const editId = searchParams.get('edit');
 
-  // Trạng thái Wizard 4 bước
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<Step>(1);
+  const [fields, setFields] = useState<DraftFields>(EMPTY_DRAFT);
+  const [loaded, setLoaded] = useState<DraftView | null>(null);
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>(editId ? 'loading' : 'ready');
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [kyc, setKyc] = useState<UserKycProfile | null | 'loading'>('loading');
+  const [preview, setPreview] = useState<PreviewView | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  // Draft images are never public (S1, F14.4): the owner sees them through short-lived signed URLs.
+  const displayMedia = useSignedMediaUrls([...fields.imageUrls, preview?.images[0]?.url]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const [formKey, setFormKey] = useState(0);
 
-  // Form state
-  const [listingId, setListingId] = useState<string | null>(null);
-  const [purpose, setPurpose] = useState<'SALE' | 'RENT'>('SALE');
-  const [propertyType, setPropertyType] = useState<string>('APARTMENT');
-  const [title, setTitle] = useState('');
-  const [priceVnd, setPriceVnd] = useState<number>(0);
-  const [areaM2, setAreaM2] = useState<number>(0);
-  const [bedrooms, setBedrooms] = useState<number | null>(null);
-  const [bathrooms, setBathrooms] = useState<number | null>(null);
-  const [floors, setFloors] = useState<number | null>(null);
-  const [frontageM, setFrontageM] = useState<number | null>(null);
-  const [roadWidthM, setRoadWidthM] = useState<number | null>(null);
-  const [direction, setDirection] = useState('');
-  const [legalStatus, setLegalStatus] = useState('');
-  const [province, setProvince] = useState('');
-  const [district, setDistrict] = useState('');
-  const [ward, setWard] = useState('');
-  const [addressSummary, setAddressSummary] = useState('');
-  const [latitude, setLatitude] = useState(0);
-  const [longitude, setLongitude] = useState(0);
-  const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
-  const [description, setDescription] = useState('');
+  const createdId = useRef<string | null>(null);
+  const onCreated = useCallback(
+    (id: string) => {
+      createdId.current = id;
+      setSearchParams(
+        (params) => {
+          const next = new URLSearchParams(params);
+          next.set('edit', id);
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+  const autosave = useDraftAutosave({
+    fields,
+    listingId: null,
+    version: null,
+    onCreated,
+    enabled: loadState === 'ready' && !submitted,
+  });
+  const { reset } = autosave;
 
-  // Media
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
-  const [isUploadingImages, setIsUploadingImages] = useState(false);
-  const [deletingImage, setDeletingImage] = useState<string | null>(null);
-
-  // AI & Quality State
-  const [qualityScore, setQualityScore] = useState<number>(0);
-
-  // UI state
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [autosaveTime, setAutosaveTime] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isSuccessSubmitted, setIsSuccessSubmitted] = useState(false);
-  const [kycProfile, setKycProfile] = useState<UserKycProfile | null>(null);
-  const [isCheckingKyc, setIsCheckingKyc] = useState(true);
-  const editingListingId = searchParams.get('edit');
+  const applyDraft = useCallback(
+    (view: DraftView) => {
+      reset(view.listingId, view.version);
+      setLoaded(view);
+      setFields(fieldsFromDraft(view));
+      setFormKey((key) => key + 1);
+    },
+    [reset],
+  );
 
   useEffect(() => {
     if (!user) return;
     apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
-      .then(setKycProfile)
-      .catch(() => setKycProfile(null))
-      .finally(() => setIsCheckingKyc(false));
+      .then((profile) => setKyc(profile ?? null))
+      .catch(() => setKyc(null));
   }, [user]);
 
+  // Reload keeps the draft: the id is in the URL (?edit=…) from the first autosave on.
   useEffect(() => {
-    if (!editingListingId) return;
-    apiClient<{ id: string; purpose: 'SALE' | 'RENT'; propertyType: string; title: string; priceVnd: number; areaM2: number; bedrooms?: number; bathrooms?: number; floors?: number; frontageM?: number; roadWidthM?: number; direction?: string; legalStatus?: string; description: string; provinceCode?: string; districtCode?: string; wardCode?: string; addressSummary: string; publicLatitude?: number; publicLongitude?: number; imageUrls: string[] }>(`/listings/${editingListingId}`)
-      .then((listing) => {
-        setListingId(listing.id); setPurpose(listing.purpose); setPropertyType(listing.propertyType); setTitle(listing.title);
-        setPriceVnd(listing.priceVnd); setAreaM2(listing.areaM2); setDescription(listing.description); setProvince(listing.provinceCode || '');
-        setBedrooms(listing.bedrooms ?? null); setBathrooms(listing.bathrooms ?? null); setFloors(listing.floors ?? null);
-        setFrontageM(listing.frontageM ?? null); setRoadWidthM(listing.roadWidthM ?? null); setDirection(listing.direction || ''); setLegalStatus(listing.legalStatus || '');
-        setDistrict(listing.districtCode || ''); setWard(listing.wardCode || ''); setAddressSummary(listing.addressSummary);
-        setLatitude(listing.publicLatitude || 0); setLongitude(listing.publicLongitude || 0); setImageUrls(listing.imageUrls || []);
+    if (!editId || loaded?.listingId === editId || createdId.current === editId) return;
+    setLoadState('loading');
+    loadDraft(editId)
+      .then((view) => {
+        applyDraft(view);
+        setLoadState('ready');
       })
-      .catch(() => setErrorMessage('Không thể tải dữ liệu tin để chỉnh sửa. Vui lòng quay lại kho tin và thử lại.'));
-  }, [editingListingId]);
+      .catch(() => setLoadState('error'));
+    // Only a different id in the URL loads again (our own first save also writes the id there).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId]);
 
-  // Tính lại điểm chất lượng khi các trường thay đổi
+  // Refresh the server checklist after each save (the fields stay as typed).
+  const savedAt = autosave.state.kind === 'saved' ? autosave.state.at.getTime() : null;
   useEffect(() => {
-    let score = 0;
-    if (title.length >= 15) score += 20;
-    if (description.length >= 80) score += 20;
-    if (imageUrls.length >= 5) score += 25;
-    else if (imageUrls.length >= 3) score += 15;
-    if (latitude && longitude) score += 15;
-    setQualityScore(Math.min(score, 100));
-  }, [title, description, imageUrls, latitude, longitude]);
+    const id = editId ?? loaded?.listingId;
+    if (!savedAt || !id) return;
+    loadDraft(id)
+      .then((view) => setLoaded(view))
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedAt]);
 
-  // Tự động lưu nháp
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    setErrorMessage(null);
-    try {
-      if (!listingId) {
-        const res = await apiClient<{ listingId: string }>('/listings', {
-          method: 'POST',
-          body: JSON.stringify({
-            purpose,
-            propertyType,
-            title,
-            priceVnd,
-            areaM2,
-            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
-            description,
-            provinceCode: province || null,
-            districtCode: district || null,
-            wardCode: ward || null,
-            addressSummary,
-            publicLatitude: latitude,
-            publicLongitude: longitude,
-            imageUrls,
-          }),
-        });
-        setListingId(res.listingId);
-      } else {
-        await apiClient(`/listings/${listingId}/draft`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            purpose,
-            propertyType,
-            title,
-            priceVnd,
-            areaM2,
-            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
-            description,
-            provinceCode: province || null,
-            districtCode: district || null,
-            wardCode: ward || null,
-            addressSummary,
-            publicLatitude: latitude || null,
-            publicLongitude: longitude || null,
-            imageUrls,
-          }),
-        });
+  const clientErrors = useMemo(() => validateDraft(fields), [fields]);
+  const errors: FieldErrors = { ...clientErrors, ...autosave.serverErrors };
+  const shownError = (name: string) => (touched[name] || touched.__all ? errors[name] : autosave.serverErrors[name]);
+  const update = <K extends keyof DraftFields>(key: K, value: DraftFields[K]) => {
+    setFields((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'purpose' && value === 'SALE') {
+        next.depositVnd = null;
+        next.monthlyServiceFeeVnd = null;
       }
-      setAutosaveTime(new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
-    } catch (err: unknown) {
-      console.error('Lỗi khi lưu nháp:', err);
-      setErrorMessage(validationMessage(err, 'Không thể lưu bản nháp lên máy chủ. Vui lòng giữ trang này và thử lại.'));
-    } finally {
-      setIsSaving(false);
-    }
+      return next;
+    });
+  };
+  const touch = (name: string) => setTouched((current) => ({ ...current, [name]: true }));
+
+  const goTo = (next: Step) => {
+    setStep(next);
+    window.scrollTo({ top: 0 });
+    window.setTimeout(() => stepHeading.current?.focus(), 0);
   };
 
-  // Nộp duyệt tin đăng
-  const handleSubmitForReview = async () => {
-    if (!title || title.length < 10) {
-      setErrorMessage('Tiêu đề phải từ 10 ký tự trở lên.');
-      setStep(1);
-      return;
-    }
-    if (areaM2 <= 0 || priceVnd <= 0) {
-      setErrorMessage('Mức giá và diện tích phải lớn hơn 0.');
-      setStep(2);
-      return;
-    }
-    if (imageUrls.length < 3) {
-      setErrorMessage('Vui lòng tải lên tối thiểu 3 ảnh chất lượng.');
-      setStep(3);
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-
-    try {
-      let currentId = listingId;
-      if (!currentId) {
-        const draftRes = await apiClient<{ listingId: string }>('/listings', {
-          method: 'POST',
-          body: JSON.stringify({
-            purpose,
-            propertyType,
-            title,
-            priceVnd,
-            areaM2,
-            bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null,
-            description,
-            addressSummary,
-            publicLatitude: latitude,
-            publicLongitude: longitude,
-            imageUrls,
-          }),
-        });
-        currentId = draftRes.listingId;
-        setListingId(currentId);
-      } else {
-        await apiClient(`/listings/${currentId}/draft`, {
-          method: 'PUT',
-          body: JSON.stringify({
-            purpose, propertyType, title, priceVnd, areaM2, bedrooms, bathrooms, floors, frontageM, roadWidthM, direction: direction || null, legalStatus: legalStatus || null, description,
-            provinceCode: province || null, districtCode: district || null, wardCode: ward || null,
-            addressSummary,
-            publicLatitude: latitude || null,
-            publicLongitude: longitude || null,
-            imageUrls,
-          }),
-        });
+  const leaveStep = async (next: Step) => {
+    if (next > step) {
+      const blocking = STEP_FIELDS[step].filter((name) => errors[name]);
+      if (blocking.length) {
+        setTouched((current) => ({ ...current, ...Object.fromEntries(blocking.map((name) => [name, true])) }));
+        document.getElementById(`field-${blocking[0]}`)?.focus();
+        return;
       }
-
-      await apiClient(`/listings/${currentId}/submit`, {
-        method: 'POST',
-      });
-
-      setIsSuccessSubmitted(true);
-    } catch (err: unknown) {
-      console.error('Lỗi khi nộp duyệt tin:', err);
-      setErrorMessage(validationMessage(err, 'Chưa thể nộp tin. Bản nháp vẫn được giữ; vui lòng kiểm tra kết nối rồi thử lại.'));
-    } finally {
-      setIsSubmitting(false);
     }
+    if (autosave.isDirty() && !autosave.blocked) await autosave.saveNow();
+    goTo(next);
   };
 
-  const handleImageUpload = async (files: FileList | null) => {
+  const currentId = editId ?? loaded?.listingId ?? null;
+
+  useEffect(() => {
+    if (step !== 4 || !currentId) return;
+    let cancelled = false;
+    setPreviewError(null);
+    const run = async () => {
+      if (autosave.isDirty()) await autosave.saveNow();
+      try {
+        const view = await loadPreview(currentId);
+        if (!cancelled) setPreview(view);
+      } catch {
+        if (!cancelled) setPreviewError('Không tải được bản xem trước.');
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // Re-run when entering step 4 or once the draft id exists.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, currentId]);
+
+  const handleUpload = async (files: FileList | null) => {
     if (!files?.length) return;
-    const selected = Array.from(files).slice(0, 20 - imageUrls.length);
-    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif']);
-    const invalid = selected.find((file) => !allowedTypes.has(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024);
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    const selected = Array.from(files).slice(0, Math.max(0, 20 - fields.imageUrls.length));
+    const invalid = selected.find((file) => !allowed.has(file.type) || file.size <= 0 || file.size > 10 * 1024 * 1024);
     if (invalid) {
-      setErrorMessage(`Ảnh “${invalid.name}” không hợp lệ. Chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.`);
+      setUploadError(`Ảnh “${invalid.name}” không hợp lệ: chỉ nhận JPEG, PNG hoặc WebP, tối đa 10 MB.`);
       return;
     }
-    if (selected.length < files.length) {
-      setErrorMessage('Mỗi tin đăng chỉ được lưu tối đa 20 ảnh.');
-    } else {
-      setErrorMessage(null);
-    }
-    setIsUploadingImages(true);
+    setUploadError(selected.length < files.length ? 'Mỗi tin tối đa 20 ảnh.' : null);
+    setUploading(true);
     try {
       for (const file of selected) {
-        const formData = new FormData();
-        formData.append('file', file);
-        const result = await apiClient<{ url: string }>('/media/images', { method: 'POST', body: formData });
-        setImageUrls((current) => [...current, result.url]);
+        const form = new FormData();
+        form.append('file', file);
+        const result = await apiClient<{ url: string; previewUrl?: string | null; previewExpiresAt?: string | null }>(
+          '/media/images',
+          { method: 'POST', body: form },
+        );
+        rememberSignedMediaUrl(result.url, result.previewUrl, result.previewExpiresAt);
+        setFields((current) => ({ ...current, imageUrls: [...current.imageUrls, result.url] }));
       }
-    } catch (err) {
-      console.error('Không thể tải ảnh lên MinIO:', err);
-      setErrorMessage('Một số ảnh chưa tải được lên kho lưu trữ. Các ảnh đã tải thành công vẫn được giữ lại; hãy thử lại phần còn thiếu.');
+    } catch {
+      setUploadError('Một số ảnh chưa tải lên được. Ảnh đã tải vẫn được giữ; hãy thử lại phần còn thiếu.');
     } finally {
-      setIsUploadingImages(false);
+      setUploading(false);
     }
   };
 
-  const handleRemoveImage = async (index: number) => {
-    const url = imageUrls[index];
-    const objectKey = url.split('/').pop();
-    if (!objectKey) return;
-    setImageUrls((current) => current.filter((item) => item !== url));
-    setDeletingImage(url);
-    setErrorMessage(null);
+  const moveImage = (index: number, delta: -1 | 1) =>
+    setFields((current) => {
+      const images = [...current.imageUrls];
+      const target = index + delta;
+      if (target < 0 || target >= images.length) return current;
+      [images[index], images[target]] = [images[target], images[index]];
+      return { ...current, imageUrls: images };
+    });
+
+  const handleSubmit = async () => {
+    setTouched({ __all: true });
+    if (Object.keys(clientErrors).length) {
+      const first = ([1, 2, 3] as Step[]).find((s) => STEP_FIELDS[s].some((name) => clientErrors[name]));
+      if (first) goTo(first);
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
     try {
-      await apiClient(`/media/images/${objectKey}`, { method: 'DELETE' });
-    } catch (err) {
-      console.info('Ảnh đã được gỡ khỏi bản chỉnh sửa; object đang thuộc lịch sử revision hoặc sẽ được dọn nền.', err);
+      const ok = await autosave.saveNow();
+      const id = editId ?? loaded?.listingId;
+      if (!ok || !id) {
+        setSubmitError('Chưa lưu được bản nháp mới nhất nên chưa gửi duyệt. Kiểm tra các trường báo lỗi rồi thử lại.');
+        return;
+      }
+      const result = await submitDraft(id);
+      setSubmitted(result.status);
+    } catch (error) {
+      setSubmitError(validationMessage(error, 'Chưa gửi duyệt được. Bản nháp vẫn được giữ; vui lòng thử lại.'));
     } finally {
-      setDeletingImage(null);
+      setSubmitting(false);
     }
   };
 
-  if (isCheckingKyc) {
-    return <main className="mx-auto max-w-5xl px-4 py-10" role="status">Đang kiểm tra điều kiện đăng tin…</main>;
-  }
+  const resolveConflict = async (keepMine: boolean) => {
+    if (!currentId) return;
+    const latest = await loadDraft(currentId);
+    if (keepMine) {
+      autosave.adoptVersion(latest.version);
+      setLoaded(latest);
+      await autosave.saveNow();
+    } else {
+      applyDraft(latest);
+    }
+  };
 
-  if (kycProfile?.status !== 'VERIFIED') {
-    const pending = kycProfile?.status === 'PENDING';
-    return <main className="mx-auto max-w-3xl px-4 py-10 md:px-8">
-      <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
-        <ShieldCheck className="h-9 w-9 text-slate-900" />
-        <h1 className="mt-4 text-2xl font-bold text-slate-950">Xác minh danh tính trước khi đăng tin</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Để bảo vệ người đăng và người liên hệ, chỉ tài khoản đã được duyệt eKYC mới có thể tạo hoặc gửi tin đăng.</p>
-        {pending ? <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">Hồ sơ eKYC của bạn đang chờ duyệt thủ công. Bạn sẽ có thể đăng tin ngay khi hồ sơ được xác nhận.</p> : <Link to="/kyc" className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-slate-950 px-4 text-sm font-bold text-white hover:bg-slate-800">Đi tới xác minh eKYC</Link>}
-      </section>
-    </main>;
-  }
-
-  if (isSuccessSubmitted) {
+  if (kyc === 'loading' || loadState === 'loading') {
     return (
-      <div className="min-h-screen bg-slate-50 py-16 flex items-center justify-center">
-        <div className="container mx-auto px-4 max-w-xl">
-          <Card className="p-8 text-center bg-white shadow-lg border border-slate-200">
-            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle2 className="w-10 h-10" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">
-              Nộp duyệt tin đăng thành công!
-            </h2>
-            <p className="text-slate-600 text-sm mb-6 leading-relaxed">
-              Tin đăng đã được tiếp nhận vào hàng đợi kiểm duyệt nội dung. Bạn sẽ nhận được thông báo khi quản trị viên hoàn tất xét duyệt.
+      <div className="mx-auto max-w-5xl px-4 py-10" role="status" aria-label="Đang tải">
+        <Skeleton className="h-10 w-2/3" />
+        <Skeleton className="mt-6 h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (kyc?.status !== 'VERIFIED') {
+    const pending = kyc?.status === 'PENDING';
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+        <section className="rounded-xl border border-slate-200 bg-white p-6 md:p-8">
+          <ShieldCheck className="h-9 w-9 text-slate-900" aria-hidden="true" />
+          <h1 className="mt-4 text-2xl font-bold text-slate-950">Xác minh danh tính trước khi đăng tin</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+            Chỉ tài khoản đã được duyệt eKYC mới tạo hoặc gửi tin đăng, để bảo vệ người đăng và người liên hệ.
+          </p>
+          {pending ? (
+            <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-700">
+              Hồ sơ eKYC đang chờ duyệt. Bạn có thể đăng tin khi hồ sơ được xác nhận.
             </p>
+          ) : (
+            <ButtonLink to="/kyc" className="mt-6">
+              Đi tới xác minh eKYC
+            </ButtonLink>
+          )}
+        </section>
+      </div>
+    );
+  }
 
-            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-left mb-6 text-xs space-y-2">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Mã tin đăng:</span>
-                <span className="font-mono font-bold text-slate-800">{listingId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Điểm chất lượng tin:</span>
-                <span className="font-bold text-emerald-700">{qualityScore}/100 (mức độ hoàn thiện biểu mẫu)</span>
-              </div>
+  if (loadState === 'error') {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <InlineFeedback
+          kind="error"
+          title="Không tải được tin để chỉnh sửa"
+          action={{ label: 'Tải lại', onClick: () => window.location.reload() }}
+        >
+          Tin không tồn tại hoặc bạn không có quyền sửa. Quay lại{' '}
+          <Link to="/my-listings" className="underline">
+            Tin đăng của tôi
+          </Link>
+          .
+        </InlineFeedback>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 py-16">
+        <div className="container mx-auto max-w-xl px-4">
+          <Card className="border border-slate-200 bg-white p-8 text-center shadow-lg" data-testid="submit-success">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-10 w-10" aria-hidden="true" />
             </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Button onClick={() => navigate('/my-listings')} variant="primary" className="bg-emerald-600 hover:bg-emerald-700">
-                Về Quản lý tin của tôi
-              </Button>
-              <Button onClick={() => navigate('/broker/workspace')} variant="outline">
-                Không gian Môi giới
+            <h1 className="mb-2 text-2xl font-bold text-slate-900">Đã gửi duyệt</h1>
+            <p className="mb-6 text-sm leading-relaxed text-slate-600">
+              {submitted === 'ACTIVE'
+                ? 'Bản đang hiển thị vẫn giữ nguyên cho tới khi bản sửa được duyệt.'
+                : 'Tin vào hàng đợi kiểm duyệt. Bạn sẽ nhận thông báo khi có kết quả.'}
+            </p>
+            <div className="flex flex-col justify-center gap-3 sm:flex-row">
+              <Button onClick={() => navigate('/my-listings')}>Về Tin đăng của tôi</Button>
+              <Button variant="outline" onClick={() => window.location.assign('/listings/new')}>
+                Đăng tin khác
               </Button>
             </div>
           </Card>
@@ -351,606 +469,620 @@ export const CreateListingPage: React.FC = () => {
     );
   }
 
+  const rent = fields.purpose === 'RENT';
+  const role = user?.role ?? ROLES.USER;
+  const rejected = loaded?.revisionStatus === 'REJECTED' ? loaded : null;
+  const price = fields.priceVnd != null ? moneyFromLegacy(fields.priceVnd, fields.purpose) : null;
+  const StepIcon = STEPS[step - 1].icon;
+
   return (
-    <div className="min-h-screen bg-slate-50 py-8">
-      <div className="container mx-auto px-4 max-w-6xl">
-        {/* Top Breadcrumb & Autosave info */}
-        <div className="flex items-center justify-between mb-6">
-          <Link to="/my-listings" className="inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            <span>Quay lại Kho tin của tôi</span>
+    <div className="min-h-screen bg-slate-50 py-8" data-ready={loadState === 'ready' ? 'true' : undefined}>
+      <div className="container mx-auto max-w-6xl px-4">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <Link
+            to="/my-listings"
+            className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-900"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Tin đăng của tôi
           </Link>
-
-          <div className="flex items-center gap-3">
-            {autosaveTime && (
-              <span className="text-xs text-slate-500 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                Đã tự động lưu lúc {autosaveTime}
-              </span>
-            )}
-            <Button
-              onClick={handleSaveDraft}
-              disabled={isSaving}
-              variant="outline"
-              size="sm"
-              className="text-xs font-semibold text-slate-700 bg-white"
-            >
-              <Save className="w-3.5 h-3.5 mr-1" />
-              {isSaving ? 'Đang lưu...' : 'Lưu bản nháp'}
-            </Button>
-          </div>
+          <SaveStatus state={autosave.state} blocked={autosave.blocked} onRetry={() => void autosave.saveNow()} />
         </div>
 
-        {/* Header Title */}
-        <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
-              Soạn thảo & Đăng tin BĐS Chuẩn Minh Bạch
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Quy trình 4 bước có lưu nháp • Gợi ý giá theo quy tắc tham khảo
-            </p>
-          </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+          {currentId ? 'Sửa tin đăng' : 'Đăng tin mới'}
+        </h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Bạn đăng với vai trò <strong className="text-slate-900">{ROLE_LABELS[role]}</strong>
+          {role === ROLES.OWNER
+            ? ' — tin hiển thị là chủ nhà tự đăng, không qua môi giới.'
+            : role === ROLES.BROKER
+              ? ' — tin hiển thị là môi giới đăng.'
+              : '.'}
+        </p>
 
-          {/* Listing Quality Badge */}
-          <div className="flex items-center gap-2 bg-white px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-            <Sparkles className="w-5 h-5 text-amber-500" />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-700">Điểm chất lượng tin:</span>
-                <span className="text-sm font-black text-emerald-700">{qualityScore}/100</span>
-              </div>
-              <div className="w-28 bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1">
-                <div
-                  className="bg-emerald-600 h-full rounded-full transition-all duration-300"
-                  style={{ width: `${qualityScore}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Wizard Stepper 4 Bước */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-8">
-          {[
-            { num: 1, label: 'Loại BĐS & Vị trí GIS', icon: MapPin },
-            { num: 2, label: 'Thông số & Gợi ý giá', icon: TrendingUp },
-            { num: 3, label: 'Hình ảnh & An toàn', icon: ImageIcon },
-            { num: 4, label: 'Xem trước & Gửi duyệt', icon: Eye },
-          ].map((s) => {
-            const Icon = s.icon;
-            const isActive = step === s.num;
-            const isCompleted = step > s.num;
-            return (
-              <button
-                key={s.num}
-                type="button"
-                onClick={() => setStep(s.num as 1 | 2 | 3 | 4)}
-                className={`flex items-center gap-3 p-3.5 rounded-xl border text-left transition-all ${
-                  isActive
-                    ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-sm'
-                    : isCompleted
-                    ? 'bg-white border-slate-300 text-slate-800'
-                    : 'bg-white/60 border-slate-200 text-slate-400'
-                }`}
-              >
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                    isActive
-                      ? 'bg-emerald-600 text-white shadow'
-                      : isCompleted
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
-                </div>
-                <div className="overflow-hidden">
-                  <span className="text-xs font-bold block truncate">{s.label}</span>
-                  <span className="text-[11px] text-slate-400 block">Bước {s.num} / 4</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {errorMessage && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
+        {rejected && (
+          <InlineFeedback kind="warning" title="Bản sửa trước bị từ chối" className="mt-4">
+            <p>Lý do: {rejected.rejectionReason || 'Không ghi lý do.'}</p>
+            <p className="mt-1">Sửa theo lý do trên rồi gửi duyệt lại; bản mới sẽ được kiểm duyệt từ đầu.</p>
+          </InlineFeedback>
+        )}
+        {loaded?.revisionStatus === 'SUBMITTED' && (
+          <InlineFeedback kind="info" title="Có bản đang chờ duyệt" className="mt-4">
+            Chỉnh sửa lúc này sẽ tạo bản nháp mới; bản đang chờ duyệt không bị thay đổi.
+          </InlineFeedback>
         )}
 
-        {/* NỘI DUNG TỪNG BƯỚC WIZARD */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Main Form Column (8 cols) */}
-          <div className="lg:col-span-8 flex flex-col gap-6">
-            {/* BƯỚC 1: LOẠI BĐS & ĐỊNH VỊ GIS THÔNG MINH */}
-            {step === 1 && (
-              <Card className="p-6">
-                <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-emerald-600" />
-                  Bước 1: Loại Hình & Định vị Địa chỉ GIS
-                </h3>
-
-                {/* Mục đích */}
-                <fieldset className="mb-6 border-t border-slate-100 pt-5">
-                  <legend className="px-0 text-sm font-bold text-slate-900">Đặc điểm bất động sản</legend>
-                  <p className="mt-1 text-xs text-slate-500">Nhập đúng hồ sơ thực tế. Các thông tin này được lưu theo phiên bản tin đăng.</p>
-                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <label className="text-sm font-medium text-slate-700">Số phòng ngủ<input type="number" min="0" value={bedrooms ?? ''} onChange={(e) => setBedrooms(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Số phòng tắm, vệ sinh<input type="number" min="0" value={bathrooms ?? ''} onChange={(e) => setBathrooms(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Số tầng<input type="number" min="0" value={floors ?? ''} onChange={(e) => setFloors(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Mặt tiền (m)<input type="number" min="0" step="0.1" value={frontageM ?? ''} onChange={(e) => setFrontageM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Đường vào (m)<input type="number" min="0" step="0.1" value={roadWidthM ?? ''} onChange={(e) => setRoadWidthM(e.target.value === '' ? null : e.target.valueAsNumber)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5" /></label>
-                    <label className="text-sm font-medium text-slate-700">Hướng nhà
-                      <span className="relative mt-1 block">
-                        <select value={direction} onChange={(e) => setDirection(e.target.value)} className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"><option value="">Chưa cập nhật</option><option>Đông</option><option>Tây</option><option>Nam</option><option>Bắc</option><option>Đông Bắc</option><option>Đông Nam</option><option>Tây Bắc</option><option>Tây Nam</option></select>
-                        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={2} />
-                      </span>
-                    </label>
-                    <label className="text-sm font-medium text-slate-700 sm:col-span-2 lg:col-span-3">Pháp lý
-                      <span className="relative mt-1 block">
-                        <select value={legalStatus} onChange={(e) => setLegalStatus(e.target.value)} className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-slate-800 transition-colors hover:border-slate-400 focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20"><option value="">Chưa cập nhật</option><option>Sổ đỏ / Sổ hồng</option><option>Hợp đồng mua bán</option><option>Đang chờ hoàn thiện hồ sơ</option><option>Giấy tờ khác</option></select>
-                        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={2} />
-                      </span>
-                    </label>
-                  </div>
-                </fieldset>
-
-                <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Nhu cầu đăng tin *
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setPurpose('SALE')}
-                      className={`p-4 rounded-xl border flex items-center gap-3 font-bold text-sm transition-all ${
-                        purpose === 'SALE'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+        <nav aria-label="Các bước đăng tin" className="mb-8 mt-6">
+          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+            {STEPS.map((s) => {
+              const Icon = s.icon;
+              const active = step === s.id;
+              const completed = step > s.id;
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => void leaveStep(s.id)}
+                    aria-current={active ? 'step' : undefined}
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-xl border p-3.5 text-left transition-all ${
+                      active
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm'
+                        : completed
+                          ? 'border-slate-300 bg-white text-slate-800'
+                          : 'border-slate-200 bg-white/60 text-slate-500'
+                    }`}
+                  >
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${
+                        active
+                          ? 'bg-emerald-600 text-white shadow'
+                          : completed
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-500'
                       }`}
                     >
-                      <Building2 className="w-5 h-5 text-emerald-600" />
-                      <div>
-                        <span className="block">Cần Bán Bất động sản</span>
-                        <span className="text-xs text-slate-400 font-normal">Chuyển nhượng quyền sở hữu</span>
-                      </div>
-                    </button>
+                      {completed ? (
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      ) : (
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      )}
+                    </span>
+                    <span className="overflow-hidden">
+                      <span className="block truncate text-xs font-bold">{s.label}</span>
+                      <span className="block text-xs text-slate-500">Bước {s.id} / 4</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
 
-                    <button
-                      type="button"
-                      onClick={() => setPurpose('RENT')}
-                      className={`p-4 rounded-xl border flex items-center gap-3 font-bold text-sm transition-all ${
-                        purpose === 'RENT'
-                          ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm'
-                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Key className="w-5 h-5 text-emerald-600" />
-                      <div>
-                        <span className="block">Cho Thuê Bất động sản</span>
-                        <span className="text-xs text-slate-400 font-normal">Hợp đồng thuê theo tháng/năm</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+        <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
+          <Card className="p-6 lg:col-span-8">
+            <form className="flex flex-col gap-5" noValidate onSubmit={(event) => event.preventDefault()}>
+              <h2
+                ref={stepHeading}
+                tabIndex={-1}
+                className="flex items-center gap-2 border-b border-slate-100 pb-2 text-base font-bold text-slate-900 outline-none"
+              >
+                <StepIcon className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+                Bước {step}: {STEPS[step - 1].label}
+              </h2>
 
-                {/* Loại hình BĐS */}
-                <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                    Loại hình tài sản *
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { type: 'APARTMENT', label: 'Căn hộ chung cư', icon: Building2 },
-                      { type: 'HOUSE', label: 'Nhà riêng / Phố', icon: Home },
-                      { type: 'VILLA', label: 'Biệt thự / Liền kề', icon: Castle },
-                      { type: 'LAND', label: 'Đất thổ cư / Nền', icon: MapPin },
-                    ].map((item) => {
-                      const Icon = item.icon;
-                      return (
+              {step === 1 && (
+                <>
+                  <fieldset>
+                    <legend className="text-xs font-bold uppercase tracking-wider text-slate-700">Nhu cầu</legend>
+                    <div className="mt-2 grid grid-cols-2 gap-3">
+                      {(['SALE', 'RENT'] as const).map((value) => (
                         <button
-                          key={item.type}
+                          key={value}
                           type="button"
-                          onClick={() => setPropertyType(item.type)}
-                          className={`p-3 rounded-xl border text-center flex flex-col items-center gap-2 transition-all ${
-                            propertyType === item.type
-                              ? 'border-emerald-600 bg-emerald-50 text-emerald-900 font-bold'
-                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          aria-pressed={fields.purpose === value}
+                          onClick={() => update('purpose', value)}
+                          className={`flex min-h-11 items-center gap-3 rounded-xl border p-4 text-left text-sm font-bold transition-all ${
+                            fields.purpose === value
+                              ? 'border-emerald-500 bg-emerald-50 text-emerald-900 shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                           }`}
                         >
-                          <Icon className="w-5 h-5 text-emerald-600" />
-                          <span className="text-xs">{item.label}</span>
+                          {value === 'SALE' ? (
+                            <Building2 className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+                          ) : (
+                            <Key className="h-5 w-5 text-emerald-600" aria-hidden="true" />
+                          )}
+                          {value === 'SALE' ? 'Bán' : 'Cho thuê'}
                         </button>
-                      );
-                    })}
+                      ))}
+                    </div>
+                  </fieldset>
+                  <FormField label="Loại bất động sản" required id="field-propertyType">
+                    {(control) => (
+                      <Select
+                        {...control}
+                        options={PROPERTY_TYPES}
+                        value={fields.propertyType}
+                        onChange={(e) => update('propertyType', e.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <FormField
+                    label="Tiêu đề"
+                    required
+                    id="field-title"
+                    hint="10–200 ký tự: loại nhà, số phòng, khu vực. Không ghi số điện thoại."
+                    error={shownError('title')}
+                  >
+                    {(control) => (
+                      <TextInput
+                        {...control}
+                        value={fields.title}
+                        maxLength={200}
+                        onBlur={() => touch('title')}
+                        onChange={(e) => update('title', e.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField
+                      label={rent ? 'Giá thuê mỗi tháng (VNĐ)' : 'Giá bán (VNĐ)'}
+                      required
+                      id="field-priceVnd"
+                      hint={price && fields.priceVnd ? `= ${formatMoney(price)}` : 'Nhập số, ví dụ 3950000000'}
+                      error={shownError('priceVnd')}
+                    >
+                      {(control) => (
+                        <TextInput
+                          {...control}
+                          inputMode="numeric"
+                          autoComplete="off"
+                          value={groupDigits(fields.priceVnd)}
+                          onBlur={() => touch('priceVnd')}
+                          onChange={(e) => update('priceVnd', parseInteger(e.target.value))}
+                        />
+                      )}
+                    </FormField>
+                    <FormField
+                      label="Diện tích (m²)"
+                      required
+                      id="field-areaM2"
+                      hint={
+                        fields.priceVnd && fields.areaM2 ? (
+                          <UnitPriceText
+                            unitPrice={unitPriceFromArea(fields.priceVnd, fields.areaM2, fields.purpose)}
+                          />
+                        ) : undefined
+                      }
+                      error={shownError('areaM2')}
+                    >
+                      {(control) => (
+                        <TextInput
+                          {...control}
+                          inputMode="decimal"
+                          autoComplete="off"
+                          defaultValue={fields.areaM2 ?? ''}
+                          key={`area-${formKey}`}
+                          onBlur={() => touch('areaM2')}
+                          onChange={(e) => update('areaM2', parseDecimal(e.target.value))}
+                        />
+                      )}
+                    </FormField>
                   </div>
-                </div>
+                  {rent && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <FormField label="Tiền đặt cọc (VNĐ)" id="field-depositVnd" error={shownError('depositVnd')}>
+                        {(control) => (
+                          <TextInput
+                            {...control}
+                            inputMode="numeric"
+                            value={groupDigits(fields.depositVnd)}
+                            onChange={(e) => update('depositVnd', parseInteger(e.target.value))}
+                          />
+                        )}
+                      </FormField>
+                      <FormField
+                        label="Phí dịch vụ mỗi tháng (VNĐ)"
+                        id="field-monthlyServiceFeeVnd"
+                        hint="Phí quản lý, dịch vụ tòa nhà (nếu có)"
+                        error={shownError('monthlyServiceFeeVnd')}
+                      >
+                        {(control) => (
+                          <TextInput
+                            {...control}
+                            inputMode="numeric"
+                            value={groupDigits(fields.monthlyServiceFeeVnd)}
+                            onChange={(e) => update('monthlyServiceFeeVnd', parseInteger(e.target.value))}
+                          />
+                        )}
+                      </FormField>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    {(['bedrooms', 'bathrooms', 'floors'] as const).map((key) => (
+                      <FormField
+                        key={key}
+                        label={{ bedrooms: 'Phòng ngủ', bathrooms: 'Phòng tắm', floors: 'Số tầng' }[key]}
+                        id={`field-${key}`}
+                      >
+                        {(control) => (
+                          <TextInput
+                            {...control}
+                            inputMode="numeric"
+                            value={fields[key] ?? ''}
+                            onChange={(e) => update(key, parseInteger(e.target.value))}
+                          />
+                        )}
+                      </FormField>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField label="Giấy tờ pháp lý" id="field-legalStatusCode" error={shownError('legalStatusCode')}>
+                      {(control) => (
+                        <Select
+                          {...control}
+                          placeholder="Chưa chọn"
+                          options={LEGAL_OPTIONS}
+                          value={fields.legalStatusCode}
+                          onChange={(e) => update('legalStatusCode', e.target.value as DraftFields['legalStatusCode'])}
+                        />
+                      )}
+                    </FormField>
+                    <FormField
+                      label="Chi tiết giấy tờ"
+                      id="field-legalStatus"
+                      hint="Ví dụ: sổ hồng riêng, đã hoàn công"
+                      required={fields.legalStatusCode === 'OTHER'}
+                      error={shownError('legalStatus')}
+                    >
+                      {(control) => (
+                        <TextInput
+                          {...control}
+                          maxLength={100}
+                          value={fields.legalStatus}
+                          onBlur={() => touch('legalStatus')}
+                          onChange={(e) => update('legalStatus', e.target.value)}
+                        />
+                      )}
+                    </FormField>
+                    <FormField label="Nội thất" id="field-furnishing">
+                      {(control) => (
+                        <Select
+                          {...control}
+                          placeholder="Chưa chọn"
+                          options={FURNISHING_OPTIONS}
+                          value={fields.furnishing}
+                          onChange={(e) => update('furnishing', e.target.value as DraftFields['furnishing'])}
+                        />
+                      )}
+                    </FormField>
+                    <FormField label="Hướng nhà" id="field-direction">
+                      {(control) => (
+                        <Select
+                          {...control}
+                          placeholder="Chưa chọn"
+                          options={DIRECTIONS}
+                          value={fields.direction}
+                          onChange={(e) => update('direction', e.target.value)}
+                        />
+                      )}
+                    </FormField>
+                  </div>
+                  <FormField
+                    label="Mô tả"
+                    id="field-description"
+                    hint={`${fields.description.length} ký tự; nên từ 200 ký tự. Không ghi số điện thoại, email hay link Zalo/Facebook.`}
+                    error={shownError('description')}
+                  >
+                    {(control) => (
+                      <TextArea
+                        {...control}
+                        rows={6}
+                        maxLength={5000}
+                        value={fields.description}
+                        onChange={(e) => update('description', e.target.value)}
+                      />
+                    )}
+                  </FormField>
+                </>
+              )}
 
-                {/* Tiêu đề tin đăng */}
-                <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Tiêu đề tin đăng chuẩn SEO *
-                  </label>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Ví dụ: Bán căn hộ The Matrix One 2PN Mễ Trì, Nam Từ Liêm, Sổ hồng sẵn sàng"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Tối thiểu 15 ký tự, nêu rõ loại hình, dự án và địa điểm để tăng điểm chất lượng tin.
+              {step === 2 && (
+                <>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <FormField label="Mã tỉnh/thành" id="field-provinceCode" error={shownError('provinceCode')}>
+                      {(control) => (
+                        <TextInput
+                          {...control}
+                          value={fields.provinceCode}
+                          onChange={(e) => update('provinceCode', e.target.value)}
+                        />
+                      )}
+                    </FormField>
+                    <FormField
+                      label="Mã quận/huyện"
+                      id="field-districtCode"
+                      hint="Dùng để so sánh giá trong khu vực"
+                      error={shownError('districtCode')}
+                    >
+                      {(control) => (
+                        <TextInput
+                          {...control}
+                          value={fields.districtCode}
+                          onChange={(e) => update('districtCode', e.target.value)}
+                        />
+                      )}
+                    </FormField>
+                    <FormField label="Mã phường/xã" id="field-wardCode" error={shownError('wardCode')}>
+                      {(control) => (
+                        <TextInput
+                          {...control}
+                          value={fields.wardCode}
+                          onChange={(e) => update('wardCode', e.target.value)}
+                        />
+                      )}
+                    </FormField>
+                  </div>
+                  <FormField
+                    label="Địa chỉ hiển thị"
+                    id="field-addressSummary"
+                    hint="Chỉ tên đường/phường/dự án; không cần số nhà."
+                    error={shownError('addressSummary')}
+                  >
+                    {(control) => (
+                      <TextInput
+                        {...control}
+                        maxLength={255}
+                        value={fields.addressSummary}
+                        onChange={(e) => update('addressSummary', e.target.value)}
+                      />
+                    )}
+                  </FormField>
+                  <section className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="flex items-center gap-2 text-body-sm font-semibold text-on-surface">
+                        <MapPin className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                        {fields.publicLatitude != null && fields.publicLongitude != null
+                          ? `Đã chọn vị trí (${fields.publicLatitude.toFixed(4)}, ${fields.publicLongitude.toFixed(4)})`
+                          : 'Chưa chọn vị trí trên bản đồ'}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setMapOpen((open) => !open)}
+                        aria-expanded={mapOpen}
+                      >
+                        {mapOpen ? 'Ẩn bản đồ' : 'Chọn trên bản đồ'}
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-label text-on-surface-variant">
+                      Vị trí công khai được làm tròn để bảo vệ riêng tư.
+                    </p>
+                    {mapOpen && (
+                      <Suspense fallback={<Skeleton className="mt-3 h-72 w-full" />}>
+                        <LocationPicker
+                          latitude={fields.publicLatitude}
+                          longitude={fields.publicLongitude}
+                          onChange={(lat, lng) =>
+                            setFields((current) => ({ ...current, publicLatitude: lat, publicLongitude: lng }))
+                          }
+                        />
+                      </Suspense>
+                    )}
+                  </section>
+                </>
+              )}
+
+              {step === 3 && (
+                <section aria-describedby="images-hint">
+                  <p id="images-hint" className="text-body-sm text-on-surface-variant">
+                    {fields.imageUrls.length} ảnh · nên có ít nhất 5 ảnh thật (phòng khách, phòng ngủ, bếp, mặt tiền).
+                    Ảnh đầu tiên là ảnh bìa.
                   </p>
-                </div>
-
-                {/* Địa chỉ hành chính có chuẩn hóa */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Tỉnh / Thành phố *</label>
-                    <input
-                      type="text"
-                      value={province}
-                      onChange={(e) => setProvince(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-slate-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Quận / Huyện *</label>
-                    <input
-                      type="text"
-                      value={district}
-                      onChange={(e) => setDistrict(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-slate-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-600 mb-1">Phường / Xã *</label>
-                    <input
-                      type="text"
-                      value={ward}
-                      onChange={(e) => setWard(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm bg-slate-50"
-                    />
-                  </div>
-                </div>
-
-                <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Địa chỉ chi tiết / Tên dự án</label>
-                  <input
-                    type="text"
-                    value={addressSummary}
-                    onChange={(e) => setAddressSummary(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border border-slate-300 text-sm"
-                  />
-                </div>
-
-                {/* Tọa độ hiển thị công khai trên bản đồ */}
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-emerald-600" />
-                      <span className="text-xs font-bold text-slate-800 uppercase">Tọa độ hiển thị trên bản đồ</span>
-                    </div>
-                    <button type="button" onClick={() => setIsMapPickerOpen((current) => !current)} className="min-h-9 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100">{isMapPickerOpen ? 'Ẩn bản đồ' : 'Chọn trên bản đồ'}</button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-xs font-mono">
-                    <div>
-                      <span className="text-slate-400 block mb-0.5">Vĩ độ (Latitude):</span>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        value={latitude}
-                        onChange={(e) => setLatitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block mb-0.5">Kinh độ (Longitude):</span>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        value={longitude}
-                        onChange={(e) => setLongitude(Number.isFinite(e.target.valueAsNumber) ? e.target.valueAsNumber : 0)}
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
-                      />
-                    </div>
-                  </div>
-                  <p className="mt-3 text-xs text-slate-500">Chỉ chọn hoặc nhập tọa độ bạn đồng ý công khai. Vị trí hiển thị sẽ được làm mờ để bảo vệ riêng tư.</p>
-                  {isMapPickerOpen && <LocationPicker latitude={latitude} longitude={longitude} onChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }} />}
-                </div>
-
-                <div className="mt-6 flex justify-end">
-                  <Button onClick={() => setStep(2)} variant="primary" className="bg-emerald-600 hover:bg-emerald-700">
-                    Tiếp tục: Thông số & Giá <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* BƯỚC 2: THÔNG SỐ KỸ THUẬT & AI ĐỊNH GIÁ THỊ TRƯỜNG */}
-            {step === 2 && (
-              <Card className="p-6">
-                <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-emerald-600" />
-                  Bước 2: Thông số chi tiết & Gợi ý giá tham khảo
-                </h3>
-
-                {/* Giá & Diện tích */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Mức giá đề xuất (VNĐ) *
-                    </label>
-                    <input
-                      type="number"
-                      value={priceVnd}
-                      onChange={(e) => setPriceVnd(Number(e.target.value))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                    <div className="flex items-center justify-between text-xs text-slate-500 mt-1">
-                      <span>Bằng chữ: <strong>{formatPriceVnd(priceVnd)}</strong></span>
-                      <span>{calculateUnitPrice(priceVnd, areaM2)}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Diện tích tim tường (m²) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      value={areaM2}
-                      onChange={(e) => setAreaM2(Number(e.target.value))}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Mô tả chi tiết */}
-                <div className="mb-6">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Mô tả chi tiết tài sản *
-                  </label>
-                  <textarea
-                    rows={5}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Mô tả các ưu điểm về thiết kế, nội thất bàn giao, tầng cao, view, tiện ích..."
-                    className="w-full px-4 py-3 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 leading-relaxed font-sans"
-                  />
-                  <span className="text-[11px] text-slate-400">Đã nhập {description.length} ký tự (khuyến nghị từ 80 ký tự để nội dung đầy đủ)</span>
-                  <p className="mt-1 text-[11px] text-amber-700">Không ghi số điện thoại, email hoặc link Zalo/Facebook — người quan tâm liên hệ qua nút “Hẹn xem” để bạn nhận yêu cầu trong mục Khách quan tâm.</p>
-                </div>
-
-                <div className="mt-6 flex justify-between">
-                  <Button onClick={() => setStep(1)} variant="outline">
-                    <ArrowLeft className="w-4 h-4 mr-1" /> Quay lại Bước 1
-                  </Button>
-                  <Button onClick={() => setStep(3)} variant="primary" className="bg-emerald-600 hover:bg-emerald-700">
-                    Tiếp tục: Media & Pháp lý <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* BƯỚC 3: HÌNH ẢNH */}
-            {step === 3 && (
-              <Card className="p-6">
-                <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <ImageIcon className="w-5 h-5 text-emerald-600" />
-                  Bước 3: Quản lý hình ảnh & an toàn dữ liệu
-                </h3>
-
-                {/* Quản lý ảnh (3-20 ảnh) */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Hình ảnh BĐS (Đã tải: {imageUrls.length} ảnh, tối thiểu 3 ảnh) *
-                    </label>
-                    <span className="text-xs text-emerald-600 font-bold">
-                      {imageUrls.length >= 5 ? '✓ Đạt 25/25 điểm ảnh phong phú' : 'Thêm >= 5 ảnh để đạt điểm tối đa'}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
-                    {imageUrls.map((url, idx) => (
-                      <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
-                        <img src={url} alt={`Ảnh bất động sản ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
-                        {idx === 0 && (
-                          <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow">
+                  {uploadError && <InlineFeedback kind="error" title={uploadError} className="mt-3" />}
+                  <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {fields.imageUrls.map((url, index) => (
+                      <li
+                        key={url}
+                        className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100"
+                      >
+                        <img
+                          src={displayMedia(url)}
+                          alt={`Ảnh ${index + 1}`}
+                          className="aspect-video w-full object-cover"
+                          loading="lazy"
+                        />
+                        {index === 0 && (
+                          <span className="absolute left-1 top-1 rounded bg-emerald-600 px-1.5 py-0.5 text-xs font-bold text-white shadow">
                             Ảnh bìa
                           </span>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(idx)}
-                          disabled={deletingImage === url}
-                          aria-label={`Xóa ảnh ${idx + 1}`}
-                          className="absolute top-1 right-1 bg-black/70 text-white w-11 h-11 rounded-full flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-white disabled:opacity-50"
-                        >
-                          {deletingImage === url ? <span className="loading loading-spinner loading-xs" /> : <X className="w-4 h-4" />}
-                        </button>
-                      </div>
+                        <div className="flex justify-between bg-surface p-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Đưa ảnh ${index + 1} lên trước`}
+                            disabled={index === 0}
+                            onClick={() => moveImage(index, -1)}
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Xóa ảnh ${index + 1}`}
+                            onClick={() =>
+                              setFields((current) => ({
+                                ...current,
+                                imageUrls: current.imageUrls.filter((item) => item !== url),
+                              }))
+                            }
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Đưa ảnh ${index + 1} ra sau`}
+                            disabled={index === fields.imageUrls.length - 1}
+                            onClick={() => moveImage(index, 1)}
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </li>
                     ))}
-                  </div>
-
-                  <label className="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-emerald-500 bg-emerald-50/50 px-5 py-6 text-center transition-colors hover:bg-emerald-50 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:ring-offset-2">
+                  </ul>
+                  <label className="mt-4 flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-emerald-500 bg-emerald-50/50 px-5 py-6 text-center focus-within:ring-2 focus-within:ring-emerald-600">
                     <input
                       type="file"
                       multiple
-                      accept="image/jpeg,image/png,image/webp,image/avif"
-                      disabled={isUploadingImages || imageUrls.length >= 20}
+                      accept="image/jpeg,image/png,image/webp"
                       className="sr-only"
+                      disabled={uploading || fields.imageUrls.length >= 20}
                       onChange={(event) => {
-                        void handleImageUpload(event.target.files);
+                        void handleUpload(event.target.files);
                         event.target.value = '';
                       }}
                     />
-                    {isUploadingImages ? <span className="loading loading-spinner loading-md text-emerald-700" /> : <Upload className="h-7 w-7 text-emerald-700" />}
+                    {uploading ? (
+                      <Loader2 className="h-7 w-7 animate-spin text-emerald-700" aria-hidden="true" />
+                    ) : (
+                      <Upload className="h-7 w-7 text-emerald-700" aria-hidden="true" />
+                    )}
                     <span className="text-sm font-bold text-emerald-950">
-                      {isUploadingImages ? 'Đang lưu ảnh vào MinIO…' : imageUrls.length >= 20 ? 'Đã đạt giới hạn 20 ảnh' : 'Chọn ảnh từ thiết bị'}
+                      {uploading ? 'Đang tải ảnh…' : 'Chọn ảnh từ thiết bị'}
                     </span>
                     <span className="text-xs leading-relaxed text-emerald-800">
-                      JPEG, PNG, WebP hoặc AVIF · tối đa 10 MB/ảnh · còn {20 - imageUrls.length} vị trí
+                      JPEG, PNG, WebP · tối đa 10 MB/ảnh · 20 ảnh
                     </span>
                   </label>
-                  <p className="mt-2 text-xs text-slate-500" aria-live="polite">
-                    Ảnh được lưu trong kho MinIO riêng của hệ thống. Không cần dán liên kết từ website khác.
-                  </p>
-                </div>
+                </section>
+              )}
 
-                <div className="mt-6 flex justify-between">
-                  <Button onClick={() => setStep(2)} variant="outline">
-                    <ArrowLeft className="w-4 h-4 mr-1" /> Quay lại Bước 2
-                  </Button>
-                  <Button onClick={() => setStep(4)} variant="primary" className="bg-emerald-600 hover:bg-emerald-700">
-                    Tiếp tục: Xem trước & Gửi duyệt <ArrowRight className="w-4 h-4 ml-1" />
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* BƯỚC 4: XEM TRƯỚC LIVE PREVIEW & GỬI DUYỆT */}
-            {step === 4 && (
-              <Card className="p-6">
-                <h3 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center gap-2">
-                  <Eye className="w-5 h-5 text-emerald-600" />
-                  Bước 4: Xem trước Live Preview & Nộp Kiểm duyệt
-                </h3>
-
-                {/* Thẻ mô phỏng giao diện tìm kiếm thực tế */}
-                <div className="p-4 rounded-2xl bg-slate-100 border border-slate-200 mb-6">
-                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-3">
-                    Hiển thị trên Trang Kết quả Tìm kiếm & Bản đồ:
-                  </span>
-
-                  <div className="bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm max-w-md mx-auto">
-                    <div className="relative aspect-video">
-                      {imageUrls[0] ? (
-                        <img src={imageUrls[0]} alt="Ảnh bìa xem trước" className="w-full h-full object-cover" />
+              {step === 4 && (
+                <section aria-label="Xem trước tin đăng" data-testid="listing-preview">
+                  {!currentId ? (
+                    <InlineFeedback kind="info" title="Chưa có bản nháp">
+                      Điền tiêu đề, giá và diện tích ở bước 1 để lưu nháp và xem trước.
+                    </InlineFeedback>
+                  ) : previewError ? (
+                    <InlineFeedback kind="error" title={previewError} />
+                  ) : !preview ? (
+                    <Skeleton className="h-64 w-full" />
+                  ) : (
+                    <article className="mx-auto max-w-md overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                      {preview.images[0] ? (
+                        <img
+                          src={displayMedia(preview.images[0].url)}
+                          alt="Ảnh bìa"
+                          className="aspect-video w-full object-cover"
+                        />
                       ) : (
-                        <div className="flex h-full flex-col items-center justify-center gap-2 bg-slate-200 text-slate-600">
-                          <ImageIcon className="h-8 w-8" />
-                          <span className="text-sm font-medium">Chưa có ảnh để xem trước</span>
+                        <div className="flex aspect-video items-center justify-center bg-surface-container text-on-surface-variant">
+                          <ImageIcon className="h-8 w-8" aria-hidden="true" /> Chưa có ảnh
                         </div>
                       )}
-                      <div className="absolute top-2 left-2 flex flex-col gap-1">
-                        <span className="bg-slate-900/80 text-white text-[11px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
-                          {purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
-                        </span>
+                      <div className="p-4">
+                        <p className="text-lg font-black text-emerald-700">
+                          <Money price={preview.price} />
+                        </p>
+                        <p className="text-body-sm text-on-surface-variant">
+                          {preview.areaM2} m² {preview.unitPrice && <UnitPriceText unitPrice={preview.unitPrice} />}
+                        </p>
+                        <h3 className="mt-2 text-body font-semibold text-on-surface">{preview.title}</h3>
+                        <p className="mt-1 text-body-sm text-on-surface-variant">
+                          {preview.location.addressSummary || 'Chưa có địa chỉ'}
+                        </p>
+                        {preview.rentTerms && (
+                          <p className="mt-2 text-body-sm">
+                            Đặt cọc: {formatRentTerms(preview.rentTerms).deposit ?? 'chưa ghi'} · Phí dịch vụ:{' '}
+                            {formatRentTerms(preview.rentTerms).monthlyServiceFee ?? 'chưa ghi'}
+                          </p>
+                        )}
+                        {preview.legal?.label && <p className="mt-1 text-body-sm">Pháp lý: {preview.legal.label}</p>}
+                        {preview.description && (
+                          <p className="mt-3 whitespace-pre-line text-body-sm">{preview.description}</p>
+                        )}
                       </div>
-                      {imageUrls.length > 0 && (
-                        <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
-                          1/{imageUrls.length} ảnh
-                        </span>
-                      )}
-                    </div>
+                    </article>
+                  )}
+                  <p className="mt-4 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                    Gửi duyệt nghĩa là bạn xác nhận thông tin, giá và giấy tờ là đúng. Tin có thể bị từ chối hoặc tạm ẩn
+                    nếu sai sự thật.
+                  </p>
+                  {submitError && <InlineFeedback kind="error" title={submitError} className="mt-3" />}
+                </section>
+              )}
 
-                    <div className="p-4">
-                      <div className="flex items-baseline justify-between mb-1">
-                        <span className="text-lg font-black text-emerald-700">{formatPriceVnd(priceVnd)}</span>
-                        <span className="text-xs text-slate-500 font-medium">{areaM2} m² • {calculateUnitPrice(priceVnd, areaM2)}</span>
-                      </div>
-                      <h4 className="font-bold text-sm text-slate-900 line-clamp-1 mb-2">
-                        {title || 'Tiêu đề tin đăng BĐS'}
-                      </h4>
-                      <p className="text-xs text-slate-500 flex items-center gap-1 line-clamp-1">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        {addressSummary}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bản cam kết kiểm duyệt */}
-                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 leading-relaxed mb-6">
-                  <p className="font-bold mb-1">Cam kết của người đăng tin:</p>
-                  Tôi cam đoan thông tin mô tả, mức giá và hồ sơ pháp lý cung cấp là hoàn toàn chính xác. Tôi đồng ý để ban quản trị đối soát, áp dụng bộ lọc trùng lặp và tạm gỡ tin nếu phát hiện hành vi gian lận hoặc đăng khống.
-                </div>
-
-                <div className="mt-6 flex justify-between items-center">
-                  <Button onClick={() => setStep(3)} variant="outline">
-                    <ArrowLeft className="w-4 h-4 mr-1" /> Quay lại Bước 3
-                  </Button>
+              <div className="flex justify-between gap-3 border-t border-slate-100 pt-4">
+                {step > 1 ? (
                   <Button
-                    onClick={handleSubmitForReview}
-                    disabled={isSubmitting}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 shadow-md flex items-center gap-2"
+                    variant="outline"
+                    leftIcon={<ArrowLeft className="h-4 w-4" />}
+                    onClick={() => void leaveStep((step - 1) as Step)}
                   >
-                    <Send className="w-4 h-4" />
-                    {isSubmitting ? 'Đang gửi duyệt...' : 'Gửi duyệt tin đăng'}
+                    Quay lại
                   </Button>
-                </div>
-              </Card>
-            )}
-          </div>
-
-          {/* Right Sidebar Column (4 cols): Bộ tiêu chuẩn chất lượng & Checklist */}
-          <div className="lg:col-span-4 flex flex-col gap-6">
-            {/* Checklist Tiêu chuẩn chất lượng */}
-            <Card className="p-5">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                Kiểm tra trước khi gửi duyệt
-              </h4>
-              <div className="space-y-2.5 text-xs">
-                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Tiêu đề từ 15 ký tự</span>
-                  {title.length >= 15 ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">{title.length}/15</span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Mô tả từ 80 ký tự</span>
-                  {description.length >= 80 ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ) : (
-                    <span className="text-[10px] text-slate-400 font-mono">{description.length}/80</span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Ít nhất 5 ảnh thực tế</span>
-                  {imageUrls.length >= 5 ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ) : (
-                    <span className="text-[10px] text-amber-600 font-mono">{imageUrls.length}/5</span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200">
-                  <span className="text-slate-700">Tọa độ định vị GIS PostGIS</span>
-                  {latitude && longitude ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ) : (
-                    <span className="text-[10px] text-slate-400">Chưa có</span>
-                  )}
-                </div>
-
+                ) : (
+                  <span />
+                )}
+                {step < 4 ? (
+                  <Button
+                    rightIcon={<ArrowRight className="h-4 w-4" />}
+                    onClick={() => void leaveStep((step + 1) as Step)}
+                  >
+                    Tiếp tục: {STEPS[step].label}
+                  </Button>
+                ) : (
+                  <Button
+                    leftIcon={<Send className="h-4 w-4" />}
+                    isLoading={submitting}
+                    onClick={() => void handleSubmit()}
+                  >
+                    Gửi duyệt
+                  </Button>
+                )}
               </div>
-            </Card>
+            </form>
+          </Card>
 
-            {/* Thẻ hỗ trợ người đăng tin */}
-            <div className="p-4 rounded-xl bg-slate-900 text-white shadow-md">
-              <div className="flex items-center gap-2 mb-2">
-                <HelpCircle className="w-4 h-4 text-emerald-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                  Chính sách duyệt tin an toàn
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Mỗi tin đăng sau khi gửi sẽ vào hàng đợi kiểm duyệt. Nếu cần bổ sung nội dung, trạng thái tin sẽ được cập nhật trong Kho tin của tôi.
+          <aside className="flex flex-col gap-6 lg:col-span-4">
+            <QualityChecklist report={step === 4 && preview ? preview.quality : (loaded?.quality ?? null)} />
+            <div className="rounded-xl bg-slate-900 p-4 text-white shadow-md">
+              <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
+                <HelpCircle className="h-4 w-4" aria-hidden="true" />
+                Chính sách duyệt tin an toàn
+              </p>
+              <p className="text-xs leading-relaxed text-slate-300">
+                Mỗi tin đăng sau khi gửi sẽ vào hàng đợi kiểm duyệt. Nếu cần bổ sung nội dung, trạng thái tin sẽ được
+                cập nhật trong Tin đăng của tôi.
               </p>
             </div>
-          </div>
+          </aside>
         </div>
       </div>
+
+      <Dialog
+        open={autosave.state.kind === 'conflict'}
+        onClose={() => void resolveConflict(false)}
+        title="Tin vừa được lưu ở nơi khác"
+        description="Có thể bạn đang mở tin này ở tab hoặc thiết bị khác. Chọn bản muốn giữ."
+        footer={
+          <>
+            <Button variant="outline" onClick={() => void resolveConflict(false)}>
+              Tải bản mới nhất
+            </Button>
+            <Button onClick={() => void resolveConflict(true)}>Giữ nội dung đang sửa</Button>
+          </>
+        }
+      >
+        <p className="text-body-sm text-on-surface-variant">
+          “Tải bản mới nhất” bỏ các thay đổi chưa lưu trên trang này. “Giữ nội dung đang sửa” ghi đè bản đã lưu ở nơi
+          khác.
+        </p>
+      </Dialog>
     </div>
   );
 };

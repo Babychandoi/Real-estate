@@ -24,5 +24,8 @@ public record UpdateListingDraftCommand(
         String addressSummary,
         Double publicLatitude,
         Double publicLongitude,
-        List<String> imageUrls
+        List<String> imageUrls,
+        com.company.bds.listing.domain.model.ListingAttributes attributes,
+        /** Version the client edited (If-Match / expectedVersion); null = no precondition. */
+        Long expectedVersion
 ) {}

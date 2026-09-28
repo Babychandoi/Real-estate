@@ -1,65 +1,579 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Ban, CheckCircle2, ChevronLeft, ChevronRight, Eye, RefreshCw, Search, ShieldCheck, UserRoundCheck, Users, X } from 'lucide-react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { FileLock2, History, Lock, LogOut, Search, ShieldCheck, ShieldOff, Unlock, UserCog } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
-import { Button } from '@/shared/ui/Button';
-import { approveKyc, fetchKycByUserId, rejectKyc } from '@/entities/verification/api/verificationApi';
+import { adminUsersApi, trustApi } from '@/entities/admin/api/adminApi';
+import type {
+  AdminAction,
+  KycAccessLogEntry,
+  KycDocumentAccess,
+  TrustReasonOption,
+} from '@/entities/admin/model/types';
+import { fetchKycByUserId } from '@/entities/verification/api/verificationApi';
 import type { UserKycProfile } from '@/entities/verification/model/types';
+import { useAuth } from '@/shared/auth/AuthContext';
+import { ROLE_LABELS, ROLE_PRIORITY } from '@/shared/auth/roles';
+import { errorMessage } from '@/shared/api/errors';
+import { PasswordReasonDialog, ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import type { BadgeVariant } from '@/shared/ui/Badge';
+import { Button } from '@/shared/ui/Button';
+import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { FormField } from '@/shared/ui/FormField';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { Pagination } from '@/shared/ui/Pagination';
 import { PrivateMediaImage } from '@/shared/ui/PrivateMediaImage';
+import { Select } from '@/shared/ui/Select';
+import { Sheet } from '@/shared/ui/Sheet';
+import { TextInput } from '@/shared/ui/TextInput';
 
 interface UserItem {
-  id: string; fullName: string; email: string | null; role: string; status: string; kycStatus: string;
-  planCode: string; listingQuotaRemaining: number; listingCount: number; createdAt: string;
-  emailVerifiedAt: string | null; lastLoginAt: string | null; planExpiresAt: string | null;
+  id: string;
+  fullName: string;
+  email: string | null;
+  role: string;
+  status: string;
+  kycStatus: string;
+  planCode: string;
+  listingQuotaRemaining: number;
+  listingCount: number;
+  createdAt: string;
+  emailVerifiedAt: string | null;
+  lastLoginAt: string | null;
+  planExpiresAt: string | null;
+  mfaEnrolled?: boolean;
 }
-interface UserPage { items: UserItem[]; page: number; size: number; total: number }
+interface UserPage {
+  items: UserItem[];
+  page: number;
+  size: number;
+  total: number;
+}
 
-const ROLE_LABELS: Record<string, string> = { USER: 'Người dùng', BROKER: 'Môi giới', MODERATOR: 'Kiểm duyệt viên', ADMIN: 'Quản trị viên' };
-const STATUS_LABELS: Record<string, string> = { ACTIVE: 'Đang hoạt động', SUSPENDED: 'Đã khóa', PENDING_EMAIL_VERIFICATION: 'Chờ xác minh email' };
-const KYC_LABELS: Record<string, string> = { NOT_SUBMITTED: 'Chưa gửi', PENDING: 'Đang chờ', VERIFIED: 'Đã xác minh', REJECTED: 'Bị từ chối' };
-const formatDate = (value: string | null) => value ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : 'Chưa có';
+const STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
+  ACTIVE: { label: 'Đang hoạt động', variant: 'success' },
+  SUSPENDED: { label: 'Đã khóa', variant: 'error' },
+  PENDING_EMAIL_VERIFICATION: { label: 'Chờ xác minh email', variant: 'warning' },
+};
+const KYC: Record<string, { label: string; variant: BadgeVariant }> = {
+  NOT_SUBMITTED: { label: 'Chưa gửi', variant: 'neutral' },
+  PENDING: { label: 'Đang chờ duyệt', variant: 'info' },
+  VERIFIED: { label: 'Đã xác minh', variant: 'success' },
+  REJECTED: { label: 'Bị từ chối', variant: 'error' },
+};
+const ACTION_LABELS: Record<AdminAction['action'], string> = {
+  ROLE_CHANGE: 'Đổi vai trò',
+  LOCK: 'Khóa tài khoản',
+  UNLOCK: 'Mở khóa',
+  MFA_RESET: 'Đặt lại xác thực hai lớp',
+  SESSIONS_REVOKE: 'Đăng xuất mọi thiết bị',
+};
+const isStaffRole = (role: string) => role === 'ADMIN' || role === 'MODERATOR';
+const roleLabel = (role: string | null) =>
+  role ? ((ROLE_LABELS as Record<string, string>)[role] ?? role) : 'Không rõ';
 
 export function AdminUsersPage() {
+  const { user: me } = useAuth();
   const [data, setData] = useState<UserPage>({ items: [], page: 0, size: 20, total: 0 });
-  const [query, setQuery] = useState(''); const [appliedQuery, setAppliedQuery] = useState('');
-  const [role, setRole] = useState(''); const [status, setStatus] = useState('');
-  const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(''); const [error, setError] = useState('');
-  const [selectedKyc, setSelectedKyc] = useState<UserKycProfile | null>(null);
-  const [kycLoading, setKycLoading] = useState(false); const [rejectReason, setRejectReason] = useState('');
+  const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState({ query: '', role: '', status: '' });
+  const [page, setPage] = useState(0);
+  const [tableStatus, setTableStatus] = useState<DataTableStatus>('loading');
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [roleTarget, setRoleTarget] = useState<UserItem | null>(null);
+  const [statusTarget, setStatusTarget] = useState<{ user: UserItem; next: 'ACTIVE' | 'SUSPENDED' } | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<UserItem | null>(null);
+  const [kycTarget, setKycTarget] = useState<UserItem | null>(null);
+  const [securityTarget, setSecurityTarget] = useState<{ user: UserItem; action: 'mfa' | 'sessions' } | null>(null);
 
-  const load = useCallback(async (page = 0) => {
-    setLoading(true); setError('');
+  const load = useCallback(async () => {
+    setTableStatus((s) => (s === 'loading' ? 'loading' : 'refreshing'));
     const params = new URLSearchParams({ page: String(page), size: '20' });
-    if (appliedQuery) params.set('query', appliedQuery); if (role) params.set('role', role); if (status) params.set('status', status);
-    try { setData(await apiClient<UserPage>(`/admin/users?${params}`)); }
-    catch { setError('Không thể tải danh sách người dùng. Vui lòng thử lại.'); }
-    finally { setLoading(false); }
-  }, [appliedQuery, role, status]);
+    if (filters.query) params.set('query', filters.query);
+    if (filters.role) params.set('role', filters.role);
+    if (filters.status) params.set('status', filters.status);
+    try {
+      setData(await apiClient<UserPage>(`/admin/users?${params}`));
+      setTableStatus('ready');
+      setError(null);
+    } catch (err) {
+      setTableStatus('error');
+      setError(errorMessage(err, 'Không thể tải danh sách người dùng.'));
+    }
+  }, [filters, page]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  useEffect(() => { void load(0); }, [load]);
-  const search = (event: FormEvent) => { event.preventDefault(); setAppliedQuery(query.trim()); };
-  const changeStatus = async (user: UserItem, nextStatus: 'ACTIVE' | 'SUSPENDED') => {
-    const action = nextStatus === 'SUSPENDED' ? 'khóa' : 'mở khóa';
-    if (!window.confirm(`Xác nhận ${action} tài khoản ${user.fullName}?`)) return;
-    setBusy(user.id); setError('');
-    try { await apiClient(`/admin/users/${user.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: nextStatus }) }); await load(data.page); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : `Không thể ${action} tài khoản.`); }
-    finally { setBusy(''); }
+  const columns: DataTableColumn<UserItem>[] = [
+    {
+      key: 'user',
+      header: 'Người dùng',
+      cell: (u) => (
+        <div className="min-w-[12rem]">
+          <p className="font-semibold">{u.fullName}</p>
+          <p className="text-xs text-on-surface-variant">{u.email ?? 'Không có email'}</p>
+          <p className="text-xs text-on-surface-variant">Tham gia {formatDateTime(u.createdAt)}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'role',
+      header: 'Vai trò',
+      cell: (u) => (
+        <div className="flex flex-col items-start gap-1">
+          <span>{roleLabel(u.role)}</span>
+          {isStaffRole(u.role) && (
+            <StatusBadge
+              label={u.mfaEnrolled ? 'Đã bật MFA' : 'Chưa bật MFA'}
+              variant={u.mfaEnrolled ? 'success' : 'warning'}
+            />
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      cell: (u) => <StatusBadge {...(STATUS[u.status] ?? { label: u.status, variant: 'neutral' as BadgeVariant })} />,
+    },
+    {
+      key: 'kyc',
+      header: 'Định danh',
+      cell: (u) => (
+        <StatusBadge {...(KYC[u.kycStatus] ?? { label: u.kycStatus, variant: 'neutral' as BadgeVariant })} />
+      ),
+    },
+    {
+      key: 'plan',
+      header: 'Gói / lượt đăng',
+      cell: (u) => `${u.planCode} · ${u.listingQuotaRemaining} lượt · ${u.listingCount} tin`,
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'end',
+      cell: (u) => {
+        const self = me?.id === u.id;
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              leftIcon={<History className="h-4 w-4" />}
+              onClick={() => setHistoryTarget(u)}
+              aria-label={`Lịch sử ${u.fullName}`}
+            >
+              Lịch sử
+            </Button>
+            {u.kycStatus !== 'NOT_SUBMITTED' && (
+              <Button
+                size="sm"
+                variant="ghost"
+                leftIcon={<FileLock2 className="h-4 w-4" />}
+                onClick={() => setKycTarget(u)}
+                aria-label={`Hồ sơ định danh ${u.fullName}`}
+              >
+                Định danh
+              </Button>
+            )}
+            {!self && (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<UserCog className="h-4 w-4" />}
+                onClick={() => setRoleTarget(u)}
+                aria-label={`Đổi vai trò ${u.fullName}`}
+              >
+                Đổi vai trò
+              </Button>
+            )}
+            {!self && (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<LogOut className="h-4 w-4" />}
+                onClick={() => setSecurityTarget({ user: u, action: 'sessions' })}
+                aria-label={`Đăng xuất mọi thiết bị của ${u.fullName}`}
+              >
+                Đăng xuất mọi nơi
+              </Button>
+            )}
+            {!self && u.mfaEnrolled && (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<ShieldOff className="h-4 w-4" />}
+                onClick={() => setSecurityTarget({ user: u, action: 'mfa' })}
+                aria-label={`Đặt lại xác thực hai lớp của ${u.fullName}`}
+              >
+                Đặt lại MFA
+              </Button>
+            )}
+            {!self && u.role !== 'ADMIN' && u.status === 'ACTIVE' && (
+              <Button
+                size="sm"
+                variant="danger"
+                leftIcon={<Lock className="h-4 w-4" />}
+                onClick={() => setStatusTarget({ user: u, next: 'SUSPENDED' })}
+                aria-label={`Khóa ${u.fullName}`}
+              >
+                Khóa
+              </Button>
+            )}
+            {!self && u.status === 'SUSPENDED' && (
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<Unlock className="h-4 w-4" />}
+                onClick={() => setStatusTarget({ user: u, next: 'ACTIVE' })}
+                aria-label={`Mở khóa ${u.fullName}`}
+              >
+                Mở khóa
+              </Button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setPage(0);
+    setFilters((f) => ({ ...f, query: query.trim() }));
   };
 
-  const pageCount = Math.max(1, Math.ceil(data.total / data.size));
-  const openKyc = async (user: UserItem) => { setKycLoading(true); setError(''); try { setSelectedKyc(await fetchKycByUserId(user.id)); } catch { setError('Không thể tải hồ sơ eKYC của người dùng này.'); } finally { setKycLoading(false); } };
-  const reviewKyc = async (action: 'approve' | 'reject') => { if (!selectedKyc) return; if (action === 'reject' && !rejectReason.trim()) return; setBusy(selectedKyc.id); try { const updated = action === 'approve' ? await approveKyc(selectedKyc.id) : await rejectKyc(selectedKyc.id, rejectReason.trim()); setSelectedKyc(updated); setRejectReason(''); await load(data.page); } catch { setError('Không thể lưu kết quả xác minh. Vui lòng thử lại.'); } finally { setBusy(''); } };
-  return <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
-    <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><h1 className="text-3xl font-bold tracking-tight text-slate-950">Quản lý người dùng</h1><p className="mt-2 text-sm text-slate-600">Tra cứu tài khoản, theo dõi xác minh và kiểm soát quyền truy cập hệ thống.</p></div><Button variant="outline" onClick={() => void load(data.page)} disabled={loading}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Tải lại</Button></header>
+  return (
+    <div className="space-y-6" data-ready={tableStatus === 'loading' ? undefined : 'true'}>
+      <header>
+        <h1 className="text-2xl font-bold">Quản lý người dùng</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Danh sách không hiển thị số điện thoại. Đổi vai trò, khóa, đăng xuất mọi nơi, đặt lại xác thực hai lớp hay xem
+          giấy tờ định danh đều cần lý do và được ghi lịch sử. Đổi vai trò cũng đăng xuất tài khoản đó.
+        </p>
+      </header>
+      <form
+        onSubmit={submit}
+        className="grid grid-cols-1 gap-3 rounded-lg border border-outline-variant p-4 sm:grid-cols-4"
+      >
+        <FormField label="Tìm theo tên hoặc email" className="sm:col-span-2">
+          {(control) => <TextInput {...control} value={query} onChange={(e) => setQuery(e.target.value)} />}
+        </FormField>
+        <FormField label="Vai trò">
+          {(control) => (
+            <Select
+              {...control}
+              value={filters.role}
+              onChange={(e) => {
+                setPage(0);
+                setFilters((f) => ({ ...f, role: e.target.value }));
+              }}
+              options={[
+                { value: '', label: 'Tất cả' },
+                ...ROLE_PRIORITY.map((r) => ({ value: r, label: ROLE_LABELS[r] })),
+              ]}
+            />
+          )}
+        </FormField>
+        <FormField label="Trạng thái">
+          {(control) => (
+            <Select
+              {...control}
+              value={filters.status}
+              onChange={(e) => {
+                setPage(0);
+                setFilters((f) => ({ ...f, status: e.target.value }));
+              }}
+              options={[
+                { value: '', label: 'Tất cả' },
+                ...Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label })),
+              ]}
+            />
+          )}
+        </FormField>
+        <div className="sm:col-span-4">
+          <Button type="submit" leftIcon={<Search className="h-4 w-4" />}>
+            Tìm
+          </Button>
+        </div>
+      </form>
+      {feedback && <InlineFeedback kind="success" title={feedback} />}
+      <DataTable
+        caption={`Người dùng (${data.total})`}
+        columns={columns}
+        rows={data.items}
+        getRowId={(u) => u.id}
+        status={tableStatus}
+        errorMessage={error ?? undefined}
+        onRetry={() => void load()}
+        empty={<EmptyState title="Không có người dùng phù hợp" />}
+        footer={
+          data.total > data.size ? (
+            <Pagination
+              page={page + 1}
+              pageCount={Math.ceil(data.total / data.size)}
+              onPageChange={(p) => setPage(p - 1)}
+            />
+          ) : undefined
+        }
+      />
 
-    <section className="grid gap-3 sm:grid-cols-3" aria-label="Tổng quan người dùng"><div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4"><Users className="h-5 w-5 text-blue-700"/><div><p className="text-xs font-medium text-slate-500">Tài khoản phù hợp bộ lọc</p><p className="text-2xl font-bold tabular-nums text-slate-950">{data.total.toLocaleString('vi-VN')}</p></div></div><div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4"><ShieldCheck className="h-5 w-5 text-emerald-700"/><div><p className="text-xs font-medium text-slate-500">Dữ liệu KYC</p><p className="font-bold text-slate-950">Chỉ hiển thị trạng thái</p></div></div><div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4"><UserRoundCheck className="h-5 w-5 text-blue-700"/><div><p className="text-xs font-medium text-slate-500">Phân trang máy chủ</p><p className="font-bold text-slate-950">20 tài khoản / trang</p></div></div></section>
-
-    <section className="rounded-xl border border-slate-200 bg-white p-4"><form onSubmit={search} className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_190px_220px_auto]"><label className="relative"><span className="sr-only">Tìm người dùng</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"/><input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={150} className="min-h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-base outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" placeholder="Tìm theo họ tên hoặc email"/></label><select aria-label="Lọc theo vai trò" value={role} onChange={(event) => setRole(event.target.value)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base"><option value="">Tất cả vai trò</option>{Object.entries(ROLE_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><select aria-label="Lọc theo trạng thái" value={status} onChange={(event) => setStatus(event.target.value)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base"><option value="">Tất cả trạng thái</option>{Object.entries(STATUS_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select><Button type="submit">Tìm kiếm</Button></form></section>
-
-    {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p>}
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600"><tr><th className="px-5 py-3">Người dùng</th><th className="px-5 py-3">Vai trò</th><th className="px-5 py-3">Trạng thái</th><th className="px-5 py-3">KYC</th><th className="px-5 py-3">Gói / tin đăng</th><th className="px-5 py-3">Hoạt động gần nhất</th><th className="px-5 py-3 text-right">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-100">{data.items.map((user)=><tr key={user.id} className="align-top"><td className="px-5 py-4"><p className="font-semibold text-slate-950">{user.fullName}</p><p className="mt-1 text-xs text-slate-500">{user.email ?? 'Chưa có email'}</p><p className="mt-1 text-xs text-slate-400">Tham gia {formatDate(user.createdAt)}</p></td><td className="px-5 py-4 font-medium text-slate-700">{ROLE_LABELS[user.role] ?? user.role}</td><td className="px-5 py-4"><span className={`rounded-md px-2 py-1 text-xs font-semibold ${user.status === 'ACTIVE' ? 'bg-emerald-50 text-emerald-800' : user.status === 'SUSPENDED' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'}`}>{STATUS_LABELS[user.status] ?? user.status}</span></td><td className="px-5 py-4"><p className="text-slate-700">{KYC_LABELS[user.kycStatus] ?? user.kycStatus}</p>{user.kycStatus !== 'NOT_SUBMITTED' && <button type="button" disabled={kycLoading} onClick={()=>void openKyc(user)} className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50"><Eye className="h-4 w-4"/>Xem hồ sơ</button>}</td><td className="px-5 py-4"><p className="font-semibold text-slate-800">{user.planCode}</p><p className="mt-1 text-xs text-slate-500">{user.listingCount} tin · còn {user.listingQuotaRemaining} lượt</p></td><td className="px-5 py-4 text-slate-600">{formatDate(user.lastLoginAt)}</td><td className="px-5 py-4 text-right">{user.role !== 'ADMIN' && user.status === 'ACTIVE' && <button type="button" disabled={busy===user.id} onClick={()=>void changeStatus(user,'SUSPENDED')} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50"><Ban className="h-4 w-4"/>Khóa</button>}{user.role !== 'ADMIN' && user.status === 'SUSPENDED' && <button type="button" disabled={busy===user.id} onClick={()=>void changeStatus(user,'ACTIVE')} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"><CheckCircle2 className="h-4 w-4"/>Mở khóa</button>}</td></tr>)}{!loading&&data.items.length===0&&<tr><td colSpan={7} className="px-5 py-16 text-center text-slate-500">Không tìm thấy tài khoản phù hợp.</td></tr>}{loading&&<tr><td colSpan={7} className="px-5 py-16 text-center text-slate-500">Đang tải danh sách người dùng…</td></tr>}</tbody></table></div><footer className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm text-slate-600"><span>Trang {data.page+1}/{pageCount} · {data.total.toLocaleString('vi-VN')} tài khoản</span><div className="flex gap-2"><button aria-label="Trang trước" disabled={data.page===0||loading} onClick={()=>void load(data.page-1)} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 disabled:opacity-40"><ChevronLeft className="h-4 w-4"/></button><button aria-label="Trang sau" disabled={data.page+1>=pageCount||loading} onClick={()=>void load(data.page+1)} className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 disabled:opacity-40"><ChevronRight className="h-4 w-4"/></button></div></footer></section>
-    {selectedKyc && <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/50 p-0 sm:items-center sm:p-6" onMouseDown={(event)=>{if(event.target===event.currentTarget)setSelectedKyc(null)}}><section role="dialog" aria-modal="true" aria-labelledby="kyc-detail-title" className="max-h-[92dvh] w-full max-w-5xl overflow-y-auto rounded-t-xl bg-white p-5 shadow-xl sm:rounded-xl sm:p-6"><header className="flex items-start justify-between gap-4"><div><h2 id="kyc-detail-title" className="text-xl font-bold text-slate-950">Hồ sơ xác minh: {selectedKyc.fullName}</h2><p className="mt-1 text-sm text-slate-600">CCCD {selectedKyc.maskedIdNumber} · Sinh ngày {selectedKyc.dob || 'chưa cung cấp'}</p></div><button type="button" onClick={()=>setSelectedKyc(null)} aria-label="Đóng hồ sơ" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X className="h-5 w-5"/></button></header><dl className="mt-5 grid gap-4 border-y border-slate-200 py-4 text-sm sm:grid-cols-3"><div><dt className="text-slate-500">Trạng thái</dt><dd className="mt-1 font-semibold">{KYC_LABELS[selectedKyc.status]}</dd></div><div><dt className="text-slate-500">Ngày gửi</dt><dd className="mt-1 font-semibold">{formatDate(selectedKyc.createdAt)}</dd></div><div><dt className="text-slate-500">Địa chỉ</dt><dd className="mt-1 font-semibold">{selectedKyc.address || 'Chưa cung cấp'}</dd></div></dl><div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="mb-2 text-sm font-semibold">Mặt trước CCCD</p><PrivateMediaImage src={selectedKyc.idCardFrontUrl} alt={`Mặt trước CCCD của ${selectedKyc.fullName}`}/></div><div><p className="mb-2 text-sm font-semibold">Mặt sau CCCD</p><PrivateMediaImage src={selectedKyc.idCardBackUrl} alt={`Mặt sau CCCD của ${selectedKyc.fullName}`}/></div><div><p className="mb-2 text-sm font-semibold">Ảnh chân dung</p><PrivateMediaImage src={selectedKyc.selfieUrl} alt={`Ảnh chân dung của ${selectedKyc.fullName}`}/></div></div>{selectedKyc.status==='PENDING'&&<div className="mt-6 grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-[auto_1fr_auto]"><Button disabled={busy===selectedKyc.id} onClick={()=>void reviewKyc('approve')}>Xác nhận khớp</Button><input value={rejectReason} onChange={(event)=>setRejectReason(event.target.value)} maxLength={500} placeholder="Nhập lý do nếu từ chối" className="min-h-11 rounded-lg border border-slate-300 px-3 text-base"/><button type="button" disabled={busy===selectedKyc.id||!rejectReason.trim()} onClick={()=>void reviewKyc('reject')} className="min-h-11 rounded-lg bg-rose-700 px-4 font-bold text-white disabled:opacity-40">Từ chối</button></div>}</section></div>}
-  </main>;
+      <ReasonDialog
+        open={roleTarget !== null}
+        title={roleTarget ? `Đổi vai trò: ${roleTarget.fullName}` : ''}
+        description={
+          roleTarget
+            ? `Vai trò hiện tại: ${roleLabel(roleTarget.role)}. Không thể hạ quyền quản trị viên cuối cùng.`
+            : undefined
+        }
+        choiceLabel="Vai trò mới"
+        reasons={ROLE_PRIORITY.filter((r) => r !== roleTarget?.role).map((r) => ({ code: r, label: ROLE_LABELS[r] }))}
+        noteLabel="Lý do"
+        noteMinLength={5}
+        confirmLabel="Đổi vai trò"
+        onClose={() => setRoleTarget(null)}
+        onConfirm={async (role, reason) => {
+          if (!roleTarget) return;
+          const result = await adminUsersApi.changeRole(roleTarget.id, role, reason);
+          setFeedback(`${roleTarget.fullName}: ${roleLabel(result.fromRole)} sang ${roleLabel(result.toRole)}`);
+          await load();
+        }}
+      />
+      <ReasonDialog
+        open={statusTarget !== null}
+        title={
+          statusTarget
+            ? `${statusTarget.next === 'SUSPENDED' ? 'Khóa' : 'Mở khóa'} tài khoản: ${statusTarget.user.fullName}`
+            : ''
+        }
+        description={
+          statusTarget?.next === 'SUSPENDED' ? 'Mọi phiên đăng nhập của tài khoản sẽ bị thu hồi ngay.' : undefined
+        }
+        noteLabel="Lý do"
+        noteMinLength={5}
+        confirmLabel={statusTarget?.next === 'SUSPENDED' ? 'Khóa tài khoản' : 'Mở khóa'}
+        confirmVariant={statusTarget?.next === 'SUSPENDED' ? 'danger' : 'primary'}
+        onClose={() => setStatusTarget(null)}
+        onConfirm={async (_code, reason) => {
+          if (!statusTarget) return;
+          await adminUsersApi.changeStatus(statusTarget.user.id, statusTarget.next, reason);
+          setFeedback(`Đã ${statusTarget.next === 'SUSPENDED' ? 'khóa' : 'mở khóa'} ${statusTarget.user.fullName}`);
+          await load();
+        }}
+      />
+      <ReasonDialog
+        open={securityTarget !== null}
+        title={
+          securityTarget
+            ? `${securityTarget.action === 'mfa' ? 'Đặt lại xác thực hai lớp' : 'Đăng xuất mọi thiết bị'}: ${securityTarget.user.fullName}`
+            : ''
+        }
+        description={
+          securityTarget?.action === 'mfa'
+            ? 'Chỉ làm khi đã xác minh chính chủ qua kênh khác (gọi điện, gặp trực tiếp). Ứng dụng xác thực và mã khôi phục cũ ngừng hoạt động, mọi phiên bị đăng xuất; lần đăng nhập sau phải thiết lập lại.'
+            : 'Mọi phiên đăng nhập của tài khoản trên mọi thiết bị bị thu hồi ngay. Dùng khi nghi tài khoản bị lộ.'
+        }
+        noteLabel="Lý do"
+        noteMinLength={5}
+        confirmLabel={securityTarget?.action === 'mfa' ? 'Đặt lại MFA' : 'Đăng xuất mọi nơi'}
+        confirmVariant="danger"
+        onClose={() => setSecurityTarget(null)}
+        onConfirm={async (_code, reason) => {
+          if (!securityTarget) return;
+          if (securityTarget.action === 'mfa') {
+            await adminUsersApi.resetMfa(securityTarget.user.id, reason);
+            setFeedback(`Đã đặt lại xác thực hai lớp của ${securityTarget.user.fullName}`);
+          } else {
+            const result = await adminUsersApi.revokeSessions(securityTarget.user.id, reason);
+            setFeedback(`Đã đăng xuất ${result.revokedSessions} phiên của ${securityTarget.user.fullName}`);
+          }
+          await load();
+        }}
+      />
+      {historyTarget && <HistorySheet user={historyTarget} onClose={() => setHistoryTarget(null)} />}
+      {kycTarget && <KycSheet user={kycTarget} onClose={() => setKycTarget(null)} onChanged={() => void load()} />}
+    </div>
+  );
 }
 
-export default AdminUsersPage;
+function HistorySheet({ user, onClose }: { user: UserItem; onClose: () => void }) {
+  const [actions, setActions] = useState<AdminAction[] | null>(null);
+  const [access, setAccess] = useState<KycAccessLogEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    Promise.all([adminUsersApi.history(user.id), adminUsersApi.kycAccessLog(user.id)])
+      .then(([a, k]) => {
+        setActions(a);
+        setAccess(k);
+      })
+      .catch((err) => setError(errorMessage(err, 'Không tải được lịch sử.')));
+  }, [user.id]);
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={`Lịch sử: ${user.fullName}`}
+      description="Đổi vai trò, khóa/mở khóa và các lần xem giấy tờ định danh"
+    >
+      <div className="space-y-6">
+        {error && <InlineFeedback kind="error" title={error} />}
+        <section aria-labelledby="actions-heading">
+          <h3 id="actions-heading" className="text-base font-bold">
+            Thao tác quản trị
+          </h3>
+          {actions && actions.length === 0 && (
+            <p className="mt-1 text-sm text-on-surface-variant">Chưa có thao tác nào.</p>
+          )}
+          <ol className="mt-2 space-y-2 text-sm">
+            {(actions ?? []).map((a) => (
+              <li key={a.id} className="rounded-md bg-surface-container-low p-2">
+                <span className="font-semibold">{ACTION_LABELS[a.action]}</span>
+                {a.action === 'ROLE_CHANGE' ? `: ${roleLabel(a.fromValue)} sang ${roleLabel(a.toValue)}` : ''} ·{' '}
+                {a.actorName ?? 'Không rõ'} · {formatDateTime(a.createdAt)}
+                <span className="block text-on-surface-variant">Lý do: {a.reason}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+        <section aria-labelledby="access-heading">
+          <h3 id="access-heading" className="text-base font-bold">
+            Lần xem giấy tờ định danh
+          </h3>
+          {access.length === 0 ? (
+            <p className="mt-1 text-sm text-on-surface-variant">Chưa ai mở giấy tờ của tài khoản này.</p>
+          ) : (
+            <ol className="mt-2 space-y-2 text-sm">
+              {access.map((e) => (
+                <li key={e.id} className="rounded-md bg-surface-container-low p-2">
+                  {e.actorName ?? e.actorId} · {formatDateTime(e.createdAt)}
+                  <span className="block text-on-surface-variant">Lý do: {e.reason}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+    </Sheet>
+  );
+}
+
+function KycSheet({ user, onClose, onChanged }: { user: UserItem; onClose: () => void; onChanged: () => void }) {
+  const [kyc, setKyc] = useState<UserKycProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reasons, setReasons] = useState<{ approve: TrustReasonOption[]; reject: TrustReasonOption[] }>({
+    approve: [],
+    reject: [],
+  });
+  const [decision, setDecision] = useState<'approve' | 'reject' | null>(null);
+  const [asking, setAsking] = useState(false);
+  const [docs, setDocs] = useState<KycDocumentAccess | null>(null);
+  useEffect(() => {
+    fetchKycByUserId(user.id)
+      .then(setKyc)
+      .catch((err) => setError(errorMessage(err, 'Không tải được hồ sơ định danh.')));
+    trustApi
+      .reasons()
+      .then((r) => setReasons({ approve: r.approve, reject: r.reject }))
+      .catch(() => undefined);
+  }, [user.id]);
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={`Hồ sơ định danh: ${user.fullName}`}
+      description="Ảnh giấy tờ chỉ mở sau khi bạn nhập lại mật khẩu và nêu lý do; mỗi lần mở đều được ghi lại."
+      footer={
+        kyc?.status === 'PENDING' ? (
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <Button leftIcon={<ShieldCheck className="h-4 w-4" />} onClick={() => setDecision('approve')}>
+              Xác minh danh tính…
+            </Button>
+            <Button variant="danger" onClick={() => setDecision('reject')}>
+              Từ chối…
+            </Button>
+          </div>
+        ) : undefined
+      }
+    >
+      <div className="space-y-4 text-sm">
+        {error && <InlineFeedback kind="error" title={error} />}
+        {kyc && (
+          <dl className="grid grid-cols-2 gap-2">
+            <dt className="text-on-surface-variant">Họ tên trên CCCD</dt>
+            <dd>{kyc.fullName}</dd>
+            <dt className="text-on-surface-variant">Số CCCD</dt>
+            <dd>{kyc.maskedIdNumber}</dd>
+            <dt className="text-on-surface-variant">Trạng thái</dt>
+            <dd>{KYC[kyc.status]?.label ?? kyc.status}</dd>
+            <dt className="text-on-surface-variant">Gửi lúc</dt>
+            <dd>{formatDateTime(kyc.createdAt)}</dd>
+            {kyc.rejectionReason && (
+              <>
+                <dt className="text-on-surface-variant">Lý do từ chối</dt>
+                <dd>{kyc.rejectionReason}</dd>
+              </>
+            )}
+          </dl>
+        )}
+        {!docs ? (
+          <Button variant="outline" leftIcon={<FileLock2 className="h-4 w-4" />} onClick={() => setAsking(true)}>
+            Xem ảnh giấy tờ…
+          </Button>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-xs text-on-surface-variant">Quyền xem hết hạn lúc {formatDateTime(docs.expiresAt)}.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <PrivateMediaImage
+                src={docs.identity?.idCardFrontUrl ?? undefined}
+                alt={`Mặt trước CCCD của ${user.fullName}`}
+                accessToken={docs.token}
+              />
+              <PrivateMediaImage
+                src={docs.identity?.idCardBackUrl ?? undefined}
+                alt={`Mặt sau CCCD của ${user.fullName}`}
+                accessToken={docs.token}
+              />
+              <PrivateMediaImage
+                src={docs.identity?.selfieUrl ?? undefined}
+                alt={`Ảnh chân dung của ${user.fullName}`}
+                accessToken={docs.token}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      <PasswordReasonDialog
+        open={asking}
+        title="Mở giấy tờ định danh"
+        description="Nhập lại mật khẩu của bạn và lý do. Lần mở này được ghi vào lịch sử của tài khoản."
+        onClose={() => setAsking(false)}
+        onConfirm={async (password, reason) => setDocs(await adminUsersApi.openKycDocuments(user.id, password, reason))}
+      />
+      <ReasonDialog
+        open={decision !== null}
+        title={decision === 'approve' ? 'Xác minh danh tính' : 'Từ chối hồ sơ định danh'}
+        description={
+          decision === 'approve'
+            ? 'Hiệu lực 24 tháng. Xác minh danh tính không bảo đảm quyền sở hữu hay pháp lý giao dịch.'
+            : 'Người dùng thấy lý do và có thể gửi lại hồ sơ.'
+        }
+        reasons={(decision === 'approve' ? reasons.approve : reasons.reject).map((r) => ({
+          code: r.code,
+          label: r.label,
+        }))}
+        noteMinLength={decision === 'reject' ? 5 : 0}
+        confirmLabel={decision === 'approve' ? 'Xác minh' : 'Từ chối'}
+        confirmVariant={decision === 'approve' ? 'primary' : 'danger'}
+        onClose={() => setDecision(null)}
+        onConfirm={async (code, note) => {
+          if (!kyc) return;
+          if (decision === 'approve') await trustApi.approveKyc(kyc.id, code, note);
+          else await trustApi.rejectKyc(kyc.id, code, note);
+          setKyc(await fetchKycByUserId(user.id));
+          onChanged();
+        }}
+      />
+    </Sheet>
+  );
+}

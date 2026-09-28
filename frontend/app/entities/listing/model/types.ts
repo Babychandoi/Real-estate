@@ -1,3 +1,5 @@
+import { formatMoney } from '@/shared/format/money';
+
 export interface Listing {
   id: string;
   slug: string;
@@ -57,8 +59,15 @@ export function formatPropertyType(propertyType: string): string {
 }
 
 const LISTING_STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Bản nháp', PENDING_REVIEW: 'Chờ duyệt', ACTIVE: 'Đang hiển thị',
-  REJECTED: 'Bị từ chối', ARCHIVED: 'Đã lưu trữ', SUSPENDED: 'Tạm dừng',
+  PAUSED: 'Tạm ẩn',
+  EXPIRED: 'Hết hạn',
+  LOCKED: 'Đã khóa',
+  DRAFT: 'Bản nháp',
+  PENDING_REVIEW: 'Chờ duyệt',
+  ACTIVE: 'Đang hiển thị',
+  REJECTED: 'Bị từ chối',
+  ARCHIVED: 'Đã lưu trữ',
+  SUSPENDED: 'Tạm dừng',
 };
 
 export function formatListingStatus(status: string): string {
@@ -82,23 +91,27 @@ export interface ListingSearchParams {
   size?: number;
 }
 
+/**
+ * Compact VND price ("3,95 tỷ", "850 triệu") with the vi-VN decimal comma.
+ * Purpose-agnostic legacy helper: prefer `formatMoney(moneyFromLegacy(priceVnd, purpose))` from
+ * `@/shared/format/money`, which also adds "/tháng" to RENT prices.
+ */
 export function formatPriceVnd(price: number): string {
-  if (price >= 1_000_000_000) {
-    const billions = price / 1_000_000_000;
-    return `${billions.toFixed(billions % 1 === 0 ? 0 : 2)} tỷ`;
-  }
-  if (price >= 1_000_000) {
-    const millions = price / 1_000_000;
-    return `${millions.toFixed(millions % 1 === 0 ? 0 : 1)} triệu`;
-  }
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price);
+  return formatMoney({ amount: price, currency: 'VND' });
 }
 
+const UNIT_PRICE_MILLIONS = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+
+/** Legacy card/detail unit price ("~48,2 tr/m²"); the v2 API returns `unitPrice` for SALE listings instead. */
 export function calculateUnitPrice(price: number, area: number): string {
   if (!area || area <= 0) return '';
   const pricePerM2 = price / area;
   if (pricePerM2 >= 1_000_000) {
-    return `~${(pricePerM2 / 1_000_000).toFixed(1)} tr/m²`;
+    return `~${UNIT_PRICE_MILLIONS.format(Math.round(pricePerM2 / 100_000) / 10)} tr/m²`;
   }
   return '';
+}
+
+export function formatListingPrice(price: number, purpose: string): string {
+  return formatPriceVnd(price) + (purpose === 'RENT' ? '/tháng' : '');
 }

@@ -98,8 +98,24 @@ public class ListingRevisionJpaEntity {
     @Column(name = "moderation_note", columnDefinition = "TEXT")
     private String moderationNote;
 
+    @Column(name = "monthly_service_fee_vnd")
+    private Long monthlyServiceFeeVnd;
+
+    @Column(name = "deposit_vnd")
+    private Long depositVnd;
+
+    @Column(name = "furnishing", length = 20)
+    private String furnishing;
+
+    @Column(name = "legal_status_code", length = 30)
+    private String legalStatusCode;
+
+    @Column(name = "project_id")
+    private UUID projectId;
+
     @OneToMany(mappedBy = "revision", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("sortOrder ASC")
+    @org.hibernate.annotations.BatchSize(size = 64)
     private List<ListingMediaJpaEntity> mediaList = new ArrayList<>();
 
     public ListingRevisionJpaEntity() {}
@@ -108,6 +124,17 @@ public class ListingRevisionJpaEntity {
         mediaList.add(media);
         media.setRevision(this);
     }
+
+    public Long getMonthlyServiceFeeVnd() { return monthlyServiceFeeVnd; }
+    public void setMonthlyServiceFeeVnd(Long value) { this.monthlyServiceFeeVnd = value; }
+    public Long getDepositVnd() { return depositVnd; }
+    public void setDepositVnd(Long value) { this.depositVnd = value; }
+    public String getFurnishing() { return furnishing; }
+    public void setFurnishing(String value) { this.furnishing = value; }
+    public String getLegalStatusCode() { return legalStatusCode; }
+    public void setLegalStatusCode(String value) { this.legalStatusCode = value; }
+    public UUID getProjectId() { return projectId; }
+    public void setProjectId(UUID value) { this.projectId = value; }
 
     // Getters and Setters
     public UUID getId() { return id; }

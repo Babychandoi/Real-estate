@@ -1,201 +1,396 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { PlusCircle, Clock, Eye, EyeOff, Send, Building2, Pencil } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
-import { Card } from '@/shared/ui/Card';
-import { Badge } from '@/shared/ui/Badge';
-import { apiClient } from '@/shared/api/client';
-import { formatPriceVnd } from '@/entities/listing/model/types';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { AlarmClock, Eye, EyeOff, FileUp, ImageOff, Pencil, PlusCircle, RefreshCw, Send, Users } from 'lucide-react';
+import { Button, ButtonLink } from '@/shared/ui/Button';
+import { Badge, type BadgeVariant } from '@/shared/ui/Badge';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { ErrorState } from '@/shared/ui/ErrorState';
+import { Money } from '@/shared/ui/Money';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Skeleton } from '@/shared/ui/Skeleton';
+import { Tabs } from '@/shared/ui/Tabs';
+import { useToast } from '@/shared/ui/Toast';
+import { useAuth } from '@/shared/auth/AuthContext';
+import { ROLES } from '@/shared/auth/roles';
+import { validationMessage } from '@/shared/types/problem-details';
 import { listingPath } from '@/entities/listing/model/seo';
+import {
+  confirmAvailability,
+  fetchMyListings,
+  renewListing,
+  setHidden,
+  submitListing,
+  type MyListingItem,
+  type MyListingsPage as Page,
+  type StatusTab,
+  type VersionSummary,
+} from '@/features/my-listings/api';
+import { ImportDialog } from '@/features/my-listings/ImportDialog';
+import { useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 
-interface MyListingItem {
-  id: string;
-  slug: string;
-  status: string;
-  revisionNumber: number;
-  revisionStatus: string;
-  title: string;
-  purpose: string;
-  propertyType: string;
-  priceVnd: number;
-  areaM2: number;
-  addressSummary: string;
-  isVerified: boolean;
-  imageUrls: string[];
-  createdAt: string;
-  updatedAt: string;
+const TABS: Array<{ id: StatusTab; label: string }> = [
+  { id: 'ALL', label: 'Tất cả' },
+  { id: 'ACTIVE', label: 'Đang hiển thị' },
+  { id: 'PENDING_REVIEW', label: 'Chờ duyệt' },
+  { id: 'DRAFT', label: 'Nháp' },
+  { id: 'REJECTED', label: 'Bị từ chối' },
+  { id: 'EXPIRED', label: 'Hết hạn' },
+  { id: 'PAUSED', label: 'Đã ẩn' },
+  { id: 'LOCKED', label: 'Bị khóa' },
+];
+const STATUS_BADGE: Record<string, { label: string; variant: BadgeVariant }> = {
+  ACTIVE: { label: 'Đang hiển thị', variant: 'success' },
+  PENDING_REVIEW: { label: 'Chờ duyệt', variant: 'info' },
+  DRAFT: { label: 'Nháp', variant: 'neutral' },
+  REJECTED: { label: 'Bị từ chối', variant: 'error' },
+  EXPIRED: { label: 'Hết hạn', variant: 'warning' },
+  PAUSED: { label: 'Đã ẩn', variant: 'neutral' },
+  LOCKED: { label: 'Bị khóa', variant: 'error' },
+};
+const EDIT_LABEL: Record<VersionSummary['status'], string> = {
+  DRAFT: 'Bản nháp chưa gửi',
+  SUBMITTED: 'Bản sửa chờ duyệt',
+  APPROVED: 'Bản đã duyệt',
+  REJECTED: 'Bản sửa bị từ chối',
+};
+const PAGE_SIZE = 10;
+const date = (value: string | null) => (value ? new Date(value).toLocaleDateString('vi-VN') : '');
+
+function isTab(value: string | null): value is StatusTab {
+  return TABS.some((tab) => tab.id === value);
+}
+
+function ListingRow({
+  item,
+  onAction,
+  displayMedia,
+}: {
+  item: MyListingItem;
+  onAction: (run: () => Promise<unknown>, done: string) => void;
+  displayMedia: (url: string | null | undefined) => string | undefined;
+}) {
+  const shown = item.publicVersion ?? item.pendingEdit;
+  const badge = STATUS_BADGE[item.status];
+  const f = item.freshness;
+  const title = shown?.title || 'Tin chưa có tiêu đề';
+  return (
+    <li
+      className="rounded-xl border border-outline-variant bg-surface p-4"
+      data-testid="my-listing"
+      data-listing-id={item.id}
+    >
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="aspect-video w-full shrink-0 overflow-hidden rounded-lg bg-surface-container sm:w-40">
+          {item.thumbnailUrl ? (
+            <img src={displayMedia(item.thumbnailUrl)} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-on-surface-variant">
+              <ImageOff className="h-6 w-6" aria-hidden="true" />
+              <span className="sr-only">Chưa có ảnh</span>
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={badge.variant}>{badge.label}</Badge>
+            {item.source === 'IMPORT' && <Badge variant="neutral">Nhập từ tệp</Badge>}
+            <span className="text-label text-on-surface-variant">Tạo {date(item.createdAt)}</span>
+          </div>
+          <h3 className="mt-1 truncate text-body font-semibold text-on-surface">
+            {item.publicVersion && item.status === 'ACTIVE' ? (
+              <Link to={listingPath({ slug: item.slug, title })}>{title}</Link>
+            ) : (
+              title
+            )}
+          </h3>
+
+          {item.publicVersion && (
+            <p className="mt-1 text-body-sm text-on-surface-variant">
+              <span className="font-medium text-on-surface">Bản đang hiển thị:</span>{' '}
+              <Money price={item.publicVersion.price} /> · {item.publicVersion.areaM2} m² · duyệt{' '}
+              {date(item.publicVersion.moderatedAt)}
+            </p>
+          )}
+          {item.pendingEdit && (
+            <div
+              className={`mt-2 rounded-lg p-2 text-body-sm ${item.pendingEdit.status === 'REJECTED' ? 'bg-error-container' : 'bg-surface-container'}`}
+            >
+              <p>
+                <span className="font-medium">
+                  {item.publicVersion ? EDIT_LABEL[item.pendingEdit.status] : 'Nội dung'}:
+                </span>{' '}
+                {item.pendingEdit.title} · <Money price={item.pendingEdit.price} />
+              </p>
+              {item.pendingEdit.rejectionReason && (
+                <p className="mt-1">Lý do từ chối: {item.pendingEdit.rejectionReason}</p>
+              )}
+            </div>
+          )}
+
+          {f.soldCheckDueAt && (
+            <p className="mt-2 flex items-center gap-1 text-body-sm text-error" role="note">
+              <AlarmClock className="h-4 w-4" aria-hidden="true" /> Có báo cáo đã bán: xác nhận còn hàng trước{' '}
+              {new Date(f.soldCheckDueAt).toLocaleString('vi-VN')} để tin không bị tạm ẩn.
+            </p>
+          )}
+          {item.status === 'ACTIVE' && f.expiresAt && (
+            <p
+              className={`mt-2 text-body-sm ${f.expiringSoon ? 'text-warning-on-container' : 'text-on-surface-variant'}`}
+            >
+              {f.expiringSoon ? 'Sắp hết hạn: ' : 'Hiển thị đến '}
+              {date(f.expiresAt)}
+              {f.daysUntilExpiry != null && ` (còn ${f.daysUntilExpiry} ngày)`}
+            </p>
+          )}
+          {item.status === 'EXPIRED' && (
+            <p className="mt-2 text-body-sm text-on-surface-variant">
+              {f.renewable
+                ? 'Gia hạn trong 30 ngày sau khi hết hạn để hiển thị lại ngay, không cần duyệt lại.'
+                : 'Tin cần kiểm tra lại nội dung và gửi duyệt để hiển thị lại.'}
+            </p>
+          )}
+          <p className="mt-2 text-label text-on-surface-variant">
+            Chất lượng {item.quality.passed}/{item.quality.total} · {item.leadCount} khách quan tâm
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.status === 'ACTIVE' && (
+              <Button
+                size="sm"
+                leftIcon={<RefreshCw className="h-4 w-4" />}
+                onClick={() => onAction(() => confirmAvailability(item.id), 'Đã xác nhận còn hàng thêm 45 ngày.')}
+              >
+                Xác nhận còn hàng
+              </Button>
+            )}
+            {item.status === 'EXPIRED' && f.renewable && (
+              <Button
+                size="sm"
+                leftIcon={<RefreshCw className="h-4 w-4" />}
+                onClick={() => onAction(() => renewListing(item.id), 'Đã gia hạn tin.')}
+              >
+                Gia hạn
+              </Button>
+            )}
+            {(item.status === 'DRAFT' ||
+              (item.status === 'REJECTED' && item.pendingEdit?.status === 'DRAFT') ||
+              (item.pendingEdit?.status === 'DRAFT' && item.publicVersion)) && (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<Send className="h-4 w-4" />}
+                onClick={() => onAction(() => submitListing(item.id), 'Đã gửi duyệt.')}
+              >
+                Gửi duyệt
+              </Button>
+            )}
+            {item.status !== 'LOCKED' && (
+              <ButtonLink
+                size="sm"
+                variant="outline"
+                to={`/listings/new?edit=${item.id}`}
+                leftIcon={<Pencil className="h-4 w-4" />}
+              >
+                Sửa
+              </ButtonLink>
+            )}
+            {item.status === 'ACTIVE' && (
+              <Button
+                size="sm"
+                variant="ghost"
+                leftIcon={<EyeOff className="h-4 w-4" />}
+                onClick={() => onAction(() => setHidden(item.id, true), 'Đã ẩn tin.')}
+              >
+                Ẩn tin
+              </Button>
+            )}
+            {item.status === 'PAUSED' && (
+              <Button
+                size="sm"
+                variant="ghost"
+                leftIcon={<Eye className="h-4 w-4" />}
+                onClick={() => onAction(() => setHidden(item.id, false), 'Đã hiện lại tin.')}
+              >
+                Hiện tin
+              </Button>
+            )}
+            {item.leadCount > 0 && (
+              <ButtonLink
+                size="sm"
+                variant="ghost"
+                to={`/my-leads?listingId=${item.id}`}
+                leftIcon={<Users className="h-4 w-4" />}
+              >
+                Xem khách quan tâm
+              </ButtonLink>
+            )}
+          </div>
+        </div>
+      </div>
+    </li>
+  );
 }
 
 export const MyListingsPage: React.FC = () => {
-  const [filterTab, setFilterTab] = useState<'ALL' | 'ACTIVE' | 'PENDING_REVIEW' | 'DRAFT'>('ALL');
-  const [listings, setListings] = useState<MyListingItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const toast = useToast();
+  const [params, setParams] = useSearchParams();
+  const tab: StatusTab = isTab(params.get('status')) ? (params.get('status') as StatusTab) : 'ALL';
+  const page = Math.max(0, Number(params.get('page') ?? '0') || 0);
+  const [data, setData] = useState<Page | null>(null);
+  // Images of drafts/hidden listings are not public (S1): the owner sees them through signed URLs (one batch per page).
+  const displayMedia = useSignedMediaUrls(data?.items.map((item) => item.thumbnailUrl) ?? []);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
-  const fetchMyListings = async () => {
-    setIsLoading(true);
+  const requestSeq = useRef(0);
+  const load = useCallback(async () => {
+    // Only the latest request may update the page (tab/page clicks can overtake each other).
+    const seq = ++requestSeq.current;
+    setLoading(true);
+    setFailed(false);
     try {
-      const data = await apiClient<MyListingItem[]>('/listings/my-listings');
-      setListings(data);
-    } catch (err) {
-      console.error('Lỗi khi tải kho tin cá nhân:', err);
+      const result = await fetchMyListings(tab, page, PAGE_SIZE);
+      if (seq === requestSeq.current) setData(result);
+    } catch {
+      if (seq === requestSeq.current) setFailed(true);
     } finally {
-      setIsLoading(false);
+      if (seq === requestSeq.current) setLoading(false);
     }
-  };
+  }, [tab, page]);
 
   useEffect(() => {
-    fetchMyListings();
-  }, []);
+    void load();
+  }, [load]);
 
-  const handleQuickSubmit = async (listingId: string) => {
-    try {
-      await apiClient(`/listings/${listingId}/submit`, { method: 'POST' });
-      fetchMyListings();
-    } catch (err) {
-      console.error('Không thể nộp duyệt:', err);
-    }
+  const navigate = (nextTab: StatusTab, nextPage: number) => {
+    const next = new URLSearchParams();
+    if (nextTab !== 'ALL') next.set('status', nextTab);
+    if (nextPage > 0) next.set('page', String(nextPage));
+    setParams(next);
   };
 
-  const changeVisibility = async (listingId: string, hidden: boolean) => {
-    try { await apiClient(`/listings/${listingId}/visibility`, { method: 'POST', body: JSON.stringify({ hidden }) }); fetchMyListings(); }
-    catch (err) { console.error('Không thể thay đổi trạng thái hiển thị:', err); }
+  const onAction = (run: () => Promise<unknown>, done: string) => {
+    run()
+      .then(() => {
+        toast.show({ kind: 'success', title: done });
+        return load();
+      })
+      .catch((error) =>
+        toast.show({ kind: 'error', title: validationMessage(error, 'Chưa thực hiện được, vui lòng thử lại.') }),
+      );
   };
 
-  const filteredListings = listings.filter((item) => {
-    if (filterTab === 'ALL') return true;
-    return item.status === filterTab;
-  });
+  const isOwner = user?.role === ROLES.OWNER;
+  const expiring =
+    data?.items.filter((item) => item.freshness.expiringSoon || item.freshness.soldCheckDueAt).length ?? 0;
 
-  const activeCount = listings.filter((l) => l.status === 'ACTIVE').length;
-  const pendingCount = listings.filter((l) => l.status === 'PENDING_REVIEW').length;
-  const draftCount = listings.filter((l) => l.status === 'DRAFT').length;
+  const list = failed ? (
+    <ErrorState title="Không tải được danh sách tin" onRetry={() => void load()} />
+  ) : loading && !data ? (
+    <div className="mt-4 flex flex-col gap-3" role="status" aria-label="Đang tải">
+      {[0, 1, 2].map((key) => (
+        <Skeleton key={key} className="h-32 w-full" />
+      ))}
+    </div>
+  ) : data && data.items.length === 0 ? (
+    <EmptyState
+      className="mt-6"
+      title={tab === 'ALL' ? 'Bạn chưa có tin đăng' : 'Không có tin ở trạng thái này'}
+      description={
+        tab === 'ALL' && isOwner ? (
+          <ol className="mt-2 list-decimal pl-5 text-left">
+            <li>Đăng tin với ảnh thật và giá đúng; tin được lưu nháp tự động.</li>
+            <li>Tin được kiểm duyệt trước khi hiển thị.</li>
+            <li>Mỗi 45 ngày, xác nhận còn hàng để tin tiếp tục hiển thị.</li>
+            <li>Khách quan tâm gửi yêu cầu trong mục Khách quan tâm, không cần công khai số điện thoại.</li>
+          </ol>
+        ) : undefined
+      }
+      actions={
+        tab === 'ALL' ? (
+          <ButtonLink to="/listings/new" leftIcon={<PlusCircle className="h-4 w-4" />}>
+            Đăng tin đầu tiên
+          </ButtonLink>
+        ) : undefined
+      }
+    />
+  ) : (
+    data && (
+      <>
+        <ul className="mt-4 flex flex-col gap-3" aria-busy={loading || undefined}>
+          {data.items.map((item) => (
+            <ListingRow key={item.id} item={item} onAction={onAction} displayMedia={displayMedia} />
+          ))}
+        </ul>
+        {data.totalPages > 1 && (
+          <Pagination
+            className="mt-6"
+            page={page + 1}
+            pageCount={data.totalPages}
+            onPageChange={(next) => navigate(tab, next - 1)}
+            label="Trang tin đăng"
+          />
+        )}
+      </>
+    )
+  );
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 flex flex-col gap-6">
-      {/* Header Dashboard & Nút Tạo Tin Mới */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="ndc-page py-8" data-ready={!loading ? 'true' : undefined}>
+      <div className="ndc-section-heading">
         <div>
-          <h1 className="text-2xl font-bold text-on-surface">Quản lý kho tin đăng</h1>
-          <p className="text-xs md:text-sm text-on-surface-variant mt-0.5">
-            Theo dõi trạng thái kiểm duyệt, chỉnh sửa bản nháp và nộp duyệt phiên bản mới.
+          <h1 className="text-3xl font-semibold">Tin đăng của tôi</h1>
+          <p>
+            {isOwner ? 'Chủ nhà tự đăng' : 'Quản lý tin'} · {data ? `${data.counts.ALL} tin` : 'đang tải'} · Theo dõi
+            kiểm duyệt, cập nhật nội dung và quản lý hiển thị.
           </p>
         </div>
-        <Link to="/listings/new">
-          <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-            Đăng tin mới
+        <div className="flex gap-2">
+          <Button variant="outline" leftIcon={<FileUp className="h-4 w-4" />} onClick={() => setImportOpen(true)}>
+            Nhập từ CSV
           </Button>
-        </Link>
+          <ButtonLink to="/listings/new" leftIcon={<PlusCircle className="h-4 w-4" />}>
+            Đăng tin
+          </ButtonLink>
+        </div>
       </div>
-
-      {/* Thẻ thống kê nhanh */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-on-surface-variant font-medium">Tổng tin đăng</span>
-          <span className="text-2xl font-extrabold text-on-surface mt-1">{listings.length}</span>
-        </Card>
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-secondary font-medium">Đang hiển thị</span>
-          <span className="text-2xl font-extrabold text-secondary mt-1">{activeCount}</span>
-        </Card>
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-tertiary-container font-medium">Chờ kiểm duyệt</span>
-          <span className="text-2xl font-extrabold text-tertiary-container mt-1">{pendingCount}</span>
-        </Card>
-        <Card className="p-3.5 flex flex-col">
-          <span className="text-xs text-outline font-medium">Bản nháp đang soạn</span>
-          <span className="text-2xl font-extrabold text-on-surface-variant mt-1">{draftCount}</span>
-        </Card>
-      </div>
-
-      {/* Tabs lọc trạng thái */}
-      <div className="flex border-b border-outline-variant/40 text-sm gap-6 overflow-x-auto no-scrollbar">
-        {[
-          { id: 'ALL', label: 'Tất cả tin', count: listings.length },
-          { id: 'ACTIVE', label: 'Đang hiển thị', count: activeCount },
-          { id: 'PENDING_REVIEW', label: 'Chờ duyệt', count: pendingCount },
-          { id: 'DRAFT', label: 'Bản nháp', count: draftCount },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setFilterTab(tab.id as 'ALL' | 'ACTIVE' | 'PENDING_REVIEW' | 'DRAFT')}
-            className={`pb-3 font-semibold flex items-center gap-1.5 transition-all relative ${
-              filterTab === tab.id
-                ? 'text-primary border-b-2 border-primary'
-                : 'text-on-surface-variant hover:text-on-surface'
-            }`}
-          >
-            {tab.label}
-            <span className="px-1.5 py-0.2 rounded-full text-[11px] bg-surface-container-high">
-              {tab.count}
-            </span>
-          </button>
+      <div className="mb-6 mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {(
+          [
+            ['Tổng tin', 'ALL'],
+            ['Đang hiển thị', 'ACTIVE'],
+            ['Chờ duyệt', 'PENDING_REVIEW'],
+            ['Bản nháp', 'DRAFT'],
+          ] as const
+        ).map(([name, key]) => (
+          <div key={key} className="rounded-xl border bg-white p-5">
+            <p className="text-sm text-on-surface-variant">{name}</p>
+            <strong className="mt-2 block text-3xl text-primary">{data ? (data.counts[key] ?? 0) : '—'}</strong>
+          </div>
         ))}
       </div>
-
-      {/* Danh sách tin */}
-      {isLoading ? (
-        <div className="flex flex-col gap-3">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-28 bg-surface-container rounded-xl animate-pulse"></div>
-          ))}
-        </div>
-      ) : filteredListings.length > 0 ? (
-        <div className="grid auto-rows-[400px] gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filteredListings.map((item) => (
-            <Card key={item.id} className="flex h-full min-w-0 flex-col overflow-hidden p-0">
-              <div className="relative h-48 shrink-0 bg-surface-container">
-                  {item.imageUrls[0] ? <img
-                    src={item.imageUrls[0]}
-                    alt={item.title}
-                    className="h-full w-full object-cover"
-                  /> : <div className="grid h-full place-items-center text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
-                    <Building2 className="h-7 w-7" aria-hidden="true" />
-                  </div>}
-                  <div className="absolute bottom-2 right-2 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-[10px] font-bold">
-                    v{item.revisionNumber}
-                  </div>
-                </div>
-              <div className="flex flex-1 flex-col p-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {item.status === 'ACTIVE' && <Badge variant="verified">Đang hiển thị</Badge>}
-                    {item.status === 'PENDING_REVIEW' && (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-tertiary/10 text-tertiary-container flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> Chờ thẩm định
-                      </span>
-                    )}
-                    {item.status === 'DRAFT' && <Badge variant="neutral">Bản nháp</Badge>}
-                    <span className="text-xs font-semibold text-primary">{formatPriceVnd(item.priceVnd)}</span><span className="text-xs text-on-surface-variant">· {item.areaM2} m²</span>
-                  </div>
-                  <h3 className="mt-3 text-base font-bold text-on-surface line-clamp-2 hover:text-primary">
-                    <Link to={listingPath(item)}>{item.title || 'Tin đăng chưa đặt tiêu đề'}</Link>
-                  </h3>
-                  <p className="mt-1 text-xs text-on-surface-variant line-clamp-1">{item.addressSummary}</p>
-                <div className="mt-auto flex items-center gap-2 border-t border-outline-variant/30 pt-3">
-                  <Link to={listingPath(item)}><Button variant="ghost" size="sm" leftIcon={<Eye className="w-4 h-4" />}>Xem</Button></Link>
-                  {item.status !== 'PENDING_REVIEW' && <Link to={`/listings/new?edit=${item.id}`}><Button variant="outline" size="sm" leftIcon={<Pencil className="w-4 h-4" />}>Chỉnh sửa</Button></Link>}
-                  {item.status === 'DRAFT' && <Button variant="primary" size="sm" onClick={() => handleQuickSubmit(item.id)} leftIcon={<Send className="w-4 h-4" />}>Nộp duyệt</Button>}
-                  {item.status === 'ACTIVE' && <Button variant="outline" size="sm" onClick={() => changeVisibility(item.id, true)} leftIcon={<EyeOff className="w-4 h-4" />}>Ẩn tin</Button>}
-                  {item.status === 'PAUSED' && <Button variant="primary" size="sm" onClick={() => changeVisibility(item.id, false)} leftIcon={<Eye className="w-4 h-4" />}>Hiện lại</Button>}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-16 bg-surface-container-low rounded-2xl flex flex-col items-center gap-3">
-          <Building2 className="w-10 h-10 text-outline" />
-          <h3 className="font-bold text-base text-on-surface">Chưa có tin đăng nào trong mục này</h3>
-          <p className="text-xs text-on-surface-variant max-w-sm">
-            Bắt đầu tạo tin đăng mới để tiếp cận hàng ngàn khách hàng tiềm năng tìm kiếm bất động sản.
-          </p>
-          <Link to="/listings/new" className="mt-2">
-            <Button variant="primary" size="md" leftIcon={<PlusCircle className="w-4 h-4" />}>
-              Tạo tin đăng ngay
-            </Button>
-          </Link>
-        </div>
+      {expiring > 0 && (
+        <p className="mt-4 rounded-lg bg-warning-container p-3 text-body-sm text-warning-on-container" role="note">
+          {expiring} tin trên trang này cần bạn xác nhận còn hàng.
+        </p>
       )}
+      <Tabs
+        className="mt-4"
+        label="Lọc theo trạng thái"
+        value={tab}
+        onChange={(next) => navigate(next, 0)}
+        items={TABS.map((item) => ({
+          id: item.id,
+          label: item.label,
+          count: data?.counts[item.id],
+          content: item.id === tab ? list : null,
+        }))}
+      />
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImported={() => void load()} />
     </div>
   );
 };
+
+export default MyListingsPage;

@@ -1,13 +1,21 @@
 package com.company.bds.media;
 
+import jakarta.servlet.http.HttpServletRequest;
+import com.company.bds.shared.error.ProblemDetails;
 import com.company.bds.shared.security.CurrentUser;
 import com.company.bds.iam.application.AuthService;
+import com.company.bds.verification.application.KycDocumentAccessService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,9 +24,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -26,10 +34,16 @@ import java.util.Map;
 @ConditionalOnProperty(name = "app.media.storage-enabled", havingValue = "true")
 public class MediaController {
     private static final String OBJECT_KEY = "[0-9a-fA-F-]{36}\\.(?:jpg|png|webp|avif)";
+    private static final String ANY_KEY = MediaKeys.ANY_KEY_REGEX;
+    /** Public media may be taken down (hidden listing, banned seller): shared caches must drop it within a day. */
+    static final CacheControl PUBLIC_MEDIA_CACHE = CacheControl.maxAge(Duration.ofDays(1)).cachePublic();
     private final MediaStorageService storage;
     private final AuthService authService;
+    private final KycDocumentAccessService kycAccess;
 
-    public MediaController(MediaStorageService storage, AuthService authService) { this.storage = storage; this.authService = authService; }
+    public MediaController(MediaStorageService storage, AuthService authService, KycDocumentAccessService kycAccess) {
+        this.storage = storage; this.authService = authService; this.kycAccess = kycAccess;
+    }
 
     @PostMapping(path = "/media/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<MediaStorageService.UploadedImage> upload(
@@ -43,28 +57,71 @@ public class MediaController {
     }
 
     @GetMapping("/media/kyc/{objectKey:" + OBJECT_KEY + "}")
-    public ResponseEntity<StreamingResponseBody> readKyc(@PathVariable String objectKey,
+    public ResponseEntity<Resource> readKyc(@PathVariable String objectKey,
                                                            @RequestHeader(value = "X-Kyc-Document-Access", required = false) String accessToken,
                                                            Authentication authentication) {
         boolean privileged=authentication.getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_ADMIN")||a.getAuthority().equals("ROLE_MODERATOR"));
-        if (!privileged && !authService.hasKycDocumentAccess(CurrentUser.id(authentication), accessToken)) {
-            throw new org.springframework.security.access.AccessDeniedException("Cần xác nhận lại mật khẩu để xem ảnh định danh.");
+        // Owners re-confirm their password; staff additionally need a logged, reasoned access to this owner's documents.
+        boolean allowed = privileged
+                ? kycAccess.staffMayRead(CurrentUser.id(authentication), accessToken, objectKey)
+                : authService.hasKycDocumentAccess(CurrentUser.id(authentication), accessToken);
+        if (!allowed) {
+            throw new org.springframework.security.access.AccessDeniedException(privileged
+                    ? "Cần nêu lý do và xác nhận mật khẩu trước khi xem giấy tờ định danh."
+                    : "Cần xác nhận lại mật khẩu để xem ảnh định danh.");
         }
         MediaStorageService.StoredImage image=storage.readPrivate(CurrentUser.id(authentication),privileged,objectKey);
-        StreamingResponseBody body=output->{try(var input=image.stream()){input.transferTo(output);}};
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType())).cacheControl(CacheControl.noStore()).body(body);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType())).cacheControl(CacheControl.noStore()).body(body(image));
     }
 
-    @GetMapping("/public/media/{objectKey:" + OBJECT_KEY + "}")
-    public ResponseEntity<StreamingResponseBody> read(@PathVariable String objectKey) {
-        MediaStorageService.StoredImage image = storage.read(objectKey);
-        StreamingResponseBody body = output -> {
-            try (var input = image.stream()) { input.transferTo(output); }
-        };
+    /** Public originals and WebP variants, only while publicly referenced (see {@link MediaStorageService}). */
+    @GetMapping("/public/media/{objectKey:" + ANY_KEY + "}")
+    public ResponseEntity<Resource> read(@PathVariable String objectKey) {
+        return stream(storage.read(objectKey), PUBLIC_MEDIA_CACHE);
+    }
+
+    /** Capability URL issued to owners/staff (contract §10); anonymous and never cached (Referrer-Policy no-referrer is global). */
+    @GetMapping("/media/signed/{objectKey:" + ANY_KEY + "}")
+    public ResponseEntity<Resource> readSigned(@PathVariable String objectKey,
+                                                            @RequestParam(name = "exp", defaultValue = "0") long exp,
+                                                            @RequestParam(name = "sig", defaultValue = "") String sig) {
+        return stream(storage.readSigned(objectKey, exp, sig), CacheControl.noStore());
+    }
+
+    /** Signed URLs for images the caller owns (or any listing image for staff), e.g. drafts and hidden listings. */
+    @PostMapping(path = "/media/signed-urls", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<MediaStorageService.SignedUrls> sign(@RequestBody SignRequest request, Authentication authentication) {
+        boolean staff = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MODERATOR"));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(storage.signForViewer(CurrentUser.id(authentication), staff, request.urls()));
+    }
+
+    public record SignRequest(List<String> urls) {}
+
+    @ExceptionHandler(MediaStorageService.MediaNotFoundException.class)
+    ResponseEntity<ProblemDetails> notFound(MediaStorageService.MediaNotFoundException ex, HttpServletRequest request) {
+        return ResponseEntity.status(404).cacheControl(CacheControl.noStore()).contentType(ProblemDetails.MEDIA_TYPE)
+                .body(ProblemDetails.of(404, "MEDIA_NOT_FOUND", "Tài nguyên không tìm thấy", ex.getMessage(), request.getRequestURI()));
+    }
+
+    private static ResponseEntity<Resource> stream(MediaStorageService.StoredImage image, CacheControl cache) {
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType()))
                 .contentLength(image.sizeBytes())
-                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
-                .body(body);
+                .cacheControl(cache)
+                .body(body(image));
+    }
+
+    /**
+     * Streams the object synchronously on the request thread (the converter closes the stream). Not a
+     * StreamingResponseBody: that runs on an async worker which commits the response while the request thread is
+     * still leaving the filter chain, so Spring Security's HeaderWriterFilter wrote headers from both threads into
+     * the same non-thread-safe header map (ConcurrentModificationException, flaky media integration test).
+     */
+    private static Resource body(MediaStorageService.StoredImage image) {
+        return new InputStreamResource(image.stream()) {
+            @Override public long contentLength() { return image.sizeBytes(); }
+        };
     }
 
     @DeleteMapping("/media/images/{objectKey:" + OBJECT_KEY + "}")

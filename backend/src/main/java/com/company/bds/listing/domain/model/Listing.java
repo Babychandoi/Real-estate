@@ -22,6 +22,11 @@ public class Listing {
     private long version;
     private final Instant createdAt;
     private Instant updatedAt;
+    private ListingSource source = ListingSource.DIRECT;
+    private Instant availabilityConfirmedAt;
+    private Instant expiresAt;
+    private Instant soldCheckDueAt;
+    private Instant soldCheckClearedAt;
 
     public Listing(
             UUID id,
@@ -120,6 +125,74 @@ public class Listing {
      * - Nếu revision gần nhất là DRAFT -> Cập nhật trực tiếp lên revision đó.
      * - Nếu revision gần nhất đã SUBMITTED hoặc APPROVED -> Tự động sinh revision DRAFT mới (bất biến revision cũ).
      */
+    /** Restores lifecycle columns (persistence mapping only). */
+    public Listing withSoldCheckClearedAt(Instant value) {
+        this.soldCheckClearedAt = value;
+        return this;
+    }
+
+    public Listing withLifecycle(ListingSource source, Instant availabilityConfirmedAt, Instant expiresAt, Instant soldCheckDueAt) {
+        this.source = source != null ? source : ListingSource.DIRECT;
+        this.availabilityConfirmedAt = availabilityConfirmedAt;
+        this.expiresAt = expiresAt;
+        this.soldCheckDueAt = soldCheckDueAt;
+        return this;
+    }
+
+    /** Marks a new listing as created by a CSV import. */
+    public void markImported() {
+        if (this.publicRevisionId != null) throw new ListingDomainException("INVALID_STATE", "Chỉ tin mới có thể đánh dấu nhập từ tệp.");
+        this.source = ListingSource.IMPORT;
+    }
+
+    /** The owner confirms the property is still available: a new validity period starts (P-14). */
+    public void confirmAvailability(Instant now) {
+        if (this.status != ListingStatus.ACTIVE) {
+            throw new ListingDomainException("LISTING_NOT_ACTIVE", "Chỉ xác nhận còn hàng cho tin đang hiển thị.");
+        }
+        startValidity(now);
+        this.updatedAt = now;
+    }
+
+    /**
+     * Renews an EXPIRED listing without new moderation when it expired at most {@link FreshnessPolicy#RENEWAL_WINDOW}
+     * ago and no edit was made after the public revision. Otherwise the owner must edit and resubmit.
+     */
+    public void renew(Instant now) {
+        if (this.status != ListingStatus.EXPIRED) {
+            throw new ListingDomainException("LISTING_NOT_EXPIRED", "Chỉ gia hạn tin đã hết hạn hiển thị.");
+        }
+        ListingRevision published = getPublicRevision().orElseThrow(() ->
+                new ListingDomainException("RENEWAL_REQUIRES_REVIEW", "Tin chưa từng được duyệt, vui lòng gửi duyệt."));
+        ListingRevision latest = getLatestRevision().orElse(published);
+        // Unchanged = no revision after the public one (the same rule the owner list shows as "renewable").
+        boolean unchanged = latest.getId().equals(published.getId());
+        boolean inWindow = expiresAt == null || !now.isAfter(expiresAt.plus(FreshnessPolicy.RENEWAL_WINDOW));
+        if (!unchanged || !inWindow) {
+            throw new ListingDomainException("RENEWAL_REQUIRES_REVIEW", unchanged
+                    ? "Tin đã hết hạn quá 30 ngày, vui lòng kiểm tra lại nội dung và gửi duyệt."
+                    : "Tin có nội dung sửa đổi chưa được duyệt, vui lòng gửi duyệt bản sửa.");
+        }
+        this.status = ListingStatus.ACTIVE;
+        startValidity(now);
+        this.updatedAt = now;
+    }
+
+    /** Somebody reported the property as sold/no longer available: the owner has 48 hours to confirm. */
+    public boolean requestSoldCheck(Instant now) {
+        if (this.status != ListingStatus.ACTIVE || this.soldCheckDueAt != null) return false;
+        this.soldCheckDueAt = now.plus(FreshnessPolicy.SOLD_CHECK_DEADLINE);
+        this.updatedAt = now;
+        return true;
+    }
+
+    private void startValidity(Instant now) {
+        if (this.soldCheckDueAt != null) this.soldCheckClearedAt = now;
+        this.availabilityConfirmedAt = now;
+        this.expiresAt = now.plus(FreshnessPolicy.VALIDITY);
+        this.soldCheckDueAt = null;
+    }
+
     public ListingRevision updateDraft(
             String title,
             ListingPurpose purpose,
@@ -194,7 +267,10 @@ public class Listing {
                 .orElseThrow(() -> new ListingDomainException("NO_REVISION", "Không tìm thấy revision để nộp duyệt."));
 
         latest.submit(now);
-        this.status = ListingStatus.PENDING_REVIEW;
+        // An edit of a published (or owner-hidden) listing keeps the public version as it is while the edit is reviewed.
+        if (!(publicRevisionId != null && (status == ListingStatus.ACTIVE || status == ListingStatus.PAUSED))) {
+            this.status = ListingStatus.PENDING_REVIEW;
+        }
         this.updatedAt = now;
     }
 
@@ -209,7 +285,8 @@ public class Listing {
 
         target.approve(now);
         this.publicRevisionId = target.getId();
-        this.status = ListingStatus.ACTIVE;
+        if (this.status != ListingStatus.PAUSED) this.status = ListingStatus.ACTIVE;
+        startValidity(now);
         this.updatedAt = now;
     }
 
@@ -226,8 +303,10 @@ public class Listing {
         if (this.publicRevisionId == null) {
             this.status = ListingStatus.REJECTED;
         } else {
-            // Đã có bản public trước đó, giữ nguyên trạng thái ACTIVE cho bản public
-            this.status = ListingStatus.ACTIVE;
+            // Đã có bản public trước đó: bản public giữ nguyên trạng thái (hết hạn thì vẫn hết hạn)
+            if (this.status == ListingStatus.PENDING_REVIEW) {
+                this.status = expiresAt != null && !now.isBefore(expiresAt) ? ListingStatus.EXPIRED : ListingStatus.ACTIVE;
+            }
         }
         this.updatedAt = now;
     }
@@ -237,6 +316,7 @@ public class Listing {
      */
     public void pause(Instant now) {
         this.status = ListingStatus.PAUSED;
+        this.soldCheckDueAt = null;
         this.updatedAt = now;
     }
 
@@ -292,4 +372,9 @@ public class Listing {
     public long getVersion() { return version; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public ListingSource getSource() { return source; }
+    public Instant getAvailabilityConfirmedAt() { return availabilityConfirmedAt; }
+    public Instant getExpiresAt() { return expiresAt; }
+    public Instant getSoldCheckDueAt() { return soldCheckDueAt; }
+    public Instant getSoldCheckClearedAt() { return soldCheckClearedAt; }
 }

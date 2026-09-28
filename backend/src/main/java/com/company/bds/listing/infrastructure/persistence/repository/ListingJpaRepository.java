@@ -51,7 +51,8 @@ public interface ListingJpaRepository extends JpaRepository<ListingJpaEntity, UU
 
     @Query("SELECT DISTINCT l FROM ListingJpaEntity l " +
            "LEFT JOIN FETCH l.revisions r " +
-           "WHERE l.status = 'PENDING_REVIEW' " +
+           "WHERE l.status = 'PENDING_REVIEW' OR EXISTS (SELECT 1 FROM ListingRevisionJpaEntity s " +
+           "  WHERE s.listing = l AND s.status = 'SUBMITTED') " +
            "ORDER BY l.updatedAt ASC")
     List<ListingJpaEntity> findPendingReviewListings();
 

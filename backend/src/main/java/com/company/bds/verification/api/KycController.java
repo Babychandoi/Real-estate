@@ -1,9 +1,11 @@
 package com.company.bds.verification.api;
 
+import com.company.bds.shared.error.ApiException;
 import com.company.bds.verification.api.request.RejectKycRequest;
 import com.company.bds.verification.api.request.SubmitKycRequest;
 import com.company.bds.verification.api.response.UserKycResponse;
 import com.company.bds.verification.application.KycApplicationService;
+import com.company.bds.verification.application.TrustDecisionService;
 import com.company.bds.iam.application.AuthService;
 import com.company.bds.verification.domain.model.KycStatus;
 import com.company.bds.verification.domain.model.UserKycProfile;
@@ -26,10 +28,15 @@ public class KycController {
 
     private final KycApplicationService kycApplicationService;
     private final AuthService authService;
+    private final TrustDecisionService trust;
+    private final com.company.bds.verification.domain.port.UserKycPersistencePort kycPersistence;
 
-    public KycController(KycApplicationService kycApplicationService, AuthService authService) {
+    public KycController(KycApplicationService kycApplicationService, AuthService authService, TrustDecisionService trust,
+                         com.company.bds.verification.domain.port.UserKycPersistencePort kycPersistence) {
         this.kycApplicationService = kycApplicationService;
         this.authService = authService;
+        this.trust = trust;
+        this.kycPersistence = kycPersistence;
     }
 
     /**
@@ -65,7 +72,7 @@ public class KycController {
                 .map(p -> ResponseEntity.ok(privileged
                         ? UserKycResponse.fromDomainForReviewer(p)
                         : UserKycResponse.fromDomain(p)))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+                .orElseThrow(() -> ApiException.notFound("KYC_NOT_FOUND", "Chưa có hồ sơ định danh."));
     }
 
     @PostMapping("/documents/access")
@@ -100,25 +107,55 @@ public class KycController {
         return ResponseEntity.ok(list.stream().map(UserKycResponse::fromDomainForReviewer).collect(Collectors.toList()));
     }
 
-    /**
-     * Phê duyệt định danh eKYC.
-     */
+    /** Identity approval: validity 24 months, decider and reason code recorded (TrustDecisionService). */
     @PostMapping("/{id}/approve")
-    public ResponseEntity<UserKycResponse> approveKyc(@PathVariable("id") UUID id) {
-        UserKycProfile profile = kycApplicationService.approveKyc(id);
-        return ResponseEntity.ok(UserKycResponse.fromDomainForReviewer(profile));
+    public ResponseEntity<UserKycResponse> approveKyc(@PathVariable("id") UUID id,
+                                                      @RequestBody(required = false) RejectKycRequest request,
+                                                      Authentication authentication) {
+        trust.approveKyc(id, CurrentUser.id(authentication), request == null ? null : request.reasonCode(),
+                request == null ? null : request.reason());
+        return ResponseEntity.ok(reviewerView(id));
     }
 
-    /**
-     * Từ chối hồ sơ eKYC.
-     */
     @PostMapping("/{id}/reject")
-    public ResponseEntity<UserKycResponse> rejectKyc(
-            @PathVariable("id") UUID id,
-            @Valid @RequestBody RejectKycRequest request) {
-        UserKycProfile profile = kycApplicationService.rejectKyc(id, request.reason());
-        return ResponseEntity.ok(UserKycResponse.fromDomainForReviewer(profile));
+    public ResponseEntity<UserKycResponse> rejectKyc(@PathVariable("id") UUID id, @Valid @RequestBody RejectKycRequest request,
+                                                     Authentication authentication) {
+        trust.rejectKyc(id, CurrentUser.id(authentication), request.reasonCode(), request.reason());
+        return ResponseEntity.ok(reviewerView(id));
     }
+
+    @PostMapping("/{id}/revoke")
+    public ResponseEntity<UserKycResponse> revokeKyc(@PathVariable("id") UUID id, @Valid @RequestBody RejectKycRequest request,
+                                                     Authentication authentication) {
+        trust.revokeKyc(id, CurrentUser.id(authentication), request.reasonCode(), request.reason());
+        return ResponseEntity.ok(reviewerView(id));
+    }
+
+    /** The signed-in user's identity check for the /kyc page: status, validity, rejection reason, decision timeline. */
+    @GetMapping("/me/status")
+    public ResponseEntity<MyKycStatus> myStatus(Authentication authentication) {
+        UUID userId = CurrentUser.id(authentication);
+        var profile = kycApplicationService.getKycByUserId(userId);
+        var validity = kycApplicationService.validity(userId);
+        String status = profile.map(p -> p.getStatus().name()).orElse("NOT_SUBMITTED");
+        if ("VERIFIED".equals(status) && validity.expiresAt() != null && validity.expiresAt().isBefore(java.time.Instant.now())) status = "EXPIRED";
+        List<TrustDecisionService.Decision> timeline = profile.map(p -> trust.history("KYC", p.getId(), false)).orElse(List.of());
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore()).body(new MyKycStatus(status,
+                profile.map(UserKycProfile::getCreatedAt).orElse(null), profile.map(UserKycProfile::getVerifiedAt).orElse(null),
+                validity.expiresAt(), validity.revokedAt(), profile.map(UserKycProfile::getRejectionReason).orElse(null),
+                profile.map(p -> p.getStatus() != KycStatus.PENDING && (p.getStatus() != KycStatus.VERIFIED
+                        || (validity.expiresAt() != null && validity.expiresAt().isBefore(java.time.Instant.now())))).orElse(true),
+                timeline));
+    }
+
+    private UserKycResponse reviewerView(UUID kycId) {
+        return kycPersistence.findById(kycId).map(UserKycResponse::fromDomainForReviewer)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hồ sơ eKYC."));
+    }
+
+    public record MyKycStatus(String status, java.time.Instant submittedAt, java.time.Instant decidedAt, java.time.Instant expiresAt,
+                              java.time.Instant revokedAt, String rejectionReason, boolean canSubmit,
+                              List<TrustDecisionService.Decision> timeline) {}
 
     public record DocumentAccessRequest(@NotBlank String password) {}
     public record KycDocumentsResponse(String idCardFrontUrl, String idCardBackUrl, String selfieUrl) {}

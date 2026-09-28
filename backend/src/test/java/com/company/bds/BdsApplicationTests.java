@@ -2,20 +2,23 @@ package com.company.bds;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import com.company.bds.media.MediaStorageService;
+import com.company.bds.testsupport.BdsIntegrationTest;
+import com.company.bds.testsupport.TestData;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -23,11 +26,10 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
+@BdsIntegrationTest
 @WithMockUser(username = "00000000-0000-0000-0000-000000000001", roles = {"ADMIN", "MODERATOR", "BROKER", "USER"})
 class BdsApplicationTests {
+    private static final UUID MOCK_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @Autowired
     private MockMvc mockMvc;
@@ -37,6 +39,20 @@ class BdsApplicationTests {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private TestData testData;
+
+    /** Listings, deposits and notifications reference users(id) through foreign keys on PostgreSQL. */
+    @BeforeEach
+    void ensureMockUserExists() {
+        testData.ensureUser(MOCK_USER_ID, "ADMIN");
+        testData.ensureUser(REVIEWER_ID, "MODERATOR");
+    }
+
+    /** Trust decisions are four-eyes (S4): a second staff account reviews what the mock user submits. */
+    private static final String REVIEWER_ID_TEXT = "00000000-0000-0000-0000-000000000098";
+    private static final java.util.UUID REVIEWER_ID = java.util.UUID.fromString(REVIEWER_ID_TEXT);
 
     @AfterEach
     void removeLeadKycFixture() {
@@ -185,12 +201,13 @@ class BdsApplicationTests {
                 .andExpect(status().isOk());
 
         // 2. Kiểm tra hàng đợi kiểm duyệt /api/v1/moderation/queue
-        MvcResult queueRes = mockMvc.perform(get("/api/v1/moderation/queue"))
+        // F08.2: the queue is a server-paged envelope {items, page, size, total, stats}.
+        MvcResult queueRes = mockMvc.perform(get("/api/v1/moderation/queue").param("size", "100"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.items").isArray())
                 .andReturn();
 
-        JsonNode queueArray = objectMapper.readTree(queueRes.getResponse().getContentAsString());
+        JsonNode queueArray = objectMapper.readTree(queueRes.getResponse().getContentAsString()).get("items");
         boolean foundInQueue = false;
         String revIdToApprove = null;
         for (JsonNode item : queueArray) {
@@ -216,7 +233,7 @@ class BdsApplicationTests {
             }
             """, revIdToApprove);
 
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listing1Id + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listing1Id + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(approveBody))
                 .andExpect(status().isOk())
@@ -267,7 +284,7 @@ class BdsApplicationTests {
             }
             """, rev2Id);
 
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listing2Id + "/reject")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listing2Id + "/reject").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(rejectBody))
                 .andExpect(status().isOk())
@@ -314,20 +331,29 @@ class BdsApplicationTests {
         String revId = objectMapper.readTree(diffRes.getResponse().getContentAsString()).get("currentRevisionId").asText();
 
         // Duyệt tin
-        mockMvc.perform(post("/api/v1/moderation/listings/" + id + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + id + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format("{\"revisionId\": \"%s\"}", revId)))
                 .andExpect(status().isOk());
 
-        // 2. Tìm kiếm Bounding Box bao trùm Cầu Giấy (21.03 -> 21.05, 105.78 -> 105.80)
-        mockMvc.perform(get("/api/v1/listings/search")
+        // 2. Tìm kiếm Bounding Box bao trùm Cầu Giấy (21.03 -> 21.05, 105.78 -> 105.80).
+        // Dữ liệu seed Flyway cũng có tin trong vùng này, nên kiểm tra tin vừa duyệt theo id và mọi kết quả đều nằm trong vùng.
+        JsonNode inBox = objectMapper.readTree(mockMvc.perform(get("/api/v1/listings/search")
                         .param("minLat", "21.03")
                         .param("maxLat", "21.05")
                         .param("minLng", "105.78")
                         .param("maxLng", "105.80"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].title").value("Nhà mặt phố Cầu Giấy kinh doanh sầm uất"));
+                .andReturn().getResponse().getContentAsString());
+        assertThat(inBox.findValuesAsText("id")).contains(id);
+        for (JsonNode item : inBox) {
+            if (item.get("id").asText().equals(id)) {
+                assertThat(item.get("title").asText()).isEqualTo("Nhà mặt phố Cầu Giấy kinh doanh sầm uất");
+            }
+            assertThat(item.get("publicLatitude").asDouble()).isBetween(21.03, 21.05);
+            assertThat(item.get("publicLongitude").asDouble()).isBetween(105.78, 105.80);
+        }
 
         // 3. Tìm kiếm ngoài vùng Bounding Box (Khu vực Đông Anh 21.13 -> 21.16)
         mockMvc.perform(get("/api/v1/listings/search")
@@ -338,22 +364,39 @@ class BdsApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
 
-        // 4. Tìm kiếm theo khoảng giá (minPrice: 10 tỷ, maxPrice: 15 tỷ) -> Khớp tin Cầu Giấy
-        mockMvc.perform(get("/api/v1/listings/search")
+        // 4. Tìm kiếm theo khoảng giá (minPrice: 10 tỷ, maxPrice: 15 tỷ) -> Khớp tin Cầu Giấy, mọi kết quả trong khoảng giá
+        JsonNode inRange = objectMapper.readTree(mockMvc.perform(get("/api/v1/listings/search")
                         .param("minPrice", "10000000000")
                         .param("maxPrice", "15000000000"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$[0].priceVnd").value(12800000000L));
+                .andReturn().getResponse().getContentAsString());
+        assertThat(inRange.findValuesAsText("id")).contains(id);
+        for (JsonNode item : inRange) {
+            assertThat(item.get("priceVnd").asLong()).isBetween(10_000_000_000L, 15_000_000_000L);
+            if (item.get("id").asText().equals(id)) assertThat(item.get("priceVnd").asLong()).isEqualTo(12_800_000_000L);
+        }
     }
 
     @Test
     void leadLifecycleAndCrm_flow() throws Exception {
         jdbcTemplate.update("""
-                MERGE INTO user_kyc_profiles (id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,status,created_at,verified_at)
-                KEY(user_id) VALUES (CAST(? AS UUID),CAST(? AS UUID),?,?,?,'VERIFIED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                INSERT INTO user_kyc_profiles (id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,status,created_at,verified_at)
+                VALUES (CAST(? AS UUID),CAST(? AS UUID),?,?,?,'VERIFIED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET id_number_encrypted=EXCLUDED.id_number_encrypted,
+                    id_number_lookup_hash=EXCLUDED.id_number_lookup_hash, full_name=EXCLUDED.full_name,
+                    status='VERIFIED', verified_at=EXCLUDED.verified_at
                 """, "90000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000001",
                 "v1:000****0000:test:test", "test-verified-kyc", "Người dùng kiểm thử");
+        // The lead is sent by a separate verified buyer: a poster cannot send a lead to their own listing (S3b).
+        String buyerId = "00000000-0000-0000-0000-000000000003";
+        testData.ensureUser(UUID.fromString(buyerId), "USER");
+        jdbcTemplate.update("""
+                INSERT INTO user_kyc_profiles (id,user_id,id_number_encrypted,id_number_lookup_hash,full_name,status,created_at,verified_at)
+                VALUES (CAST(? AS UUID),CAST(? AS UUID),?,?,?,'VERIFIED',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET status='VERIFIED', verified_at=EXCLUDED.verified_at
+                """, "90000000-0000-0000-0000-000000000003", buyerId, "v1:000****0003:test:test", "test-verified-kyc-buyer",
+                "Người mua kiểm thử");
         // 1. Tạo một tin đăng để nhận lead
         String listingJson = """
             {
@@ -381,7 +424,7 @@ class BdsApplicationTests {
                 .andReturn();
         String leadRevisionId = objectMapper.readTree(leadDiff.getResponse().getContentAsString())
                 .get("currentRevisionId").asText();
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(String.format("{\"revisionId\":\"%s\"}", leadRevisionId)))
                 .andExpect(status().isOk());
@@ -397,7 +440,7 @@ class BdsApplicationTests {
             }
             """, listingId);
 
-        MvcResult leadSubmitRes = mockMvc.perform(post("/api/v1/public/leads")
+        MvcResult leadSubmitRes = mockMvc.perform(post("/api/v1/public/leads").with(user(buyerId).roles("USER"))
                         .header("Idempotency-Key", "lead-flow-idempotency-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(leadJson))
@@ -409,7 +452,7 @@ class BdsApplicationTests {
 
         String leadId = objectMapper.readTree(leadSubmitRes.getResponse().getContentAsString()).get("leadId").asText();
 
-        mockMvc.perform(post("/api/v1/public/leads")
+        mockMvc.perform(post("/api/v1/public/leads").with(user(buyerId).roles("USER"))
                         .header("Idempotency-Key", "lead-flow-idempotency-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(leadJson))
@@ -463,7 +506,7 @@ class BdsApplicationTests {
         mockMvc.perform(post("/api/v1/listings/" + listingId + "/submit")).andExpect(status().isOk());
         MvcResult diffRes = mockMvc.perform(get("/api/v1/moderation/listings/" + listingId + "/diff")).andExpect(status().isOk()).andReturn();
         String revId = objectMapper.readTree(diffRes.getResponse().getContentAsString()).get("currentRevisionId").asText();
-        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve")
+        mockMvc.perform(post("/api/v1/moderation/listings/" + listingId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(String.format("{\"revisionId\": \"%s\"}", revId))).andExpect(status().isOk());
 
@@ -596,7 +639,7 @@ class BdsApplicationTests {
                 .andExpect(jsonPath("$.fullName").value("Trần Văn Bình"));
 
         // 3. Thẩm định viên phê duyệt hồ sơ eKYC
-        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve"))
+        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("VERIFIED"))
                 .andExpect(jsonPath("$.verifiedAt").exists());
@@ -626,7 +669,7 @@ class BdsApplicationTests {
                 .andExpect(status().isCreated())
                 .andReturn();
         String kycId = objectMapper.readTree(kycRes.getResponse().getContentAsString()).get("id").asText();
-        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))).andExpect(status().isOk());
 
         // 2. Tạo tin đăng BĐS
         String listingJson = """
@@ -680,7 +723,7 @@ class BdsApplicationTests {
                 "verifierNote": "Họ tên trên CCCD và Sổ hồng trùng khớp 100%. Đã kiểm tra không tranh chấp quy hoạch."
             }
             """;
-        mockMvc.perform(post("/api/v1/verifications/" + verifId + "/approve")
+        mockMvc.perform(post("/api/v1/verifications/" + verifId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(approveBody))
                 .andExpect(status().isOk())

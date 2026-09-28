@@ -11,14 +11,35 @@ import {
   User,
   Briefcase,
   Home,
+  Search,
   Loader2,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
+import { useModal } from '@/shared/ui/useModal';
+import type { SelfServiceRole } from './roles';
 
 type ModalTab = 'login' | 'register';
-type AccountType = 'BROKER' | 'USER';
+type AccountType = SelfServiceRole;
+
+/** Self-service account types; OWNER posts their own home without claiming to be a broker (P-09). */
+const ACCOUNT_TYPES: ReadonlyArray<{ value: AccountType; label: string; description: string; icon: typeof Search }> = [
+  { value: 'USER', label: 'Người tìm nhà', description: 'Tìm, lưu và so sánh tin; gửi yêu cầu xem nhà.', icon: Search },
+  {
+    value: 'OWNER',
+    label: 'Chủ nhà',
+    description: 'Đăng bán hoặc cho thuê nhà của chính bạn và nhận yêu cầu từ người quan tâm.',
+    icon: Home,
+  },
+  {
+    value: 'BROKER',
+    label: 'Môi giới BĐS',
+    description: 'Đăng và quản lý tin cho khách hàng, dùng không gian môi giới.',
+    icon: Briefcase,
+  },
+];
+const SUBMIT_LABEL: Record<AccountType, string> = { USER: 'Người tìm nhà', OWNER: 'Chủ nhà', BROKER: 'Môi giới' };
 
 export const LoginModal: React.FC = () => {
   const { isLoginModalOpen, setIsLoginModalOpen, login, register, resendVerification } = useAuth();
@@ -47,28 +68,26 @@ export const LoginModal: React.FC = () => {
   const loginEmailRef = useRef<HTMLInputElement>(null);
   const loginPasswordRef = useRef<HTMLInputElement>(null);
 
+  // Shared modal stack (M2): the same hook Dialog/Sheet use, so this dialog and any kit Sheet/Dialog open at the
+  // same time cooperate — Escape and the Tab trap only ever apply to whichever is on top, and closing this one
+  // returns focus to whatever opened it.
+  useModal({
+    open: isLoginModalOpen,
+    onClose: () => setIsLoginModalOpen(false),
+    panelRef: dialogRef,
+    initialFocusRef: loginEmailRef,
+  });
+
   useEffect(() => {
-    if (!isLoginModalOpen) return;
+    if (!isLoginModalOpen) return undefined;
     setLoginEmail('');
     setLoginPassword('');
     const clearAutofill = window.requestAnimationFrame(() => {
       if (loginEmailRef.current) loginEmailRef.current.value = '';
       if (loginPasswordRef.current) loginPasswordRef.current.value = '';
     });
-    const previous = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden'; closeRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsLoginModalOpen(false);
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-      const items = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),summary'));
-      if (!items.length) return;
-      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
-      else if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => { window.cancelAnimationFrame(clearAutofill); document.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; previous?.focus(); };
-  }, [isLoginModalOpen, setIsLoginModalOpen]);
+    return () => window.cancelAnimationFrame(clearAutofill);
+  }, [isLoginModalOpen]);
 
   const resetForms = () => {
     setLoginEmail('');
@@ -124,7 +143,10 @@ export const LoginModal: React.FC = () => {
 
     setRegLoading(true);
     try {
-      const result = await register(regEmail, regPassword, regName, regAccountType);
+      // The verification e-mail brings the person back to the page they were on (DS-11); the server keeps only a
+      // same-site relative path.
+      const returnTo = `${window.location.pathname}${window.location.search}`;
+      const result = await register(regEmail, regPassword, regName, regAccountType, returnTo);
       if (!result.success) {
         setRegError(result.error || 'Đăng ký thất bại.');
       } else {
@@ -138,8 +160,22 @@ export const LoginModal: React.FC = () => {
   if (!isLoginModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) handleClose(); }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-dialog-title" className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto">
+    <div
+      role="presentation"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      // click (not mousedown): mousedown fires before React finishes closing, so the browser's default focus
+      // move to <body> would race useModal's focus-return to the opener (m1).
+      onClick={(event) => {
+        if (event.target === event.currentTarget) handleClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-dialog-title"
+        className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container/50">
           <div className="flex items-center gap-2.5">
@@ -150,9 +186,7 @@ export const LoginModal: React.FC = () => {
               <h3 id="auth-dialog-title" className="font-bold text-base text-on-surface">
                 {activeTab === 'login' ? 'Đăng nhập' : 'Tạo tài khoản'}
               </h3>
-              <p className="text-[11px] text-on-surface-variant">
-                Nhà Đất Chuẩn • Nền tảng đăng tin có kiểm duyệt
-              </p>
+              <p className="text-xs text-on-surface-variant">Nhà Đất Chuẩn • Nền tảng đăng tin có kiểm duyệt</p>
             </div>
           </div>
           <button
@@ -197,18 +231,41 @@ export const LoginModal: React.FC = () => {
             {/* Error alert */}
             {loginError && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-                <div className="flex items-center gap-2"><AlertCircle className="w-4 h-4 shrink-0" /><span>{loginError}</span></div>
-                {loginError.toLowerCase().includes('xác minh email') && <button type="button" className="mt-2 font-bold underline" onClick={async()=>{const result=await resendVerification(loginEmail);setResendMessage(result.success?'Đã gửi lại email xác minh.':result.error||'Không thể gửi lại email.')}}>Gửi lại email xác minh</button>}
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{loginError}</span>
+                </div>
+                {loginError.toLowerCase().includes('xác minh email') && (
+                  <button
+                    type="button"
+                    className="mt-2 font-bold underline"
+                    onClick={async () => {
+                      const result = await resendVerification(loginEmail);
+                      setResendMessage(
+                        result.success ? 'Đã gửi lại email xác minh.' : result.error || 'Không thể gửi lại email.',
+                      );
+                    }}
+                  >
+                    Gửi lại email xác minh
+                  </button>
+                )}
               </div>
             )}
-            {resendMessage && <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800" role="status">{resendMessage}</p>}
+            {resendMessage && (
+              <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800" role="status">
+                {resendMessage}
+              </p>
+            )}
 
             {/* Email */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Email</label>
+              <label htmlFor="login-email" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Email
+              </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="login-email"
                   ref={loginEmailRef}
                   name="public-login-email"
                   type="email"
@@ -218,23 +275,25 @@ export const LoginModal: React.FC = () => {
                   placeholder="ten@email.com"
                   required
                   autoComplete="off"
-                  autoFocus
                 />
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Mật khẩu</label>
+              <label htmlFor="login-password" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Mật khẩu
+              </label>
               <div className="relative">
                 <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="login-password"
                   ref={loginPasswordRef}
                   name="public-login-password"
                   type={showLoginPw ? 'text' : 'password'}
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
+                  className="w-full pl-9 pr-12 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
                   placeholder="Nhập mật khẩu"
                   required
                   autoComplete="new-password"
@@ -243,7 +302,7 @@ export const LoginModal: React.FC = () => {
                   type="button"
                   onClick={() => setShowLoginPw(!showLoginPw)}
                   aria-label={showLoginPw ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors"
+                  className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-lg text-on-surface-variant hover:text-on-surface transition-colors"
                 >
                   {showLoginPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -251,17 +310,17 @@ export const LoginModal: React.FC = () => {
             </div>
 
             <div className="-mt-2 flex justify-end">
-              <Link to="/forgot-password" onClick={handleClose} className="text-xs font-semibold text-primary hover:underline">Quên mật khẩu?</Link>
+              <Link
+                to="/forgot-password"
+                onClick={handleClose}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Quên mật khẩu?
+              </Link>
             </div>
 
             {/* Submit */}
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              className="w-full shadow-md mt-1"
-              disabled={loginLoading}
-            >
+            <Button type="submit" variant="primary" size="md" className="w-full shadow-md mt-1" disabled={loginLoading}>
               {loginLoading ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -291,8 +350,12 @@ export const LoginModal: React.FC = () => {
           <div className="p-6 text-center" role="status">
             <CheckCircle2 className="mx-auto h-11 w-11 text-emerald-600" />
             <h4 className="mt-3 text-lg font-bold text-on-surface">Kiểm tra hộp thư của bạn</h4>
-            <p className="mt-2 text-sm text-on-surface-variant">Liên kết xác minh đã được gửi đến <strong>{verificationSentTo}</strong> và có hiệu lực trong 24 giờ.</p>
-            <Button className="mt-5 w-full" onClick={() => handleTabSwitch('login')}>Đến đăng nhập</Button>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Liên kết xác minh đã được gửi đến <strong>{verificationSentTo}</strong> và có hiệu lực trong 24 giờ.
+            </p>
+            <Button className="mt-5 w-full" onClick={() => handleTabSwitch('login')}>
+              Đến đăng nhập
+            </Button>
           </div>
         )}
         {activeTab === 'register' && !verificationSentTo && (
@@ -305,66 +368,58 @@ export const LoginModal: React.FC = () => {
               </div>
             )}
 
-            {/* Loại tài khoản - CHỈ User hoặc Broker */}
-            <div>
-              <label className="text-xs font-semibold text-on-surface mb-2 block">
-                Bạn là
-              </label>
-              <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setRegAccountType('USER')}
-                  className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
-                    regAccountType === 'USER'
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                      : 'border-outline-variant/40 hover:bg-surface-container'
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    regAccountType === 'USER' ? 'bg-primary/10 text-primary' : 'bg-surface-container text-on-surface-variant'
-                  }`}>
-                    <Home className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className={`text-xs font-bold ${regAccountType === 'USER' ? 'text-primary' : 'text-on-surface'}`}>
-                      Người tìm nhà
-                    </span>
-                    <span className="text-[10px] text-on-surface-variant">Tìm kiếm & so sánh BĐS</span>
-                  </div>
-                  {regAccountType === 'USER' && <CheckCircle2 className="w-4 h-4 text-primary ml-auto shrink-0" />}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRegAccountType('BROKER')}
-                  className={`p-3 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
-                    regAccountType === 'BROKER'
-                      ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-500/20'
-                      : 'border-outline-variant/40 hover:bg-surface-container'
-                  }`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    regAccountType === 'BROKER' ? 'bg-blue-100 text-blue-700' : 'bg-surface-container text-on-surface-variant'
-                  }`}>
-                    <Briefcase className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className={`text-xs font-bold ${regAccountType === 'BROKER' ? 'text-blue-800' : 'text-on-surface'}`}>
-                      Môi giới BĐS
-                    </span>
-                    <span className="text-[10px] text-on-surface-variant">Đăng tin & quản lý BĐS</span>
-                  </div>
-                  {regAccountType === 'BROKER' && <CheckCircle2 className="w-4 h-4 text-blue-600 ml-auto shrink-0" />}
-                </button>
+            {/* Loại tài khoản: người tìm nhà, chủ nhà hoặc môi giới (vai trò quản trị không tự chọn được). */}
+            <fieldset>
+              <legend className="text-xs font-semibold text-on-surface mb-2">Bạn là</legend>
+              <div className="grid gap-2">
+                {ACCOUNT_TYPES.map((option) => {
+                  const Icon = option.icon;
+                  const checked = regAccountType === option.value;
+                  return (
+                    <label
+                      key={option.value}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors ${
+                        checked
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                          : 'border-outline-variant hover:bg-surface-container'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="register-account-type"
+                        value={option.value}
+                        checked={checked}
+                        onChange={() => setRegAccountType(option.value)}
+                        className="h-4 w-4 shrink-0 accent-primary"
+                      />
+                      <span
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${
+                          checked ? 'bg-primary/10 text-primary' : 'bg-surface-container text-on-surface-variant'
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className={`text-sm font-bold ${checked ? 'text-primary' : 'text-on-surface'}`}>
+                          {option.label}
+                        </span>
+                        <span className="text-xs text-on-surface-variant">{option.description}</span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
-            </div>
+            </fieldset>
 
             {/* Họ tên */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Họ và tên</label>
+              <label htmlFor="register-name" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Họ và tên
+              </label>
               <div className="relative">
                 <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="register-name"
                   type="text"
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
@@ -377,10 +432,13 @@ export const LoginModal: React.FC = () => {
 
             {/* Email */}
             <div>
-              <label className="text-xs font-semibold text-on-surface mb-1.5 block">Email</label>
+              <label htmlFor="register-email" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                Email
+              </label>
               <div className="relative">
                 <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                 <input
+                  id="register-email"
                   type="email"
                   value={regEmail}
                   onChange={(e) => setRegEmail(e.target.value)}
@@ -392,27 +450,36 @@ export const LoginModal: React.FC = () => {
             </div>
 
             {/* Mật khẩu */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="text-xs font-semibold text-on-surface mb-1.5 block">Mật khẩu</label>
+                <label htmlFor="register-password" className="text-xs font-semibold text-on-surface mb-1.5 block">
+                  Mật khẩu
+                </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                   <input
+                    id="register-password"
                     type={showRegPw ? 'text' : 'password'}
                     value={regPassword}
                     onChange={(e) => setRegPassword(e.target.value)}
                     className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-outline-variant/50 bg-surface-container/30 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder="Tối thiểu 10 ký tự"
                     required
-                    minLength={6}
+                    minLength={10}
                   />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-on-surface mb-1.5 block">Xác nhận</label>
+                <label
+                  htmlFor="register-password-confirm"
+                  className="text-xs font-semibold text-on-surface mb-1.5 block"
+                >
+                  Xác nhận
+                </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                   <input
+                    id="register-password-confirm"
                     type={showRegPw ? 'text' : 'password'}
                     value={regPasswordConfirm}
                     onChange={(e) => setRegPasswordConfirm(e.target.value)}
@@ -436,20 +503,14 @@ export const LoginModal: React.FC = () => {
             </label>
 
             {/* Submit */}
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              className="w-full shadow-md"
-              disabled={regLoading}
-            >
+            <Button type="submit" variant="primary" size="md" className="w-full shadow-md" disabled={regLoading}>
               {regLoading ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Đang tạo tài khoản...
                 </span>
               ) : (
-                `Đăng ký ${regAccountType === 'BROKER' ? 'Môi giới' : 'Người tìm nhà'}`
+                `Đăng ký ${SUBMIT_LABEL[regAccountType]}`
               )}
             </Button>
 
@@ -466,7 +527,6 @@ export const LoginModal: React.FC = () => {
             </p>
           </form>
         )}
-
       </div>
     </div>
   );

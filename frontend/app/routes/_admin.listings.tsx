@@ -1,16 +1,359 @@
-import { useEffect, useState } from 'react';
-import { ExternalLink, Eye, EyeOff, RefreshCw } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { apiClient } from '@/shared/api/client';
+import { useCallback, useEffect, useState } from 'react';
+import { Eye, History, Lock, RefreshCw, Search } from 'lucide-react';
+import { adminListingsApi, type AdminListingFilters } from '@/entities/admin/api/adminApi';
+import type { AdminListingRow, ListingPreview, RevisionRow, StatusHistoryRow } from '@/entities/admin/model/types';
+import { formatPriceVnd, formatPropertyType } from '@/entities/listing/model/types';
+import { errorMessage } from '@/shared/api/errors';
+import { ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import type { BadgeVariant } from '@/shared/ui/Badge';
+import { Button } from '@/shared/ui/Button';
+import { Checkbox } from '@/shared/ui/Checkbox';
+import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { FormField } from '@/shared/ui/FormField';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Select } from '@/shared/ui/Select';
+import { Sheet } from '@/shared/ui/Sheet';
+import { Skeleton } from '@/shared/ui/Skeleton';
+import { TextInput } from '@/shared/ui/TextInput';
 
-type Listing={id:string;slug:string;status:string;title:string;priceVnd:number;areaM2:number;addressSummary:string;imageUrls:string[];updatedAt:string};
-const statusLabels:Record<string,string>={ACTIVE:'Đang hiển thị',PAUSED:'Đã ẩn',DRAFT:'Bản nháp',PENDING_REVIEW:'Chờ duyệt',REJECTED:'Bị từ chối',LOCKED:'Đã khóa'};
+const STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
+  ACTIVE: { label: 'Đang hiển thị', variant: 'success' },
+  PAUSED: { label: 'Đang ẩn', variant: 'warning' },
+  DRAFT: { label: 'Bản nháp', variant: 'neutral' },
+  PENDING_REVIEW: { label: 'Chờ duyệt', variant: 'info' },
+  REJECTED: { label: 'Bị từ chối', variant: 'error' },
+  LOCKED: { label: 'Đã khóa', variant: 'error' },
+  EXPIRED: { label: 'Hết hạn', variant: 'neutral' },
+};
+const ACTION_LABELS: Record<string, string> = {
+  LOCK: 'Khóa tin',
+  UNLOCK: 'Mở khóa',
+  HIDE: 'Ẩn tin',
+  UNHIDE: 'Hiển thị lại',
+  EMERGENCY_HIDE: 'Tạm ẩn khẩn cấp (báo cáo)',
+  REPORT_LOCK: 'Khóa theo báo cáo',
+  REPORT_RESUME: 'Khôi phục theo báo cáo',
+  AUTO_PAUSE: 'Tự động tạm ẩn',
+};
+type StatusAction = 'LOCK' | 'UNLOCK' | 'HIDE' | 'UNHIDE';
 
-export function AdminListingsPage(){
- const [items,setItems]=useState<Listing[]>([]);const [page,setPage]=useState(0);const [loading,setLoading]=useState(true);const [busy,setBusy]=useState('');const [error,setError]=useState('');
- const load=async(next=page)=>{setLoading(true);setError('');try{setItems(await apiClient<Listing[]>(`/listings/admin/all?page=${next}&size=20`));setPage(next)}catch(e){setError(e instanceof Error?e.message:'Không thể tải danh sách tin.')}finally{setLoading(false)}};
- useEffect(()=>{void load(0)},[]);
- const visibility=async(item:Listing,hidden:boolean)=>{setBusy(item.id);setError('');try{await apiClient(`/listings/${item.id}/visibility`,{method:'POST',body:JSON.stringify({hidden})});await load()}catch(e){setError(e instanceof Error?e.message:'Không thể thay đổi trạng thái tin.')}finally{setBusy('')}};
- return <section className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8"><header className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-bold text-slate-950">Quản lý tất cả tin</h2><p className="mt-1 text-sm text-slate-600">Mở chi tiết để kiểm tra đầy đủ nội dung trước khi thay đổi trạng thái hiển thị.</p></div><button onClick={()=>void load()} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700"><RefreshCw className="h-4 w-4"/>Làm mới</button></header>{error&&<p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{error}</p>}<section className="overflow-hidden rounded-xl bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-[920px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Tin đăng</th><th className="px-5 py-3">Giá / diện tích</th><th className="px-5 py-3">Địa điểm</th><th className="px-5 py-3">Trạng thái</th><th className="px-5 py-3">Cập nhật</th><th className="px-5 py-3">Thao tác</th></tr></thead><tbody className="divide-y divide-slate-100">{items.map(item=><tr key={item.id} className="hover:bg-slate-50/70"><td className="px-5 py-4"><Link to={`/listings/${item.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-blue-600">{item.imageUrls[0]&&<img src={item.imageUrls[0]} alt="" className="h-12 w-16 rounded-lg object-cover"/>}<span className="max-w-64 font-semibold text-slate-900 hover:text-blue-700">{item.title}</span></Link></td><td className="px-5 py-4 text-slate-700">{item.priceVnd.toLocaleString('vi-VN')}đ<span className="mt-1 block text-xs text-slate-500">{item.areaM2} m²</span></td><td className="px-5 py-4 text-slate-700">{item.addressSummary}</td><td className="px-5 py-4"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{statusLabels[item.status]||item.status}</span></td><td className="px-5 py-4 text-slate-600">{new Intl.DateTimeFormat('vi-VN',{dateStyle:'short',timeStyle:'short'}).format(new Date(item.updatedAt))}</td><td className="px-5 py-4"><div className="flex flex-wrap gap-2"><Link to={`/listings/${item.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-blue-200 px-3 text-xs font-bold text-blue-700 hover:bg-blue-50"><ExternalLink className="h-4 w-4"/>Xem chi tiết</Link>{item.status==='ACTIVE'&&<button disabled={busy===item.id} onClick={()=>void visibility(item,true)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-slate-300 px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><EyeOff className="h-4 w-4"/>Ẩn tin</button>}{item.status==='PAUSED'&&<button disabled={busy===item.id} onClick={()=>void visibility(item,false)} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white disabled:opacity-50"><Eye className="h-4 w-4"/>Hiện lại</button>}</div></td></tr>)}{!loading&&items.length===0&&<tr><td colSpan={6} className="px-5 py-16 text-center text-slate-500">Chưa có tin ở trang này.</td></tr>}{loading&&<tr><td colSpan={6} className="px-5 py-16 text-center text-slate-500">Đang tải danh sách tin…</td></tr>}</tbody></table></div><footer className="flex items-center justify-between border-t border-slate-200 px-5 py-3 text-sm text-slate-600"><span>Trang {page+1}</span><div className="flex gap-2"><button disabled={page===0||loading} onClick={()=>void load(page-1)} className="min-h-9 rounded-lg border border-slate-300 px-3 disabled:opacity-40">Trước</button><button disabled={items.length<20||loading} onClick={()=>void load(page+1)} className="min-h-9 rounded-lg border border-slate-300 px-3 disabled:opacity-40">Sau</button></div></footer></section></section>;
+export function AdminListingsPage() {
+  const [filters, setFilters] = useState<AdminListingFilters>({});
+  const [draft, setDraft] = useState<AdminListingFilters>({});
+  const [page, setPage] = useState(0);
+  const [rows, setRows] = useState<AdminListingRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [status, setStatus] = useState<DataTableStatus>('loading');
+  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [action, setAction] = useState<{ row: AdminListingRow; action: StatusAction } | null>(null);
+  const [detail, setDetail] = useState<AdminListingRow | null>(null);
+
+  const load = useCallback(async () => {
+    setStatus((s) => (s === 'loading' ? 'loading' : 'refreshing'));
+    try {
+      const result = await adminListingsApi.search(filters, page);
+      setRows(result.items);
+      setTotal(result.total);
+      setStatus('ready');
+      setError(null);
+    } catch (err) {
+      setStatus('error');
+      setError(errorMessage(err, 'Không thể tải danh sách tin.'));
+    }
+  }, [filters, page]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const actionsFor = (row: AdminListingRow): StatusAction[] => {
+    if (row.status === 'LOCKED') return ['UNLOCK'];
+    if (row.status === 'ACTIVE') return ['HIDE', 'LOCK'];
+    if (row.status === 'PAUSED' && row.hasPublicRevision) return ['UNHIDE', 'LOCK'];
+    return ['LOCK'];
+  };
+
+  const columns: DataTableColumn<AdminListingRow>[] = [
+    {
+      key: 'title',
+      header: 'Tin đăng',
+      cell: (row) => (
+        <div className="min-w-[14rem]">
+          <p className="font-semibold">{row.title}</p>
+          <p className="text-xs text-on-surface-variant">
+            {formatPropertyType(row.propertyType)} · {formatPriceVnd(row.priceVnd)} · {row.areaM2} m² ·{' '}
+            {row.addressSummary ?? 'Chưa có địa chỉ'}
+          </p>
+          <p className="text-xs text-on-surface-variant">
+            {row.ownerName} · nguồn {row.source} · tạo {formatDateTime(row.createdAt)}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Trạng thái',
+      cell: (row) => (
+        <div className="space-y-1">
+          <StatusBadge {...(STATUS[row.status] ?? { label: row.status, variant: 'neutral' as BadgeVariant })} />
+          {row.hasPendingEdit && <p className="text-xs font-semibold text-on-surface-variant">Có bản sửa chờ duyệt</p>}
+        </div>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Thao tác',
+      align: 'end',
+      cell: (row) => (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            leftIcon={<History className="h-4 w-4" />}
+            onClick={() => setDetail(row)}
+            aria-label={`Chi tiết ${row.title}`}
+          >
+            Chi tiết
+          </Button>
+          {actionsFor(row).map((a) => (
+            <Button
+              key={a}
+              size="sm"
+              variant={a === 'LOCK' || a === 'HIDE' ? 'danger' : 'secondary'}
+              leftIcon={a === 'LOCK' ? <Lock className="h-4 w-4" /> : undefined}
+              onClick={() => setAction({ row, action: a })}
+              aria-label={`${ACTION_LABELS[a]}: ${row.title}`}
+            >
+              {ACTION_LABELS[a]}
+            </Button>
+          ))}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-6" data-ready={status === 'loading' ? undefined : 'true'}>
+      <header>
+        <h1 className="text-2xl font-bold">Quản lý tất cả tin</h1>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Mọi thao tác khóa/ẩn đều cần lý do và được ghi vào lịch sử của tin.
+        </p>
+      </header>
+      <form
+        className="grid grid-cols-1 gap-3 rounded-lg border border-outline-variant p-4 sm:grid-cols-2 lg:grid-cols-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setPage(0);
+          setFilters(draft);
+        }}
+      >
+        <FormField label="Từ khóa" className="lg:col-span-2">
+          {(control) => (
+            <TextInput
+              {...control}
+              placeholder="Tiêu đề, địa chỉ, người đăng, mã tin"
+              value={draft.q ?? ''}
+              onChange={(e) => setDraft({ ...draft, q: e.target.value })}
+            />
+          )}
+        </FormField>
+        <FormField label="Trạng thái">
+          {(control) => (
+            <Select
+              {...control}
+              value={draft.status ?? ''}
+              onChange={(e) => setDraft({ ...draft, status: e.target.value })}
+              options={[
+                { value: '', label: 'Tất cả' },
+                ...Object.entries(STATUS).map(([value, s]) => ({ value, label: s.label })),
+              ]}
+            />
+          )}
+        </FormField>
+        <FormField label="Nguồn">
+          {(control) => (
+            <Select
+              {...control}
+              value={draft.source ?? ''}
+              onChange={(e) => setDraft({ ...draft, source: e.target.value })}
+              options={[
+                { value: '', label: 'Tất cả' },
+                { value: 'DIRECT', label: 'Đăng trực tiếp' },
+                { value: 'IMPORT', label: 'Nhập hàng loạt' },
+                { value: 'SEED', label: 'Dữ liệu mẫu' },
+              ]}
+            />
+          )}
+        </FormField>
+        <FormField label="Mã quận/huyện">
+          {(control) => (
+            <TextInput
+              {...control}
+              value={draft.district ?? ''}
+              onChange={(e) => setDraft({ ...draft, district: e.target.value })}
+            />
+          )}
+        </FormField>
+        <div className="flex flex-wrap items-end gap-4 sm:col-span-2 lg:col-span-5">
+          <Checkbox
+            label="Chỉ tin có bản sửa chờ duyệt"
+            checked={draft.pendingEdit ?? false}
+            onChange={(e) => setDraft({ ...draft, pendingEdit: e.target.checked })}
+          />
+          <Button type="submit" leftIcon={<Search className="h-4 w-4" />}>
+            Lọc
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            leftIcon={<RefreshCw className="h-4 w-4" />}
+            onClick={() => void load()}
+          >
+            Tải lại
+          </Button>
+        </div>
+      </form>
+      {feedback && <InlineFeedback kind="success" title={feedback} />}
+      <DataTable
+        caption={`Danh sách tin (${total})`}
+        columns={columns}
+        rows={rows}
+        getRowId={(row) => row.id}
+        status={status}
+        errorMessage={error ?? undefined}
+        onRetry={() => void load()}
+        empty={<EmptyState title="Không có tin phù hợp bộ lọc" />}
+        footer={
+          total > 20 ? (
+            <Pagination page={page + 1} pageCount={Math.ceil(total / 20)} onPageChange={(p) => setPage(p - 1)} />
+          ) : undefined
+        }
+      />
+      <ReasonDialog
+        open={action !== null}
+        title={action ? `${ACTION_LABELS[action.action]}: ${action.row.title}` : ''}
+        description="Lý do được lưu vào lịch sử trạng thái của tin cùng tên người thực hiện."
+        noteLabel="Lý do"
+        noteMinLength={5}
+        confirmLabel={action ? ACTION_LABELS[action.action] : ''}
+        confirmVariant={action?.action === 'LOCK' || action?.action === 'HIDE' ? 'danger' : 'primary'}
+        onClose={() => setAction(null)}
+        onConfirm={async (_code, reason) => {
+          if (!action) return;
+          const result = await adminListingsApi.changeStatus(action.row.id, action.action, reason);
+          setFeedback(
+            `${ACTION_LABELS[action.action]}: ${action.row.title} sang ${STATUS[result.toStatus]?.label ?? result.toStatus}`,
+          );
+          await load();
+        }}
+      />
+      {detail && <ListingDetailSheet row={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
 }
-export default AdminListingsPage;
+
+function ListingDetailSheet({ row, onClose }: { row: AdminListingRow; onClose: () => void }) {
+  const [revisions, setRevisions] = useState<RevisionRow[] | null>(null);
+  const [history, setHistory] = useState<StatusHistoryRow[]>([]);
+  const [preview, setPreview] = useState<ListingPreview | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    Promise.all([adminListingsApi.revisions(row.id), adminListingsApi.history(row.id)])
+      .then(([r, h]) => {
+        setRevisions(r);
+        setHistory(h);
+      })
+      .catch((err) => setError(errorMessage(err, 'Không tải được lịch sử.')));
+  }, [row.id]);
+  const openPreview = async (revisionId?: string) => {
+    try {
+      setPreview(await adminListingsApi.preview(row.id, revisionId));
+    } catch (err) {
+      setError(errorMessage(err, 'Không mở được bản xem trước.'));
+    }
+  };
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={row.title}
+      description="Phiên bản, lịch sử trạng thái và bản xem trước riêng tư"
+    >
+      <div className="space-y-6">
+        {error && <InlineFeedback kind="error" title={error} />}
+        <section aria-labelledby="rev-heading">
+          <h3 id="rev-heading" className="text-base font-bold">
+            Phiên bản
+          </h3>
+          {!revisions ? (
+            <Skeleton className="mt-2 h-24" />
+          ) : (
+            <ul className="mt-2 space-y-2 text-sm">
+              {revisions.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-container-low p-2"
+                >
+                  <span>
+                    #{r.revisionNumber} · {r.status}
+                    {r.isPublic ? ' · đang công khai' : ''} · {formatPriceVnd(r.priceVnd)} ·{' '}
+                    {formatDateTime(r.submittedAt ?? r.createdAt)}
+                    {r.moderationNote ? (
+                      <span className="block text-on-surface-variant">Ghi chú duyệt: {r.moderationNote}</span>
+                    ) : null}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    leftIcon={<Eye className="h-4 w-4" />}
+                    onClick={() => openPreview(r.id)}
+                    aria-label={`Xem trước phiên bản ${r.revisionNumber}`}
+                  >
+                    Xem trước
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        {preview && (
+          <section aria-labelledby="preview-heading" className="rounded-md border border-outline-variant p-3">
+            <h3 id="preview-heading" className="text-base font-bold">
+              Xem trước riêng tư — phiên bản #{preview.revisionNumber} ({preview.revisionStatus})
+            </h3>
+            <p className="text-xs text-on-surface-variant">
+              Chỉ quản trị viên xem được; không lưu cache, không công khai.
+            </p>
+            <p className="mt-2 font-semibold">{preview.title}</p>
+            <p className="text-sm">
+              {formatPriceVnd(preview.priceVnd)} · {preview.areaM2} m² · {preview.addressSummary ?? 'Chưa có địa chỉ'}
+            </p>
+            <p className="mt-2 whitespace-pre-line text-sm">{preview.description ?? 'Chưa có mô tả.'}</p>
+            <p className="mt-2 text-xs text-on-surface-variant">{preview.mediaUrls.length} ảnh đính kèm</p>
+          </section>
+        )}
+        <section aria-labelledby="hist-heading">
+          <h3 id="hist-heading" className="text-base font-bold">
+            Lịch sử trạng thái
+          </h3>
+          {history.length === 0 ? (
+            <p className="mt-1 text-sm text-on-surface-variant">Chưa có thao tác quản trị nào.</p>
+          ) : (
+            <ol className="mt-2 space-y-2 text-sm">
+              {history.map((h) => (
+                <li key={h.id} className="rounded-md bg-surface-container-low p-2">
+                  <span className="font-semibold">{ACTION_LABELS[h.action] ?? h.action}</span> ({h.fromStatus ?? '?'}{' '}
+                  sang {h.toStatus}) · {h.actorName ?? 'Hệ thống'} · {formatDateTime(h.createdAt)}
+                  <span className="block text-on-surface-variant">Lý do: {h.reason}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+    </Sheet>
+  );
+}

@@ -96,6 +96,35 @@ services:
       OUTBOX_WEBHOOK_URL: ${OUTBOX_WEBHOOK_URL:-}
       OUTBOX_SIGNING_KEY: ${OUTBOX_SIGNING_KEY:-}
       OUTBOX_POLL_DELAY_MS: ${OUTBOX_POLL_DELAY_MS:-1000}
+      APP_NOTIFICATIONS_FANOUT: ${APP_NOTIFICATIONS_FANOUT:-redis}
+      APP_ENGAGEMENT_SCHEDULER_ENABLED: ${APP_ENGAGEMENT_SCHEDULER_ENABLED:-true}
+      APP_JOBS_ENABLED: ${APP_JOBS_ENABLED:-true}
+      APP_JOBS_POLL_MS: ${APP_JOBS_POLL_MS:-1000}
+      APP_JOBS_STALL_AFTER: ${APP_JOBS_STALL_AFTER:-PT2M}
+      APP_JOBS_RETRY_BASE: ${APP_JOBS_RETRY_BASE:-PT30S}
+      APP_JOBS_RETRY_CAP: ${APP_JOBS_RETRY_CAP:-PT1H}
+      APP_JOBS_COMPLETED_RETENTION: ${APP_JOBS_COMPLETED_RETENTION:-P7D}
+      APP_JOBS_DEAD_RETENTION: ${APP_JOBS_DEAD_RETENTION:-P30D}
+      APP_JOBS_PURGE_CRON: "${APP_JOBS_PURGE_CRON:-0 17 * * * *}"
+      APP_JOBS_METRICS_ENABLED: ${APP_JOBS_METRICS_ENABLED:-true}
+      APP_JOBS_METRICS_REFRESH_MS: ${APP_JOBS_METRICS_REFRESH_MS:-15000}
+      APP_SEARCH_ELASTICSEARCH_ENABLED: ${APP_SEARCH_ELASTICSEARCH_ENABLED:-true}
+      APP_SEARCH_INDEX_NAME: ${APP_SEARCH_INDEX_NAME:-bds-listings}
+      # HMAC key of search page cursors (>= 32 chars, same value on every instance); production refuses to start without it.
+      SEARCH_CURSOR_SECRET: ${SEARCH_CURSOR_SECRET:?Set SEARCH_CURSOR_SECRET}
+      # HMAC key of signed media URLs (drafts/hidden listings, >= 32 chars, same on every instance); production refuses to start without it.
+      MEDIA_SIGNING_SECRET: ${MEDIA_SIGNING_SECRET:?Set MEDIA_SIGNING_SECRET}
+      MEDIA_PREVIOUS_SIGNING_SECRET: ${MEDIA_PREVIOUS_SIGNING_SECRET:-}
+      APP_SEARCH_INDEX_REPLICAS: ${APP_SEARCH_INDEX_REPLICAS:-0}
+      APP_SEARCH_TIMEOUT: ${APP_SEARCH_TIMEOUT:-PT0.8S}
+      APP_SEARCH_BREAKER_OPEN_FOR: ${APP_SEARCH_BREAKER_OPEN_FOR:-PT30S}
+      APP_SEARCH_BOOTSTRAP_ON_STARTUP: ${APP_SEARCH_BOOTSTRAP_ON_STARTUP:-true}
+      APP_SEARCH_TRUST_EXPIRY_CRON: "${APP_SEARCH_TRUST_EXPIRY_CRON:-0 40 3 * * *}"
+      APP_SEARCH_CACHE_ENABLED: ${APP_SEARCH_CACHE_ENABLED:-true}
+      # Off until the rate-limit policy for POST /api/v1/events (stream S5) is deployed.
+      APP_ANALYTICS_INGESTION_ENABLED: ${APP_ANALYTICS_INGESTION_ENABLED:-false}
+      APP_ANALYTICS_INTERNAL_NETWORKS: ${APP_ANALYTICS_INTERNAL_NETWORKS:-}
+      APP_ANALYTICS_MAINTENANCE_ENABLED: ${APP_ANALYTICS_MAINTENANCE_ENABLED:-true}
       FEATURE_REAL_KYC: ${FEATURE_REAL_KYC:-false}
       FEATURE_REAL_TRANSACTIONS: ${FEATURE_REAL_TRANSACTIONS:-false}
       APP_MEDIA_ALLOWED_HOSTS: ${APP_MEDIA_ALLOWED_HOSTS:-nhadatchuan.online,www.nhadatchuan.online}
@@ -122,10 +151,32 @@ services:
       SPRING_MAIL_WRITE_TIMEOUT_MS: ${SPRING_MAIL_WRITE_TIMEOUT_MS:-5000}
       APP_MAIL_FROM: ${APP_MAIL_FROM:-no-reply@bds.local}
       APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:3000}
+      # S7-SEO: the prerender layer reads the built SPA shell from the frontend container (cached 1 min, last good kept).
+      APP_SEO_SHELL_LOCATION: ${APP_SEO_SHELL_LOCATION:-http://frontend:3000/index.html}
+      # Operator identity on /about, /contact, /terms, /privacy; empty values are shown as "Chưa có dữ liệu".
+      APP_OPERATOR_LEGAL_NAME: ${APP_OPERATOR_LEGAL_NAME:-}
+      APP_OPERATOR_BUSINESS_REGISTRATION: ${APP_OPERATOR_BUSINESS_REGISTRATION:-}
+      APP_OPERATOR_TAX_CODE: ${APP_OPERATOR_TAX_CODE:-}
+      APP_OPERATOR_ADDRESS: ${APP_OPERATOR_ADDRESS:-}
+      APP_OPERATOR_REPRESENTATIVE: ${APP_OPERATOR_REPRESENTATIVE:-}
+      APP_OPERATOR_EMAIL: ${APP_OPERATOR_EMAIL:-}
+      APP_OPERATOR_PHONE: ${APP_OPERATOR_PHONE:-}
+      APP_OPERATOR_HOTLINE_HOURS: ${APP_OPERATOR_HOTLINE_HOURS:-}
       APP_GEOCODING_PROVIDER_URL: ${APP_GEOCODING_PROVIDER_URL:-https://photon.komoot.io}
       APP_GEOCODING_CONTACT: ${APP_GEOCODING_CONTACT:-}
       APP_SHOWCASE_OWNER_ID: ${APP_SHOWCASE_OWNER_ID:-70000000-0000-0000-0000-000000000001}
       DEMO_ACCOUNT_PASSWORD: ${DEMO_ACCOUNT_PASSWORD:?Set DEMO_ACCOUNT_PASSWORD in .env}
+      # Peers allowed to assert the client address (X-Real-IP from Nginx); see docs/ops/PRODUCTION_TOPOLOGY.md.
+      APP_SECURITY_TRUSTED_PROXIES: ${APP_SECURITY_TRUSTED_PROXIES:-127.0.0.0/8,::1/128,172.16.0.0/12,192.168.0.0/16}
+      APP_RATE_LIMIT_ENABLED: ${APP_RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_KEY_PEPPER: ${RATE_LIMIT_KEY_PEPPER:-}
+      # Scales every rate limit; keep 1 in production. The demo/E2E stack raises it (all browsers share one IP).
+      APP_SECURITY_RATELIMIT_LIMITMULTIPLIER: ${RATE_LIMIT_LIMIT_MULTIPLIER:-1}
+      # Staff second factor (ADR 0001 phase B). Keep true in production (refused false when APP_MODE=production);
+      # only the throwaway E2E stack turns it off, its demo staff accounts have no authenticator.
+      APP_SECURITY_MFA_REQUIRED: ${APP_SECURITY_MFA_REQUIRED:-true}
+      APP_SECURITY_SESSION_STAFF_TTL: ${APP_SECURITY_SESSION_STAFF_TTL:-PT8H}
+      APP_SECURITY_SESSION_STAFF_IDLE_TIMEOUT: ${APP_SECURITY_SESSION_STAFF_IDLE_TIMEOUT:-PT30M}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -145,7 +196,9 @@ services:
       dockerfile: Dockerfile
       args: { VITE_PUBLIC_API_BASE_URL: /api/v1 }
     restart: unless-stopped
-    ports: ["3000:3000"]
+    # Loopback only: Nginx trusts forwarded client addresses from the Docker/loopback ranges, so nothing on the LAN
+    # may reach it directly. Public traffic arrives through cloudflared inside the Compose network.
+    ports: ["127.0.0.1:3000:3000"]
     depends_on:
       backend: { condition: service_healthy }
     networks: [bds-network]

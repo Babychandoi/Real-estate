@@ -24,19 +24,17 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
 
     private final ListingJpaRepository listingRepository;
     private final ListingEntityMapper mapper;
-    private final com.company.bds.search.ElasticsearchListingIndex searchIndex;
 
-    public ListingPersistenceAdapter(ListingJpaRepository listingRepository, ListingEntityMapper mapper, com.company.bds.search.ElasticsearchListingIndex searchIndex) {
+    public ListingPersistenceAdapter(ListingJpaRepository listingRepository, ListingEntityMapper mapper) {
         this.listingRepository = listingRepository;
         this.mapper = mapper;
-        this.searchIndex = searchIndex;
     }
 
     @Override
     @Transactional
     public Listing save(Listing listing) {
         ListingJpaEntity entity = mapper.toJpaEntity(listing);
-        ListingJpaEntity saved = listingRepository.save(entity);
+        ListingJpaEntity saved = listingRepository.saveAndFlush(entity);
         return mapper.toDomain(saved);
     }
 
@@ -90,8 +88,6 @@ public class ListingPersistenceAdapter implements ListingPersistencePort {
 
     @Override
     public List<Listing> searchListings(com.company.bds.listing.domain.model.ListingSearchCriteria criteria, int page, int size) {
-        var elasticIds = searchIndex.search(criteria, page, size);
-        if (elasticIds.isPresent()) return hydrateInOrder(elasticIds.get());
         String purpose = criteria.purpose() != null ? criteria.purpose().name() : null;
         String propertyType = criteria.propertyType() != null ? criteria.propertyType().name() : null;
 

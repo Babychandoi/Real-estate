@@ -209,6 +209,17 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'; $env:PATH = "C:\Program Files\J
 
 👉 **Tổng kết:** `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0` — **BUILD SUCCESS** (100% Passed).
 
+**Cập nhật sau đợt Audit W2 (2026-09-28):** trên nhánh tích hợp `audit-2026-09-27` (đã gộp S2-SEARCH, S3a-SUPPLY,
+S4-ADMIN), `mvnw verify` với hạ tầng test PostgreSQL/PostGIS/Elasticsearch/Redis riêng biệt cho **272 test, 0 lỗi,
+0 skipped, BUILD SUCCESS** (S2 210 test, S3a 178 test, S4 192 test khi chạy độc lập ở Review 2, có trùng lặp giữa
+các nhánh trước khi gộp). Xem `docs/audit-2026-09-27/streams/{s2-search,s3a-supply,s4-admin}.md` §1.
+
+**Cập nhật sau đợt Audit W3 + UI merge (2026-09-28):** nhánh tích hợp sau merge S6 (đã gộp S1-MEDIA, UI redesign,
+S3b-LEADS, S6-ENGAGE): **332 test, 0 lỗi**. Xem `docs/audit-2026-09-27/streams/{s1-media,s3b-leads,s6-engage}.md`.
+
+**Cập nhật sau đợt Audit W4 (2026-09-28):** nhánh tích hợp sau merge S8-ANALYTICS/S5-SEC phase B/S7-SEO: **398 test,
+0 lỗi, 0 skipped, BUILD SUCCESS**. Xem `docs/audit-2026-09-27/streams/{s5b-sec,s7-seo,s8-analytics}.md`.
+
 ---
 
 ### 2. Kết quả kiểm thử đóng gói Frontend (TypeScript & Vite)
@@ -218,6 +229,17 @@ npm run build
 ```
 - Kiểm tra TypeScript (`tsc -b`): **0 type errors**, tuân thủ tuyệt đối quy tắc `noUnusedLocals: true`.
 - Đóng gói Vite (`vite build`): Tạo thành công bundle production `dist/` với 1598 modules chuyển đổi trong **3.01 giây**.
+
+**Cập nhật sau đợt Audit W2 (2026-09-28):** trên nhánh tích hợp — `npm run lint` **0 cảnh báo**, `tsc` **0 lỗi**,
+`vitest` **19 file / 158 test**, `npm run build` **OK**, `npm run check:bundle` **OK** (mọi route trong ngân sách đo
+được + biên độ; xem bảng route bên dưới cho các route mới/được viết lại).
+
+**Cập nhật sau đợt Audit W3 + UI merge (2026-09-28):** lint **0**, `tsc` **0 lỗi**, `vitest` **24 file / 178 test**,
+`npm run build` **OK**, `npm run check:bundle` **OK**.
+
+**Cập nhật sau đợt Audit W4 (2026-09-28):** lint **0**, `tsc` **0 lỗi**, `vitest` **215 test**, `npm run build` **OK**,
+`npm run check:bundle` **OK** (mọi route trong ngân sách; `/verify-email`, `/listings/new`, `/kyc`, `/account` nâng
+lên đo được + biên độ sau khi gộp S7/S5B, phần giảm để S10 xử lý).
 
 ---
 
@@ -240,6 +262,55 @@ npm run build
 | **Dự án BĐS** | `/admin/projects` | Dự án BĐS | Quản lý dự án nguồn, đối soát QH 1/500, duyệt revision |
 | **CMS Bài viết** | `/admin/cms` | CMS Bài viết | Quản trị bài viết, đối soát pháp lý FR32, duyệt xuất bản |
 | **API Docs Swagger** | `http://localhost:8080/swagger-ui/index.html` | Swagger UI | Tài liệu tra cứu tương tác OpenAPI 3.0 cho 10 Controllers |
+
+**Cập nhật sau đợt Audit W2 (2026-09-28) — route/API viết lại trên API v2 (S2-SEARCH, S3a-SUPPLY, S4-ADMIN):**
+
+| Nhóm chức năng | Đường dẫn Route / API | Luồng | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| Tìm kiếm & bản đồ | `/search`, `GET /api/v2/listings/search`, `GET /api/v2/listings/map` | S2-SEARCH | Envelope `items/pageInfo/total/queryVersion/dataAsOf/engine/degraded`, cursor ký HMAC, ES + fallback PostgreSQL |
+| Chi tiết tin | `/listings/:slug`, `GET /api/v2/listings/{slugOrId}` | S2-SEARCH | `404` chưa từng công khai / `410` (`listingTitle`) đã từng công khai nay ẩn |
+| So sánh | `/compare` | S2-SEARCH | Đọc `listingTitle` khi tin đã 410 |
+| Trang người đăng | `/nguoi-dang/:sellerId`, `GET /api/v2/public/sellers/{id}/listings` | S2-SEARCH | Phân trang cursor, bỏ giới hạn 60 tin |
+| Đăng tin | `/listings/new` | S3a-SUPPLY | Wizard 4 bước, tự lưu draft, giải quyết xung đột 409 |
+| Kho tin của tôi | `/my-listings`, `GET /api/v2/me/listings` | S3a-SUPPLY | Phân trang server, tách bản công khai / bản sửa chờ duyệt, import CSV |
+| Trở thành chủ nhà | `/become-owner`, `POST /api/v1/me/become-owner` | S3a-SUPPLY | Xác nhận rõ ràng, một lần, có audit |
+| Kiểm duyệt admin | `/admin/moderation`, `GET/POST /api/v1/moderation/**` | S4-ADMIN | Phân trang, claim, bulk ≤50, four-eyes, phát hiện trùng lặp |
+| Người dùng admin | `/admin/users` | S4-ADMIN | Đổi vai trò có lý do, khóa/mở, truy cập KYC có log |
+| Báo cáo admin | `/admin/reports` | S4-ADMIN | Hàng đợi báo xấu riêng, SLA theo mức độ nghiêm trọng |
+| Thẩm định admin | `/admin/verification` | S4-ADMIN | Quyết định trust có bốn mắt, không cache KYC |
+| Billing / KYC người dùng | `/billing`, `/kyc`, `GET/PUT /api/v1/billing/**` | S4-ADMIN | Idempotency-Key theo actor, đối soát ngoại lệ |
+
+**Cập nhật sau đợt Audit W3 (2026-09-28) — S1-MEDIA, S3b-LEADS, S6-ENGAGE:**
+
+| Nhóm chức năng | Đường dẫn Route / API | Luồng | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| Ảnh công khai | `GET /api/v1/public/media/{key}`, `{key}__w{n}.webp` | S1-MEDIA | Chỉ khi được tin ACTIVE/avatar/CMS công khai tham chiếu; `public, max-age=86400` |
+| Ảnh URL ký | `POST /api/v1/media/signed-urls`, `GET /api/v1/media/signed/{key}` | S1-MEDIA | HMAC ≤ 1 h, `no-store`, không áp dụng KYC |
+| Backfill ảnh (admin) | `GET/POST /api/v2/admin/media/backfill` | S1-MEDIA | ADMIN, lặp tới khi hết LEGACY |
+| Lead của tôi | `/my-leads`, `GET /api/v1/leads/inbox` | S3b-LEADS | JOIN owner, filter server, `expectedVersion` |
+| Yêu cầu của tôi | `/my-inquiries`, `/api/v1/me/inquiries/**`, `/api/v1/appointments/**` | S3b-LEADS | Lịch hẹn, đề xuất lại, rút yêu cầu |
+| Workspace môi giới | `/broker/workspace`, `GET /api/v1/leads/report` | S3b-LEADS | SLA đo thật, việc hôm nay, đội, ROI |
+| Tin đã lưu / tìm kiếm đã lưu | `/saved`, `/api/v1/me/saved-listings/**`, saved searches | S6-ENGAGE | Cảnh báo mới/giảm giá/còn hàng, tần suất |
+| Thông báo | `/notifications`, feed/unread-count/SSE | S6-ENGAGE | Cursor seq, Redis fan-out, `Last-Event-ID` |
+| Shortlist chia sẻ | `/shortlists/:token` | S6-ENGAGE | OWNER/EDITOR/VIEWER, tắt thông báo |
+| Hủy đăng ký | `/unsubscribe`, `POST /api/v1/public/unsubscribe` | S6-ENGAGE | RFC 8058 one-click |
+| Tài khoản | `/account` | S6-ENGAGE | Tùy chọn thông báo, quyền riêng tư |
+
+**Cập nhật sau đợt Audit W4 (2026-09-28) — S5-SEC phase B, S7-SEO, S8-ANALYTICS:**
+
+| Nhóm chức năng | Đường dẫn Route / API | Luồng | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| Đăng nhập admin (MFA) | `/2026/nhadatchuan/admin/login`, `POST /api/v1/auth/admin/login`, `/api/v1/auth/admin/mfa/**` | S5-SEC phase B | 2 bước mật khẩu → TOTP/mã khôi phục, lần đầu buộc enroll |
+| Bảo mật tài khoản | `/2026/nhadatchuan/admin/security`, `GET/POST /me/sessions*`, `/me/password`, `/me/mfa*`, `/me/security-events` | S5-SEC phase B | Danh sách phiên, thu hồi, đổi mật khẩu, nhật ký |
+| Quản trị MFA người khác | `POST /admin/users/{id}/mfa/reset`, `/admin/users/{id}/sessions/revoke` | S5-SEC phase B | Bắt buộc lý do, ghi lịch sử |
+| Token xác minh/reset | `/verify-email`, `/forgot-password`, `/reset-password` | S5-SEC phase B | `TOKEN_INVALID/EXPIRED/USED/SUPERSEDED`, `returnTo` an toàn |
+| Trang render công khai | `GET /render/**` (sau Nginx `@prerender`), `/`, `/listings/:slug`, `/du-an/:slug`, `/khu-vuc/:slug`, `/tin-tuc/:slug` | S7-SEO | HTML đầy đủ không cần JS; 404/410/301 thật |
+| Sitemap | `GET /sitemap.xml`, `/sitemaps/**` | S7-SEO | Index nhiều phần, snapshot cache 10 phút |
+| Dự án / khu vực / tin tức | `/du-an`, `/khu-vuc`, `/tin-tuc` | S7-SEO | Inventory thật, giá median (≥5 tin), tiện ích có nguồn |
+| CMS admin | `/admin/cms`, `GET/PUT /api/v1/cms/**` | S7-SEO | Revision bất biến, lịch xuất bản, preview token |
+| Trang thông tin | `/about`, `/terms`, `/privacy`, `/contact` | S7-SEO | Khối vận hành từ `APP_OPERATOR_*` |
+| Consent phân tích | `POST /api/v1/events/consent` | S8-ANALYTICS | Opt-in, không lưu gì trước khi `granted` |
+| Dashboard admin analytics | `/admin/analytics`, `GET /api/v1/analytics/dashboard` | S8-ANALYTICS | MEASURED/NOT_MEASURED, cohort, north-star, RUM p75 |
 
 ---
 
@@ -557,3 +628,111 @@ npm run build
 # 2026-09-26 - Profile avatar camera badge
 
 - `_account.profile.tsx`: only the photo is clipped to the circle; the camera badge sits on its edge with a white ring instead of being cut by `overflow-hidden`. Frontend build passed; verified by Playwright screenshot on the demo stack.
+
+# 2026-09-28 - Audit W1 merged: backend foundation, frontend foundation, ops security (phase A)
+
+- Streams S0-BE, S0-FE, S5-SEC phase A each passed an independent Review 2, fixed every finding, and were merged into `audit-2026-09-27` (conflicts: CI workflow, `.gitignore`, resolved keeping both sides).
+- Review 3 integration fixes: three S5 test classes still used the pre-PostgreSQL `@SpringBootTest` setup (connected to `localhost:5432`) — moved to `BdsIntegrationTestInitializer`, dropping the fixed Redis DB so each JVM claims its own; `EventIngestionTests` now checks `no-store` is present instead of an exact header that S5's `SensitiveResponseCacheFilter` intentionally strengthened.
+- Results on the merged branch: backend `mvnw verify` 154/154 (full test infra); frontend lint, typecheck, format, 142 unit tests, build and route budget all green.
+- Stream reports: `docs/audit-2026-09-27/streams/{s0-be,s0-fe,s5-sec-a}.md`; matrix statuses updated in `01_REQUIREMENTS.md`.
+
+# 2026-09-28 - Audit W2 merged: search read model/index, supply write path, admin desks (S2-SEARCH, S3a-SUPPLY, S4-ADMIN)
+
+- Streams S2-SEARCH (`787bf50`), S3a-SUPPLY (`059fbef`), S4-ADMIN (`feef7a0`) each passed an independent Review 2, fixed every finding, and were merged into `audit-2026-09-27`; integration fix `1dba873` on top changed the sold-check cooldown to count distinct **decrypted** reporter phones (S4 encrypts each phone with a random IV, so the ciphertext itself is never a stable dedupe key) and raised the `/search`, `/billing`, `/kyc` bundle budgets to measured + margin (the reduction itself is S10-PERF's).
+- **Files/modules**: backend `com.company.bds.search` (read model, ES pipeline, search/map/detail v2 API, Flyway V033–V036), `com.company.bds.listing` write path + freshness/import (Flyway V045–V048), `com.company.bds.moderation`/`admin`/`billing` (queue v2, duplicate detection, trust decisions, reporter-phone encryption, billing reconciliation, Flyway V055–V061). Frontend `features/search` (SearchPanels lazy chunk, Gallery, ListingCard, TrustBadge), `/listings/new` 4-step wizard with autosave, `/my-listings`, admin moderation/listings/users/reports/verification/billing pages.
+- **Routes**: `/search`, `/listings/:slug`, `/compare`, `/nguoi-dang/:sellerId` (S2, on API v2); `/listings/new`, `/my-listings`, `/become-owner` (S3a); `/billing`, `/kyc`, admin `/moderation`, `/listings`, `/users`, `/reports`, `/verification`, `/billing` (S4). API: `GET /api/v2/listings/search|map|{slugOrId}`, `GET /api/v2/public/sellers/{id}/listings`, `GET/PUT /api/v2/me/listings/**`, `POST /api/v2/me/listings/import`, `POST /api/v1/me/become-owner`, `GET/POST /api/v1/moderation/**`, `GET/PUT /api/v1/billing/**`.
+- **Backend evidence**: integrated branch `mvnw verify` **272 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS** (per-stream Review 2 runs: S2 210, S3a 178, S4 192, on isolated PostgreSQL/PostGIS/Elasticsearch/Redis test infra with separate ports/DB prefixes per stream).
+- **Frontend evidence**: integrated branch — lint **0 warnings**, `tsc` **0 errors**, `vitest` **19 files / 158 tests**, `npm run build` **OK**, `npm run check:bundle` **OK** (`/search` 142.6 kB / budget 157, `/listings/:slug` 140.9 / 155, `/compare` 134.0 / 137, `/nguoi-dang/:sellerId` 132.3 / 135, `/listings/new` 132.3 / 140 kB gzip-1; budgets raised from the old gzip-9 targets to measured + ~10% margin, reduction owed to S10-PERF).
+- **User flows**: người tìm nhà tìm kiếm/lọc/xem bản đồ/xem chi tiết/so sánh trên API v2 với cursor ký và fallback ES→DB có kiểm soát; chủ nhà tự đăng tin qua wizard 4 bước có autosave/409-resolve, quản lý `/my-listings` (bản công khai vs bản sửa chờ duyệt), xác nhận còn hàng/gia hạn, import CSV; admin duyệt tin (claim → so khớp diff → quyết định có lý do → audit, bulk ≤50 four-eyes), xử lý trùng lặp (fingerprint + pg_trgm), quyết định trust (KYC/sở hữu, four-eyes, thu hồi), xử lý báo cáo theo SLA mức độ nghiêm trọng, đối soát billing (idempotent, CAS bank settings, exception queue).
+- **Production deploy notes**:
+  - `SEARCH_CURSOR_SECRET` (≥ 32 ký tự, giống nhau trên mọi instance) **bắt buộc** ở production; server từ chối khởi động nếu thiếu.
+  - PostgreSQL extension `pg_trgm` phải có sẵn (V060) — image PostGIS dùng trong dự án đã có contrib; nếu dùng image khác cần cài `postgresql-contrib`.
+  - **Dừng backend cũ trước khi khởi động backend mới** (không rolling deploy trộn cũ/mới cho đợt này): instance mới migrate index ES cụ thể `bds-listings` thành alias; mapping `dynamic: strict` chặn instance cũ ghi đè, nhưng full-scan sync/v1 search của nó sẽ lỗi ồn ào cho đến khi bị dừng.
+  - Migrations **V033–V061 chỉ thêm mới** (additive); rollback = image trước đó (bảng/trigger giữ nguyên; xem chi tiết per-stream trong `streams/s2-search.md` §6, `s3a-supply.md` §6, `s4-admin.md` §7 cho từng nhóm migration và biến môi trường mới).
+  - **Runbook trùng đơn hàng V061** (`s4-admin.md` §9, "Production runbook: open-order index"): nếu V061 log `package_orders still has several reported/exception orders...`, liệt kê các đơn trùng bằng `SELECT user_id, plan_code, array_agg(id ORDER BY created_at) FROM package_orders WHERE status IN ('CREATED','TRANSFER_REPORTED','EXCEPTION') GROUP BY 1, 2 HAVING count(*) > 1;`, xử lý từng đơn qua `/billing` (ghi nhận receipt / từ chối / đánh dấu đã hoàn tiền), sau đó tạo `CREATE UNIQUE INDEX CONCURRENTLY uq_package_orders_open_per_plan ON package_orders (user_id, plan_code) WHERE status IN ('CREATED','TRANSFER_REPORTED','EXCEPTION');`. Cho đến khi index này tồn tại, advisory lock vẫn giữ việc tạo đơn tuần tự.
+  - **Mã hóa số điện thoại người báo cáo chạy nền**: `ReporterPhoneEncryptionMigrator` là `@Scheduled` (lần đầu ~30 s sau khi khởi động, sau đó mỗi giờ, dưới task lock), mã hóa theo batch 500 dòng (`FOR UPDATE SKIP LOCKED`), bỏ qua giá trị đã có tiền tố `v1:`, tự resume nếu bị gián đoạn. Trong lúc rolling deploy, instance bản cũ vẫn ghi số điện thoại dạng plaintext — lần chạy hàng giờ tiếp theo sẽ mã hóa lại các dòng đó; API luôn chỉ trả về dạng che (mask) trong lúc chờ. Tắt bằng `app.reports.encrypt-legacy-phones=false`.
+- **Known gaps carried forward** (chi tiết trong từng `streams/*.md` §5/§6): cảnh báo lag/DLQ tìm kiếm chưa có rule (S5), EXPLAIN ở quy mô 100k/1M chưa có bằng chứng (S10), báo cáo tải S10 cho lag p95 tìm kiếm còn chờ, thời hạn lưu trữ hồ sơ KYC chưa được cấu hình (S4), phát hiện trùng lặp tin mới chạy theo sweep phút chứ chưa hook vào write path.
+- Stream reports: `docs/audit-2026-09-27/streams/{s2-search,s3a-supply,s4-admin}.md`; matrix statuses for S2/S3a/S4 rows updated to `DONE (W2)`/`PARTIAL (W2)` in `01_REQUIREMENTS.md`; contract §8 (`02_CONTRACTS.md`) corrected to the actual `listingTitle` key used by the 410 body.
+
+
+## CR-UI-2026-09 — Bàn giao giao diện sản phẩm (28/09/2026)
+
+### Phạm vi và module
+
+- Shared UI: `Dialog`, `Feedback`, `RouteFailure`, `AccountNavigation`, Button/Badge/Avatar; root shell công khai, account navigation theo vai trò và AdminShell sáng/responsive. Font, focus, spacing, card và form dùng token chung.
+- Public: home, tìm kiếm bằng URL + 24 tin/trang, giá thuê theo tháng, bản đồ lazy-load và fallback, card/compare tách action khỏi navigation; gallery hiển thị toàn bộ ảnh, metadata được dọn khi rời detail. Các trang seller/information/auth dùng shell mới.
+- Account: làm lại my-listings với filter/trạng thái/busy/retry, phân trang client 9 tin; đồng bộ form và navigation ở profile/leads/inquiries/broker/billing/KYC/đăng-sửa tin. Giữ API và nghiệp vụ hiện hữu.
+- Admin: sidebar/mobile dialog, theme sáng, tương phản moderation/CMS, filter users không tràn tablet; prefix admin chuyển tới moderation; CMS loading/error/retry. Giữ phân quyền và API.
+- Preview/test: `frontend/scripts/preview-ui.mjs`, `tests/ui/fixtures.mjs`, `tests/ui/product-ui.spec.ts`, `playwright.ui.config.ts`; cập nhật 2 test hành vi cũ theo UI thực tế. Fixture ngoài `app/`, có banner mô phỏng và không thay API production.
+- Tài liệu: `docs/ui/README.md`, `DESIGN_SYSTEM.md`, `FIGMA_HANDOFF.md`, `design-tokens.json`, `PAGE_MATRIX.md`, `PERFORMANCE_HANDOFF.md`, `QA.md`, `qa-summary.json`; ADR SPA hiện hữu là đề xuất review, chưa được duyệt.
+
+### Bảng tổng hợp kiểm thử của đợt
+
+| Kiểm tra | Kết quả |
+| --- | --- |
+| UI regression / route smoke / keyboard / axe | 192/192 đạt; 4 viewport Chromium; 0 bỏ qua; retries=0 |
+| TypeScript strict + script lint | Đạt, không lỗi; lint hiện là tsc |
+| Frontend Vite build | Đạt; MapLibre vẫn có cảnh báo chunk >500 kB |
+| Backend Maven wrapper verify | Chưa chạy được test: DNS tải parent POM từ Maven Central thất bại |
+| Backend thật / Safari / Firefox / tải lớn / visual baseline cũ | Chưa nghiệm thu trong đợt UI |
+
+Bằng chứng và giới hạn chi tiết ở `docs/ui/QA.md`. Không gộp số test backend từ các đợt cũ vào kết quả đợt này.
+
+### Vận hành và user flows
+
+Chuyển nhánh `feat/ui-product-design-20260928`, vào `frontend`, `npm ci`, `npm run preview:ui`, mở `http://127.0.0.1:4173`. Login mô phỏng bằng `preview@example.test` và mật khẩu không rỗng; đổi vai trò bằng `-- --role=BROKER|USER|MODERATOR|ADMIN`. Chạy `npm run dev` với backend thật cho nghiệm thu nghiệp vụ; fixture không xử lý giao dịch thật.
+
+Luồng đã kiểm tra: tìm mua/thuê → filter → trang 2 → refresh/back → detail/gallery; chọn 2 tin → compare → refresh; login → tài khoản; my-listings → nộp duyệt/ẩn tin và lỗi API; CMS lỗi tải → retry. Backend/upload/KYC/payment cần môi trường tích hợp.
+
+### Bảng ánh xạ route cập nhật
+
+| Nhóm | Route |
+| --- | --- |
+| Public khám phá | `/`, `/search`, `/listings/:listingId`, `/compare`, `/nguoi-dang/:sellerId` |
+| Public thông tin/auth | `/about`, `/terms`, `/privacy`, `/contact`, `/forgot-password`, `/reset-password`, `/verify-email`, `*`; login/register modal |
+| Account | `/account`, `/my-listings`, `/my-leads`, `/my-inquiries`, `/broker/workspace`, `/billing`, `/kyc` |
+| Đăng/sửa | `/listings/new`, `/listings/new?edit=:id` |
+| Admin prefix `/2026/nhadatchuan/admin` | index → moderation; `/login`, `/moderation`, `/listings`, `/users`, `/leads-and-reports`, `/verification`, `/billing`, `/analytics`, `/projects`, `/cms` |
+| Redirect legacy | `/admin/*`, `/2026/nhadatchua/admin/*` |
+
+Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAGE_MATRIX.md`. Đây là bộ mã chạy được; chưa tạo file Figma native và chưa triển khai production.
+
+
+# 2026-09-28 - Audit W3 merged: media pipeline, leads/appointments, engagement (S1-MEDIA, S3b-LEADS, S6-ENGAGE) + UI merge
+
+- Merged into `audit-2026-09-27`: S1-MEDIA (`a1f5b7f`), product UI redesign + audit logic (`eb08ec4`, from `audit/ui-design-merge`), S3b-LEADS (`f634862`), S6-ENGAGE (`58ea814`). Follow-up fix: the flaky `MediaPipelineIntegrationTests.publicServingFollowsListingVisibility` (ConcurrentModificationException while security headers were written) — media is now streamed synchronously as a `Resource` instead of an async `StreamingResponseBody`, whose worker committed the response while the request thread was still in `HeaderWriterFilter` (both wrote the same header map); class green 10/10 runs; `SensitiveResponseCacheFilterTests` updated for the synchronous body (full backend re-run: 332 tests, 0 failures).
+- **Files/modules**: backend `com.company.bds.media` (processor, variant job, resolver, signer, backfill, V085), `com.company.bds.lead`/appointments/workspace (V050–V052), `com.company.bds.notification` + `com.company.bds.engagement` (V068–V070). Frontend lead sheet/appointment panel/workspace, saved/notifications/shortlist/unsubscribe pages, resilient SSE client, `useSignedMediaUrls`; shared UI shells from the redesign.
+- **Backend evidence**: integrated S6 merge — **332 tests, 0 failures** (stream runs: S1 289, S3b 296; new tests S1 22, S3b 24, S6 21).
+- **Frontend evidence**: integrated — lint **0**, `tsc` **0 errors**, `vitest` **24 files / 178 tests**, `npm run build` **OK**, `npm run check:bundle` **OK**.
+- **User flows**: chủ tin/môi giới xem inbox lead một truy vấn, lọc server, đổi trạng thái/đánh giá/phân công có chống ghi đè, đề xuất lịch hẹn; người tìm nhà chọn slot/đề xuất lại/hủy/rút yêu cầu ở `/my-inquiries`; workspace hiển thị SLA đo thật và việc hôm nay; người dùng lưu tin, lưu tìm kiếm với tần suất, nhận cảnh báo tin mới/giảm giá/còn hàng qua trung tâm thông báo (SSE) và e-mail, hủy đăng ký một chạm, chia sẻ shortlist theo vai trò; ảnh tin hiển thị WebP srcset + LQIP, ảnh nháp/ẩn chỉ qua URL ký.
+- **Production deploy notes**:
+  - `MEDIA_SIGNING_SECRET` **bắt buộc**, ≥ 32 ký tự, giống nhau trên mọi instance (server từ chối khởi động nếu thiếu); xoay vòng qua `MEDIA_PREVIOUS_SIGNING_SECRET`.
+  - **Backfill ảnh** ngay sau deploy: lặp `POST /api/v2/admin/media/backfill?limit=200` (ADMIN) cho tới khi `enqueued=0` và `states.LEGACY=0` (`s1-media.md` Production notes §4); ảnh LEGACY vẫn phục vụ thô (có thể còn EXIF/GPS) cho tới khi xử lý. Sau đó **purge CDN `/api/v1/public/media/*`** một lần (header cũ `immutable` 1 năm).
+  - **Kiểm tra thư viện native WebP trên Linux**: `docker logs <backend> | grep "WebP encoder unavailable"` phải rỗng; `PENDING` giảm về 0 sau một upload.
+  - `APP_JOBS_ENABLED=true` trên **ít nhất một** instance. Queue mới: `media-variants`, `appointment-reminder`, `lead-sla-reminder`, `engage-listing-change` (+ task khóa `idempotency-key-purge`, digest/retention của S6).
+  - **Redis bắt buộc khi chạy ≥ 2 instance** (`APP_NOTIFICATIONS_FANOUT=redis`, mặc định); một instance không Redis có thể dùng `local`.
+  - **Access log phải để private**: đường dẫn chứa token chia sẻ shortlist và token hủy đăng ký.
+  - Migrations V050–V052, V068–V070, V085 đều additive, `lock_timeout 5s`; DB đã áp dụng V055+ từ bản tích hợp cũ cần DB mới hoặc chạy một lần `spring.flyway.out-of-order=true`.
+- **Known E2E caveats**: E2E supply cần seed KYC cho tài khoản đăng tin; test claim admin va chạm khi chạy song song trên hai viewport (cùng dữ liệu claim). **Chưa có Playwright E2E cho các trang S3b và S6** (`/my-leads`, `/my-inquiries`, `/broker/workspace`, `/saved`, `/notifications`, `/shortlists/:token`, `/unsubscribe`) — bàn giao S11.
+- **UI merge — phần thiết kế bị bỏ/điều chỉnh**: phân trang offset (→ cursor v2), `searchState.ts` (→ `filterSchema`), `ListingGallery` (→ `Gallery` S2), MapLibre tải sớm trong wizard (→ lazy), điểm chất lượng tính ở client (→ checklist server); header giữ menu "Mở menu tài khoản", nút đăng nhập/đăng tin hiện ở 320–360 px.
+- Stream reports: `docs/audit-2026-09-27/streams/{s1-media,s3b-leads,s6-engage}.md`, UI: `docs/ui/`; matrix rows `DONE (W3)`/`PARTIAL (W3)` in `01_REQUIREMENTS.md`; Flyway ranges in `00_PLAN.md`.
+
+# 2026-09-28 - Audit W4 merged: staff MFA/sessions, SEO prerender/CMS, analytics/consent/RUM (S5-SEC phase B, S7-SEO, S8-ANALYTICS)
+
+- Merged into `audit-2026-09-27`: S8-ANALYTICS (`70e29cd`), S5-SEC phase B (`8014fe1`), S7-SEO (`66d28da`). Integration fixes: the anonymous consent endpoint allowlisted in the access matrix and `web-vitals` installed (`b4669c5`); S7/S5B textual conflicts resolved keeping both sides in `SensitiveResponseCacheFilter`, `RateLimitPolicies` and `frontend/app/main.tsx`, and `/verify-email`, `/listings/new`, `/kyc`, `/account` bundle budgets raised to measured + margin — the reduction itself stays S10-PERF's (`40323a2`).
+- **Files/modules**: backend `com.company.bds.iam` (TOTP/MFA, session lifecycle, access matrix, token pages, Flyway V087–V089), `com.company.bds.seo`/`com.company.bds.cms` (prerender service, sitemap, JDBC CMS store, Flyway V090–V091), `com.company.bds.analytics` (consent, bot/internal flagging, retention jobs, dashboard, Flyway V095). Frontend staff MFA login/security pages, token-state pages, consent banner + `track()`/RUM (`web-vitals`), admin analytics dashboard, public `/du-an`/`/khu-vuc`/`/tin-tuc` pages, Nginx `@prerender`/`@spa_shell`.
+- **Routes**: admin `/2026/nhadatchuan/admin/login` (MFA challenge), `/2026/nhadatchuan/admin/security`; `/verify-email`, `/forgot-password`, `/reset-password` (token states); `/du-an`, `/du-an/:slug`, `/khu-vuc`, `/khu-vuc/:slug`, `/tin-tuc`, `/tin-tuc/:slug`, `/about`, `/terms`, `/privacy`, `/contact` (prerendered); admin `/analytics` (dashboard v2). API: `POST /api/v1/auth/admin/login` (MFA-shaped response), `/api/v1/auth/admin/mfa/**`, `/me/sessions*`, `/me/password`, `/me/mfa*`, `/me/security-events`, `/admin/users/{id}/mfa/reset`, `/admin/users/{id}/sessions/revoke`; `GET /render/**` (backend, behind Nginx), `GET /sitemap.xml` + `/sitemaps/**`, `GET/PUT /api/v1/cms/**`; `POST /api/v1/events/consent`, `GET /api/v1/analytics/dashboard`.
+- **Backend evidence**: integrated branch `mvnw verify` **398 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS** (per-stream: S5B 367/367 incl. ES/MinIO classes, S7 350, S8 345, with overlap across branches before merge; ES/MinIO started in shared `bds-test` for the full run).
+- **Frontend evidence**: integrated branch — lint **0**, `tsc` **0 errors**, `vitest` **215 tests**, `npm run build` **OK**, `npm run check:bundle` **OK** (every route within budget; `/verify-email`, `/listings/new`, `/kyc`, `/account` raised to measured + margin per the integration fix above).
+- **Other evidence**: `promtool check rules` — 33 rules; `promtool test rules` — SUCCESS (S5B). `scripts/seo-smoke.sh` (real Nginx image) — `verify-prerender` 50/50, `verify-headers` 153/153, backend-down fallback OK (S7).
+- **User flows**: staff đăng nhập qua cổng 2 bước (mật khẩu → TOTP/mã khôi phục), lần đầu buộc thiết lập authenticator, tự quản lý phiên/thiết bị ở "Bảo mật tài khoản", admin có thể "Đăng xuất mọi nơi"/"Đặt lại MFA" của người khác kèm lý do; người dùng gặp link xác minh/reset hết hạn/đã dùng/đã thay biết chính xác lý do và quay lại đúng trang trước khi bị chuyển hướng xác thực; khách truy cập thấy trang chủ/tin/dự án/khu vực/bài viết có nội dung đầy đủ ngay cả khi tắt JavaScript (crawler), 404/410 thật, sitemap chia phần; khách chọn "đồng ý"/"từ chối" phân tích trên banner trung lập trước khi bất kỳ sự kiện nào được ghi; admin xem dashboard phân biệt "chưa đo" và 0 theo nguồn/khu vực/thiết bị, cohort, north-star và phễu SLA.
+- **Production deploy notes**:
+  - **MFA rollout**: migration V088 thu hồi mọi phiên staff đang mở — mọi ADMIN/MODERATOR bị đăng xuất ngay sau deploy, lần đăng nhập kế tiếp buộc thiết lập TOTP. Deploy vào giờ có mặt đội vận hành; báo trước để staff chuẩn bị ứng dụng xác thực. Mất điện thoại admin cuối cùng: xóa hàng `user_mfa`/`user_mfa_recovery_codes` của tài khoản đó bằng SQL trên DB production (không có đường vòng qua ứng dụng). **Không xoay `pii-encryption-key`/`pii-index-key`** mà không có kế hoạch — xoay khóa mã hóa làm MFA đã enroll không giải mã được, xoay khóa index làm mọi mã khôi phục vô hiệu.
+  - **Biến môi trường mới**: `APP_SECURITY_MFA_REQUIRED` (**phải `true` ở production**; backend từ chối khởi động nếu `false` khi `APP_MODE=production`), `APP_SECURITY_MFA_ISSUER`, `APP_SECURITY_SESSION_STAFF_TTL`/`STAFF_IDLE_TIMEOUT`/`USER_TTL`; `APP_SEO_SHELL_LOCATION`/`SHELL_TTL`/`SITEMAP_CHUNK_SIZE`/`SITEMAP_TTL`, `APP_OPERATOR_*`, `APP_CMS_PUBLISH_POLL`; `APP_PUBLIC_BASE_URL` **phải là public origin thật** (canonical/og:url/JSON-LD/sitemap dùng giá trị này); `APP_ANALYTICS_INTERNAL_NETWORKS`, `VITE_RUM_SAMPLE_RATE` (build-time frontend).
+  - **Analytics kill switch**: giữ `APP_ANALYTICS_INGESTION_ENABLED=false` cho tới khi xác nhận rate limit hoạt động, rồi bật `true` trên mọi instance; rollback bằng cách tắt lại (dữ liệu đã thu không mất). Các mốc lưu trữ (90/180/760 ngày, 3 năm) **cần bộ phận pháp lý xác nhận**. Moderator hiện đang thấy doanh thu gói trong dashboard — cân nhắc giới hạn về ADMIN nếu nhạy cảm.
+  - **V095 index**: tạo `idx_leads_created`/`idx_listings_created` trên bảng lớn bằng `CREATE INDEX CONCURRENTLY IF NOT EXISTS` **trước** khi chạy migration ở production (migration mặc định không dùng `CONCURRENTLY`, chấp nhận được ở quy mô hiện tại nhưng không ở bảng lớn).
+  - **Nginx**: `location /` dùng `try_files $uri @prerender`; luồng `@prerender` gọi backend `/render/**`, lỗi 401/403/405/502–504 rơi về `@spa_shell` tĩnh (site không bao giờ down vì SEO). Sau deploy chạy `scripts/verify-prerender.sh https://nhadatchuan.online` (và `verify-headers.sh`). Thứ tự deploy: backend trước (migration cộng thêm), rồi frontend/Nginx.
+  - **Search Console (F16.6)**: các bước ở `streams/s7-seo.md` §6 — thêm Domain property, submit sitemap, URL Inspection, rich results test; cần tài khoản Google của chủ sở hữu.
+  - **Thứ tự migration**: V090/V091 (S7) đứng trước V095 (S8) — ổn cho DB mới và cho production (đang ở V026).
+- **Known gaps carried forward** (chi tiết trong từng `streams/*.md`): chưa có Playwright E2E cho MFA/token pages/banner/trang public mới (S11); SSE stream không bị cắt ngay khi phiên bị thu hồi (S6/S9); `auth_security_events` chưa có retention job (S8); `/analytics/funnel`/`/overview` cũ còn tồn tại nhưng không dùng (S9 dọn); dashboard analytics chưa có Prometheus alert rule; thống kê khu vực/dự án là giá rao bán, không phải giá giao dịch; EXPLAIN ở 1M dòng cho sitemap/`areas()`/dashboard = S10.
+- Stream reports: `docs/audit-2026-09-27/streams/{s5b-sec,s7-seo,s8-analytics}.md`; matrix rows `DONE (W4)`/`PARTIAL (W4)` in `01_REQUIREMENTS.md`.

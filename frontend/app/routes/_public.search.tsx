@@ -1,447 +1,371 @@
-
-import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { listingApi } from '../entities/listing/api/listingApi';
-import type { Listing, ListingSearchParams } from '../entities/listing/model/types';
-import { ListingMap, type MapBounds, type MapFocus } from '@/shared/map/ListingMap';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Columns2, LayoutList, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
+import { listingV2Api } from '@/entities/listing/api/listingV2Api';
+import type { ListingSummaryV2, MapPoint } from '@/entities/listing/model/v2';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
-import { geocodePlaces, type GeocodePlace } from '@/shared/api/geocodingApi';
-import { LayoutGrid, Loader2, Map as MapIcon, MapPin, Navigation, Search } from 'lucide-react';
+import {
+  activeFilterCount,
+  effectiveSort,
+  parseSearchParams,
+  serializeFilters,
+  SORT_LABELS,
+  withoutParams,
+  withPurpose,
+  type SearchFilters,
+  type SearchSort,
+  type SearchView,
+} from '@/features/search/filterSchema';
+import { useListingSearch } from '@/features/search/useListingSearch';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
+import { SaveSearchButton } from '@/features/engagement/SaveSearchButton';
+import { PriceTypeChips } from '@/features/search/ui/PriceTypeChips';
+import { SearchBox } from '@/features/search/ui/SearchBox';
+import { Button } from '@/shared/ui/Button';
+import { Chip } from '@/shared/ui/Chip';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { LoadMore } from '@/shared/ui/Pagination';
+import { Select } from '@/shared/ui/Select';
+import { Skeleton } from '@/shared/ui/Skeleton';
+import { cn } from '@/shared/ui/cn';
+import { useDocumentMeta } from '@/shared/seo/useDocumentMeta';
 
-type Suggestion = { kind: 'keyword'; text: string } | { kind: 'place'; place: GeocodePlace };
+/** MapLibre (≈ 470 kB) is fetched only when the map is shown (F15.1): list mode never downloads it. */
+const SearchMap = lazy(() => import('@/features/search/ui/SearchMap'));
+/** Filter sheet, zero-result state, error state and map point sheet: loaded on first use (F15.2). */
+const loadPanels = () => import('@/features/search/ui/SearchPanels');
+const FilterSheet = lazy(() => loadPanels().then((m) => ({ default: m.FilterSheet })));
+const NoResults = lazy(() => loadPanels().then((m) => ({ default: m.NoResults })));
+const SearchError = lazy(() => loadPanels().then((m) => ({ default: m.SearchError })));
+const MapPointSheet = lazy(() => loadPanels().then((m) => ({ default: m.MapPointSheet })));
+
+const NOTICE_TEXT: Record<string, string> = {
+  SEARCH_ENGINE_UNAVAILABLE:
+    'Công cụ tìm kiếm đang bảo trì; kết quả được lấy trực tiếp từ cơ sở dữ liệu nên có thể chậm hơn.',
+  RELEVANCE_APPROXIMATE: 'Tạm thời sắp xếp theo tin mới nhất thay cho mức độ phù hợp với từ khóa.',
+};
+
+/** Old links (/search?keyword=…&propertyType=…) keep working: they are rewritten to the v2 parameter names. */
+function migrateLegacyParams(params: URLSearchParams): URLSearchParams | null {
+  const legacy = { keyword: 'q', propertyType: 'type' } as const;
+  if (!Object.keys(legacy).some((key) => params.has(key))) return null;
+  const next = new URLSearchParams(params);
+  for (const [from, to] of Object.entries(legacy)) {
+    const value = next.get(from);
+    next.delete(from);
+    if (value && !next.has(to)) next.set(to, value);
+  }
+  return next;
+}
 
 export function SearchAndMapPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'map'>(searchParams.get('view') === 'map' ? 'map' : 'list');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { filters, errors: urlErrors } = useMemo(() => parseSearchParams(searchParams), [searchParams]);
+  const { state, loadMore, retry, saveScroll } = useListingSearch(filters, location.key);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
+  const [pointListing, setPointListing] = useState<ListingSummaryV2 | null>(null);
 
-  // Filters state
-  const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
-  const [purpose, setPurpose] = useState<'SALE' | 'RENT'>(
-    (searchParams.get('purpose') as 'SALE' | 'RENT') || 'SALE'
-  );
-  const [propertyType, setPropertyType] = useState<string>(searchParams.get('propertyType') || '');
-  const [priceRange, setPriceRange] = useState<string>('ALL'); // ALL, <3B, 3-5B, >5B
-  const [sortBy, setSortBy] = useState<'LATEST' | 'PRICE_ASC' | 'PRICE_DESC' | 'AREA_DESC'>('LATEST');
-  const [onlyVerified, setOnlyVerified] = useState(false);
+  useDocumentMeta({
+    title: `${filters.purpose === 'RENT' ? 'Nhà đất cho thuê' : 'Nhà đất bán'} | Tìm kiếm | Nhà Đất Chuẩn`,
+    description:
+      'Tìm nhà đất bán và cho thuê tại Hà Nội theo khu vực, giá, diện tích, số phòng ngủ và mức độ xác minh.',
+  });
 
-  // Place search: a chosen place moves the map and replaces the keyword filter with its visible area.
-  const [focus, setFocus] = useState<MapFocus | null>(null);
-  const [activePlace, setActivePlace] = useState<GeocodePlace | null>(null);
-  const areaRef = useRef<MapBounds | undefined>();
-  const [places, setPlaces] = useState<GeocodePlace[]>([]);
-  const [placesLoading, setPlacesLoading] = useState(false);
-  const [suggestOpen, setSuggestOpen] = useState(false);
-  const [highlight, setHighlight] = useState(-1);
-  const [emptyKeywordPlace, setEmptyKeywordPlace] = useState<GeocodePlace | null>(null);
-  const requestSeq = useRef(0);
-
-  // Load listings from API
   useEffect(() => {
-    fetchListings(areaRef.current);
-  }, [purpose, propertyType, priceRange, sortBy]);
+    const migrated = migrateLegacyParams(searchParams);
+    if (migrated) setSearchParams(migrated, { replace: true });
+  }, [searchParams, setSearchParams]);
 
-  const fetchListings = async (bounds?: MapBounds, overrides?: Partial<ListingSearchParams>) => {
-    const seq = ++requestSeq.current;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      // The map needs every pin in view; the API caps a page at 100.
-      const params: ListingSearchParams = {
-        purpose,
-        sortBy,
-        size: 100,
-      };
-      const effectivePropertyType = overrides && 'propertyType' in overrides ? overrides.propertyType : propertyType;
-      const effectiveKeyword = overrides && 'keyword' in overrides ? overrides.keyword : (activePlace ? undefined : keyword);
-      if (effectivePropertyType) params.propertyType = effectivePropertyType;
-      if (effectiveKeyword?.trim()) params.keyword = effectiveKeyword.trim();
-      if (bounds) Object.assign(params, bounds);
+  /** Intentional changes add a history entry (back/forward walks through them); map moves replace it (F03.4). */
+  const apply = useCallback(
+    (next: SearchFilters, mode: 'push' | 'replace' = 'push') => {
+      setSearchParams(serializeFilters(next), { replace: mode === 'replace' });
+    },
+    [setSearchParams],
+  );
 
-      if (priceRange === '<3B') {
-        params.maxPrice = 3_000_000_000;
-      } else if (priceRange === '3-5B') {
-        params.minPrice = 3_000_000_000;
-        params.maxPrice = 5_000_000_000;
-      } else if (priceRange === '>5B') {
-        params.minPrice = 5_000_000_000;
-      }
+  // Restore the scroll position when coming back from a detail page; remember it when leaving.
+  useLayoutEffect(() => {
+    if (state.restored && state.scrollY > 0) window.scrollTo(0, state.scrollY);
+    // Only on mount: the snapshot belongs to this history entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useLayoutEffect(() => () => saveScroll(window.scrollY), [saveScroll]);
 
-      const data = await listingApi.searchListings(params);
-      if (seq !== requestSeq.current) return data;
-      setListings(data);
-      return data;
-    } catch (err) {
-      if (seq !== requestSeq.current) return [];
-      console.error('Lỗi tải danh sách tìm kiếm:', err);
-      setListings([]);
-      setLoadError('Không thể tải dữ liệu tìm kiếm. Vui lòng thử lại.');
-      return [];
-    } finally {
-      if (seq === requestSeq.current) setLoading(false);
+  const openFilters = () => setFiltersOpen(true);
+  const view = filters.view;
+  const showMap = view !== 'list';
+  const sort = effectiveSort(filters);
+
+  const selectPoint = (point: MapPoint) => {
+    setSelectedPoint(point);
+    const known = state.items.find((item) => item.id === point.id) ?? null;
+    setPointListing(known);
+    if (known && view === 'split') {
+      document
+        .querySelector(`[data-listing-id="${point.id}"]`)
+        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      return;
+    }
+    if (!known) {
+      listingV2Api
+        .detail(point.id)
+        .then(setPointListing)
+        .catch(() => setPointListing(null));
     }
   };
 
-  // Debounced place suggestions while typing.
-  useEffect(() => {
-    const text = keyword.trim();
-    if (activePlace && text === activePlace.label) return;
-    if (text.length < 3) { setPlaces([]); setPlacesLoading(false); return; }
-    const controller = new AbortController();
-    setPlacesLoading(true);
-    const timer = window.setTimeout(() => {
-      geocodePlaces(text, controller.signal)
-        .then((result) => setPlaces(result))
-        .catch(() => { if (!controller.signal.aborted) setPlaces([]); })
-        .finally(() => { if (!controller.signal.aborted) setPlacesLoading(false); });
-    }, 450);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [keyword]);
+  const resultsHeading =
+    state.status === 'ready' && state.total
+      ? `${state.total.relation === 'gte' ? 'Hơn ' : ''}${state.total.value.toLocaleString('vi-VN')} tin ${
+          filters.purpose === 'RENT' ? 'cho thuê' : 'đang bán'
+        }`
+      : filters.purpose === 'RENT'
+        ? 'Nhà đất cho thuê'
+        : 'Nhà đất đang bán';
 
-  const visibleListings = onlyVerified ? listings.filter((listing) => listing.isVerified) : listings;
-  const suggestions: Suggestion[] = keyword.trim()
-    ? [{ kind: 'keyword', text: keyword.trim() }, ...places.map((place) => ({ kind: 'place' as const, place }))]
-    : [];
-
-  const syncUrl = (extra: Record<string, string> = {}) => {
-    const next = new URLSearchParams({ purpose, sortBy, ...extra });
-    if (propertyType) next.set('propertyType', propertyType);
-    if (priceRange !== 'ALL') next.set('priceRange', priceRange);
-    setSearchParams(next, { replace: true });
-  };
-
-  const goToPlace = (place: GeocodePlace) => {
-    setActivePlace(place);
-    setKeyword(place.label);
-    setEmptyKeywordPlace(null);
-    setSuggestOpen(false);
-    setHighlight(-1);
-    setViewMode('map');
-    setFocus({ ...place, key: Date.now() });
-    syncUrl({ view: 'map' });
-  };
-
-  const runKeywordSearch = async (text: string) => {
-    setActivePlace(null);
-    setFocus(null);
-    areaRef.current = undefined;
-    setSuggestOpen(false);
-    setHighlight(-1);
-    syncUrl(text ? { keyword: text } : {});
-    const data = await fetchListings(undefined, { keyword: text || undefined });
-    // Nothing matches the words: offer to look at that place on the map instead.
-    setEmptyKeywordPlace(text && data.length === 0 && places.length ? places[0] : null);
-  };
-
-  const clearKeyword = () => {
-    setKeyword('');
-    setPlaces([]);
-    void runKeywordSearch('');
-  };
-
-  const resetFilters = () => {
-    setKeyword('');
-    setPlaces([]);
-    setPropertyType('');
-    setPriceRange('ALL');
-    setOnlyVerified(false);
-    setActivePlace(null);
-    setFocus(null);
-    setEmptyKeywordPlace(null);
-    areaRef.current = undefined;
-    setSearchParams({ purpose, sortBy });
-    void fetchListings(undefined, { keyword: undefined, propertyType: undefined });
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const chosen = highlight >= 0 ? suggestions[highlight] : undefined;
-    if (chosen?.kind === 'place') goToPlace(chosen.place);
-    else void runKeywordSearch(keyword.trim());
-  };
-
-  const handleSearchArea = (bounds: MapBounds) => {
-    areaRef.current = bounds;
-    void fetchListings(bounds);
-  };
-
-  const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!suggestOpen || !suggestions.length) return;
-    if (event.key === 'ArrowDown') { event.preventDefault(); setHighlight((index) => (index + 1) % suggestions.length); }
-    else if (event.key === 'ArrowUp') { event.preventDefault(); setHighlight((index) => (index <= 0 ? suggestions.length - 1 : index - 1)); }
-    else if (event.key === 'Escape') { setSuggestOpen(false); setHighlight(-1); }
-  };
-
-  const summary = activePlace
-    ? <>trong khu vực <span className="font-bold text-on-surface">{activePlace.label.split(',')[0]}</span></>
-    : areaRef.current ? 'trong vùng bản đồ đang xem' : 'phù hợp bộ lọc';
-
-  const emptyState = (
-    <div className="text-center py-16 text-on-surface-variant text-sm">
-      <p>{activePlace ? 'Chưa có tin đăng trong khu vực này.' : 'Không tìm thấy bất động sản nào khớp với bộ lọc hiện tại.'}</p>
-      {emptyKeywordPlace && (
-        <button type="button" onClick={() => goToPlace(emptyKeywordPlace)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 font-semibold text-primary">
-          <Navigation className="h-4 w-4" /> Xem “{emptyKeywordPlace.label.split(',')[0]}” trên bản đồ
-        </button>
+  const results = (
+    <section aria-labelledby="search-results-heading" className="flex min-w-0 flex-col gap-4">
+      <h2 id="search-results-heading" className="font-semibold text-on-surface" aria-live="polite">
+        {resultsHeading}
+      </h2>
+      {state.restarted && (
+        <InlineFeedback kind="info" title="Danh sách đã được tải lại từ đầu">
+          Hệ thống tìm kiếm vừa chuyển chế độ nên thứ tự trang cũ không còn dùng được.
+        </InlineFeedback>
       )}
-      <div>
-        <button
-          onClick={resetFilters}
-          className="mt-3 px-4 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold"
+      {state.notices
+        .filter((notice) => NOTICE_TEXT[notice])
+        .map((notice) => (
+          <InlineFeedback key={notice} kind="warning" title={NOTICE_TEXT[notice]} />
+        ))}
+      {state.status === 'error' && state.error ? (
+        <Suspense fallback={null}>
+          <SearchError error={state.error} onRetry={retry} />
+        </Suspense>
+      ) : state.status === 'loading' && state.items.length === 0 ? (
+        <div
+          className={cn('grid gap-4', view === 'split' ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3')}
+          role="status"
+          aria-label="Đang tải kết quả"
         >
-          Xóa bộ lọc
-        </button>
-      </div>
-    </div>
+          {Array.from({ length: 6 }, (_, index) => (
+            <Skeleton key={index} className="h-80 rounded-card" />
+          ))}
+        </div>
+      ) : state.items.length === 0 ? (
+        <Suspense fallback={null}>
+          <NoResults filters={filters} suggestions={state.suggestions} onApply={(next) => apply(next)} />
+        </Suspense>
+      ) : (
+        <>
+          <ul
+            className={cn(
+              'grid grid-cols-1 gap-4',
+              view === 'split' ? 'sm:grid-cols-2' : 'sm:grid-cols-2 xl:grid-cols-3',
+            )}
+          >
+            {state.items.map((listing, index) => (
+              <li key={listing.id} className="min-w-0">
+                <ListingCard
+                  listing={listing}
+                  priority={index < 2}
+                  highlighted={showMap && (hoveredId === listing.id || selectedPoint?.id === listing.id)}
+                  onHoverChange={showMap ? setHoveredId : undefined}
+                  linkState={{ fromSearch: `${location.pathname}${location.search}` }}
+                  actions={<FavoriteButton listingId={listing.id} title={listing.title} />}
+                />
+              </li>
+            ))}
+          </ul>
+          <LoadMore
+            loadedCount={state.items.length}
+            hasNext={state.hasNext}
+            loading={state.loadingMore}
+            onLoadMore={loadMore}
+            total={state.total}
+            noun="tin"
+            error={state.loadMoreError}
+          />
+        </>
+      )}
+    </section>
   );
 
+  const map = showMap && (
+    <Suspense
+      fallback={
+        <div
+          className="grid h-full min-h-80 place-items-center bg-surface-container text-body-sm text-on-surface-variant"
+          role="status"
+        >
+          Đang tải bản đồ…
+        </div>
+      }
+    >
+      <SearchMap
+        filters={filters}
+        selectedId={hoveredId ?? selectedPoint?.id ?? null}
+        onViewportChange={(bbox) => {
+          const next = { ...filters, bbox };
+          delete next.place;
+          apply(next, 'replace');
+        }}
+        onSelectPoint={selectPoint}
+      />
+    </Suspense>
+  );
+
+  const setView = (next: SearchView) => apply({ ...filters, view: next }, 'replace');
+
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-surface text-on-surface">
-      <section className="w-full bg-surface relative">
-        {/* Top Query & Smart Filters */}
-        <div className="p-4 bg-surface-container-lowest flex flex-col gap-3 shadow-sm border-b border-outline-variant/20 flex-shrink-0 relative z-40">
-          {/* Search Input Bar */}
-          <form onSubmit={handleSearchSubmit} className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <div className="flex items-center bg-surface-container-low rounded-xl px-3 py-2 transition-all focus-within:ring-2 focus-within:ring-primary/20">
-                <MapPin className="w-5 h-5 text-primary mr-2 flex-shrink-0" aria-hidden="true" />
-                <div className="flex flex-col flex-1 min-w-0">
-                  <label htmlFor="search-keyword" className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider leading-none">
-                    Từ khóa hoặc địa điểm · Hà Nội
-                  </label>
-                  <input
-                    id="search-keyword"
-                    type="text"
-                    role="combobox"
-                    aria-expanded={suggestOpen && suggestions.length > 0}
-                    aria-controls="search-suggestions"
-                    aria-autocomplete="list"
-                    aria-activedescendant={highlight >= 0 ? `suggestion-${highlight}` : undefined}
-                    autoComplete="off"
-                    value={keyword}
-                    onChange={(e) => { setKeyword(e.target.value); setActivePlace(null); setSuggestOpen(true); setHighlight(-1); }}
-                    onFocus={() => setSuggestOpen(true)}
-                    onBlur={() => window.setTimeout(() => setSuggestOpen(false), 150)}
-                    onKeyDown={onInputKeyDown}
-                    placeholder="Nhập dự án, đường, phường, quận… (VD: Cầu Giấy, Times City)"
-                    className="bg-transparent text-sm font-semibold text-on-surface focus:outline-none w-full truncate pt-0.5"
-                  />
-                </div>
-                {placesLoading && <Loader2 className="h-4 w-4 animate-spin text-outline" aria-label="Đang tìm địa điểm" />}
-                {keyword && (
-                  <button
-                    type="button"
-                    onClick={clearKeyword}
-                    aria-label="Xóa từ khóa"
-                    className="text-outline hover:text-on-surface ml-1 grid h-8 w-8 place-items-center text-xs"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {suggestOpen && suggestions.length > 0 && (
-                <ul id="search-suggestions" role="listbox" className="absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-outline-variant/40 bg-white py-1 shadow-xl">
-                  {suggestions.map((suggestion, index) => {
-                    const active = index === highlight;
-                    const base = `flex w-full items-start gap-3 px-3 py-2.5 text-left text-sm ${active ? 'bg-primary/10' : 'hover:bg-surface-container-low'}`;
-                    return suggestion.kind === 'keyword' ? (
-                      <li key="keyword" id={`suggestion-${index}`} role="option" aria-selected={active}>
-                        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => void runKeywordSearch(suggestion.text)} className={base}>
-                          <Search className="mt-0.5 h-4 w-4 shrink-0 text-outline" aria-hidden="true" />
-                          <span>Tìm tin đăng có từ khóa <strong>“{suggestion.text}”</strong></span>
-                        </button>
-                      </li>
-                    ) : (
-                      <li key={`${suggestion.place.lat},${suggestion.place.lon},${index}`} id={`suggestion-${index}`} role="option" aria-selected={active}>
-                        {index === 1 && <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Đi tới địa điểm trên bản đồ</p>}
-                        <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => goToPlace(suggestion.place)} className={base}>
-                          <Navigation className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                          <span className="min-w-0">
-                            <span className="block truncate font-semibold text-on-surface">{suggestion.place.label.split(',')[0]}</span>
-                            <span className="block truncate text-xs text-on-surface-variant">{suggestion.place.label.split(',').slice(1).join(',').trim()}</span>
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                  {placesLoading && <li className="px-3 py-2 text-xs text-on-surface-variant">Đang tìm địa điểm…</li>}
-                </ul>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              aria-label="Tìm kiếm"
-              className="h-11 px-4 rounded-xl bg-primary hover:bg-primary/90 text-white font-semibold text-sm flex items-center gap-1.5 shadow-sm transition"
-            >
-              <Search className="w-4 h-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Tìm kiếm</span>
-            </button>
-          </form>
-
-          {/* Quick Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs no-scrollbar font-medium">
-            {/* Purpose Toggle */}
-            <div className="flex rounded-lg bg-surface-container-low p-0.5 border border-outline-variant/30 shrink-0">
-              <button
-                onClick={() => setPurpose('SALE')}
-                className={`px-3 py-1 rounded-md transition ${purpose === 'SALE' ? 'bg-primary text-white font-bold shadow-sm' : 'text-on-surface-variant'}`}
-              >
-                Cần bán
-              </button>
-              <button
-                onClick={() => setPurpose('RENT')}
-                className={`px-3 py-1 rounded-md transition ${purpose === 'RENT' ? 'bg-primary text-white font-bold shadow-sm' : 'text-on-surface-variant'}`}
-              >
-                Cho thuê
-              </button>
-            </div>
-
-            {/* Property Type Pills */}
-            <button
-              onClick={() => setPropertyType(propertyType === 'APARTMENT' ? '' : 'APARTMENT')}
-              className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
-                propertyType === 'APARTMENT'
-                  ? 'bg-primary/10 border-primary text-primary font-bold'
-                  : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
-              }`}
-            >
-              🏢 Căn hộ
-            </button>
-
-            <button
-              onClick={() => setPropertyType(propertyType === 'HOUSE' ? '' : 'HOUSE')}
-              className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
-                propertyType === 'HOUSE'
-                  ? 'bg-primary/10 border-primary text-primary font-bold'
-                  : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
-              }`}
-            >
-              🏠 Nhà phố
-            </button>
-
-            {/* Price Range Pills */}
-            <button
-              onClick={() => setPriceRange(priceRange === '<3B' ? 'ALL' : '<3B')}
-              className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
-                priceRange === '<3B'
-                  ? 'bg-primary/10 border-primary text-primary font-bold'
-                  : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
-              }`}
-            >
-              Dưới 3 tỷ
-            </button>
-
-            <button
-              onClick={() => setPriceRange(priceRange === '3-5B' ? 'ALL' : '3-5B')}
-              className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
-                priceRange === '3-5B'
-                  ? 'bg-primary/10 border-primary text-primary font-bold'
-                  : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
-              }`}
-            >
-              3 - 5 tỷ
-            </button>
-
-            <button
-              onClick={() => setPriceRange(priceRange === '>5B' ? 'ALL' : '>5B')}
-              className={`px-3 py-1.5 rounded-full border transition shrink-0 ${
-                priceRange === '>5B'
-                  ? 'bg-primary/10 border-primary text-primary font-bold'
-                  : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
-              }`}
-            >
-              Trên 5 tỷ
-            </button>
-
-            {/* Filter Chính chủ eKYC */}
-            <button
-              onClick={() => setOnlyVerified(!onlyVerified)}
-              className={`px-3 py-1.5 rounded-full border transition flex items-center gap-1.5 shrink-0 ${
-                onlyVerified
-                  ? 'bg-emerald-100 border-emerald-500 text-emerald-800 font-bold shadow-xs'
-                  : 'bg-surface-container border-outline-variant/40 text-on-surface-variant hover:border-outline'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              Chính chủ eKYC
-            </button>
-
-            <Link
-              to="/compare"
-              className="px-3 py-1.5 rounded-full border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 font-bold transition flex items-center gap-1.5 shrink-0 text-xs shadow-xs"
-            >
-              <span>⚖️</span>
-              So sánh bất động sản
-            </Link>
-          </div>
-
+    <div
+      className="ndc-page flex max-w-[1440px] flex-col gap-4 py-8 sm:py-10"
+      data-ready={state.status === 'loading' ? 'false' : 'true'}
+    >
+      <div className="ndc-section-heading !mb-2">
+        <div>
+          <p className="!mt-0 text-xs font-semibold uppercase tracking-widest">Khám phá bất động sản</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+            {filters.purpose === 'RENT' ? 'Tìm nơi thuê phù hợp' : 'Tìm ngôi nhà tiếp theo'}
+          </h1>
+          <p>Chọn nhu cầu, thu hẹp khu vực và so sánh trước khi liên hệ.</p>
         </div>
-
-        {/* Feed Summary & Sorting Toolbar */}
-        <div className="px-4 py-2.5 flex items-center justify-between bg-surface-container-low/50 border-b border-outline-variant/20 flex-shrink-0 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-bold text-primary text-sm">{visibleListings.length}</span>
-            <span className="text-on-surface-variant font-medium">bất động sản {summary}</span>
+      </div>
+      <header className="ndc-search-toolbar !mb-0" aria-label="Bộ lọc tìm kiếm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+          <div role="group" aria-label="Nhu cầu" className="ndc-purpose shrink-0 border">
+            {(['SALE', 'RENT'] as const).map((purpose) => (
+              <button
+                key={purpose}
+                type="button"
+                aria-pressed={filters.purpose === purpose}
+                onClick={() => apply(withPurpose(filters, purpose))}
+              >
+                {purpose === 'SALE' ? 'Mua nhà' : 'Thuê nhà'}
+              </button>
+            ))}
           </div>
-
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg bg-surface-container-low p-0.5 border border-outline-variant/30" role="group" aria-label="Chế độ hiển thị kết quả">
-              <button type="button" onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'} className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'list' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}><LayoutGrid className="w-4 h-4" /><span className="hidden sm:inline">Danh sách</span></button>
-              <button type="button" onClick={() => setViewMode('map')} aria-pressed={viewMode === 'map'} className={`min-h-9 px-2 sm:px-3 rounded-md inline-flex items-center gap-1.5 font-semibold transition ${viewMode === 'map' ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:text-primary'}`}><MapIcon className="w-4 h-4" /><span className="hidden sm:inline">Bản đồ</span></button>
-            </div>
-            <span className="text-on-surface-variant">Sắp xếp:</span>
-            <select
+          <SearchBox
+            keyword={filters.q ?? ''}
+            place={filters.place}
+            onKeyword={(q) => {
+              const next = { ...filters };
+              if (q) next.q = q;
+              else {
+                delete next.q;
+                if (next.sort === 'RELEVANCE') delete next.sort;
+              }
+              apply(next);
+            }}
+            onPlace={({ label, bbox }) => apply({ ...filters, bbox, place: label })}
+            onClearPlace={() => apply(withoutParams(filters, ['bbox']))}
+          />
+        </div>
+        <div className="hidden lg:block">
+          <PriceTypeChips filters={filters} onChange={(next) => apply(next)} size="sm" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={openFilters}
+            onPointerEnter={() => void loadPanels()}
+            onFocus={() => void loadPanels()}
+            leftIcon={<SlidersHorizontal className="h-4 w-4" />}
+            aria-haspopup="dialog"
+          >
+            Bộ lọc{activeFilterCount(filters) ? ` (${activeFilterCount(filters)})` : ''}
+          </Button>
+          <SaveSearchButton filters={filters} />
+          <div className="flex items-center gap-2 text-body-sm text-on-surface-variant">
+            <span className="sr-only sm:not-sr-only" aria-hidden="true">
+              Sắp xếp
+            </span>
+            <Select
               aria-label="Sắp xếp kết quả"
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              className="bg-surface-container-lowest font-semibold text-primary px-2 py-1 rounded-lg border border-outline-variant/30 focus:outline-none"
+              value={sort}
+              onChange={(event) => {
+                const next = { ...filters, sort: event.target.value as SearchSort };
+                apply(next);
+              }}
+              options={(Object.keys(SORT_LABELS) as SearchSort[])
+                .filter((value) => value !== 'RELEVANCE' || filters.q)
+                .map((value) => ({ value, label: SORT_LABELS[value] }))}
+            />
+          </div>
+          <div
+            role="group"
+            aria-label="Chế độ hiển thị kết quả"
+            className="ml-auto flex gap-1 rounded-lg border bg-white p-1"
+          >
+            <Chip selected={view === 'list'} onClick={() => setView('list')} icon={LayoutList}>
+              Danh sách
+            </Chip>
+            <Chip
+              selected={view === 'split'}
+              onClick={() => setView('split')}
+              icon={Columns2}
+              className="hidden lg:inline-flex"
             >
-              <option value="LATEST">Mới niêm yết</option>
-              <option value="PRICE_ASC">Giá: Thấp đến cao</option>
-              <option value="PRICE_DESC">Giá: Cao đến thấp</option>
-              <option value="AREA_DESC">Diện tích lớn nhất</option>
-            </select>
+              Chia đôi
+            </Chip>
+            <Chip selected={view === 'map'} onClick={() => setView('map')} icon={MapIcon}>
+              Bản đồ
+            </Chip>
           </div>
         </div>
+        {urlErrors.length > 0 && (
+          <InlineFeedback kind="warning" title="Một số điều kiện trong đường dẫn không hợp lệ nên đã được bỏ qua">
+            {urlErrors.map((error) => error.message).join(' ')}
+          </InlineFeedback>
+        )}
+      </header>
 
-        {viewMode === 'map' ? (
-          // The map stays mounted while results reload so the view never jumps back to the default area.
-          <div className="h-[calc(100vh-12.5rem)] min-h-[34rem] relative bg-slate-900">
-            <ListingMap listings={visibleListings} focus={focus} onSearchArea={handleSearchArea} />
-            <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center px-4">
-              {loading ? (
-                <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg"><Loader2 className="h-4 w-4 animate-spin" /> Đang tải tin đăng…</span>
-              ) : loadError ? (
-                <span role="alert" className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-lg">{loadError}<button type="button" onClick={() => void fetchListings(areaRef.current)} className="underline">Thử lại</button></span>
-              ) : visibleListings.length === 0 ? (
-                <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg">Chưa có tin đăng trong vùng này — kéo hoặc thu nhỏ bản đồ rồi bấm “Tìm trong khu vực này”.</span>
-              ) : null}
+      {view === 'map' ? (
+        <div className="flex flex-col gap-4">
+          <div className="relative h-[70dvh] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container">
+            {map}
+          </div>
+          <div className="lg:hidden">
+            <Button variant="outline" onClick={() => setView('list')} leftIcon={<LayoutList className="h-4 w-4" />}>
+              Xem danh sách ({state.items.length})
+            </Button>
+          </div>
+          <div className="hidden lg:block">{results}</div>
+        </div>
+      ) : view === 'split' ? (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,11fr)_minmax(0,9fr)]">
+          <div className="lg:order-1">{results}</div>
+          <div className="order-first lg:order-2">
+            <div className="relative h-[50dvh] overflow-hidden rounded-2xl border border-outline-variant bg-surface-container lg:sticky lg:top-20 lg:h-[calc(100dvh-7rem)]">
+              {map}
             </div>
           </div>
-        ) : (
-          <div className="max-w-7xl mx-auto p-4 md:p-6">
-            {loading ? (
-              <div className="text-center py-16 text-on-surface-variant text-sm">
-                <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                Đang tải danh sách bất động sản…
-              </div>
-            ) : loadError ? (
-              <div className="py-16 text-center" role="alert"><p className="text-rose-700">{loadError}</p><button type="button" onClick={() => void fetchListings(areaRef.current)} className="mt-4 min-h-11 rounded-xl bg-primary px-5 font-bold text-white">Thử lại</button></div>
-            ) : visibleListings.length === 0 ? emptyState : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
-                {visibleListings.map((item) => <ListingCard key={item.id} listing={item} />)}
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+        </div>
+      ) : (
+        results
+      )}
+
+      {filtersOpen && (
+        <Suspense fallback={null}>
+          <FilterSheet filters={filters} onClose={() => setFiltersOpen(false)} onApply={(next) => apply(next)} />
+        </Suspense>
+      )}
+
+      {selectedPoint && view === 'map' && (
+        <Suspense fallback={null}>
+          <MapPointSheet
+            point={selectedPoint}
+            listing={pointListing}
+            onClose={() => setSelectedPoint(null)}
+            onOpen={(point) => navigate(`/listings/${point.slug}`)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
-
-export default SearchAndMapPage;

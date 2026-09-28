@@ -45,6 +45,7 @@ public class ListingRevision {
     private Instant submittedAt;
     private Instant moderatedAt;
     private String moderationNote;
+    private ListingAttributes attributes = ListingAttributes.EMPTY;
 
     public ListingRevision(
             UUID id,
@@ -193,7 +194,7 @@ public class ListingRevision {
             this.publicLatitude = publicLatitude;
             this.publicLongitude = publicLongitude;
         }
-        if (mediaList != null && !mediaList.isEmpty()) {
+        if (mediaList != null) {
             this.mediaList.clear();
             this.mediaList.addAll(mediaList);
         }
@@ -274,8 +275,25 @@ public class ListingRevision {
                 null,
                 null,
                 null
-        );
+        ).withAttributes(this.attributes);
     }
+
+    /** Replaces the structured attributes of this DRAFT revision (rent terms are dropped for SALE). */
+    public void updateAttributes(ListingAttributes value) {
+        if (this.status != RevisionStatus.DRAFT) {
+            throw new ListingDomainException("REVISION_IMMUTABLE",
+                    "Không thể sửa đổi trực tiếp revision đã ở trạng thái " + this.status + ". Cần tạo revision nháp mới.");
+        }
+        this.attributes = (value == null ? ListingAttributes.EMPTY : value).forPurpose(this.purpose);
+    }
+
+    /** Restores stored attributes (persistence mapping only). */
+    public ListingRevision withAttributes(ListingAttributes value) {
+        this.attributes = value == null ? ListingAttributes.EMPTY : value;
+        return this;
+    }
+
+    public ListingAttributes getAttributes() { return attributes; }
 
     // Getters
     public UUID getId() { return id; }

@@ -52,7 +52,7 @@ Nếu công cụ AI tự động đọc `AGENTS.md` hoặc `CLAUDE.md`, file t�
 | Frontend | React, TypeScript strict, React Router Framework Mode, Vite |
 | UI | Tailwind CSS và daisyUI; mobile-first |
 | Dữ liệu | PostgreSQL, PostGIS, Flyway |
-| Phiên | Spring Session JDBC; cookie HttpOnly, Secure, SameSite |
+| Phiên | Bearer token opaque do server phát, chỉ lưu SHA-256 trong `auth_sessions`, gửi qua header `Authorization`; không cookie xác thực (ADR `docs/adr/0001-session-model.md`) |
 | Hàng đợi nghiệp vụ | Durable outbox trong PostgreSQL; worker Java |
 | Cache và giới hạn | Redis; không phải nguồn dữ liệu chuẩn |
 | API | REST JSON, OpenAPI 3.1, lỗi theo RFC 9457 mở rộng |
@@ -707,8 +707,9 @@ docker compose -f infra/compose.yaml -f infra/compose.dev.yaml ps
 
 - Áp dụng checklist OWASP ASVS phù hợp mức rủi ro và threat model của hệ thống.
 - Deny-by-default cho endpoint riêng tư. Kiểm tra authorization cả ở API và application service cho operation nhạy cảm.
-- Cookie phiên: `HttpOnly`, `Secure`, `SameSite` phù hợp; rotate session sau đăng nhập/thay đổi đặc quyền; logout thu hồi session.
-- State-changing request dùng CSRF protection. CORS là allowlist chính xác, không dùng `*` với credential.
+- Phiên (ADR `docs/adr/0001-session-model.md`): bearer token opaque ngẫu nhiên tối thiểu 256 bit, server chỉ lưu hash; phát token mới ở mỗi lần đăng nhập; thu hồi khi logout, đặt lại mật khẩu hoặc đổi đặc quyền; không lưu token trong `localStorage`, URL hay log. Phiên quản trị có TTL ngắn hơn và MFA.
+- CSRF không áp dụng khi xác thực chỉ bằng header `Authorization` (trình duyệt không tự gửi); nếu đưa cookie xác thực vào thì bắt buộc `HttpOnly`, `Secure`, `SameSite` và CSRF protection cho request thay đổi trạng thái. CORS là allowlist chính xác, không dùng `*` với credential.
+- CSP ở edge là kiểm soát bảo mật: không inline script, script bên thứ ba mới phải được review và cập nhật `frontend/nginx.conf`; kiểm tra bằng `scripts/verify-headers.sh`.
 - Password nếu có dùng password encoder chuẩn của Spring Security; OTP có TTL, số lần thử, rate limit và replay protection.
 - Rate limit theo IP, account, phone lookup hoặc operation tùy threat model; không chỉ theo một header do client tự gửi.
 - Input validation không thay thế output encoding. React không dùng `dangerouslySetInnerHTML` trừ khi sanitizer và test được duyệt.

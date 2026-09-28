@@ -28,7 +28,11 @@ export class ApiProblemException extends Error {
 
 /** The server's own explanation for a rejected input (HTTP 400/422), otherwise the caller's generic fallback. */
 export function validationMessage(error: unknown, fallback: string): string {
-  if (error instanceof ApiProblemException && (error.problem.status === 400 || error.problem.status === 422) && error.problem.detail) {
+  if (
+    error instanceof ApiProblemException &&
+    (error.problem.status === 400 || error.problem.status === 422) &&
+    error.problem.detail
+  ) {
     return error.problem.detail;
   }
   return fallback;

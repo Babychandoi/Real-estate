@@ -1,355 +1,725 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
-import { CompareToggleButton } from '@/features/compare/CompareControls';
-import { Avatar } from '@/shared/ui/Avatar';
-import { useParams, Link } from 'react-router-dom';
-import { Building2, ShieldCheck, MapPin, Maximize2, Home, ArrowLeft, Lock, MessageSquare, Flag, Tag, BedDouble, Bath, Building, Ruler, Route, Compass, FileText } from 'lucide-react';
-import { Button } from '@/shared/ui/Button';
-import { Badge } from '@/shared/ui/Badge';
-import { Card } from '@/shared/ui/Card';
-import { apiClient } from '@/shared/api/client';
-import { type ListingDetail, type PublicSellerProfile, formatPriceVnd, calculateUnitPrice, formatPropertyType } from '@/entities/listing/model/types';
-import { LeadConsultationModal } from '@/features/lead/ui/LeadConsultationModal';
-import { useAuth } from '@/shared/auth/AuthContext';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Bath,
+  BedDouble,
+  Building,
+  Compass,
+  FileText,
+  Flag,
+  History,
+  Home,
+  Lock,
+  MapPin,
+  Maximize2,
+  MessageSquare,
+  Route as RouteIcon,
+  Ruler,
+  Sofa,
+  Tag,
+  TrendingDown,
+  TrendingUp,
+} from 'lucide-react';
+import { listingV2Api } from '@/entities/listing/api/listingV2Api';
+import { listingDocumentMeta, listingIdFromRoute, listingPath } from '@/entities/listing/model/seo';
+import {
+  FURNISHING_LABELS,
+  formatArea,
+  formatMetres,
+  formatDate,
+  propertyTypeLabel,
+  purposeLabel,
+  sellerRoleLabel,
+  type GoneListingProblem,
+  type ListingDetailV2,
+  type ListingSummaryV2,
+  type PriceHistoryV2,
+} from '@/entities/listing/model/v2';
+import { ListingCard } from '@/entities/listing/ui/ListingCard';
+import { FavoriteButton } from '@/features/engagement/FavoriteButton';
 import type { UserKycProfile } from '@/entities/verification/model/types';
-import { listingIdFromRoute, listingPath } from '@/entities/listing/model/seo';
+import { CompareToggleButton } from '@/features/compare/CompareControls';
+import { compareItemFromSummary } from '@/features/compare/compareStore';
+import { Gallery } from '@/features/listing-detail/Gallery';
+import { LeadConsultationModal } from '@/features/lead/ui/LeadConsultationModal';
+import { track } from '@/shared/analytics/track';
+import { apiClient } from '@/shared/api/client';
+import { useAuth } from '@/shared/auth/AuthContext';
+import { formatMoney, formatRentTerms } from '@/shared/format/money';
+import { useDocumentMeta } from '@/shared/seo/useDocumentMeta';
+import { ApiProblemException } from '@/shared/types/problem-details';
+import { Avatar } from '@/shared/ui/Avatar';
+import { Button, ButtonLink } from '@/shared/ui/Button';
+import { Card } from '@/shared/ui/Card';
+import { Dialog } from '@/shared/ui/Dialog';
+import { ErrorState } from '@/shared/ui/ErrorState';
+import { Money, UnitPriceText } from '@/shared/ui/Money';
+import { Skeleton } from '@/shared/ui/Skeleton';
+import { TrustBadge, TrustPanel } from '@/shared/ui/TrustBadge';
 
+type LoadState =
+  | { kind: 'loading' }
+  | { kind: 'ready'; listing: ListingDetailV2 }
+  | { kind: 'gone'; slug: string; title?: string }
+  | { kind: 'missing' }
+  | { kind: 'error' };
+
+/** Public listing detail on API v2 (UI-03): gallery, price with its period, facts, trust scopes, price history,
+ * contact states, similar listings, 404/410 pages and route metadata. */
 export const ListingDetailPage: React.FC = () => {
-  const { listingId: listingRoute } = useParams<{ listingId: string }>();
-  const legacyListingId = listingIdFromRoute(listingRoute);
-  const { user, isAuthenticated, setIsLoginModalOpen } = useAuth();
-  const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE'>('NONE');
-  const [listing, setListing] = useState<ListingDetail | null>(null);
-  const [seller, setSeller] = useState<PublicSellerProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
-  const [isReportOpen, setIsReportOpen] = useState(false);
-  const [reportCategory, setReportCategory] = useState('OTHER');
-  const [reportDescription, setReportDescription] = useState('');
-  const [reportFeedback, setReportFeedback] = useState<string | null>(null);
-  const [reportBusy, setReportBusy] = useState(false);
+  const { listingId: route = '' } = useParams<{ listingId: string }>();
+  const legacyId = listingIdFromRoute(route);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const fromSearch = (location.state as { fromSearch?: string } | null)?.fromSearch;
+  const [state, setState] = useState<LoadState>({ kind: 'loading' });
+  const [reload, setReload] = useState(0);
+  const [history, setHistory] = useState<PriceHistoryV2 | null>(null);
+  const [similar, setSimilar] = useState<ListingSummaryV2[] | null>(null);
 
-  // Không giữ vị trí cuộn của trang danh sách khi người dùng mở một tin mới.
+  // A new listing starts at the top (the list page restores its own position on "back").
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
-  }, [listingRoute]);
+  }, [route]);
 
   useEffect(() => {
-    if (!user) { setKycStatus('NONE'); return; }
-    apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
-      .then(profile => setKycStatus(profile.status))
-      .catch(() => setKycStatus('NONE'));
-  }, [user]);
+    const abort = new AbortController();
+    setState({ kind: 'loading' });
+    setHistory(null);
+    setSimilar(null);
+    listingV2Api
+      .detail(legacyId ?? route, abort.signal)
+      .then((listing) => setState({ kind: 'ready', listing }))
+      .catch((error: unknown) => {
+        if (abort.signal.aborted) return;
+        const problem = error instanceof ApiProblemException ? error.problem : null;
+        if (problem?.status === 410) {
+          const gone = problem as unknown as GoneListingProblem;
+          setState({ kind: 'gone', slug: gone.slug, title: gone.listingTitle });
+        } else if (problem?.status === 404) setState({ kind: 'missing' });
+        else setState({ kind: 'error' });
+      });
+    return () => abort.abort();
+  }, [legacyId, route, reload]);
 
-  const submitReport = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!listing?.id || reportDescription.trim().length < 10) return;
-    setReportBusy(true);
-    setReportFeedback(null);
-    try {
-      await apiClient('/public/reports', { method: 'POST', body: JSON.stringify({ listingId: listing.id, category: reportCategory, severity: 'MEDIUM', description: reportDescription.trim(), evidenceUrls: '', reporterPhone: '' }) });
-      setReportFeedback('Báo cáo đã được ghi nhận trên hệ thống.');
-      setReportDescription('');
-    } catch {
-      setReportFeedback('Không thể gửi báo cáo. Vui lòng thử lại.');
-    } finally { setReportBusy(false); }
-  };
-
-  useEffect(() => {
-    async function loadListing() {
-      try {
-        const endpoint = legacyListingId ? `/listings/${legacyListingId}` : `/listings/by-slug/${encodeURIComponent(listingRoute || '')}`;
-        const data = await apiClient<ListingDetail>(endpoint);
-        setListing(data);
-      } catch (err) {
-        console.error('Lỗi khi tải chi tiết tin đăng:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    if (listingRoute) {
-      loadListing();
-    }
-  }, [legacyListingId, listingRoute]);
-
-  useEffect(() => {
-    if (!listing?.ownerId) return;
-    apiClient<PublicSellerProfile>(`/public/profiles/${listing.ownerId}`).then(setSeller).catch(() => setSeller(null));
-  }, [listing?.ownerId]);
+  const listing = state.kind === 'ready' ? state.listing : null;
 
   useEffect(() => {
     if (!listing) return;
-    const canonicalPath = listingPath(listing);
-    const canonicalUrl = `${window.location.origin}${canonicalPath}`;
-    if (window.location.pathname !== canonicalPath) window.history.replaceState(null, '', canonicalPath);
-
-    document.title = `${listing.title} | Nhà Đất Chuẩn`;
-    const description = `${formatPropertyType(listing.propertyType)} ${listing.purpose === 'SALE' ? 'cần bán' : 'cho thuê'} tại ${listing.addressSummary}, diện tích ${listing.areaM2} m², giá ${formatPriceVnd(listing.priceVnd)}.`;
-    const upsertMeta = (selector: string, attributes: Record<string, string>) => {
-      let element = document.head.querySelector<HTMLMetaElement>(selector);
-      if (!element) { element = document.createElement('meta'); document.head.appendChild(element); }
-      Object.entries(attributes).forEach(([key, value]) => element!.setAttribute(key, value));
-    };
-    upsertMeta('meta[name="description"]', { name: 'description', content: description });
-    upsertMeta('meta[property="og:title"]', { property: 'og:title', content: listing.title });
-    upsertMeta('meta[property="og:description"]', { property: 'og:description', content: description });
-    upsertMeta('meta[property="og:type"]', { property: 'og:type', content: 'product' });
-    upsertMeta('meta[property="og:url"]', { property: 'og:url', content: canonicalUrl });
-    if (listing.imageUrls[0]) upsertMeta('meta[property="og:image"]', { property: 'og:image', content: listing.imageUrls[0] });
-    upsertMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary_large_image' });
-
-    let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-    if (!canonical) { canonical = document.createElement('link'); canonical.rel = 'canonical'; document.head.appendChild(canonical); }
-    canonical.href = canonicalUrl;
-
-    document.getElementById('listing-structured-data')?.remove();
-    const schema = document.createElement('script');
-    schema.id = 'listing-structured-data';
-    schema.type = 'application/ld+json';
-    schema.text = JSON.stringify({
-      '@context': 'https://schema.org', '@type': 'Product', name: listing.title, category: 'Bất động sản',
-      description: listing.description, url: canonicalUrl, image: listing.imageUrls,
-      datePosted: listing.createdAt,
-      address: { '@type': 'PostalAddress', streetAddress: listing.addressSummary, addressCountry: 'VN' },
-      offers: { '@type': 'Offer', price: listing.priceVnd, priceCurrency: 'VND', availability: 'https://schema.org/InStock' },
-    });
-    document.head.appendChild(schema);
-    return () => { document.getElementById('listing-structured-data')?.remove(); };
+    const abort = new AbortController();
+    listingV2Api
+      .priceHistory(listing.id, abort.signal)
+      .then(setHistory)
+      .catch(() => !abort.signal.aborted && setHistory({ listingId: listing.id, purpose: null, points: [] }));
+    listingV2Api
+      .similar(listing.id, 6, abort.signal)
+      .then(setSimilar)
+      .catch(() => !abort.signal.aborted && setSimilar([]));
+    track(
+      'listing_detail_viewed',
+      {
+        purpose: listing.purpose,
+        propertyType: listing.propertyType,
+        ...(listing.location.districtCode && /^\d{3}$/.test(listing.location.districtCode)
+          ? { district: listing.location.districtCode }
+          : {}),
+      },
+      { listingId: listing.id },
+    );
+    // Legacy UUID links land on the canonical slug URL without another request.
+    const canonical = listingPath(listing);
+    if (window.location.pathname !== canonical) window.history.replaceState(window.history.state, '', canonical);
+    return () => abort.abort();
   }, [listing]);
 
-  if (isLoading) {
+  useDocumentMeta(
+    listing
+      ? listingDocumentMeta(listing, window.location.origin)
+      : state.kind === 'loading'
+        ? null
+        : {
+            title: `${state.kind === 'gone' ? 'Tin không còn hiển thị' : 'Không tìm thấy bất động sản'} | Nhà Đất Chuẩn`,
+            robots: 'noindex',
+          },
+  );
+
+  const backLink = (
+    <Link
+      to={fromSearch ?? '/search'}
+      onClick={(event) => {
+        // Coming from the result list: go back in history so the list restores its pages and scroll position.
+        if (fromSearch) {
+          event.preventDefault();
+          navigate(-1);
+        }
+      }}
+      className="inline-flex min-h-11 items-center gap-1.5 text-body-sm font-semibold text-on-surface-variant hover:text-primary"
+    >
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Quay lại danh sách
+    </Link>
+  );
+
+  if (state.kind === 'loading') {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-12">
-        <div className="h-96 bg-surface-container rounded-2xl animate-pulse"></div>
+      <div
+        className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6"
+        data-ready="false"
+        role="status"
+        aria-label="Đang tải tin đăng"
+      >
+        <Skeleton className="aspect-[16/9] w-full rounded-card" />
+        <Skeleton className="h-8 w-2/3" />
+        <Skeleton className="h-24 w-full" />
       </div>
     );
   }
-
-  if (!listing) {
+  if (state.kind === 'missing' || state.kind === 'gone') {
     return (
-      <div className="max-w-md mx-auto my-16 text-center">
-        <h2 className="text-xl font-bold">Không tìm thấy bất động sản</h2>
-        <Link to="/" className="text-primary mt-4 inline-block font-semibold">
-          Quay lại trang chủ
-        </Link>
-      </div>
-    );
-  }
-
-
-  const isOwnListing = Boolean(user && user.id === listing.ownerId);
-  return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 flex flex-col gap-6">
-      {/* Nút quay lại */}
-      <div>
-        <Link
-          to="/search"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" /> Quay lại danh sách
-        </Link>
-        {!isOwnListing && <button type="button" onClick={() => setIsReportOpen(true)} className="ml-4 inline-flex min-h-11 items-center gap-1.5 text-xs font-semibold text-rose-700"><Flag className="h-4 w-4" /> Báo cáo tin vi phạm</button>}
-      </div>
-
-      {/* Hero Gallery ảnh */}
-      <div className="relative rounded-2xl overflow-hidden aspect-[16/9] md:aspect-[21/9] bg-surface-container">
-        {listing.imageUrls[0] ? <img
-          src={listing.imageUrls[0]}
-          alt={listing.title}
-          decoding="async"
-          fetchPriority="high"
-          className="w-full h-full object-cover"
-        /> : <div className="grid h-full place-items-center text-on-surface-variant" role="img" aria-label="Tin đăng chưa có ảnh">
-          <Building2 className="h-16 w-16" aria-hidden="true" />
-        </div>}
-        <div className="absolute top-4 left-4 flex gap-2">
-          {listing.isVerified && (
-            <Badge variant="verified" icon={<ShieldCheck className="w-4 h-4" />}>
-              Đã xác thực người đăng
-            </Badge>
-          )}
-        </div>
-      </div>
-      {listing.imageUrls.length > 1 && (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5" aria-label="Các ảnh của tin đăng">
-          {listing.imageUrls.slice(1, 6).map((url, index) => (
-            <img key={url} src={url} alt={`Ảnh ${index + 2} của ${listing.title}`} loading="lazy" decoding="async" className="aspect-video w-full rounded-xl object-cover" />
-          ))}
-        </div>
-      )}
-
-      {/* Chi tiết nội dung và Form liên hệ Lead */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Cột trái: Thông số & Mô tả */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          <div>
-            <div className="flex items-baseline gap-3 flex-wrap">
-              <span className="text-3xl font-extrabold text-primary tracking-tight">
-                {formatPriceVnd(listing.priceVnd)}
-              </span>
-              <span className="text-sm font-semibold text-on-surface-variant">
-                {calculateUnitPrice(listing.priceVnd, listing.areaM2)}
-              </span>
-            </div>
-            <h1 className="text-xl md:text-2xl font-bold text-on-surface mt-2 leading-snug">
-              {listing.title}
-            </h1>
-            <p className="flex items-center gap-1.5 text-sm text-on-surface-variant mt-2">
-              <MapPin className="w-4 h-4 text-outline" /> {listing.addressSummary}
-            </p>
-          </div>
-
-          {/* Ma trận thông số kỹ thuật */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Card className="flex flex-col items-center text-center p-3">
-              <Maximize2 className="w-5 h-5 text-primary mb-1" />
-              <span className="text-xs text-on-surface-variant">Diện tích</span>
-              <span className="text-sm font-bold text-on-surface">{listing.areaM2} m²</span>
-            </Card>
-            <Card className="flex flex-col items-center text-center p-3">
-              <Home className="w-5 h-5 text-primary mb-1" />
-              <span className="text-xs text-on-surface-variant">Loại hình</span>
-              <span className="text-sm font-bold text-on-surface">{formatPropertyType(listing.propertyType)}</span>
-            </Card>
-            <Card className="flex flex-col items-center text-center p-3">
-              <Tag className="w-5 h-5 text-primary mb-1" aria-hidden="true" />
-              <span className="text-xs text-on-surface-variant">Nhu cầu</span>
-              <span className="text-sm font-bold text-on-surface">{listing.purpose === 'SALE' ? 'Cần bán' : 'Cho thuê'}</span>
-            </Card>
-          </div>
-
-          {/* Mô tả chi tiết */}
-          <section className="border-t border-outline-variant/40 pt-6">
-            <h2 className="text-lg font-bold text-on-surface">Đặc điểm bất động sản</h2>
-            <dl className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-              {[
-                { label: 'Diện tích', value: `${listing.areaM2} m²`, icon: Maximize2 },
-                { label: 'Số phòng ngủ', value: listing.bedrooms != null ? `${listing.bedrooms} phòng` : null, icon: BedDouble },
-                { label: 'Số phòng tắm, vệ sinh', value: listing.bathrooms != null ? `${listing.bathrooms} phòng` : null, icon: Bath },
-                { label: 'Số tầng', value: listing.floors != null ? `${listing.floors} tầng` : null, icon: Building },
-                { label: 'Mặt tiền', value: listing.frontageM != null ? `${listing.frontageM} m` : null, icon: Ruler },
-                { label: 'Đường vào', value: listing.roadWidthM != null ? `${listing.roadWidthM} m` : null, icon: Route },
-                { label: 'Hướng nhà', value: listing.direction || null, icon: Compass },
-                { label: 'Pháp lý', value: listing.legalStatus || null, icon: FileText },
-              ].filter((item) => item.value).map(({ label, value, icon: Icon }) => (
-                <div key={label} className="flex min-h-12 items-center gap-3 border-b border-outline-variant/30 py-3">
-                  <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-                  <dt className="text-sm text-on-surface-variant">{label}</dt>
-                  <dd className="ml-auto text-right text-sm font-semibold text-on-surface">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-
-          <div className="flex flex-col gap-3">
-            <h2 className="text-lg font-bold text-on-surface">Mô tả bất động sản</h2>
-            <div className="text-sm text-on-surface leading-relaxed whitespace-pre-line bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/40">
-              {listing.description?.trim() || 'Người đăng chưa cung cấp mô tả chi tiết.'}
-            </div>
-          </div>
-
-          <section className="border-t border-outline-variant/40 pt-6">
-            <h2 className="text-lg font-bold text-on-surface">Thông tin người đăng</h2>
-            {seller ? <div className="mt-3 flex items-start gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-4">
-              <Link to={`/nguoi-dang/${listing.ownerId}`} aria-label={`Xem trang cá nhân của ${seller.displayName}`} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"><Avatar name={seller.displayName} src={seller.avatarMediaUrl} size="lg" /></Link>
-              <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-on-surface"><Link to={`/nguoi-dang/${listing.ownerId}`} className="hover:text-primary hover:underline">{seller.displayName}</Link></h3>{seller.identityVerified && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-800"><ShieldCheck className="h-4 w-4" />Đã xác minh danh tính</span>}</div><p className="mt-1 text-sm text-on-surface-variant">Đang có {seller.activeListingCount} tin hiển thị · Tham gia từ {new Intl.DateTimeFormat('vi-VN', { month: 'long', year: 'numeric' }).format(new Date(seller.memberSince))}</p><p className="mt-2 text-xs text-on-surface-variant">Thông tin liên hệ chỉ mở cho tài khoản đã xác minh eKYC khi gửi yêu cầu liên hệ.</p></div>
-            </div> : <p className="mt-3 text-sm text-on-surface-variant">Thông tin người đăng đang được cập nhật.</p>}
-          </section>
-        </div>
-
-        {/* Cột phải: tin của chính mình → khối quản lý thay cho form liên hệ */}
-        {isOwnListing ? (
-        <div className="lg:col-span-1 sticky top-6">
-          <Card className="p-5 border border-primary/20 shadow-lg shadow-primary/5">
-            <div className="flex items-center gap-3 pb-4 border-b border-outline-variant/40">
-              <Avatar name={user?.name} src={user?.avatarMediaUrl} size="md" />
-              <div className="min-w-0">
-                <h3 className="font-bold text-sm text-on-surface">Đây là tin của bạn</h3>
-                <p className="text-xs text-on-surface-variant">Khách quan tâm sẽ gửi yêu cầu liên hệ tới bạn.</p>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-col gap-2.5">
-              {(user?.role === 'BROKER' || user?.role === 'ADMIN') && <>
-                <Link to={`/listings/new?edit=${listing.id}`}><Button type="button" variant="outline" className="w-full min-h-11 font-bold">Chỉnh sửa tin</Button></Link>
-                <Link to="/my-leads"><Button type="button" variant="outline" className="w-full min-h-11 font-bold">Xem khách quan tâm</Button></Link>
-                <Link to="/my-listings"><Button type="button" variant="ghost" className="w-full min-h-11">Quản lý kho tin</Button></Link>
-              </>}
-              <Link to={`/nguoi-dang/${listing.ownerId}`}><Button type="button" variant="ghost" className="w-full min-h-11">Xem trang cá nhân công khai</Button></Link>
-            </div>
-          </Card>
-        </div>
+      <div className="mx-auto my-16 flex max-w-md flex-col items-center gap-3 px-4 text-center" data-ready="true">
+        <h1 className="text-headline-md text-on-surface">
+          {state.kind === 'gone' ? 'Tin không còn hiển thị' : 'Không tìm thấy bất động sản'}
+        </h1>
+        {state.kind === 'gone' ? (
+          <p className="text-body-sm text-on-surface-variant">
+            {state.title ? `“${state.title}”` : 'Tin đăng này'} đã được ẩn, hết hạn hoặc bị gỡ nên không còn xem được.
+            Bạn có thể tìm các tin tương tự đang hiển thị.
+          </p>
         ) : (
-        <div className="lg:col-span-1 sticky top-6">
-          <Card className="p-5 border border-primary/20 shadow-lg shadow-primary/5">
-            <div className="flex items-center gap-2 pb-4 border-b border-outline-variant/40">
-              <Link to={`/nguoi-dang/${listing.ownerId}`} aria-label={seller ? `Xem trang cá nhân của ${seller.displayName}` : 'Xem trang cá nhân người đăng'} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                <Avatar name={seller?.displayName} src={seller?.avatarMediaUrl} size="md" />
-              </Link>
-              <div className="min-w-0">
-                <h3 className="font-bold text-sm text-on-surface">Liên hệ {seller?.displayName ?? 'người đăng'}</h3>
-                <Link to={`/nguoi-dang/${listing.ownerId}`} className="text-xs font-semibold text-primary hover:underline">Xem trang cá nhân</Link>
-              </div>
-            </div>
-
-            <div className="mt-4 flex flex-col gap-3">
-                <p className="text-sm text-on-surface-variant">Gửi một yêu cầu ngắn để hẹn thời gian xem nhà. Hệ thống chỉ ghi nhận thành công khi máy chủ trả về mã yêu cầu.</p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => isAuthenticated ? setIsConsultationModalOpen(true) : setIsLoginModalOpen(true)}
-                  leftIcon={<MessageSquare className="w-4 h-4 text-primary" />}
-                  className="w-full border-primary/30 text-primary hover:bg-primary/10 font-bold"
-                >
-                  {isAuthenticated ? 'Hẹn xem & nhận tư vấn' : 'Đăng nhập để liên hệ'}
-                </Button>
-                <CompareToggleButton variant="inline" listing={{ id: listing.id, slug: listing.slug, title: listing.title, purpose: listing.purpose, priceVnd: listing.priceVnd, areaM2: listing.areaM2, addressSummary: listing.addressSummary, primaryImageUrl: listing.imageUrls[0] ?? '' }} />
-                {isAuthenticated && kycStatus !== 'VERIFIED' && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Tài khoản cần được duyệt eKYC trước khi gửi yêu cầu. <Link to="/kyc" className="font-bold underline underline-offset-4">Mở hồ sơ eKYC</Link></p>}
-            </div>
-
-            {/* Khối Giao dịch Đặt cọc Trực tuyến Bảo đảm Escrow (FR28, FR30, UC05) */}
-            <div className="mt-6 pt-5 border-t border-outline-variant/30 flex flex-col gap-3">
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-2.5">
-                <Lock className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
-                <div className="text-xs">
-                  <span className="font-bold text-emerald-900 block">Liên hệ và trao đổi trực tiếp</span>
-                  <span className="text-emerald-700 leading-snug block mt-0.5">
-                    Chỉ tài khoản đã eKYC mới được gửi và nhận yêu cầu liên hệ. Nhà Đất Chuẩn không nhận tiền cọc hoặc ký hợp đồng thay bạn.
-                  </span>
-                </div>
-              </div>
-
-            </div>
-          </Card>
+          <p className="text-body-sm text-on-surface-variant">
+            Đường dẫn không đúng hoặc tin chưa từng được công khai.
+          </p>
+        )}
+        <div className="flex flex-wrap justify-center gap-3">
+          <ButtonLink to="/search">Tìm tin khác</ButtonLink>
+          <ButtonLink to="/" variant="ghost">
+            Quay lại trang chủ
+          </ButtonLink>
         </div>
+      </div>
+    );
+  }
+  if (state.kind === 'error' || !listing) {
+    return (
+      <div className="mx-auto my-12 max-w-md px-4" data-ready="true">
+        <ErrorState
+          title="Không tải được tin đăng"
+          description="Kết nối đang gián đoạn. Vui lòng thử lại."
+          onRetry={() => setReload((value) => value + 1)}
+          headingLevel={2}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <ListingDetailView
+      listing={listing}
+      history={history}
+      similar={similar}
+      backLink={backLink}
+      ready={history !== null && similar !== null}
+    />
+  );
+};
+
+function ListingDetailView({
+  listing,
+  history,
+  similar,
+  backLink,
+  ready,
+}: {
+  listing: ListingDetailV2;
+  history: PriceHistoryV2 | null;
+  similar: ListingSummaryV2[] | null;
+  backLink: React.ReactNode;
+  ready: boolean;
+}) {
+  const { user, isAuthenticated, isPoster, setIsLoginModalOpen } = useAuth();
+  const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE' | 'LOADING'>('NONE');
+  const [leadOpen, setLeadOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const isOwn = Boolean(user && user.id === listing.seller.id);
+  const rent = formatRentTerms(listing.rentTerms);
+  const contactRef = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // DS-11: `?contact=1` keeps the visitor's intent across sign-in and KYC; the form reopens once they can send it.
+  const wantsContact = searchParams.get('contact') === '1';
+  const kycGate = isAuthenticated && !isOwn && kycStatus !== 'VERIFIED' && kycStatus !== 'LOADING';
+  useEffect(() => {
+    if (!wantsContact || isOwn || kycStatus !== 'VERIFIED') return;
+    setLeadOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('contact');
+    setSearchParams(next, { replace: true });
+  }, [wantsContact, isOwn, kycStatus, searchParams, setSearchParams]);
+  useEffect(() => {
+    if (kycGate) track('kyc_required_shown', { context: 'lead_form' });
+  }, [kycGate]);
+
+  useEffect(() => {
+    if (!user) {
+      setKycStatus('NONE');
+      return;
+    }
+    setKycStatus('LOADING');
+    apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
+      .then((profile) => setKycStatus(profile.status))
+      .catch(() => setKycStatus('NONE'));
+  }, [user]);
+
+  const facts: Array<{ label: string; value: string | null; icon: typeof Maximize2 }> = [
+    { label: 'Diện tích', value: formatArea(listing.areaM2), icon: Maximize2 },
+    {
+      label: 'Phòng ngủ',
+      value: listing.facts.bedrooms != null ? `${listing.facts.bedrooms} phòng` : null,
+      icon: BedDouble,
+    },
+    {
+      label: 'Phòng tắm, vệ sinh',
+      value: listing.facts.bathrooms != null ? `${listing.facts.bathrooms} phòng` : null,
+      icon: Bath,
+    },
+    { label: 'Số tầng', value: listing.facts.floors != null ? `${listing.facts.floors} tầng` : null, icon: Building },
+    {
+      label: 'Mặt tiền',
+      value: listing.facts.frontageM != null ? formatMetres(listing.facts.frontageM) : null,
+      icon: Ruler,
+    },
+    {
+      label: 'Đường vào',
+      value: listing.facts.roadWidthM != null ? formatMetres(listing.facts.roadWidthM) : null,
+      icon: RouteIcon,
+    },
+    { label: 'Hướng', value: listing.facts.direction || null, icon: Compass },
+    {
+      label: 'Pháp lý',
+      value: listing.legal
+        ? listing.legal.label + (listing.facts.legalStatusText ? ` (${listing.facts.legalStatusText})` : '')
+        : listing.facts.legalStatusText || null,
+      icon: FileText,
+    },
+    { label: 'Nội thất', value: listing.furnishing ? FURNISHING_LABELS[listing.furnishing] : null, icon: Sofa },
+  ];
+  const place = [listing.location.addressSummary, listing.location.districtName].filter(Boolean).join(' · ');
+
+  const contactAction = isOwn ? null : !isAuthenticated ? (
+    <Button
+      className="w-full"
+      onClick={() => {
+        const next = new URLSearchParams(searchParams);
+        next.set('contact', '1');
+        setSearchParams(next, { replace: true });
+        setIsLoginModalOpen(true);
+      }}
+      leftIcon={<MessageSquare className="h-4 w-4" />}
+    >
+      Đăng nhập để liên hệ
+    </Button>
+  ) : kycStatus === 'VERIFIED' ? (
+    <Button className="w-full" onClick={() => setLeadOpen(true)} leftIcon={<MessageSquare className="h-4 w-4" />}>
+      Hẹn xem & nhận tư vấn
+    </Button>
+  ) : (
+    <ButtonLink
+      to={`/kyc?returnTo=${encodeURIComponent(`${pathname}?contact=1`)}`}
+      className="w-full"
+      leftIcon={<Lock className="h-4 w-4" />}
+    >
+      Xác minh eKYC để liên hệ
+    </ButtonLink>
+  );
+
+  return (
+    <div
+      className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 pb-28 md:px-8 lg:pb-10"
+      data-ready={ready ? 'true' : 'false'}
+    >
+      <div className="flex flex-wrap items-center gap-4">
+        {backLink}
+        {!isOwn && (
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="inline-flex min-h-11 items-center gap-1.5 text-body-sm font-semibold text-error"
+          >
+            <Flag className="h-4 w-4" aria-hidden="true" /> Báo cáo tin vi phạm
+          </button>
         )}
       </div>
 
-      {/* Modal Đăng Ký Tư Vấn & Xác Minh OTP Khách Hàng (FR18, FR20, UC04) */}
-      {listing && (
-        <LeadConsultationModal
-          isOpen={isConsultationModalOpen}
-          onClose={() => setIsConsultationModalOpen(false)}
-          listing={{
-            id: listing.id,
-            title: listing.title,
-            priceVnd: listing.priceVnd,
-            areaM2: listing.areaM2,
-            address: listing.addressSummary,
-            imageUrl: listing.imageUrls[0] || '',
-          }}
-        />
-      )}
-      {isReportOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="report-title">
-          <form onSubmit={submitReport} className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6">
-            <h2 id="report-title" className="text-xl font-bold">Báo cáo tin vi phạm</h2>
-            <label className="block text-sm font-semibold">Loại vi phạm<select value={reportCategory} onChange={(event) => setReportCategory(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border px-3"><option value="SCAM_DEPOSIT">Có dấu hiệu lừa cọc</option><option value="FAKE_SOLD">Tin không còn đúng hiện trạng</option><option value="INCORRECT_PRICE">Giá không chính xác</option><option value="OTHER">Khác</option></select></label>
-            <label className="block text-sm font-semibold">Mô tả<textarea required minLength={10} value={reportDescription} onChange={(event) => setReportDescription(event.target.value)} rows={4} className="mt-1 w-full rounded-lg border p-3" /></label>
-            {reportFeedback && <p role="status" className="text-sm">{reportFeedback}</p>}
-            <div className="flex justify-end gap-2"><button type="button" onClick={() => setIsReportOpen(false)} className="min-h-11 rounded-lg border px-4">Đóng</button><button disabled={reportBusy || reportDescription.trim().length < 10} className="min-h-11 rounded-lg bg-rose-700 px-4 font-bold text-white disabled:opacity-50">{reportBusy ? 'Đang gửi…' : 'Gửi báo cáo'}</button></div>
-          </form>
+      <Gallery images={listing.images} title={listing.title} />
+
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-3">
+        <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
+          <header className="flex flex-col gap-2">
+            <p className="text-label font-semibold text-primary">
+              {purposeLabel(listing.purpose)} · {propertyTypeLabel(listing.propertyType)}
+              {listing.project && <> · Dự án {listing.project.name}</>}
+            </p>
+            <h1 className="mt-1 text-xl font-bold leading-snug text-on-surface md:text-2xl">{listing.title}</h1>
+            <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <Money price={listing.price} className="text-3xl font-extrabold tracking-tight text-primary" />
+              <UnitPriceText
+                unitPrice={listing.unitPrice}
+                className="text-body-sm font-semibold text-on-surface-variant"
+              />
+              {listing.priceChange && (
+                <span className="inline-flex items-center gap-1 text-body-sm font-semibold text-on-surface-variant">
+                  {listing.priceChange.direction === 'DOWN' ? (
+                    <TrendingDown className="h-4 w-4 text-success" aria-hidden="true" />
+                  ) : (
+                    <TrendingUp className="h-4 w-4 text-warning" aria-hidden="true" />
+                  )}
+                  {listing.priceChange.direction === 'DOWN' ? 'Giảm' : 'Tăng'} từ{' '}
+                  {formatMoney({ ...listing.price, amount: listing.priceChange.previousAmount })} ngày{' '}
+                  {formatDate(listing.priceChange.changedAt)}
+                </span>
+              )}
+            </p>
+            {listing.purpose === 'RENT' && (rent.monthlyServiceFee || rent.deposit) && (
+              <dl className="flex flex-wrap gap-x-6 gap-y-1 text-body-sm text-on-surface">
+                {rent.monthlyServiceFee && (
+                  <div className="flex gap-1">
+                    <dt className="text-on-surface-variant">Phí dịch vụ:</dt>
+                    <dd className="font-semibold">{rent.monthlyServiceFee}</dd>
+                  </div>
+                )}
+                {rent.deposit && (
+                  <div className="flex gap-1">
+                    <dt className="text-on-surface-variant">Đặt cọc:</dt>
+                    <dd className="font-semibold">{rent.deposit}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
+            {place && (
+              <p className="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
+                <MapPin className="h-4 w-4 shrink-0 text-outline" aria-hidden="true" /> {place}
+                <span className="text-label">(vị trí gần đúng)</span>
+              </p>
+            )}
+            <p className="text-label font-normal text-on-surface-variant">
+              Đăng ngày {formatDate(listing.freshness.publishedAt)} · Cập nhật {formatDate(listing.freshness.updatedAt)}
+              {listing.freshness.availabilityConfirmedAt && (
+                <> · Người đăng xác nhận còn hàng ngày {formatDate(listing.freshness.availabilityConfirmedAt)}</>
+              )}
+            </p>
+          </header>
+
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <Card className="flex flex-col items-center p-3 text-center">
+              <Maximize2 className="mb-1 h-5 w-5 text-primary" aria-hidden="true" />
+              <span className="text-xs text-on-surface-variant">Diện tích</span>
+              <span className="text-sm font-bold text-on-surface">{formatArea(listing.areaM2)}</span>
+            </Card>
+            <Card className="flex flex-col items-center p-3 text-center">
+              <Home className="mb-1 h-5 w-5 text-primary" aria-hidden="true" />
+              <span className="text-xs text-on-surface-variant">Loại hình</span>
+              <span className="text-sm font-bold text-on-surface">{propertyTypeLabel(listing.propertyType)}</span>
+            </Card>
+            <Card className="flex flex-col items-center p-3 text-center">
+              <Tag className="mb-1 h-5 w-5 text-primary" aria-hidden="true" />
+              <span className="text-xs text-on-surface-variant">Nhu cầu</span>
+              <span className="text-sm font-bold text-on-surface">{purposeLabel(listing.purpose)}</span>
+            </Card>
+          </div>
+
+          <section aria-labelledby="facts-heading" className="border-t border-outline-variant/40 pt-6">
+            <h2 id="facts-heading" className="text-lg font-bold text-on-surface">
+              Đặc điểm bất động sản
+            </h2>
+            <dl className="mt-3 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+              {facts
+                .filter((fact) => fact.value)
+                .map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="flex min-h-12 items-center gap-3 border-b border-outline-variant/60 py-3">
+                    <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                    <dt className="text-body-sm text-on-surface-variant">{label}</dt>
+                    <dd className="ml-auto text-right text-body-sm font-semibold text-on-surface">{value}</dd>
+                  </div>
+                ))}
+            </dl>
+          </section>
+
+          <section aria-labelledby="description-heading" className="flex flex-col gap-3">
+            <h2 id="description-heading" className="text-lg font-bold text-on-surface">
+              Mô tả bất động sản
+            </h2>
+            <div className="whitespace-pre-line rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-5 text-sm leading-relaxed text-on-surface">
+              {listing.description?.trim() || 'Người đăng chưa cung cấp mô tả chi tiết.'}
+            </div>
+          </section>
+
+          <TrustPanel trust={listing.trust} />
+
+          <PriceHistorySection history={history} />
+
+          <section aria-labelledby="seller-heading" className="border-t border-outline-variant/40 pt-6">
+            <h2 id="seller-heading" className="text-lg font-bold text-on-surface">
+              Thông tin người đăng
+            </h2>
+            <div className="mt-3 flex items-start gap-4 rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-4">
+              <Link
+                to={`/nguoi-dang/${listing.seller.id}`}
+                aria-label={`Xem trang người đăng ${listing.seller.name || ''}`.trim()}
+                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <Avatar name={listing.seller.name} src={listing.seller.avatarUrl} size="lg" />
+              </Link>
+              <div className="flex min-w-0 flex-col gap-2">
+                <p className="font-semibold text-on-surface">
+                  <Link to={`/nguoi-dang/${listing.seller.id}`} className="hover:text-primary hover:underline">
+                    {listing.seller.name || 'Người đăng'}
+                  </Link>{' '}
+                  <span className="text-body-sm font-normal text-on-surface-variant">
+                    · {sellerRoleLabel(listing.seller.role)}
+                  </span>
+                </p>
+                <TrustBadge
+                  kind="identity"
+                  status={listing.trust.identity.status}
+                  checkedAt={listing.trust.identity.checkedAt}
+                  expiresAt={listing.trust.identity.expiresAt}
+                />
+                <p className="text-label font-normal text-on-surface-variant">
+                  Xác minh danh tính áp dụng cho người đăng; việc đối chiếu giấy tờ được xét riêng cho từng tin.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside ref={contactRef} aria-labelledby="contact-heading" className="flex flex-col gap-4 lg:sticky lg:top-24">
+          <Card className="border border-primary/20 p-5 shadow-lg shadow-primary/5">
+            <div className="flex items-center gap-3 border-b border-outline-variant/40 pb-4">
+              <Avatar
+                name={isOwn ? user?.name : listing.seller.name}
+                src={isOwn ? user?.avatarMediaUrl : listing.seller.avatarUrl}
+                size="md"
+              />
+              <div className="min-w-0">
+                <h2 id="contact-heading" className="text-sm font-bold text-on-surface">
+                  {isOwn ? 'Đây là tin của bạn' : `Liên hệ ${listing.seller.name ?? 'người đăng'}`}
+                </h2>
+                {isOwn ? (
+                  <p className="text-xs text-on-surface-variant">Khách quan tâm sẽ gửi yêu cầu liên hệ tới bạn.</p>
+                ) : (
+                  <Link
+                    to={`/nguoi-dang/${listing.seller.id}`}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    Xem trang người đăng
+                  </Link>
+                )}
+              </div>
+            </div>
+            {isOwn ? (
+              <div className="mt-4 flex flex-col gap-2.5">
+                {isPoster && (
+                  <>
+                    <ButtonLink to={`/listings/new?edit=${listing.id}`} variant="outline" className="w-full">
+                      Chỉnh sửa tin
+                    </ButtonLink>
+                    <ButtonLink to="/my-leads" variant="outline" className="w-full">
+                      Xem khách quan tâm
+                    </ButtonLink>
+                    <ButtonLink to="/my-listings" variant="outline" className="w-full">
+                      Quản lý kho tin
+                    </ButtonLink>
+                  </>
+                )}
+                <ButtonLink to={`/nguoi-dang/${listing.seller.id}`} variant="ghost" className="w-full">
+                  Xem trang người đăng công khai
+                </ButtonLink>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col gap-3">
+                <p className="text-sm text-on-surface-variant">
+                  {!isAuthenticated
+                    ? 'Đăng nhập để gửi yêu cầu hẹn xem. Số điện thoại chỉ được chia sẻ qua yêu cầu liên hệ.'
+                    : kycStatus === 'VERIFIED'
+                      ? 'Gửi một yêu cầu ngắn để hẹn thời gian xem nhà; bạn sẽ thấy yêu cầu trong mục “Tin đã liên hệ”.'
+                      : kycStatus === 'LOADING'
+                        ? 'Đang kiểm tra trạng thái xác minh của tài khoản…'
+                        : 'Tài khoản cần được xác minh eKYC trước khi gửi yêu cầu liên hệ.'}
+                </p>
+                {contactAction}
+                <CompareToggleButton variant="inline" listing={compareItemFromSummary(listing)} />
+                <FavoriteButton appearance="inline" listingId={listing.id} title={listing.title} />
+                <div className="mt-2 flex items-start gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+                  <p className="text-xs">
+                    <span className="block font-bold text-emerald-900">Liên hệ và trao đổi trực tiếp</span>
+                    <span className="mt-0.5 block leading-snug text-emerald-800">
+                      Số điện thoại và email của người đăng không hiển thị công khai. Nhà Đất Chuẩn không nhận tiền cọc
+                      và không ký hợp đồng thay bạn.
+                    </span>
+                  </p>
+                </div>
+              </div>
+            )}
+          </Card>
+        </aside>
+      </div>
+
+      <section
+        aria-labelledby="similar-heading"
+        className="flex flex-col gap-4 border-t border-outline-variant/40 pt-6"
+      >
+        <h2 id="similar-heading" className="text-lg font-bold text-on-surface">
+          Tin tương tự
+        </h2>
+        {similar === null ? (
+          <Skeleton className="h-40 w-full rounded-card" />
+        ) : similar.length ? (
+          <ul className="ndc-listing-grid">
+            {similar.map((item) => (
+              <li key={item.id}>
+                <ListingCard listing={item} actions={<FavoriteButton listingId={item.id} title={item.title} />} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-body-sm text-on-surface-variant">Chưa có tin tương tự đang hiển thị.</p>
+        )}
+      </section>
+
+      {!isOwn && (
+        <div className="fixed inset-x-0 bottom-0 z-header flex items-center gap-3 border-t border-outline-variant bg-surface-container-lowest/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="min-w-0 flex-1">
+            <Money price={listing.price} className="block truncate text-body font-bold text-primary" />
+            <p className="truncate text-label font-normal text-on-surface-variant">{formatArea(listing.areaM2)}</p>
+          </div>
+          <div className="shrink-0">{contactAction}</div>
         </div>
       )}
+
+      <LeadConsultationModal
+        isOpen={leadOpen}
+        onClose={() => setLeadOpen(false)}
+        listing={{
+          id: listing.id,
+          title: listing.title,
+          priceVnd: listing.price.amount,
+          price: listing.price,
+          areaM2: listing.areaM2,
+          address: place,
+          imageUrl: listing.images[0]?.url ?? '',
+        }}
+      />
+      <ReportDialog listingId={listing.id} open={reportOpen} onClose={() => setReportOpen(false)} />
     </div>
   );
-};
+}
+
+function PriceHistorySection({ history }: { history: PriceHistoryV2 | null }) {
+  if (!history || history.points.length < 2) return null;
+  return (
+    <section aria-labelledby="price-history-heading" className="border-t border-outline-variant pt-6">
+      <h2 id="price-history-heading" className="flex items-center gap-2 text-headline-sm text-on-surface">
+        <History className="h-5 w-5 text-primary" aria-hidden="true" /> Lịch sử giá
+      </h2>
+      <p className="mt-1 text-label font-normal text-on-surface-variant">
+        Theo các phiên bản tin đã được duyệt công khai.
+      </p>
+      <ol className="mt-3 flex flex-col divide-y divide-outline-variant/60">
+        {[...history.points].reverse().map((point, index) => (
+          <li key={`${point.changedAt}-${index}`} className="flex justify-between gap-4 py-2 text-body-sm">
+            <span className="text-on-surface-variant">{formatDate(point.changedAt) || 'Không rõ ngày'}</span>
+            <Money price={point.price} className="font-semibold text-on-surface" />
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ReportDialog({ listingId, open, onClose }: { listingId: string; open: boolean; onClose: () => void }) {
+  const [category, setCategory] = useState('OTHER');
+  const [description, setDescription] = useState('');
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (description.trim().length < 10) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      await apiClient('/public/reports', {
+        method: 'POST',
+        body: JSON.stringify({
+          listingId,
+          category,
+          severity: 'MEDIUM',
+          description: description.trim(),
+          evidenceUrls: '',
+          reporterPhone: '',
+        }),
+      });
+      setFeedback('Báo cáo đã được ghi nhận trên hệ thống.');
+      setDescription('');
+    } catch {
+      setFeedback('Không thể gửi báo cáo. Vui lòng thử lại.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Báo cáo tin vi phạm"
+      footer={
+        <>
+          <Button variant="outline" onClick={onClose}>
+            Đóng
+          </Button>
+          <Button
+            type="submit"
+            form="listing-report-form"
+            isLoading={busy}
+            disabled={description.trim().length < 10}
+            variant="danger"
+          >
+            Gửi báo cáo
+          </Button>
+        </>
+      }
+    >
+      <form id="listing-report-form" onSubmit={submit} className="space-y-4">
+        <label className="block text-body-sm font-semibold">
+          Loại vi phạm
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className="mt-1 min-h-11 w-full rounded-input border border-outline px-3"
+          >
+            <option value="SCAM_DEPOSIT">Có dấu hiệu lừa cọc</option>
+            <option value="FAKE_SOLD">Tin không còn đúng hiện trạng</option>
+            <option value="INCORRECT_PRICE">Giá không chính xác</option>
+            <option value="OTHER">Khác</option>
+          </select>
+        </label>
+        <label className="block text-body-sm font-semibold">
+          Mô tả (ít nhất 10 ký tự)
+          <textarea
+            required
+            minLength={10}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={4}
+            className="mt-1 w-full rounded-input border border-outline p-3"
+          />
+        </label>
+        {feedback && (
+          <p role="status" className="text-body-sm">
+            {feedback}
+          </p>
+        )}
+      </form>
+    </Dialog>
+  );
+}

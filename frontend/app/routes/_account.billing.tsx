@@ -1,499 +1,242 @@
-import { useEffect, useState } from "react";
-import { Check, Layers, ShieldCheck, Zap } from "lucide-react";
-import { apiClient } from "@/shared/api/client";
-import { useAuth } from "@/shared/auth/AuthContext";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Check, History, Info } from 'lucide-react';
+import { apiClient } from '@/shared/api/client';
+import { billingApi, newIdempotencyKey } from '@/entities/admin/api/adminApi';
+import type { BillingOrder, OrderEvent } from '@/entities/admin/model/types';
+import { errorMessage } from '@/shared/api/errors';
+import { StatusBadge, formatDateTime, formatVnd } from '@/shared/admin/adminUi';
+import { ORDER_STATUS } from '@/entities/admin/model/billingStatus';
+import { Button } from '@/shared/ui/Button';
+import { EmptyState } from '@/shared/ui/EmptyState';
+import { InlineFeedback } from '@/shared/ui/InlineFeedback';
+import { Pagination } from '@/shared/ui/Pagination';
+import { Sheet } from '@/shared/ui/Sheet';
+import { Skeleton } from '@/shared/ui/Skeleton';
 
-type Plan = {
-  code: string;
-  name: string;
-  priceVnd: number;
-  quota: number;
-  durationDays: number;
-  description: string;
-};
-type Order = {
-  id: string;
-  userId: string;
-  planCode: string;
-  amountVnd: number;
-  reference: string;
-  status: string;
-  createdAt: string;
-  qrUrl: string;
-};
-type Bank = {
-  bankBin: string;
-  bankName: string;
-  accountNumber: string;
-  accountName: string;
-  adminEmail: string;
-  version: number;
-};
-const ORDER_STATUS: Record<string, string> = {
-  CREATED: "Chờ chuyển khoản",
-  TRANSFER_REPORTED: "Đang chờ đối soát",
-  APPROVED: "Đã nâng cấp",
-  REJECTED: "Đối soát bị từ chối",
-  CANCELLED: "Đã hủy",
-};
+type Plan = { code: string; name: string; priceVnd: number; quota: number; durationDays: number; description: string };
 
-const highlightsFor = (plan: Plan, plans: Plan[]) => {
-  const standard = plans.find((item) => item.code === "STANDARD");
-  const free = plans.find((item) => item.code === "FREE");
-  if (plan.code === "FREE") {
-    return [
-      `${plan.quota} lượt đăng để trải nghiệm nền tảng`,
-      `Dùng trong ${plan.durationDays} ngày`,
-      "Không cần thanh toán để bắt đầu",
-    ];
-  }
-  const perListing = Math.round(plan.priceVnd / plan.quota);
-  if (plan.code === "PRO" && standard) {
-    const standardUnitPrice = standard.priceVnd / standard.quota;
-    const savings = Math.round((1 - perListing / standardUnitPrice) * 100);
-    return [
-      `${plan.quota} lượt đăng, khoảng ${perListing.toLocaleString("vi-VN")}đ/lượt`,
-      standard.quota > 0
-        ? `${Math.floor(plan.quota / standard.quota)} lần số lượt của gói ${standard.name}`
-        : `${plan.quota} lượt đăng trong một đơn`,
-      savings > 0
-        ? `Tiết kiệm khoảng ${savings}% mỗi lượt so với gói ${standard.name}`
-        : `Hiệu lực ${plan.durationDays} ngày`,
-      `Lượt được cộng sau khi đối soát thanh toán`,
-    ];
-  }
-  if (plan.code === "STANDARD") {
-    return [
-      `${plan.quota} lượt đăng, khoảng ${perListing.toLocaleString("vi-VN")}đ/lượt`,
-      free && free.quota > 0
-        ? `${Math.floor(plan.quota / free.quota)} lần số lượt của gói ${free.name}`
-        : `Dùng trong ${plan.durationDays} ngày`,
-      `Lượt được cộng sau khi đối soát thanh toán`,
-    ];
-  }
-  return [
-    `${plan.quota} lượt đăng được cộng sau khi thanh toán được xác nhận`,
-    `Thời hạn ${plan.durationDays} ngày`,
-    `Khoảng ${perListing.toLocaleString("vi-VN")}đ cho mỗi lượt`,
-  ];
+const EVENT_LABELS: Record<string, string> = {
+  CREATED: 'Tạo yêu cầu',
+  TRANSFER_REPORTED: 'Bạn báo đã chuyển khoản',
+  EXCEPTION: 'Khoản nhận chưa khớp',
+  APPROVED: 'Đã kích hoạt gói',
+  REJECTED: 'Không được duyệt',
+  REFUNDED: 'Đã hoàn tiền',
+  CANCELLED: 'Đã hủy',
 };
 
 export function BillingPage() {
-  const { user } = useAuth();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [queue, setQueue] = useState<Order[]>([]);
-  const [bank, setBank] = useState<Bank>({
-    bankBin: "",
-    bankName: "",
-    accountNumber: "",
-    accountName: "",
-    adminEmail: "",
-    version: 0,
-  });
-  const [rejectReasons, setRejectReasons] = useState<Record<string, string>>(
-    {},
-  );
-  const [msg, setMsg] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const run = async (action: () => Promise<void>) => {
+  const [plans, setPlans] = useState<Plan[] | null>(null);
+  const [orders, setOrders] = useState<BillingOrder[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{ order: BillingOrder; events: OrderEvent[] } | null>(null);
+  // One key per plan intention: double clicks and retries return the same order.
+  const keys = useRef<Record<string, string>>({});
+
+  const load = useCallback(async () => {
+    try {
+      const [p, o] = await Promise.all([apiClient<Plan[]>('/billing/plans'), billingApi.myOrders(page)]);
+      setPlans(p);
+      setOrders(o.items);
+      setTotal(o.total);
+    } catch (err) {
+      setError(errorMessage(err, 'Không tải được gói dịch vụ.'));
+      setPlans((p) => p ?? []);
+    }
+  }, [page]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const run = async (id: string, action: () => Promise<unknown>) => {
     if (busy) return;
-    setBusy(true);
-    setError("");
-    setMsg("");
+    setBusy(id);
+    setError(null);
     try {
       await action();
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Không thể thực hiện thao tác. Vui lòng thử lại.",
-      );
+      await load();
+    } catch (err) {
+      setError(errorMessage(err, 'Không thể thực hiện thao tác.'));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
-  const load = () => {
-    apiClient<Plan[]>("/billing/plans")
-      .then(setPlans)
-      .catch((e) => setError(e.message));
-    apiClient<Order[]>("/billing/orders")
-      .then(setOrders)
-      .catch((e) => setError(e.message));
-    if (user?.role === "ADMIN") {
-      apiClient<Order[]>("/billing/admin/reconciliation")
-        .then(setQueue)
-        .catch((e) => setError(e.message));
-      apiClient<Bank>("/billing/admin/bank")
-        .then((value) => value && setBank(value))
-        .catch((e) => setError(e.message));
-    }
-  };
-  useEffect(load, [user?.role]);
-  const buy = async (code: string) => {
-    await apiClient("/billing/orders", {
-      method: "POST",
-      body: JSON.stringify({ planCode: code }),
+  const buy = (plan: Plan) =>
+    run(plan.code, async () => {
+      keys.current[plan.code] ??= newIdempotencyKey(`order-${plan.code}`);
+      const order = await billingApi.createOrder(plan.code, keys.current[plan.code]);
+      if (order.status !== 'CREATED') delete keys.current[plan.code];
     });
-    setMsg("Đã tạo mã thanh toán. Quét QR và ghi đúng nội dung chuyển khoản.");
-    load();
-  };
-  const report = async (id: string) => {
-    await apiClient(`/billing/orders/${id}/reported`, { method: "POST" });
-    setMsg("Đã báo chuyển khoản. Quản trị viên sẽ đối soát thủ công.");
-    load();
-  };
-  const cancel = async (id: string) => {
-    await apiClient(`/billing/orders/${id}/cancel`, { method: "POST" });
-    setMsg("Đã hủy yêu cầu thanh toán.");
-    load();
-  };
-  const approve = async (id: string) => {
-    await apiClient(`/billing/admin/reconciliation/${id}/approve`, {
-      method: "POST",
-      body: JSON.stringify({ note: "Đã đối chiếu thủ công" }),
-    });
-    setMsg("Đã xác nhận và cộng lượt đăng cho tài khoản.");
-    load();
-  };
-  const reject = async (id: string) => {
-    await apiClient(`/billing/admin/reconciliation/${id}/reject`, {
-      method: "POST",
-      body: JSON.stringify({ reason: rejectReasons[id] }),
-    });
-    setMsg("Đã từ chối và thông báo lý do cho người dùng.");
-    load();
-  };
-  const saveBank = async () => {
-    await apiClient("/billing/admin/bank", {
-      method: "PUT",
-      body: JSON.stringify(bank),
-    });
-    setMsg("Đã lưu tài khoản nhận tiền.");
-    load();
-  };
-  const currentPlan = plans.find((plan) => plan.code === user?.planCode);
+  const open = orders.filter(
+    (o) => o.status === 'CREATED' || o.status === 'TRANSFER_REPORTED' || o.status === 'EXCEPTION',
+  );
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 md:px-8">
+    <section className="mx-auto max-w-6xl space-y-8 px-4 py-10 md:px-8" data-ready={plans ? 'true' : undefined}>
       <header className="border-b border-slate-200 pb-8">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">
-              Nâng cấp lượt đăng tin
-            </h1>
-            <p className="mt-3 max-w-2xl leading-7 text-slate-600">
-              Chọn số lượt phù hợp với nhu cầu đăng tin. Mỗi đơn được thanh toán
-              một lần; lượt đăng sẽ được cộng sau khi quản trị viên xác nhận
-              chuyển khoản.
-            </p>
-          </div>
-          <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-            <p className="font-bold">
-              Gói hiện tại: {currentPlan?.name || "Miễn phí"}
-            </p>
-            <p className="mt-1">
-              Còn{" "}
-              <strong className="tabular-nums">
-                {user?.listingQuotaRemaining ?? 0}
-              </strong>{" "}
-              lượt đăng
-            </p>
-          </div>
-        </div>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">Gói đăng tin</h1>
+        <InlineFeedback kind="info" title="Đây là phí dịch vụ đăng tin trên Nhà Đất Chuẩn" className="mt-3">
+          Khoản thanh toán này chỉ mua lượt đăng tin. Không phải tiền đặt cọc hay thanh toán bất động sản — không chuyển
+          tiền cọc qua trang này.
+        </InlineFeedback>
       </header>
-      {error && (
-        <div
-          role="alert"
-          className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-medium text-rose-800"
-        >
-          {error}
-        </div>
-      )}
-      {msg && (
-        <div
-          role="status"
-          className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-900"
-        >
-          {msg}
-        </div>
-      )}
-      <section
-        className="mt-8 grid gap-5 md:grid-cols-3"
-        aria-label="Các gói đăng tin"
-      >
-        {plans.map((plan) => {
-          const featured = plan.code === "PRO";
-          const perListing =
-            plan.priceVnd > 0 ? Math.round(plan.priceVnd / plan.quota) : 0;
-          const planButtonTone =
-            plan.priceVnd === 0
-              ? "bg-slate-200 text-slate-700"
-              : featured
-                ? "bg-emerald-700 text-white hover:bg-emerald-800"
-                : "bg-slate-950 text-white hover:bg-slate-800";
-          return (
-            <article
-              key={plan.code}
-              className={`relative rounded-xl border p-6 ${featured ? "border-emerald-500 bg-emerald-50/40" : "border-slate-200 bg-white"}`}
-            >
-              {featured && (
-                <span className="absolute -top-3 left-6 rounded-full bg-emerald-700 px-3 py-1 text-xs font-bold text-white">
-                  Hiệu quả cho đăng nhiều tin
-                </span>
-              )}
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-950">
-                    {plan.name}
-                  </h2>
-                  <p className="mt-2 text-3xl font-bold tabular-nums text-slate-950">
-                    {plan.priceVnd.toLocaleString("vi-VN")}đ
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {plan.quota} lượt đăng · {plan.durationDays} ngày
-                  </p>
-                </div>
-                {featured ? (
-                  <Zap className="h-6 w-6 text-emerald-700" />
-                ) : (
-                  <Layers className="h-6 w-6 text-blue-700" />
-                )}
-              </div>
-              <div className="my-5 rounded-lg bg-slate-50 px-4 py-3">
-                <p className="text-xs font-bold uppercase tracking-wide text-slate-600">
-                  Chi phí theo lượt
-                </p>
-                <p className="mt-1 font-bold text-slate-950">
-                  {plan.priceVnd === 0
-                    ? "0đ để bắt đầu"
-                    : `Chỉ khoảng ${perListing.toLocaleString("vi-VN")}đ / lượt đăng`}
-                </p>
-              </div>
-              <ul className="space-y-3">
-                {highlightsFor(plan, plans).map((benefit) => (
-                  <li
-                    key={benefit}
-                    className="flex gap-2 text-sm leading-6 text-slate-700"
-                  >
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />
-                    {benefit}
-                  </li>
-                ))}
-              </ul>
-              <button
-                disabled={busy || plan.priceVnd === 0}
-                onClick={() => void run(() => buy(plan.code))}
-                className={`mt-6 min-h-11 w-full rounded-lg px-4 text-sm font-bold ${planButtonTone} disabled:cursor-not-allowed disabled:opacity-60`}
-              >
-                {plan.priceVnd === 0 ? "Gói mặc định" : `Chọn gói ${plan.name}`}
-              </button>
-            </article>
-          );
-        })}
-      </section>
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5 md:p-6">
-        <h2 className="text-xl font-bold text-slate-950">
-          Các công cụ bạn dùng cùng lượt đăng
+      {error && <InlineFeedback kind="error" title={error} />}
+
+      <section aria-labelledby="plans-heading">
+        <h2 id="plans-heading" className="text-xl font-bold">
+          Chọn gói
         </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-          Khi tin được tạo, bạn quản lý toàn bộ quá trình ngay trên tài khoản
-          môi giới.
-        </p>
-        <div className="mt-5 grid gap-5 md:grid-cols-3 md:divide-x md:divide-slate-200">
-          <div className="md:pr-5">
-            <p className="font-bold text-slate-950">Kho tin của bạn</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Theo dõi tin đang soạn, chờ duyệt hoặc hiển thị; quản lý trạng
-              thái tin tại một nơi.
-            </p>
-          </div>
-          <div className="md:px-5">
-            <p className="font-bold text-slate-950">Hộp thư theo từng bài</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Xem yêu cầu liên hệ, nội dung khách để lại và cập nhật tiến độ
-              chăm sóc.
-            </p>
-          </div>
-          <div className="md:pl-5">
-            <p className="font-bold text-slate-950">Không gian môi giới</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Theo dõi số tin, lead mới và thời gian chờ phản hồi trên dữ liệu
-              tài khoản.
-            </p>
-          </div>
-        </div>
+        {!plans ? (
+          <Skeleton className="mt-3 h-40" />
+        ) : (
+          <ul className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {plans.map((plan) => {
+              const existing = open.find((o) => o.planCode === plan.code);
+              return (
+                <li key={plan.code} className="flex flex-col rounded-xl border border-outline-variant p-5">
+                  <h3 className="text-lg font-bold">{plan.name}</h3>
+                  <p className="mt-1 text-2xl font-bold">
+                    {plan.priceVnd === 0 ? 'Miễn phí' : formatVnd(plan.priceVnd)}
+                  </p>
+                  <ul className="mt-3 flex-1 space-y-1 text-sm">
+                    <li className="flex gap-2">
+                      <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> {plan.quota} lượt đăng tin
+                    </li>
+                    <li className="flex gap-2">
+                      <Check className="h-4 w-4 shrink-0" aria-hidden="true" /> Hiệu lực {plan.durationDays} ngày
+                    </li>
+                    <li className="text-on-surface-variant">{plan.description}</li>
+                  </ul>
+                  {plan.priceVnd > 0 &&
+                    (existing ? (
+                      <p className="mt-4 text-sm font-semibold">
+                        Bạn đã có yêu cầu đang mở cho gói này ({ORDER_STATUS[existing.status].label}).
+                      </p>
+                    ) : (
+                      <Button className="mt-4" isLoading={busy === plan.code} onClick={() => buy(plan)}>
+                        Tạo yêu cầu thanh toán
+                      </Button>
+                    ))}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
-      <section className="mt-8 rounded-xl border border-blue-200 bg-blue-50 p-5">
-        <div className="flex gap-3">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-blue-800" />
-          <div>
-            <h2 className="font-bold text-blue-950">
-              Quy trình thanh toán rõ ràng
-            </h2>
-            <ol className="mt-2 space-y-1 text-sm leading-6 text-blue-900">
-              <li>1. Chọn gói để tạo mã thanh toán VietQR.</li>
-              <li>2. Chuyển đúng số tiền và nội dung hiển thị trong đơn.</li>
-              <li>
-                3. Bấm “Tôi đã chuyển khoản”; quản trị viên kiểm tra và cộng
-                lượt sau khi xác nhận.
-              </li>
-            </ol>
-          </div>
-        </div>
-      </section>
-      <section className="mt-10">
-        <h2 className="text-xl font-bold text-slate-950">Thanh toán của tôi</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Theo dõi từng yêu cầu thanh toán và trạng thái đối soát.
-        </p>
-        <div className="mt-4 grid gap-4">
-          {orders.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">
-              Chưa có yêu cầu thanh toán nào.
+
+      {open
+        .filter((o) => o.status === 'CREATED')
+        .map((o) => (
+          <section
+            key={o.id}
+            aria-label={`Hướng dẫn chuyển khoản ${o.reference}`}
+            className="rounded-xl border border-primary/40 p-5"
+          >
+            <h2 className="text-lg font-bold">Chuyển khoản cho gói {o.planName}</h2>
+            <div className="mt-3 grid gap-4 md:grid-cols-[200px_1fr]">
+              {o.qrUrl && (
+                <img src={o.qrUrl} alt={`Mã QR chuyển khoản ${o.reference}`} className="w-48 rounded-md border" />
+              )}
+              <dl className="grid grid-cols-2 gap-2 text-sm">
+                <dt className="text-on-surface-variant">Số tiền</dt>
+                <dd className="font-bold">{formatVnd(o.amountVnd)}</dd>
+                <dt className="text-on-surface-variant">Nội dung chuyển khoản</dt>
+                <dd className="font-mono font-bold">{o.reference}</dd>
+                <dt className="text-on-surface-variant">Số tài khoản</dt>
+                <dd>{o.accountNumberSnapshot}</dd>
+                <dt className="text-on-surface-variant">Chủ tài khoản</dt>
+                <dd>{o.accountNameSnapshot}</dd>
+              </dl>
             </div>
-          ) : (
-            orders.map((order) => (
-              <article
-                key={order.id}
-                className="flex flex-col items-center gap-5 rounded-xl border border-slate-200 bg-white p-5 md:flex-row"
+            <p className="mt-3 text-xs text-on-surface-variant">
+              Thông tin tài khoản được chốt tại thời điểm tạo yêu cầu.
+            </p>
+            <div className="mt-4 flex flex-wrap justify-between gap-6">
+              <Button isLoading={busy === o.id} onClick={() => run(o.id, () => billingApi.report(o.id))}>
+                Tôi đã chuyển khoản
+              </Button>
+              <Button
+                variant="outline"
+                disabled={busy !== null}
+                onClick={() => run(o.id, () => billingApi.cancel(o.id))}
               >
-                {order.qrUrl && (
-                  <img
-                    src={order.qrUrl}
-                    alt={`QR chuyển khoản ${order.reference}`}
-                    className="h-40 w-40 object-contain"
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-slate-950">
-                    {plans.find((plan) => plan.code === order.planCode)?.name ||
-                      "Gói đăng tin"}{" "}
-                    · {order.amountVnd.toLocaleString("vi-VN")}đ
+                Hủy yêu cầu
+              </Button>
+            </div>
+          </section>
+        ))}
+
+      <section aria-labelledby="history-heading">
+        <h2 id="history-heading" className="text-xl font-bold">
+          Lịch sử thanh toán
+        </h2>
+        {orders.length === 0 ? (
+          <EmptyState title="Chưa có yêu cầu thanh toán nào" headingLevel={3} />
+        ) : (
+          <ul className="mt-3 divide-y divide-outline-variant rounded-xl border border-outline-variant">
+            {orders.map((o) => (
+              <li key={o.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+                <div>
+                  <p className="font-semibold">
+                    {o.planName} · {formatVnd(o.amountVnd)} · <span className="font-mono">{o.reference}</span>
                   </p>
-                  <p className="mt-2 text-sm text-slate-700">
-                    Nội dung bắt buộc:{" "}
-                    <strong className="text-emerald-800">
-                      {order.reference}
-                    </strong>
+                  <p className="text-on-surface-variant">
+                    {formatDateTime(o.createdAt)} · {ORDER_STATUS[o.status].hint}
                   </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Trạng thái: {ORDER_STATUS[order.status] || "Chưa xác định"}
-                  </p>
+                  {o.reviewNote && o.status !== 'APPROVED' && <p>Ghi chú: {o.reviewNote}</p>}
                 </div>
-                {order.status === "CREATED" && (
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      disabled={busy}
-                      onClick={() => void run(() => report(order.id))}
-                      className="min-h-11 rounded-lg bg-slate-950 px-4 text-sm font-bold text-white"
-                    >
-                      Tôi đã chuyển khoản
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() => void run(() => cancel(order.id))}
-                      className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-bold text-slate-800"
-                    >
-                      Hủy yêu cầu
-                    </button>
-                  </div>
-                )}
-              </article>
-            ))
-          )}
-        </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge label={ORDER_STATUS[o.status].label} variant={ORDER_STATUS[o.status].variant} />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    leftIcon={<History className="h-4 w-4" />}
+                    aria-label={`Lịch sử ${o.reference}`}
+                    onClick={async () => setDetail(await billingApi.myOrder(o.id))}
+                  >
+                    Lịch sử
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {total > 10 && (
+          <Pagination
+            className="mt-3"
+            page={page + 1}
+            pageCount={Math.ceil(total / 10)}
+            onPageChange={(p) => setPage(p - 1)}
+          />
+        )}
       </section>
-      {user?.role === "ADMIN" && (
-        <>
-          <section className="mt-10 rounded-xl border border-slate-200 bg-white p-6">
-            <h2 className="text-xl font-bold">Tài khoản nhận VietQR</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {(
-                [
-                  "bankBin",
-                  "bankName",
-                  "accountNumber",
-                  "accountName",
-                  "adminEmail",
-                ] as const
-              ).map((key) => (
-                <label key={key} className="text-sm font-semibold">
-                  {
-                    {
-                      bankBin: "Mã BIN ngân hàng (6 số)",
-                      bankName: "Tên ngân hàng",
-                      accountNumber: "Số tài khoản",
-                      accountName: "Tên chủ tài khoản",
-                      adminEmail: "Email nhận thông báo",
-                    }[key]
-                  }
-                  <input
-                    value={bank[key] || ""}
-                    onChange={(event) =>
-                      setBank({ ...bank, [key]: event.target.value })
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm"
-                  />
-                </label>
-              ))}
-            </div>
-            <button
-              disabled={busy}
-              onClick={() => void run(saveBank)}
-              className="mt-4 min-h-11 rounded-lg bg-emerald-700 px-5 text-sm font-bold text-white"
-            >
-              Lưu cấu hình
-            </button>
-          </section>
-          <section className="mt-8">
-            <h2 className="text-xl font-bold">Chờ đối soát ({queue.length})</h2>
-            <div className="mt-3 grid gap-3">
-              {queue.map((order) => (
-                <div
-                  key={order.id}
-                  className="grid gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 md:grid-cols-[1fr_1fr_auto]"
-                >
-                  <span className="font-semibold">
-                    {order.reference} ·{" "}
-                    {order.amountVnd.toLocaleString("vi-VN")}đ
-                  </span>
-                  <input
-                    aria-label={`Lý do từ chối ${order.reference}`}
-                    value={rejectReasons[order.id] || ""}
-                    onChange={(event) =>
-                      setRejectReasons({
-                        ...rejectReasons,
-                        [order.id]: event.target.value,
-                      })
-                    }
-                    placeholder="Lý do nếu từ chối"
-                    className="min-h-11 rounded-lg border border-amber-200 bg-white px-3 text-sm"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      disabled={busy}
-                      onClick={() => void run(() => approve(order.id))}
-                      className="min-h-11 rounded-lg bg-emerald-700 px-4 text-sm font-bold text-white"
-                    >
-                      Xác nhận
-                    </button>
-                    <button
-                      disabled={busy || !rejectReasons[order.id]?.trim()}
-                      onClick={() => void run(() => reject(order.id))}
-                      className="min-h-11 rounded-lg bg-rose-700 px-4 text-sm font-bold text-white disabled:opacity-50"
-                    >
-                      Từ chối
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </>
+
+      {detail && (
+        <Sheet
+          open
+          onClose={() => setDetail(null)}
+          title={`Yêu cầu ${detail.order.reference}`}
+          description={ORDER_STATUS[detail.order.status].label}
+        >
+          <ol className="space-y-2 text-sm">
+            {detail.events.map((e) => (
+              <li key={e.id} className="rounded-md bg-surface-container-low p-2">
+                <span className="font-semibold">{EVENT_LABELS[e.type] ?? e.type}</span> · {formatDateTime(e.createdAt)}
+                {e.note && <span className="block text-on-surface-variant">{e.note}</span>}
+              </li>
+            ))}
+          </ol>
+          {detail.order.invoiceNumber && <p className="mt-3 text-sm">Hóa đơn: {detail.order.invoiceNumber}</p>}
+          <p className="mt-3 flex gap-2 text-xs text-on-surface-variant">
+            <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Gói, số tiền và tài khoản nhận là bản chốt tại lúc tạo yêu cầu.
+          </p>
+        </Sheet>
       )}
-    </main>
+    </section>
   );
 }
 

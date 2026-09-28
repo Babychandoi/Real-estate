@@ -37,9 +37,18 @@ public final class ContactInfoGuard {
 
     /** Masks contact details in already stored content before it is shown publicly. */
     public static String redact(String text) {
+        return redact(text, REDACTED);
+    }
+
+    /**
+     * Same masking with another replacement (search indexing uses a space so the mask itself is not searchable).
+     * Mirrored in SQL by {@code bds_redact_contact} (V036), which builds the search text; keep both in sync.
+     */
+    public static String redact(String text, String replacement) {
         if (text == null || text.isEmpty()) return text;
-        String result = LINK.matcher(text).replaceAll(REDACTED);
-        result = EMAIL.matcher(result).replaceAll(REDACTED);
-        return PHONE.matcher(result).replaceAll(REDACTED);
+        String quoted = java.util.regex.Matcher.quoteReplacement(replacement);
+        String result = LINK.matcher(text).replaceAll(quoted);
+        result = EMAIL.matcher(result).replaceAll(quoted);
+        return PHONE.matcher(result).replaceAll(quoted);
     }
 }
