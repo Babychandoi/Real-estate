@@ -4,6 +4,8 @@ import com.company.bds.shared.security.CurrentUser;
 import com.company.bds.iam.application.AuthService;
 import com.company.bds.verification.application.KycDocumentAccessService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.time.Duration;
 import java.util.List;
@@ -54,7 +55,7 @@ public class MediaController {
     }
 
     @GetMapping("/media/kyc/{objectKey:" + OBJECT_KEY + "}")
-    public ResponseEntity<StreamingResponseBody> readKyc(@PathVariable String objectKey,
+    public ResponseEntity<Resource> readKyc(@PathVariable String objectKey,
                                                            @RequestHeader(value = "X-Kyc-Document-Access", required = false) String accessToken,
                                                            Authentication authentication) {
         boolean privileged=authentication.getAuthorities().stream().anyMatch(a->a.getAuthority().equals("ROLE_ADMIN")||a.getAuthority().equals("ROLE_MODERATOR"));
@@ -68,19 +69,18 @@ public class MediaController {
                     : "Cần xác nhận lại mật khẩu để xem ảnh định danh.");
         }
         MediaStorageService.StoredImage image=storage.readPrivate(CurrentUser.id(authentication),privileged,objectKey);
-        StreamingResponseBody body=output->{try(var input=image.stream()){input.transferTo(output);}};
-        return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType())).cacheControl(CacheControl.noStore()).body(body);
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType())).cacheControl(CacheControl.noStore()).body(body(image));
     }
 
     /** Public originals and WebP variants, only while publicly referenced (see {@link MediaStorageService}). */
     @GetMapping("/public/media/{objectKey:" + ANY_KEY + "}")
-    public ResponseEntity<StreamingResponseBody> read(@PathVariable String objectKey) {
+    public ResponseEntity<Resource> read(@PathVariable String objectKey) {
         return stream(storage.read(objectKey), PUBLIC_MEDIA_CACHE);
     }
 
     /** Capability URL issued to owners/staff (contract §10); anonymous and never cached (Referrer-Policy no-referrer is global). */
     @GetMapping("/media/signed/{objectKey:" + ANY_KEY + "}")
-    public ResponseEntity<StreamingResponseBody> readSigned(@PathVariable String objectKey,
+    public ResponseEntity<Resource> readSigned(@PathVariable String objectKey,
                                                             @RequestParam(name = "exp", defaultValue = "0") long exp,
                                                             @RequestParam(name = "sig", defaultValue = "") String sig) {
         return stream(storage.readSigned(objectKey, exp, sig), CacheControl.noStore());
@@ -102,14 +102,23 @@ public class MediaController {
         return ResponseEntity.status(404).cacheControl(CacheControl.noStore()).body(Map.of("message", ex.getMessage()));
     }
 
-    private static ResponseEntity<StreamingResponseBody> stream(MediaStorageService.StoredImage image, CacheControl cache) {
-        StreamingResponseBody body = output -> {
-            try (var input = image.stream()) { input.transferTo(output); }
-        };
+    private static ResponseEntity<Resource> stream(MediaStorageService.StoredImage image, CacheControl cache) {
         return ResponseEntity.ok().contentType(MediaType.parseMediaType(image.contentType()))
                 .contentLength(image.sizeBytes())
                 .cacheControl(cache)
-                .body(body);
+                .body(body(image));
+    }
+
+    /**
+     * Streams the object synchronously on the request thread (the converter closes the stream). Not a
+     * StreamingResponseBody: that runs on an async worker which commits the response while the request thread is
+     * still leaving the filter chain, so Spring Security's HeaderWriterFilter wrote headers from both threads into
+     * the same non-thread-safe header map (ConcurrentModificationException, flaky media integration test).
+     */
+    private static Resource body(MediaStorageService.StoredImage image) {
+        return new InputStreamResource(image.stream()) {
+            @Override public long contentLength() { return image.sizeBytes(); }
+        };
     }
 
     @DeleteMapping("/media/images/{objectKey:" + OBJECT_KEY + "}")

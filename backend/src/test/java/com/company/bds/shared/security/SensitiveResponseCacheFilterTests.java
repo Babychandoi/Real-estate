@@ -26,7 +26,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 /** Audit F10.2: no-store is enforced for private areas even against the controller; public media keeps its cache. */
@@ -80,9 +79,10 @@ class SensitiveResponseCacheFilterTests {
     @Test
     void publicMediaIsCachedForADayWhileSignedAndKycImagesAreNotStored() throws Exception {
         MediaStorageService storage = mock(MediaStorageService.class);
-        when(storage.read(anyString())).thenReturn(new MediaStorageService.StoredImage(mock(GetObjectResponse.class), "image/jpeg", 3));
+        GetObjectResponse body = emptyObject();
+        when(storage.read(anyString())).thenReturn(new MediaStorageService.StoredImage(body, "image/jpeg", 3));
         when(storage.readPrivate(any(UUID.class), anyBoolean(), anyString()))
-                .thenReturn(new MediaStorageService.StoredImage(mock(GetObjectResponse.class), "image/jpeg", 3));
+                .thenReturn(new MediaStorageService.StoredImage(body, "image/jpeg", 3));
         // Staff read a private image only with a logged, reasoned grant (S4); this test grants it to focus on caching.
         com.company.bds.verification.application.KycDocumentAccessService kycAccess =
                 mock(com.company.bds.verification.application.KycDocumentAccessService.class);
@@ -91,20 +91,31 @@ class SensitiveResponseCacheFilterTests {
                 .addFilters(filter).build();
         String key = UUID.randomUUID() + ".jpg";
 
-        MvcResult publicImage = mockMvc.perform(asyncDispatch(mockMvc.perform(get("/api/v1/public/media/" + key)).andReturn())).andReturn();
+        MvcResult publicImage = mockMvc.perform(get("/api/v1/public/media/" + key)).andReturn();
         // S1-MEDIA: public media can be taken down (hidden listing), so shared caches keep it one day, not a year immutable.
         assertThat(publicImage.getResponse().getHeader("Cache-Control")).contains("max-age=86400").contains("public")
                 .doesNotContain("immutable");
         when(storage.readSigned(anyString(), org.mockito.ArgumentMatchers.anyLong(), anyString()))
-                .thenReturn(new MediaStorageService.StoredImage(mock(GetObjectResponse.class), "image/jpeg", 3));
-        MvcResult signedImage = mockMvc.perform(asyncDispatch(mockMvc.perform(
-                get("/api/v1/media/signed/" + key + "?exp=1&sig=x")).andReturn())).andReturn();
+                .thenReturn(new MediaStorageService.StoredImage(body, "image/jpeg", 3));
+        MvcResult signedImage = mockMvc.perform(
+                get("/api/v1/media/signed/" + key + "?exp=1&sig=x")).andReturn();
         assertThat(signedImage.getResponse().getHeaders("Cache-Control")).containsExactly(SensitiveResponseCacheFilter.NO_STORE);
 
         UsernamePasswordAuthenticationToken moderator = UsernamePasswordAuthenticationToken.authenticated(
                 UUID.randomUUID().toString(), null, List.of(new SimpleGrantedAuthority("ROLE_MODERATOR")));
-        MvcResult kycImage = mockMvc.perform(asyncDispatch(mockMvc.perform(get("/api/v1/media/kyc/" + key).principal(moderator)).andReturn())).andReturn();
+        MvcResult kycImage = mockMvc.perform(get("/api/v1/media/kyc/" + key).principal(moderator)).andReturn();
         assertThat(kycImage.getResponse().getStatus()).isEqualTo(200);
         assertThat(kycImage.getResponse().getHeaders("Cache-Control")).containsExactly(SensitiveResponseCacheFilter.NO_STORE);
+    }
+
+    /** A stored object whose body is empty (a bare mock's read() would return 0 forever). */
+    private static GetObjectResponse emptyObject() {
+        GetObjectResponse object = mock(GetObjectResponse.class);
+        try {
+            when(object.read(org.mockito.ArgumentMatchers.any(byte[].class), org.mockito.ArgumentMatchers.anyInt(),
+                    org.mockito.ArgumentMatchers.anyInt())).thenReturn(-1);
+            when(object.read()).thenReturn(-1);
+        } catch (java.io.IOException e) { throw new IllegalStateException(e); }
+        return object;
     }
 }
