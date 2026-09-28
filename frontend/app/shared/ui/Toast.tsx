@@ -10,7 +10,12 @@ export interface ToastOptions {
   title: string;
   description?: string;
   action?: FeedbackAction;
-  /** Auto-dismiss delay in ms; `null` keeps it until dismissed. Default: 6 s for success/info, sticky otherwise. */
+  /**
+   * Auto-dismiss delay in ms; `null` keeps it until dismissed. Default: 6 s for success/info with no `action`,
+   * sticky otherwise. A toast with an `action` is never auto-dismissed by default (WCAG 2.2.1): the actionable
+   * choice must stay available until the person notices it, not race a timer. Pass an explicit duration of
+   * 10000 ms or more to time one out anyway; the timer still pauses while the toast has pointer or focus.
+   */
   duration?: number | null;
 }
 
@@ -90,7 +95,15 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
   const tone = toneOf[kind];
   const Icon = iconOf[kind];
   const duration =
-    toast.duration === undefined ? (tone === 'success' || tone === 'info' ? 6000 : null) : toast.duration;
+    toast.duration === undefined
+      ? !toast.action && (tone === 'success' || tone === 'info')
+        ? 6000
+        : null
+      : // An explicit duration is still honoured for an actionable toast, but never below the 10 s WCAG 2.2.1
+        // floor: a caller cannot accidentally race the action away with a short timeout.
+        toast.action && toast.duration != null
+        ? Math.max(toast.duration, 10_000)
+        : toast.duration;
   const [paused, setPaused] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
