@@ -67,11 +67,15 @@ class BillingNotificationTests {
     }
 
     private org.springframework.test.web.servlet.ResultActions saveBank(String adminEmail) throws Exception {
+        // F18.3: saves are compare-and-set on the version the admin loaded.
+        Long version = jdbc.queryForList("SELECT version FROM bank_settings WHERE singleton_id = 1", Long.class).stream().findFirst().orElse(null);
+        java.util.Map<String, Object> body = new java.util.LinkedHashMap<>(java.util.Map.of(
+                "bankBin", "970436", "bankName", "Ngân hàng kiểm thử", "accountNumber", "0123456789",
+                "accountName", "CONG TY KIEM THU", "adminEmail", adminEmail));
+        if (version != null) body.put("expectedVersion", version);
         return mockMvc.perform(put("/api/v1/billing/admin/bank").with(user(UUID.randomUUID().toString()).roles("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(json.writeValueAsString(new java.util.LinkedHashMap<>(java.util.Map.of(
-                        "bankBin", "970436", "bankName", "Ngân hàng kiểm thử", "accountNumber", "0123456789",
-                        "accountName", "CONG TY KIEM THU", "adminEmail", adminEmail)))));
+                .content(json.writeValueAsString(body)));
     }
 
     private double rejected() {
