@@ -209,6 +209,11 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-17'; $env:PATH = "C:\Program Files\J
 
 👉 **Tổng kết:** `Tests run: 14, Failures: 0, Errors: 0, Skipped: 0` — **BUILD SUCCESS** (100% Passed).
 
+**Cập nhật sau đợt Audit W2 (2026-09-28):** trên nhánh tích hợp `audit-2026-09-27` (đã gộp S2-SEARCH, S3a-SUPPLY,
+S4-ADMIN), `mvnw verify` với hạ tầng test PostgreSQL/PostGIS/Elasticsearch/Redis riêng biệt cho **272 test, 0 lỗi,
+0 skipped, BUILD SUCCESS** (S2 210 test, S3a 178 test, S4 192 test khi chạy độc lập ở Review 2, có trùng lặp giữa
+các nhánh trước khi gộp). Xem `docs/audit-2026-09-27/streams/{s2-search,s3a-supply,s4-admin}.md` §1.
+
 ---
 
 ### 2. Kết quả kiểm thử đóng gói Frontend (TypeScript & Vite)
@@ -218,6 +223,10 @@ npm run build
 ```
 - Kiểm tra TypeScript (`tsc -b`): **0 type errors**, tuân thủ tuyệt đối quy tắc `noUnusedLocals: true`.
 - Đóng gói Vite (`vite build`): Tạo thành công bundle production `dist/` với 1598 modules chuyển đổi trong **3.01 giây**.
+
+**Cập nhật sau đợt Audit W2 (2026-09-28):** trên nhánh tích hợp — `npm run lint` **0 cảnh báo**, `tsc` **0 lỗi**,
+`vitest` **19 file / 158 test**, `npm run build` **OK**, `npm run check:bundle` **OK** (mọi route trong ngân sách đo
+được + biên độ; xem bảng route bên dưới cho các route mới/được viết lại).
 
 ---
 
@@ -240,6 +249,23 @@ npm run build
 | **Dự án BĐS** | `/admin/projects` | Dự án BĐS | Quản lý dự án nguồn, đối soát QH 1/500, duyệt revision |
 | **CMS Bài viết** | `/admin/cms` | CMS Bài viết | Quản trị bài viết, đối soát pháp lý FR32, duyệt xuất bản |
 | **API Docs Swagger** | `http://localhost:8080/swagger-ui/index.html` | Swagger UI | Tài liệu tra cứu tương tác OpenAPI 3.0 cho 10 Controllers |
+
+**Cập nhật sau đợt Audit W2 (2026-09-28) — route/API viết lại trên API v2 (S2-SEARCH, S3a-SUPPLY, S4-ADMIN):**
+
+| Nhóm chức năng | Đường dẫn Route / API | Luồng | Ghi chú |
+| :--- | :--- | :--- | :--- |
+| Tìm kiếm & bản đồ | `/search`, `GET /api/v2/listings/search`, `GET /api/v2/listings/map` | S2-SEARCH | Envelope `items/pageInfo/total/queryVersion/dataAsOf/engine/degraded`, cursor ký HMAC, ES + fallback PostgreSQL |
+| Chi tiết tin | `/listings/:slug`, `GET /api/v2/listings/{slugOrId}` | S2-SEARCH | `404` chưa từng công khai / `410` (`listingTitle`) đã từng công khai nay ẩn |
+| So sánh | `/compare` | S2-SEARCH | Đọc `listingTitle` khi tin đã 410 |
+| Trang người đăng | `/nguoi-dang/:sellerId`, `GET /api/v2/public/sellers/{id}/listings` | S2-SEARCH | Phân trang cursor, bỏ giới hạn 60 tin |
+| Đăng tin | `/listings/new` | S3a-SUPPLY | Wizard 4 bước, tự lưu draft, giải quyết xung đột 409 |
+| Kho tin của tôi | `/my-listings`, `GET /api/v2/me/listings` | S3a-SUPPLY | Phân trang server, tách bản công khai / bản sửa chờ duyệt, import CSV |
+| Trở thành chủ nhà | `/become-owner`, `POST /api/v1/me/become-owner` | S3a-SUPPLY | Xác nhận rõ ràng, một lần, có audit |
+| Kiểm duyệt admin | `/admin/moderation`, `GET/POST /api/v1/moderation/**` | S4-ADMIN | Phân trang, claim, bulk ≤50, four-eyes, phát hiện trùng lặp |
+| Người dùng admin | `/admin/users` | S4-ADMIN | Đổi vai trò có lý do, khóa/mở, truy cập KYC có log |
+| Báo cáo admin | `/admin/reports` | S4-ADMIN | Hàng đợi báo xấu riêng, SLA theo mức độ nghiêm trọng |
+| Thẩm định admin | `/admin/verification` | S4-ADMIN | Quyết định trust có bốn mắt, không cache KYC |
+| Billing / KYC người dùng | `/billing`, `/kyc`, `GET/PUT /api/v1/billing/**` | S4-ADMIN | Idempotency-Key theo actor, đối soát ngoại lệ |
 
 ---
 
@@ -564,3 +590,21 @@ npm run build
 - Review 3 integration fixes: three S5 test classes still used the pre-PostgreSQL `@SpringBootTest` setup (connected to `localhost:5432`) — moved to `BdsIntegrationTestInitializer`, dropping the fixed Redis DB so each JVM claims its own; `EventIngestionTests` now checks `no-store` is present instead of an exact header that S5's `SensitiveResponseCacheFilter` intentionally strengthened.
 - Results on the merged branch: backend `mvnw verify` 154/154 (full test infra); frontend lint, typecheck, format, 142 unit tests, build and route budget all green.
 - Stream reports: `docs/audit-2026-09-27/streams/{s0-be,s0-fe,s5-sec-a}.md`; matrix statuses updated in `01_REQUIREMENTS.md`.
+
+# 2026-09-28 - Audit W2 merged: search read model/index, supply write path, admin desks (S2-SEARCH, S3a-SUPPLY, S4-ADMIN)
+
+- Streams S2-SEARCH (`787bf50`), S3a-SUPPLY (`059fbef`), S4-ADMIN (`feef7a0`) each passed an independent Review 2, fixed every finding, and were merged into `audit-2026-09-27`; integration fix `1dba873` on top changed the sold-check cooldown to count distinct **decrypted** reporter phones (S4 encrypts each phone with a random IV, so the ciphertext itself is never a stable dedupe key) and raised the `/search`, `/billing`, `/kyc` bundle budgets to measured + margin (the reduction itself is S10-PERF's).
+- **Files/modules**: backend `com.company.bds.search` (read model, ES pipeline, search/map/detail v2 API, Flyway V033–V036), `com.company.bds.listing` write path + freshness/import (Flyway V045–V048), `com.company.bds.moderation`/`admin`/`billing` (queue v2, duplicate detection, trust decisions, reporter-phone encryption, billing reconciliation, Flyway V055–V061). Frontend `features/search` (SearchPanels lazy chunk, Gallery, ListingCard, TrustBadge), `/listings/new` 4-step wizard with autosave, `/my-listings`, admin moderation/listings/users/reports/verification/billing pages.
+- **Routes**: `/search`, `/listings/:slug`, `/compare`, `/nguoi-dang/:sellerId` (S2, on API v2); `/listings/new`, `/my-listings`, `/become-owner` (S3a); `/billing`, `/kyc`, admin `/moderation`, `/listings`, `/users`, `/reports`, `/verification`, `/billing` (S4). API: `GET /api/v2/listings/search|map|{slugOrId}`, `GET /api/v2/public/sellers/{id}/listings`, `GET/PUT /api/v2/me/listings/**`, `POST /api/v2/me/listings/import`, `POST /api/v1/me/become-owner`, `GET/POST /api/v1/moderation/**`, `GET/PUT /api/v1/billing/**`.
+- **Backend evidence**: integrated branch `mvnw verify` **272 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS** (per-stream Review 2 runs: S2 210, S3a 178, S4 192, on isolated PostgreSQL/PostGIS/Elasticsearch/Redis test infra with separate ports/DB prefixes per stream).
+- **Frontend evidence**: integrated branch — lint **0 warnings**, `tsc` **0 errors**, `vitest` **19 files / 158 tests**, `npm run build` **OK**, `npm run check:bundle` **OK** (`/search` 142.6 kB / budget 157, `/listings/:slug` 140.9 / 155, `/compare` 134.0 / 137, `/nguoi-dang/:sellerId` 132.3 / 135, `/listings/new` 132.3 / 140 kB gzip-1; budgets raised from the old gzip-9 targets to measured + ~10% margin, reduction owed to S10-PERF).
+- **User flows**: người tìm nhà tìm kiếm/lọc/xem bản đồ/xem chi tiết/so sánh trên API v2 với cursor ký và fallback ES→DB có kiểm soát; chủ nhà tự đăng tin qua wizard 4 bước có autosave/409-resolve, quản lý `/my-listings` (bản công khai vs bản sửa chờ duyệt), xác nhận còn hàng/gia hạn, import CSV; admin duyệt tin (claim → so khớp diff → quyết định có lý do → audit, bulk ≤50 four-eyes), xử lý trùng lặp (fingerprint + pg_trgm), quyết định trust (KYC/sở hữu, four-eyes, thu hồi), xử lý báo cáo theo SLA mức độ nghiêm trọng, đối soát billing (idempotent, CAS bank settings, exception queue).
+- **Production deploy notes**:
+  - `SEARCH_CURSOR_SECRET` (≥ 32 ký tự, giống nhau trên mọi instance) **bắt buộc** ở production; server từ chối khởi động nếu thiếu.
+  - PostgreSQL extension `pg_trgm` phải có sẵn (V060) — image PostGIS dùng trong dự án đã có contrib; nếu dùng image khác cần cài `postgresql-contrib`.
+  - **Dừng backend cũ trước khi khởi động backend mới** (không rolling deploy trộn cũ/mới cho đợt này): instance mới migrate index ES cụ thể `bds-listings` thành alias; mapping `dynamic: strict` chặn instance cũ ghi đè, nhưng full-scan sync/v1 search của nó sẽ lỗi ồn ào cho đến khi bị dừng.
+  - Migrations **V033–V061 chỉ thêm mới** (additive); rollback = image trước đó (bảng/trigger giữ nguyên; xem chi tiết per-stream trong `streams/s2-search.md` §6, `s3a-supply.md` §6, `s4-admin.md` §7 cho từng nhóm migration và biến môi trường mới).
+  - **Runbook trùng đơn hàng V061** (`s4-admin.md` §9, "Production runbook: open-order index"): nếu V061 log `package_orders still has several reported/exception orders...`, liệt kê các đơn trùng bằng `SELECT user_id, plan_code, array_agg(id ORDER BY created_at) FROM package_orders WHERE status IN ('CREATED','TRANSFER_REPORTED','EXCEPTION') GROUP BY 1, 2 HAVING count(*) > 1;`, xử lý từng đơn qua `/billing` (ghi nhận receipt / từ chối / đánh dấu đã hoàn tiền), sau đó tạo `CREATE UNIQUE INDEX CONCURRENTLY uq_package_orders_open_per_plan ON package_orders (user_id, plan_code) WHERE status IN ('CREATED','TRANSFER_REPORTED','EXCEPTION');`. Cho đến khi index này tồn tại, advisory lock vẫn giữ việc tạo đơn tuần tự.
+  - **Mã hóa số điện thoại người báo cáo chạy nền**: `ReporterPhoneEncryptionMigrator` là `@Scheduled` (lần đầu ~30 s sau khi khởi động, sau đó mỗi giờ, dưới task lock), mã hóa theo batch 500 dòng (`FOR UPDATE SKIP LOCKED`), bỏ qua giá trị đã có tiền tố `v1:`, tự resume nếu bị gián đoạn. Trong lúc rolling deploy, instance bản cũ vẫn ghi số điện thoại dạng plaintext — lần chạy hàng giờ tiếp theo sẽ mã hóa lại các dòng đó; API luôn chỉ trả về dạng che (mask) trong lúc chờ. Tắt bằng `app.reports.encrypt-legacy-phones=false`.
+- **Known gaps carried forward** (chi tiết trong từng `streams/*.md` §5/§6): cảnh báo lag/DLQ tìm kiếm chưa có rule (S5), EXPLAIN ở quy mô 100k/1M chưa có bằng chứng (S10), báo cáo tải S10 cho lag p95 tìm kiếm còn chờ, thời hạn lưu trữ hồ sơ KYC chưa được cấu hình (S4), phát hiện trùng lặp tin mới chạy theo sweep phút chứ chưa hook vào write path.
+- Stream reports: `docs/audit-2026-09-27/streams/{s2-search,s3a-supply,s4-admin}.md`; matrix statuses for S2/S3a/S4 rows updated to `DONE (W2)`/`PARTIAL (W2)` in `01_REQUIREMENTS.md`; contract §8 (`02_CONTRACTS.md`) corrected to the actual `listingTitle` key used by the 410 body.
