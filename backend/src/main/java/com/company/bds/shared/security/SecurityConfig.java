@@ -87,7 +87,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/broker/**").hasAnyRole(Roles.ADMIN, Roles.BROKER)
                         .requestMatchers("/api/v1/media/**").authenticated()
                         .requestMatchers("/api/v1/reports/**").hasAnyRole(staff)
-                        .requestMatchers("/api/v1/kyc/queue", "/api/v1/kyc/*/approve", "/api/v1/kyc/*/reject",
+                        .requestMatchers("/api/v1/kyc/queue", "/api/v1/kyc/*/approve", "/api/v1/kyc/*/reject", "/api/v1/kyc/*/revoke",
                                 "/api/v1/verifications/**").hasAnyRole(staff)
                         .requestMatchers("/api/v1/catalog/**", "/api/v1/cms/**").hasAnyRole(staff)
                         .requestMatchers(HttpMethod.POST, "/api/v1/transactions/deposits/*/release", "/api/v1/transactions/deposits/*/refund").hasRole("ADMIN")

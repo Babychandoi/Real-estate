@@ -72,69 +72,7 @@ public class ListingVerificationApplicationService {
         return verificationPersistencePort.save(verification);
     }
 
-    /**
-     * Thẩm định viên đối soát và Phê duyệt cấp nhãn Tin Chính Chủ (FR03).
-     * Tự động kích hoạt cờ isVerifiedOwner trên tin đăng để xuất hiện tích xanh bảo chứng.
-     */
-    public ListingVerification approveVerification(UUID verificationId, String verifierNote) {
-        ListingVerification verification = verificationPersistencePort.findById(verificationId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hồ sơ thẩm định ID: " + verificationId));
-
-        if (verification.getUserKycId() == null) {
-            throw new IllegalStateException("Hồ sơ xác minh tin không có eKYC đã liên kết.");
-        }
-        var kyc = kycPersistencePort.findById(verification.getUserKycId())
-                .orElseThrow(() -> new IllegalStateException("Hồ sơ eKYC liên kết không còn tồn tại."));
-        if (kyc.getStatus() != KycStatus.VERIFIED) {
-            throw new IllegalStateException("Không thể duyệt tin khi eKYC chưa được xác minh.");
-        }
-
-        Instant now = Instant.now();
-        verification.approve(verifierNote, now);
-        ListingVerification saved = verificationPersistencePort.save(verification);
-
-        // Kích hoạt nhãn chính chủ trên tin đăng
-        Listing listing = listingPersistencePort.findById(verification.getListingId()).orElse(null);
-        if (listing != null) {
-            listing.markVerifiedOwner(true, now);
-            listingPersistencePort.save(listing);
-        }
-
-        return saved;
-    }
-
-    /**
-     * Thẩm định viên từ chối hồ sơ do thông tin không trùng khớp.
-     */
-    public ListingVerification rejectVerification(UUID verificationId, String reason) {
-        ListingVerification verification = verificationPersistencePort.findById(verificationId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hồ sơ thẩm định ID: " + verificationId));
-
-        Instant now = Instant.now();
-        verification.reject(reason, now);
-        return verificationPersistencePort.save(verification);
-    }
-
-    /**
-     * Thu hồi nhãn Tin Chính Chủ (VD: phát hiện hợp đồng hết hạn hoặc có tranh chấp pháp lý).
-     */
-    public ListingVerification revokeVerification(UUID verificationId, String reason) {
-        ListingVerification verification = verificationPersistencePort.findById(verificationId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy hồ sơ thẩm định ID: " + verificationId));
-
-        Instant now = Instant.now();
-        verification.revoke(reason, now);
-        ListingVerification saved = verificationPersistencePort.save(verification);
-
-        // Gỡ bỏ nhãn chính chủ trên tin đăng
-        Listing listing = listingPersistencePort.findById(verification.getListingId()).orElse(null);
-        if (listing != null) {
-            listing.markVerifiedOwner(false, now);
-            listingPersistencePort.save(listing);
-        }
-
-        return saved;
-    }
+    // Decisions (approve/reject/revoke) live in TrustDecisionService: reason code, decider, validity and history.
 
     @Transactional(readOnly = true)
     public List<ListingVerification> getQueue(VerificationStatus status, int page, int size) {

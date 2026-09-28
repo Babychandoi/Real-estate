@@ -47,7 +47,12 @@ class BdsApplicationTests {
     @BeforeEach
     void ensureMockUserExists() {
         testData.ensureUser(MOCK_USER_ID, "ADMIN");
+        testData.ensureUser(REVIEWER_ID, "MODERATOR");
     }
+
+    /** Trust decisions are four-eyes (S4): a second staff account reviews what the mock user submits. */
+    private static final String REVIEWER_ID_TEXT = "00000000-0000-0000-0000-000000000098";
+    private static final java.util.UUID REVIEWER_ID = java.util.UUID.fromString(REVIEWER_ID_TEXT);
 
     @AfterEach
     void removeLeadKycFixture() {
@@ -625,7 +630,7 @@ class BdsApplicationTests {
                 .andExpect(jsonPath("$.fullName").value("Trần Văn Bình"));
 
         // 3. Thẩm định viên phê duyệt hồ sơ eKYC
-        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve"))
+        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("VERIFIED"))
                 .andExpect(jsonPath("$.verifiedAt").exists());
@@ -655,7 +660,7 @@ class BdsApplicationTests {
                 .andExpect(status().isCreated())
                 .andReturn();
         String kycId = objectMapper.readTree(kycRes.getResponse().getContentAsString()).get("id").asText();
-        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/kyc/" + kycId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))).andExpect(status().isOk());
 
         // 2. Tạo tin đăng BĐS
         String listingJson = """
@@ -709,7 +714,7 @@ class BdsApplicationTests {
                 "verifierNote": "Họ tên trên CCCD và Sổ hồng trùng khớp 100%. Đã kiểm tra không tranh chấp quy hoạch."
             }
             """;
-        mockMvc.perform(post("/api/v1/verifications/" + verifId + "/approve")
+        mockMvc.perform(post("/api/v1/verifications/" + verifId + "/approve").with(user(REVIEWER_ID_TEXT).roles("MODERATOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(approveBody))
                 .andExpect(status().isOk())

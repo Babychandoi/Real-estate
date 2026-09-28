@@ -43,7 +43,8 @@ CREATE INDEX IF NOT EXISTS idx_listing_verifications_expiry ON listing_verificat
 
 -- Existing decisions become the first history entries (decider unknown for rows decided before this release).
 INSERT INTO trust_decisions (id, subject_type, subject_id, user_id, decision, reason_code, note, expires_at, created_at)
-SELECT uuid_generate_v4(), 'KYC', k.id, k.user_id,
+-- user_kyc_profiles.user_id has no foreign key: a profile of a deleted account keeps its history without the user link.
+SELECT uuid_generate_v4(), 'KYC', k.id, (SELECT u.id FROM users u WHERE u.id = k.user_id),
        CASE k.status WHEN 'VERIFIED' THEN 'APPROVED' ELSE 'REJECTED' END,
        'LEGACY', k.rejection_reason, k.expires_at, COALESCE(k.verified_at, k.created_at)
 FROM user_kyc_profiles k
