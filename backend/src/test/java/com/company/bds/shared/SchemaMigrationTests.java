@@ -49,7 +49,8 @@ class SchemaMigrationTests {
     void backfillsSharedSchemaFromLegacyRowsAndIsRepeatable() {
         seedLegacyRows();
 
-        var result = flyway(null).migrate();
+        // Target V029 explicitly: later streams add migrations after the shared schema this test is about.
+        var result = flyway("29").migrate();
         assertThat(result.migrationsExecuted).isEqualTo(3);
         assertThat(result.targetSchemaVersion).endsWith("29");
 
@@ -121,6 +122,8 @@ class SchemaMigrationTests {
                 """, Integer.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pg_proc WHERE proname='bds_enqueue_job'", Integer.class)).isEqualTo(1);
 
+        // The later migrations also apply cleanly on top of these legacy rows; a second run then changes nothing.
+        flyway(null).migrate();
         assertThat(flyway(null).migrate().migrationsExecuted).isZero();
     }
 
