@@ -666,8 +666,13 @@ public class UatDataSeeder implements ApplicationRunner {
             // Two published articles also carry a newer submitted revision to exercise the review flow.
             boolean hasPendingEdit = status.equals("PUBLISHED") && i < 2;
             UUID publishedRevision = status.equals("PUBLISHED") || status.equals("ARCHIVED") ? id(K_ARTICLE_REV, i * 10 + 1) : null;
-            jdbc.update("INSERT INTO cms_articles(id,slug,category,status,published_revision_id,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
-                    articleId, "uat-" + slugify(title), a[0], status, publishedRevision, created, ago(Duration.ofDays(1 + i)));
+            // published_at/first_published_at (V090): an ARCHIVED article was public before, so its URL answers 410
+            jdbc.update("""
+                    INSERT INTO cms_articles(id,slug,category,status,published_revision_id,created_at,updated_at,published_at,first_published_at,unpublished_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                    articleId, "uat-" + slugify(title), a[0], status, publishedRevision, created, ago(Duration.ofDays(1 + i)),
+                    publishedRevision == null ? null : created, publishedRevision == null ? null : created,
+                    status.equals("ARCHIVED") ? ago(Duration.ofDays(1 + i)) : null);
             String firstStatus = switch (status) { case "PUBLISHED", "ARCHIVED" -> "PUBLISHED"; default -> status; };
             insertArticleRevision(articleId, i * 10 + 1, 1, title, (String) a[3], firstStatus, created, images, i);
             if (hasPendingEdit) {

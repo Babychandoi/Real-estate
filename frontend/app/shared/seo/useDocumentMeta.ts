@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { PRERENDER_ATTRIBUTE, PRERENDER_DEFAULT_ATTRIBUTE } from './prerenderHead';
 
 /**
  * Per-route document metadata (F16.2). A page declares what it needs; everything the hook set is undone when the
@@ -49,10 +50,16 @@ function setAttributeTag(
 ): Undo {
   const existing = doc.head.querySelector<HTMLElement>(selector);
   if (existing) {
-    const previous = existing.getAttribute(attribute);
+    // A tag the prerender layer injected describes the landing page only: undoing goes back to the shell default
+    // it replaced (data-default) or removes it, never back to the landing page's value.
+    const prerendered = existing.hasAttribute(PRERENDER_ATTRIBUTE);
+    const previous = prerendered
+      ? existing.getAttribute(PRERENDER_DEFAULT_ATTRIBUTE)
+      : existing.getAttribute(attribute);
     existing.setAttribute(attribute, value);
     return () => {
-      if (previous == null) existing.removeAttribute(attribute);
+      if (prerendered && previous == null) existing.remove();
+      else if (previous == null) existing.removeAttribute(attribute);
       else existing.setAttribute(attribute, previous);
     };
   }
@@ -87,7 +94,11 @@ export function applyDocumentMeta(meta: DocumentMeta, doc: Document = document):
   const undo: Undo[] = [];
 
   if (meta.title) {
-    const previousTitle = doc.title;
+    const titleElement = doc.head.querySelector('title');
+    const previousTitle =
+      (titleElement?.hasAttribute(PRERENDER_ATTRIBUTE)
+        ? titleElement.getAttribute(PRERENDER_DEFAULT_ATTRIBUTE)
+        : null) ?? doc.title;
     doc.title = meta.title;
     undo.push(() => {
       doc.title = previousTitle;
@@ -116,6 +127,12 @@ export function applyDocumentMeta(meta: DocumentMeta, doc: Document = document):
     if (value) undo.push(metaTag(doc, 'property', `og:${key}`, key === 'url' ? absoluteUrl(value, doc) : value));
   }
   const structured = meta.jsonLd == null ? [] : Array.isArray(meta.jsonLd) ? meta.jsonLd : [meta.jsonLd];
+  // the page now declares its own structured data: the landing page's prerendered copy would duplicate it
+  if (structured.length) {
+    doc.head
+      .querySelectorAll(`script[type="application/ld+json"][${PRERENDER_ATTRIBUTE}]`)
+      .forEach((script) => script.remove());
+  }
   for (const item of structured) {
     const script = doc.createElement('script');
     script.type = 'application/ld+json';

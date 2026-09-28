@@ -1,127 +1,111 @@
 package com.company.bds.cms.api;
 
+import com.company.bds.cms.api.CmsDtos.ApproveRequest;
+import com.company.bds.cms.api.CmsDtos.ArticleResponse;
+import com.company.bds.cms.api.CmsDtos.PreviewLinkResponse;
+import com.company.bds.cms.api.CmsDtos.RevisionRequest;
+import com.company.bds.cms.api.CmsDtos.RevisionResponse;
 import com.company.bds.cms.api.request.CreateArticleRequest;
 import com.company.bds.cms.api.request.RejectRevisionRequest;
-import com.company.bds.cms.api.response.ArticleResponse;
-import com.company.bds.cms.api.response.ArticleRevisionResponse;
 import com.company.bds.cms.application.CmsArticleApplicationService;
-import com.company.bds.cms.domain.model.Article;
+import com.company.bds.cms.application.CmsArticleApplicationService.AdminPage;
+import com.company.bds.cms.application.CmsArticleApplicationService.Draft;
+import com.company.bds.cms.application.CmsArticleApplicationService.PreviewLink;
 import com.company.bds.cms.domain.model.ArticleCategory;
-import com.company.bds.cms.domain.model.ArticleRevision;
+import com.company.bds.cms.domain.model.ArticleStatus;
+import com.company.bds.shared.security.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
-import com.company.bds.shared.security.CurrentUser;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
+/** Staff CMS API (ADMIN/MODERATOR, SecurityConfig {@code /api/v1/cms/**}; responses are no-store). */
 @RestController
+@RequestMapping("/api/v1/cms/articles")
 public class CmsArticleController {
+    private final CmsArticleApplicationService service;
 
-    private final CmsArticleApplicationService articleService;
-
-    public CmsArticleController(CmsArticleApplicationService articleService) {
-        this.articleService = articleService;
+    public CmsArticleController(CmsArticleApplicationService service) {
+        this.service = service;
     }
 
-    // ================== ADMIN CMS ENDPOINTS ==================
-
-    @PostMapping("/api/v1/cms/articles")
-    public ResponseEntity<ArticleResponse> createArticle(@Valid @RequestBody CreateArticleRequest request) {
-        Article article = articleService.createArticle(request);
-        List<ArticleRevision> revisions = articleService.getRevisions(article.getId());
-        ArticleRevision latest = revisions.isEmpty() ? null : revisions.get(0);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ArticleResponse.fromDomain(article, latest, revisions));
+    @PostMapping
+    public ResponseEntity<ArticleResponse> create(@Valid @RequestBody CreateArticleRequest request, Authentication auth) {
+        var detail = service.create(new Draft(request.getSlug(), request.getCategory(), request.toContent()), CurrentUser.id(auth));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ArticleResponse.of(detail));
     }
 
-    @GetMapping("/api/v1/cms/articles")
-    public ResponseEntity<List<ArticleResponse>> getAdminArticles(
-            @RequestParam(required = false) ArticleCategory category,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size) {
-        page = Math.max(0, page); size = Math.max(1, Math.min(100, size));
-        List<Article> articles = category != null
-                ? articleService.getArticlesByCategory(category, page, size)
-                : articleService.getAllArticles(page, size);
-
-        List<ArticleResponse> responseList = articles.stream().map(a -> {
-            List<ArticleRevision> revs = articleService.getRevisions(a.getId());
-            ArticleRevision latest = revs.isEmpty() ? null : revs.get(0);
-            return ArticleResponse.fromDomain(a, latest, revs);
-        }).collect(Collectors.toList());
-
-        return ResponseEntity.ok(responseList);
+    /** Newest change first; the array body is kept for v1 clients, the total is in {@code X-Total-Count}. */
+    @GetMapping
+    public ResponseEntity<List<ArticleResponse>> list(@RequestParam(required = false) ArticleCategory category,
+                                                      @RequestParam(required = false) ArticleStatus status,
+                                                      @RequestParam(defaultValue = "0") int page,
+                                                      @RequestParam(defaultValue = "50") int size) {
+        AdminPage result = service.adminPage(category, status, page, size);
+        return ResponseEntity.ok().header("X-Total-Count", Long.toString(result.total()))
+                .body(result.items().stream().map(ArticleResponse::of).toList());
     }
 
-    @GetMapping("/api/v1/cms/articles/{id}")
-    public ResponseEntity<ArticleResponse> getArticleDetail(@PathVariable UUID id) {
-        return articleService.getArticleById(id)
-                .map(a -> {
-                    List<ArticleRevision> revs = articleService.getRevisions(a.getId());
-                    ArticleRevision latest = revs.isEmpty() ? null : revs.get(0);
-                    return ResponseEntity.ok(ArticleResponse.fromDomain(a, latest, revs));
-                })
-                .orElse(ResponseEntity.notFound().build());
+    @GetMapping("/{id}")
+    public ArticleResponse detail(@PathVariable UUID id) {
+        return ArticleResponse.of(service.detail(id));
     }
 
-    @PostMapping("/api/v1/cms/articles/{articleId}/revisions/{revisionId}/submit")
-    public ResponseEntity<ArticleRevisionResponse> submitRevision(
-            @PathVariable UUID articleId,
-            @PathVariable UUID revisionId) {
-        ArticleRevision revision = articleService.submitRevision(articleId, revisionId);
-        return ResponseEntity.ok(ArticleRevisionResponse.fromDomain(revision));
+    /** Edit: a new DRAFT revision (published and submitted revisions are immutable). */
+    @PostMapping("/{id}/revisions")
+    public ResponseEntity<ArticleResponse> newRevision(@PathVariable UUID id, @RequestBody RevisionRequest request, Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ArticleResponse.of(service.newRevision(id, request.toContent(), CurrentUser.id(auth))));
     }
 
-    @PostMapping("/api/v1/cms/articles/{articleId}/revisions/{revisionId}/approve")
-    public ResponseEntity<ArticleRevisionResponse> approveRevision(
-            @PathVariable UUID articleId,
-            @PathVariable UUID revisionId,
-            Authentication authentication) {
-        ArticleRevision revision = articleService.approveRevision(articleId, revisionId, CurrentUser.id(authentication).toString());
-        return ResponseEntity.ok(ArticleRevisionResponse.fromDomain(revision));
+    @PutMapping("/{id}/revisions/{revisionId}")
+    public ArticleResponse updateDraft(@PathVariable UUID id, @PathVariable UUID revisionId, @RequestBody RevisionRequest request) {
+        return ArticleResponse.of(service.updateDraft(id, revisionId, request.toContent()));
     }
 
-    @PostMapping("/api/v1/cms/articles/{articleId}/revisions/{revisionId}/reject")
-    public ResponseEntity<ArticleRevisionResponse> rejectRevision(
-            @PathVariable UUID articleId,
-            @PathVariable UUID revisionId,
-            @Valid @RequestBody RejectRevisionRequest request,
-            Authentication authentication) {
-        ArticleRevision revision = articleService.rejectRevision(
-                articleId, revisionId, request.getReason(), CurrentUser.id(authentication).toString());
-        return ResponseEntity.ok(ArticleRevisionResponse.fromDomain(revision));
+    @PostMapping("/{id}/revisions/{revisionId}/submit")
+    public RevisionResponse submit(@PathVariable UUID id, @PathVariable UUID revisionId) {
+        return RevisionResponse.of(service.submit(id, revisionId));
     }
 
-    // ================== PUBLIC ENDPOINTS ==================
-
-    @GetMapping("/api/v1/public/articles")
-    public ResponseEntity<List<ArticleResponse>> getPublicArticles(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        List<Article> articles = articleService.getPublicArticles(Math.max(0, page), Math.max(1, Math.min(100, size)));
-        List<ArticleResponse> responseList = articles.stream().map(a -> {
-            ArticleRevision published = articleService.getRevisions(a.getId()).stream()
-                    .filter(revision -> revision.getId().equals(a.getPublishedRevisionId()))
-                    .findFirst().orElse(null);
-            return ArticleResponse.publicFromDomain(a, published);
-        }).collect(Collectors.toList());
-
-        return ResponseEntity.ok(responseList);
+    @PostMapping("/{id}/revisions/{revisionId}/approve")
+    public RevisionResponse approve(@PathVariable UUID id, @PathVariable UUID revisionId,
+                                    @RequestBody(required = false) ApproveRequest request, Authentication auth) {
+        return RevisionResponse.of(service.approve(id, revisionId, CurrentUser.id(auth), request == null ? null : request.publishAt()));
     }
 
-    @GetMapping("/api/v1/public/articles/{slug}")
-    public ResponseEntity<ArticleResponse> getPublicArticleBySlug(@PathVariable String slug) {
-        return articleService.getPublicArticleBySlug(slug)
-                .map(a -> {
-                    ArticleRevision published = articleService.getRevisions(a.getId()).stream()
-                            .filter(revision -> revision.getId().equals(a.getPublishedRevisionId()))
-                            .findFirst().orElse(null);
-                    return ResponseEntity.ok(ArticleResponse.publicFromDomain(a, published));
-                })
-                .orElse(ResponseEntity.notFound().build());
+    @PostMapping("/{id}/revisions/{revisionId}/reject")
+    public RevisionResponse reject(@PathVariable UUID id, @PathVariable UUID revisionId,
+                                   @Valid @RequestBody RejectRevisionRequest request, Authentication auth) {
+        return RevisionResponse.of(service.reject(id, revisionId, request.getReason(), CurrentUser.id(auth)));
+    }
+
+    @DeleteMapping("/{id}/schedule")
+    public ArticleResponse cancelSchedule(@PathVariable UUID id) {
+        return ArticleResponse.of(service.cancelSchedule(id));
+    }
+
+    @PostMapping("/{id}/unpublish")
+    public ArticleResponse unpublish(@PathVariable UUID id) {
+        return ArticleResponse.of(service.unpublish(id));
+    }
+
+    /** Preview link of any revision (24 h). The token is shown once; only its hash is stored. */
+    @PostMapping("/{id}/revisions/{revisionId}/preview-link")
+    public ResponseEntity<PreviewLinkResponse> previewLink(@PathVariable UUID id, @PathVariable UUID revisionId, Authentication auth) {
+        PreviewLink link = service.mintPreview(id, revisionId, CurrentUser.id(auth));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new PreviewLinkResponse(link.token(), "/tin-tuc/xem-truoc/" + link.token(), link.expiresAt()));
     }
 }

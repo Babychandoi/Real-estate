@@ -370,7 +370,7 @@ function RootLayoutContent() {
       </main>
       <LoginModal />
       <footer className="ndc-footer">
-        <div className="ndc-page grid gap-8 py-10 md:grid-cols-[2fr_1fr_1fr]">
+        <div className="ndc-page grid gap-8 py-10 md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
             <Link to="/" className="text-xl font-bold text-primary">
               nhà đất chuẩn.
@@ -380,6 +380,12 @@ function RootLayoutContent() {
               giao dịch.
             </p>
           </div>
+          <nav className="grid content-start gap-3 text-sm" aria-label="Khám phá">
+            <strong>Khám phá</strong>
+            <Link to="/khu-vuc">Khu vực</Link>
+            <Link to="/du-an">Dự án</Link>
+            <Link to="/tin-tuc">Tin tức và cẩm nang</Link>
+          </nav>
           <nav className="grid content-start gap-3 text-sm" aria-label="Về nền tảng">
             <strong>Về Nhà Đất Chuẩn</strong>
             <Link to="/about">Giới thiệu</Link>

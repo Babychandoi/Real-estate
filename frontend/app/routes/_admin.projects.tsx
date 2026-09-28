@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { useModal } from '@/shared/ui/useModal';
+import { PROJECT_STATUS_LABELS, type ProjectDetail } from '@/entities/content/model';
+import { ProjectProfileDialog } from '@/features/places/ProjectProfileDialog';
 
 interface Project {
   id: string;
@@ -41,6 +43,7 @@ export function ProjectCatalogPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const formPanelRef = useRef<HTMLFormElement>(null);
+  const [profileOf, setProfileOf] = useState<Project | null>(null);
   // Shared modal stack (M2): this dialog had no focus trap, no Escape handling and no focus return at all.
   useModal({ open: showForm, onClose: () => setShowForm(false), panelRef: formPanelRef });
   const load = useCallback(async () => {
@@ -137,20 +140,50 @@ export function ProjectCatalogPage() {
             <article key={item.id} className="rounded-2xl border bg-white p-5">
               <div className="flex justify-between gap-3">
                 <h2 className="text-lg font-bold">{item.name}</h2>
-                <span className="text-xs font-bold text-slate-500">{item.status}</span>
+                <span className="text-xs font-bold text-on-surface-variant">
+                  {PROJECT_STATUS_LABELS[item.status as ProjectDetail['status']] ?? item.status}
+                </span>
               </div>
               <p className="mt-1 text-sm text-slate-600">{item.developerName}</p>
               <p className="mt-3 text-sm">{item.address || 'Chưa cung cấp địa chỉ'}</p>
               <p className="mt-3 text-sm">
                 {item.totalAreaM2.toLocaleString('vi-VN')} m² · {item.totalBlocks} khối · {item.totalUnits} căn
               </p>
-              <p className="mt-4 text-xs text-slate-500">
+              <p className="mt-4 text-xs text-on-surface-variant">
                 Cập nhật: {new Date(item.updatedAt).toLocaleString('vi-VN')}
               </p>
+              <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                <button
+                  type="button"
+                  className="min-h-11 font-semibold text-primary"
+                  onClick={() => setProfileOf(item)}
+                >
+                  Trang công khai: mô tả, nguồn, tiện ích
+                </button>
+                {item.status !== 'LOCKED' && (
+                  <a
+                    className="inline-flex min-h-11 items-center font-semibold text-primary underline"
+                    href={`/du-an/${item.slug}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Xem trang dự án
+                  </a>
+                )}
+              </div>
             </article>
           ))}
         </section>
       )}
+      <ProjectProfileDialog
+        projectId={profileOf?.id ?? null}
+        projectName={profileOf?.name ?? ''}
+        onClose={() => setProfileOf(null)}
+        onSaved={() => {
+          setProfileOf(null);
+          void load();
+        }}
+      />
       {showForm && (
         <div
           className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 p-4"

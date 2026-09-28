@@ -4,8 +4,9 @@
   "routes": {
     "/": {
       "module": "app/routes/_public.home.tsx",
-      "budgetKb": 135,
-      "measuredKb": 122.2
+      "budgetKb": 138,
+      "measuredKb": 122.2,
+      "note": "S7-SEO: the shell grew ~1.8 kB (seven lazy route entries for /du-an, /khu-vuc, /tin-tuc and the prerendered-head reset); areas/projects/articles on the home page load in their own chunk (features/places/HomeExtras). Budget = measured + ~3 kB."
     },
     "/search": {
       "module": "app/routes/_public.search.tsx",
@@ -156,8 +157,9 @@
     },
     "admin/cms": {
       "module": "app/routes/_admin.cms.tsx",
-      "budgetKb": 137,
-      "measuredKb": 124.1
+      "budgetKb": 147,
+      "measuredKb": 124.1,
+      "note": "S7-SEO: CMS rewritten on the shared admin kit (DataTable, Sheet, Dialog, ReasonDialog, Pagination, FormField) like the S4 admin routes (146-150 kB); budget = measured + ~7 kB as theirs."
     },
     "admin/reports": {
       "module": "app/routes/_admin.reports.tsx",
@@ -188,6 +190,24 @@
       "budgetKb": 140,
       "measuredKb": 126.5,
       "note": "S6-ENGAGE: unsubscribe confirmation. Budget = measured + ~10%."
+    },
+    "/du-an (projects)": {
+      "module": "app/routes/_public.projects.tsx",
+      "budgetKb": 141,
+      "measuredKb": 138.0,
+      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB."
+    },
+    "/khu-vuc (areas)": {
+      "module": "app/routes/_public.areas.tsx",
+      "budgetKb": 140,
+      "measuredKb": 136.5,
+      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB."
+    },
+    "/tin-tuc (articles)": {
+      "module": "app/routes/_public.articles.tsx",
+      "budgetKb": 142,
+      "measuredKb": 139.0,
+      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB."
     }
   },
   "gzipLevel": 1

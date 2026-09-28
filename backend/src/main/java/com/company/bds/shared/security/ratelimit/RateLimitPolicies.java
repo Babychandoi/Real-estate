@@ -107,6 +107,12 @@ public class RateLimitPolicies {
                 // S8: consent decisions (banner/preferences); a visitor decides a handful of times at most.
                 policy("analytics-consent", "POST", "/api/v1/events/consent", EVICT,
                         rule(IP, 30, Duration.ofMinutes(15))),
+                // S7: prerendered HTML for crawlers and first page loads (a page render is a few indexed reads).
+                policy("prerender", "GET", "/render/**", EVICT,
+                        rule(IP, 600, Duration.ofMinutes(1))),
+                // S7: CMS preview links are bearer secrets: bounded guessing.
+                policy("cms-preview", "GET", "/api/v1/public/articles/preview/**", EVICT,
+                        rule(IP, 60, Duration.ofMinutes(15))),
                 policy("analytics-events", "POST", "/api/v1/events", EVICT,
                         rule(IP, 120, Duration.ofMinutes(1))),
                 // S1 signed media (follow-up): signing is a cheap HMAC, but each signed GET streams an object.

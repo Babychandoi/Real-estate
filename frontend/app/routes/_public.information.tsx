@@ -1,5 +1,89 @@
-import { Building2, ChevronRight, LifeBuoy, Scale, Search, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Building2, ChevronRight, FileText, LifeBuoy, Scale, Search, ShieldCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import { contentApi } from '@/entities/content/api';
+import type { SiteInfo } from '@/entities/content/model';
+import { useDocumentMeta } from '@/shared/seo/useDocumentMeta';
+
+const MISSING = 'Chưa có dữ liệu';
+
+/**
+ * Who operates the site, from configuration (UI-15): every unset field says so instead of showing invented details,
+ * and approved policy articles from the CMS are linked when there are any.
+ */
+function OperatorAndPolicies({ pathname }: { pathname: string }) {
+  const [info, setInfo] = useState<SiteInfo | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    const abort = new AbortController();
+    contentApi.siteInfo(abort.signal).then(setInfo, () => {
+      if (!abort.signal.aborted) setFailed(true);
+    });
+    return () => abort.abort();
+  }, []);
+  if (failed) {
+    return (
+      <p className="py-8 text-sm text-on-surface-variant" role="status">
+        Không tải được thông tin đơn vị vận hành. Vui lòng thử lại sau.
+      </p>
+    );
+  }
+  if (!info) return null;
+  const operator = info.operator;
+  const rows: [string, string | null][] = [
+    ['Tên pháp nhân', operator.legalName],
+    ['Giấy chứng nhận đăng ký kinh doanh', operator.businessRegistration],
+    ['Mã số thuế', operator.taxCode],
+    ['Địa chỉ', operator.address],
+    ['Người đại diện', operator.representative],
+    ['Email liên hệ', operator.email],
+    ['Điện thoại', operator.phone],
+    ['Giờ hỗ trợ', operator.hotlineHours],
+  ];
+  const showPolicies = pathname !== '/contact' && info.policies.length > 0;
+  return (
+    <>
+      <section className="py-8" aria-labelledby="operator-heading">
+        <h2 id="operator-heading" className="text-xl font-semibold text-on-surface">
+          Đơn vị vận hành
+        </h2>
+        {!operator.complete && (
+          <p className="mt-2 text-sm text-on-surface-variant">
+            Một số thông tin pháp nhân chưa được công bố; mục nào chưa có được ghi “{MISSING}”.
+          </p>
+        )}
+        <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {rows.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-sm text-on-surface-variant">{label}</dt>
+              <dd className={value ? 'font-medium text-on-surface' : 'text-on-surface-variant'}>{value ?? MISSING}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+      {showPolicies && (
+        <section className="py-8" aria-labelledby="policies-heading">
+          <h2 id="policies-heading" className="text-xl font-semibold text-on-surface">
+            Văn bản chính sách đã duyệt
+          </h2>
+          <ul className="mt-4 space-y-2">
+            {info.policies.map((policy) => (
+              <li key={policy.path}>
+                <Link
+                  to={policy.path}
+                  className="inline-flex min-h-11 items-center gap-2 font-medium text-primary hover:underline"
+                >
+                  <FileText aria-hidden="true" className="size-4" /> {policy.title}
+                </Link>
+                {policy.summary && <p className="text-sm text-on-surface-variant">{policy.summary}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}
 
 type Page = {
   title: string;
@@ -112,19 +196,22 @@ const NAV = [
 export function InformationPage() {
   const location = useLocation();
   const page = CONTENT[location.pathname];
+  useDocumentMeta(
+    page ? { title: `${page.title} | Nhà Đất Chuẩn`, description: page.intro, canonical: location.pathname } : null,
+  );
   if (!page) return <NotFoundPage />;
   const Icon = page.icon;
   return (
     <div className="bg-white" data-ready="true">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-10 md:px-8 lg:grid-cols-[220px_minmax(0,1fr)] lg:py-14">
         <aside className="lg:pt-2">
-          <p className="mb-3 text-sm font-bold text-slate-900">Thông tin</p>
+          <p className="mb-3 text-sm font-bold text-on-surface">Thông tin</p>
           <nav aria-label="Thông tin nền tảng" className="flex gap-2 overflow-x-auto pb-1 lg:flex-col">
             {NAV.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
-                className={`min-h-11 shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${location.pathname === item.to ? 'bg-blue-50 text-blue-800' : 'text-blue-800 hover:bg-blue-50 hover:text-blue-950'}`}
+                className={`min-h-11 shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${location.pathname === item.to ? 'bg-primary/5 text-primary' : 'text-primary hover:bg-primary/5 hover:text-primary'}`}
               >
                 {item.label}
               </Link>
@@ -132,23 +219,23 @@ export function InformationPage() {
           </nav>
         </aside>
         <article className="min-w-0">
-          <header className="border-b border-slate-200 pb-8">
-            <div className="flex size-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+          <header className="border-b border-outline-variant/40 pb-8">
+            <div className="flex size-12 items-center justify-center rounded-xl bg-primary/5 text-primary">
               <Icon aria-hidden="true" className="size-6" />
             </div>
-            <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">{page.title}</h1>
-            <p className="mt-3 max-w-3xl text-base leading-7 text-slate-600 md:text-lg">{page.intro}</p>
+            <h1 className="mt-5 text-3xl font-bold tracking-tight text-on-surface md:text-4xl">{page.title}</h1>
+            <p className="mt-3 max-w-3xl text-base leading-7 text-on-surface-variant md:text-lg">{page.intro}</p>
           </header>
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-outline-variant/40">
             {page.sections.map((section) => (
               <section key={section.heading} className="py-8">
-                <h2 className="text-xl font-bold text-slate-950">{section.heading}</h2>
-                <p className="mt-3 leading-7 text-slate-700">{section.text}</p>
+                <h2 className="text-xl font-bold text-on-surface">{section.heading}</h2>
+                <p className="mt-3 leading-7 text-on-surface">{section.text}</p>
                 {section.items && (
                   <ul className="mt-4 space-y-2">
                     {section.items.map((item) => (
-                      <li key={item} className="flex gap-2 leading-6 text-slate-700">
-                        <ChevronRight aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-blue-700" />
+                      <li key={item} className="flex gap-2 leading-6 text-on-surface">
+                        <ChevronRight aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
                         {item}
                       </li>
                     ))}
@@ -157,18 +244,21 @@ export function InformationPage() {
               </section>
             ))}
           </div>
+          <div className="divide-y divide-outline-variant/40 border-t border-outline-variant/40">
+            <OperatorAndPolicies pathname={location.pathname} />
+          </div>
           {location.pathname === '/contact' && (
-            <section id="report" className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+            <section id="report" className="rounded-xl border border-primary/20 bg-primary/5 p-5">
               <div className="flex gap-3">
-                <Search aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-blue-700" />
+                <Search aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
                 <div>
-                  <h2 className="font-bold text-blue-950">Chưa có đường dẫn của tin cần báo cáo?</h2>
-                  <p className="mt-1 leading-6 text-blue-900">
+                  <h2 className="font-bold text-on-surface">Chưa có đường dẫn của tin cần báo cáo?</h2>
+                  <p className="mt-1 leading-6 text-on-surface-variant">
                     Tìm tin trước, sau đó mở trang chi tiết để gửi báo cáo gắn với đúng tin đăng.
                   </p>
                   <Link
                     to="/search"
-                    className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-blue-800 px-4 text-sm font-bold text-white hover:bg-blue-900"
+                    className="mt-4 inline-flex min-h-11 items-center rounded-lg bg-primary px-4 text-sm font-bold text-white hover:bg-primary-container"
                   >
                     Tìm tin cần báo cáo
                   </Link>
@@ -176,7 +266,7 @@ export function InformationPage() {
               </div>
             </section>
           )}
-          <Link to="/" className="mt-8 inline-flex min-h-11 items-center gap-1 font-bold text-blue-800 hover:underline">
+          <Link to="/" className="mt-8 inline-flex min-h-11 items-center gap-1 font-bold text-primary hover:underline">
             Về trang chủ <ChevronRight aria-hidden="true" className="size-4" />
           </Link>
         </article>
@@ -186,11 +276,12 @@ export function InformationPage() {
 }
 
 export function NotFoundPage() {
+  useDocumentMeta({ title: 'Không tìm thấy trang | Nhà Đất Chuẩn', robots: 'noindex,follow' });
   return (
     <div className="mx-auto max-w-xl px-4 py-20 text-center" data-ready="true">
-      <p className="text-sm font-bold text-slate-500">404</p>
+      <p className="text-sm font-bold text-on-surface-variant">404</p>
       <h1 className="mt-2 text-3xl font-bold">Không tìm thấy trang</h1>
-      <Link to="/" className="mt-8 inline-flex min-h-11 items-center font-bold text-blue-800 hover:underline">
+      <Link to="/" className="mt-8 inline-flex min-h-11 items-center font-bold text-primary hover:underline">
         Về trang chủ
       </Link>
     </div>

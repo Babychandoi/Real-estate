@@ -6,8 +6,12 @@ import { router } from './routes';
 // the URL and drop it (e.g. the search page replacing the query string, a listing page redirecting to its slug).
 import './shared/analytics/track';
 import { routePattern, startRumWhenConsented } from './shared/analytics/rum';
+import { resetPrerenderedHeadOnNavigation } from './shared/seo/prerenderHead';
 import { ToastProvider } from './shared/ui/Toast';
 import './styles/index.css';
+
+// Before RouterProvider subscribes: the landing page's prerendered head is reset before the next route renders.
+resetPrerenderedHeadOnNavigation(router);
 
 // Core Web Vitals (F15.3): only after analytics consent and for a sample of sessions; web-vitals loads on demand.
 startRumWhenConsented({ route: () => routePattern(router.state.matches) });

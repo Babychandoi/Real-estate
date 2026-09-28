@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, CheckCheck, MapPin, Search, SlidersHorizontal } from 'lucide-react';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
@@ -9,6 +9,13 @@ import { apiClient } from '@/shared/api/client';
 import { formatMoney } from '@/shared/format/money';
 import { ListingSkeleton, StatePanel } from '@/shared/ui/Feedback';
 import { ResponsiveImage } from '@/shared/ui/ResponsiveImage';
+import { useDocumentMeta } from '@/shared/seo/useDocumentMeta';
+
+// Areas, projects and articles (UI-01) load in their own chunk after the listings.
+const HomeExtras = lazy(() => import('@/features/places/HomeExtras'));
+
+const HOME_DESCRIPTION =
+  'Tìm mua, thuê và so sánh bất động sản tại Hà Nội với tin đăng đã kiểm duyệt, giá thuê theo tháng và thông tin người đăng rõ ràng.';
 
 export function HomePage() {
   const navigate = useNavigate();
@@ -50,6 +57,29 @@ export function HomePage() {
   };
 
   const featured = listings.find((item) => item.image);
+  useDocumentMeta({
+    title: 'Nhà Đất Chuẩn — Mua bán, cho thuê nhà đất Hà Nội',
+    description: HOME_DESCRIPTION,
+    canonical: '/',
+    og: {
+      title: 'Nhà Đất Chuẩn — Mua bán, cho thuê nhà đất',
+      description: HOME_DESCRIPTION,
+      type: 'website',
+      url: '/',
+    },
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'Nhà Đất Chuẩn',
+      url: typeof window === 'undefined' ? '/' : `${window.location.origin}/`,
+      inLanguage: 'vi-VN',
+      potentialAction: {
+        '@type': 'SearchAction',
+        target: `${typeof window === 'undefined' ? '' : window.location.origin}/search?q={search_term_string}`,
+        'query-input': 'required name=search_term_string',
+      },
+    },
+  });
 
   return (
     <div data-ready={loading ? 'false' : 'true'}>
@@ -183,6 +213,9 @@ export function HomePage() {
           </div>
         )}
       </section>
+      <Suspense fallback={null}>
+        <HomeExtras />
+      </Suspense>
       <section className="ndc-page">
         <div className="grid gap-6 rounded-2xl border border-outline-variant/40 bg-white p-6 sm:p-8 md:grid-cols-3">
           {[
