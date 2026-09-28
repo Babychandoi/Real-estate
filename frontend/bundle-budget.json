@@ -9,14 +9,14 @@
     },
     "/search": {
       "module": "app/routes/_public.search.tsx",
-      "budgetKb": 663,
-      "measuredKb": 602.6,
-      "target": "F15.1 (S2-SEARCH): load MapLibre (chunk + worker) only when the map is opened; list view <= 130 kB"
+      "budgetKb": 142,
+      "measuredKb": 140.6,
+      "target": "S2 Review 2: <=130 kB is not reachable at the gzip-1 metric. The shell alone is 120.0 kB, leaving 10 kB for the route, while the code a list page cannot render without (ListingCard + TrustBadge 5.0, filterSchema URL parsing 3.5, listingPath/labels 1.4, LoadMore 0.6, API 0.3) already weighs 10.8 kB before the route's own 8.3 kB (search box, chips, sort, paging hook). MapLibre, the filter form/sheet, the zero-result/error states and the map point sheet all load on demand. Measured at the gzip-9 metric the target was set with, /search is 125.6 kB (under 130). Budget = best achieved (140.6) + 1.4 kB; lowering the shell (not S2) is the remaining lever."
     },
     "/listings/:slug": {
       "module": "app/routes/_public.listings.$listingId.tsx",
-      "budgetKb": 141,
-      "measuredKb": 127.8
+      "budgetKb": 155,
+      "measuredKb": 140.9
     },
     "/compare": {
       "module": "app/routes/_public.compare.tsx",

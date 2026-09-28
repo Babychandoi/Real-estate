@@ -39,7 +39,8 @@ public class SensitiveResponseCacheFilter extends OncePerRequestFilter {
             "/api/v1/reports/**", "/api/v1/public/reports",
             "/api/v1/transactions/**", "/api/v1/broker/**", "/api/v1/notifications/**", "/api/v1/analytics/**",
             "/api/v1/listings/my-listings", "/api/v1/listings/admin/**", "/api/v1/listings/*/draft",
-            "/api/v1/cms/**", "/api/v1/catalog/**", "/api/v1/events");
+            "/api/v1/cms/**", "/api/v1/catalog/**", "/api/v1/events",
+            "/api/v2/admin/**");
     /** Public catalogue inside a private prefix. */
     private static final List<String> PUBLIC_EXCEPTIONS = List.of("/api/v1/billing/plans");
 

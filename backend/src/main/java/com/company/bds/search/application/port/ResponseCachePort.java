@@ -1,0 +1,13 @@
+package com.company.bds.search.application.port;
+
+import java.time.Duration;
+import java.util.function.Supplier;
+
+/** Versioned-key response cache with stampede protection; failures of the cache never fail the request. */
+public interface ResponseCachePort {
+
+    <T> T getOrCompute(String cacheName, String key, Duration ttl, Class<T> type, Supplier<T> compute);
+
+    /** Search generation for cache keys, or -1 when the cache is unavailable (then do not cache). */
+    long generation();
+}

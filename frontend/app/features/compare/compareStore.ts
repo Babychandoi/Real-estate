@@ -1,20 +1,76 @@
 import { useSyncExternalStore } from 'react';
-import type { Listing } from '@/entities/listing/model/types';
+import { moneyFromLegacy, type Money } from '@/shared/format/money';
+import type { ListingSummaryV2 } from '@/entities/listing/model/v2';
 
 export const MAX_COMPARE = 3;
 const STORAGE_KEY = 'nhadatchuan.compare.v1';
 
-export type CompareItem = Pick<
-  Listing,
-  'id' | 'slug' | 'title' | 'purpose' | 'priceVnd' | 'areaM2' | 'primaryImageUrl' | 'addressSummary'
->;
+/**
+ * What the compare tray remembers about a listing (a snapshot for the tray only: the compare page always reloads
+ * the current public detail of every id, so a changed price or a hidden listing shows up there).
+ */
+export interface CompareItem {
+  id: string;
+  slug: string;
+  title: string;
+  purpose: 'SALE' | 'RENT';
+  price?: Money | null;
+  areaM2?: number | null;
+  imageUrl?: string | null;
+  addressSummary?: string | null;
+}
 export type CompareAddResult = 'added' | 'removed' | 'full' | 'purpose-mismatch';
+
+export function compareItemFromSummary(listing: ListingSummaryV2): CompareItem {
+  return {
+    id: listing.id,
+    slug: listing.slug,
+    title: listing.title,
+    purpose: listing.purpose,
+    price: listing.price,
+    areaM2: listing.areaM2,
+    imageUrl: listing.image?.url ?? null,
+    addressSummary: listing.location.addressSummary ?? null,
+  };
+}
+
+/** Entries saved before API v2 carried `priceVnd`/`primaryImageUrl`; they are read as the v2 shape. */
+function fromStored(value: unknown): CompareItem | null {
+  if (!value || typeof value !== 'object') return null;
+  const item = value as Record<string, unknown>;
+  if (typeof item.id !== 'string' || typeof item.title !== 'string') return null;
+  const purpose = item.purpose === 'RENT' ? 'RENT' : 'SALE';
+  const price =
+    item.price && typeof item.price === 'object'
+      ? (item.price as Money)
+      : typeof item.priceVnd === 'number'
+        ? moneyFromLegacy(item.priceVnd, purpose)
+        : null;
+  return {
+    id: item.id,
+    slug: typeof item.slug === 'string' ? item.slug : item.id,
+    title: item.title,
+    purpose,
+    price,
+    areaM2: typeof item.areaM2 === 'number' ? item.areaM2 : null,
+    imageUrl:
+      typeof item.imageUrl === 'string'
+        ? item.imageUrl
+        : typeof item.primaryImageUrl === 'string'
+          ? item.primaryImageUrl
+          : null,
+    addressSummary: typeof item.addressSummary === 'string' ? item.addressSummary : null,
+  };
+}
 
 function readStorage(): CompareItem[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
     return Array.isArray(parsed)
-      ? parsed.filter((item) => item && typeof item.id === 'string').slice(0, MAX_COMPARE)
+      ? parsed
+          .map(fromStored)
+          .filter((item): item is CompareItem => item !== null)
+          .slice(0, MAX_COMPARE)
       : [];
   } catch {
     return [];
@@ -44,8 +100,8 @@ if (typeof window !== 'undefined') {
 }
 
 function toItem(listing: CompareItem): CompareItem {
-  const { id, slug, title, purpose, priceVnd, areaM2, primaryImageUrl, addressSummary } = listing;
-  return { id, slug, title, purpose, priceVnd, areaM2, primaryImageUrl, addressSummary };
+  const { id, slug, title, purpose, price, areaM2, imageUrl, addressSummary } = listing;
+  return { id, slug, title, purpose, price, areaM2, imageUrl, addressSummary };
 }
 
 export const compareStore = {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Building2, Key, Shield, Filter } from 'lucide-react';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
-import { type Listing } from '@/entities/listing/model/types';
+import type { ListingSummaryV2 } from '@/entities/listing/model/v2';
 import { Button } from '@/shared/ui/Button';
 import { apiClient } from '@/shared/api/client';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,7 @@ export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [purpose, setPurpose] = useState<'SALE' | 'RENT'>('SALE');
   const [keyword, setKeyword] = useState('');
-  const [listings, setListings] = useState<Listing[]>([]);
+  const [listings, setListings] = useState<ListingSummaryV2[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -20,7 +20,9 @@ export const HomePage: React.FC = () => {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const data = await apiClient<Listing[]>(`/listings/search?purpose=${purpose}`);
+        const data = (
+          await apiClient<{ items: ListingSummaryV2[] }>(`/api/v2/listings/search?purpose=${purpose}&size=6`)
+        ).items;
         if (isMounted) {
           setListings(data);
         }
@@ -42,7 +44,7 @@ export const HomePage: React.FC = () => {
 
   const submitSearch = (searchKeyword = keyword) => {
     const query = new URLSearchParams({ purpose });
-    if (searchKeyword.trim()) query.set('keyword', searchKeyword.trim());
+    if (searchKeyword.trim()) query.set('q', searchKeyword.trim());
     navigate(`/search?${query.toString()}`);
   };
 

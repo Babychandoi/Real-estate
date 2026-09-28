@@ -1,121 +1,159 @@
 import React from 'react';
-import { type Listing, formatPriceVnd, calculateUnitPrice } from '../model/types';
-import { Card } from '@/shared/ui/Card';
-import { Badge } from '@/shared/ui/Badge';
-import { Building2, MapPin, ShieldCheck, Maximize2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import { listingPath } from '../model/seo';
+import { Link } from 'react-router-dom';
+import { BedDouble, MapPin, Maximize2, TrendingDown } from 'lucide-react';
 import { CompareToggleButton } from '@/features/compare/CompareControls';
+import { compareItemFromSummary } from '@/features/compare/compareStore';
 import { Avatar } from '@/shared/ui/Avatar';
+import { Money, UnitPriceText } from '@/shared/ui/Money';
+import { ResponsiveImage } from '@/shared/ui/ResponsiveImage';
+import { TrustBadge } from '@/shared/ui/TrustBadge';
+import { cn } from '@/shared/ui/cn';
+import { listingPath } from '../model/seo';
+import {
+  formatArea,
+  formatDate,
+  propertyTypeLabel,
+  purposeLabel,
+  sellerRoleLabel,
+  type ListingSummaryV2,
+} from '../model/v2';
 
 interface ListingCardProps {
-  listing: Listing;
+  listing: ListingSummaryV2;
+  /** Listing that is no longer public (compare, saved lists): greyed, no detail link. */
+  inactive?: boolean;
+  /** Highlighted from the map (split view). */
+  highlighted?: boolean;
+  onHoverChange?: (id: string | null) => void;
+  /** Extra actions next to "So sánh" (e.g. favourite, stream S6); rendered as siblings of the title link. */
+  actions?: React.ReactNode;
+  /** First cards of a page: load the image eagerly. */
+  priority?: boolean;
+  headingLevel?: 'h2' | 'h3';
+  /** Router state for the detail link (the search page passes where to go "back" to). */
+  linkState?: unknown;
 }
 
-export const ListingCard: React.FC<ListingCardProps> = ({ listing }) => {
-  const navigate = useNavigate();
+/**
+ * Listing card v2 (DS-09): the title link is stretched over the card with a pseudo-element, and the compare button,
+ * extra actions and the seller link are siblings above it — no interactive element is nested in another. Price keeps
+ * its period ("/tháng" for rent), trust badges say what was checked (DS-10), freshness shows the last update.
+ */
+export function ListingCard({
+  listing,
+  inactive = false,
+  highlighted = false,
+  onHoverChange,
+  actions,
+  priority = false,
+  headingLevel = 'h3',
+  linkState,
+}: ListingCardProps) {
+  const Heading = headingLevel;
+  const location = listing.location.addressSummary || listing.location.districtName || '';
+  const updated = formatDate(listing.freshness.updatedAt);
   return (
-    <div className="relative h-full">
-      <Link
-        to={listingPath(listing)}
-        aria-label={`Xem chi tiết: ${listing.title}`}
-        className="block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-      >
-        <Card hoverable className="p-0 overflow-hidden flex flex-col h-full group">
-          {/* Khung ảnh đại diện với tỉ lệ 16:9 */}
-          <div className="relative aspect-[16/10] w-full overflow-hidden bg-surface-container">
-            {listing.primaryImageUrl ? (
-              <img
-                src={listing.primaryImageUrl}
-                alt={listing.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              <div
-                className="grid h-full place-items-center bg-surface-container-high text-on-surface-variant"
-                role="img"
-                aria-label="Tin đăng chưa có ảnh"
-              >
-                <Building2 className="h-12 w-12" aria-hidden="true" />
-              </div>
-            )}
-            <div className="absolute top-3 left-3 flex gap-2">
-              {listing.isVerified && (
-                <Badge variant="verified" icon={<ShieldCheck className="w-3.5 h-3.5 text-secondary" />}>
-                  Đã xác thực
-                </Badge>
-              )}
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-surface-container-lowest/90 text-primary backdrop-blur-sm shadow-sm">
-                {listing.purpose === 'SALE' ? 'Bán' : 'Cho thuê'}
-              </span>
-            </div>
-          </div>
-
-          {/* Thông tin nội dung */}
-          <div className="p-4 flex flex-col flex-1 justify-between gap-3">
-            <div>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xl font-bold text-primary tracking-tight">
-                  {formatPriceVnd(listing.priceVnd)}
-                </span>
-                <span className="text-xs font-medium text-on-surface-variant">
-                  {calculateUnitPrice(listing.priceVnd, listing.areaM2)}
-                </span>
-              </div>
-
-              <h3 className="text-base font-semibold text-on-surface mt-1 line-clamp-2 group-hover:text-primary transition-colors">
-                {listing.title}
-              </h3>
-            </div>
-
-            {listing.sellerName && (
-              // The whole card is already a link, so the seller row navigates programmatically instead of nesting <a>.
-              <span
-                role="link"
-                tabIndex={0}
-                aria-label={`Xem trang cá nhân của ${listing.sellerName}`}
-                onClick={(event) => {
-                  if (!listing.sellerId) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  navigate(`/nguoi-dang/${listing.sellerId}`);
-                }}
-                onKeyDown={(event) => {
-                  if (listing.sellerId && (event.key === 'Enter' || event.key === ' ')) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    navigate(`/nguoi-dang/${listing.sellerId}`);
-                  }
-                }}
-                className="-mx-1 flex w-fit max-w-full items-center gap-2 rounded-full px-1 py-0.5 text-xs text-on-surface-variant hover:bg-surface-container-high focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <Avatar name={listing.sellerName} src={listing.sellerAvatarUrl} size="xs" />
-                <span className="truncate font-medium text-on-surface hover:underline">{listing.sellerName}</span>
-                {listing.isVerified && (
-                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-secondary" aria-label="Người đăng đã xác thực" />
-                )}
-              </span>
-            )}
-
-            <div className="pt-2 border-t border-outline-variant/30 flex items-center justify-between text-xs text-on-surface-variant">
-              <div className="flex items-center gap-1">
-                <Maximize2 className="w-3.5 h-3.5 text-outline" />
-                <span className="font-semibold text-on-surface">{listing.areaM2} m²</span>
-              </div>
-
-              <div className="flex items-center gap-1 max-w-[65%] truncate">
-                <MapPin className="w-3.5 h-3.5 text-outline flex-shrink-0" />
-                <span className="truncate">{listing.addressSummary}</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </Link>
-      <div className="absolute right-3 top-3 z-10">
-        <CompareToggleButton listing={listing} />
+    <article
+      data-listing-id={listing.id}
+      onMouseEnter={onHoverChange ? () => onHoverChange(listing.id) : undefined}
+      onMouseLeave={onHoverChange ? () => onHoverChange(null) : undefined}
+      onFocus={onHoverChange ? () => onHoverChange(listing.id) : undefined}
+      className={cn(
+        'group relative flex h-full flex-col overflow-hidden rounded-card border bg-surface-container-lowest shadow-sm transition-shadow duration-fast',
+        highlighted ? 'border-primary ring-2 ring-primary/40' : 'border-outline-variant hover:shadow-md',
+        inactive && 'opacity-70',
+      )}
+    >
+      <div className="relative">
+        <ResponsiveImage
+          image={listing.image}
+          alt={`Ảnh đại diện: ${listing.title}`}
+          aspectRatio="16 / 10"
+          sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
+          priority={priority}
+        />
+        <span className="absolute left-3 top-3 rounded-pill bg-surface-container-lowest/95 px-2.5 py-1 text-label font-semibold text-primary shadow-sm">
+          {purposeLabel(listing.purpose)} · {propertyTypeLabel(listing.propertyType)}
+        </span>
+        {listing.imageCount > 1 && (
+          <span className="absolute bottom-2 right-2 rounded-pill bg-inverse-surface/75 px-2 py-0.5 text-label font-semibold text-inverse-on-surface">
+            {listing.imageCount} ảnh
+          </span>
+        )}
       </div>
-    </div>
+      <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
+        {!inactive && <CompareToggleButton listing={compareItemFromSummary(listing)} />}
+        {actions}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <Money price={listing.price} className="text-lg font-bold text-primary" />
+          <UnitPriceText unitPrice={listing.unitPrice} className="text-label font-medium text-on-surface-variant" />
+          {listing.priceChange?.direction === 'DOWN' && (
+            <span className="inline-flex items-center gap-1 text-label font-semibold text-success">
+              <TrendingDown className="h-4 w-4" aria-hidden="true" />
+              Đã giảm giá
+            </span>
+          )}
+        </p>
+        <Heading className="text-body font-semibold leading-snug text-on-surface">
+          {inactive ? (
+            <span className="line-clamp-2">{listing.title}</span>
+          ) : (
+            <Link
+              to={listingPath(listing)}
+              state={linkState}
+              aria-label={`Xem chi tiết: ${listing.title}`}
+              className="line-clamp-2 after:absolute after:inset-0 after:content-[''] hover:text-primary focus-visible:outline-none focus-visible:after:rounded-card focus-visible:after:ring-2 focus-visible:after:ring-primary"
+            >
+              {listing.title}
+            </Link>
+          )}
+        </Heading>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-body-sm text-on-surface-variant">
+          <span className="inline-flex items-center gap-1">
+            <Maximize2 className="h-4 w-4 text-outline" aria-hidden="true" />
+            <span className="font-semibold text-on-surface">{formatArea(listing.areaM2)}</span>
+          </span>
+          {listing.bedrooms != null && listing.bedrooms > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <BedDouble className="h-4 w-4 text-outline" aria-hidden="true" />
+              {listing.bedrooms} phòng ngủ
+            </span>
+          )}
+        </p>
+        {location && (
+          <p className="flex min-w-0 items-center gap-1 text-body-sm text-on-surface-variant">
+            <MapPin className="h-4 w-4 shrink-0 text-outline" aria-hidden="true" />
+            <span className="truncate">{location}</span>
+          </p>
+        )}
+        {(listing.trust.identity.status === 'VERIFIED' || listing.trust.ownership.status === 'VERIFIED') && (
+          <div className="flex flex-wrap gap-1.5">
+            {listing.trust.ownership.status === 'VERIFIED' && <TrustBadge kind="ownership" status="VERIFIED" />}
+            {listing.trust.identity.status === 'VERIFIED' && <TrustBadge kind="identity" status="VERIFIED" />}
+          </div>
+        )}
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-x-2 border-t border-outline-variant/60 pt-2 text-label text-on-surface-variant">
+          <Link
+            to={`/nguoi-dang/${listing.seller.id}`}
+            aria-label={`Xem trang người đăng ${listing.seller.name ?? ''}`.trim()}
+            className="relative z-10 -mx-1 flex min-h-11 min-w-0 items-center gap-2 rounded-pill px-1 hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <Avatar name={listing.seller.name} src={listing.seller.avatarUrl} size="xs" />
+            <span className="min-w-0 truncate">
+              <span className="font-semibold text-on-surface">{listing.seller.name || 'Người đăng'}</span>
+              <span> · {sellerRoleLabel(listing.seller.role)}</span>
+            </span>
+          </Link>
+          {inactive ? (
+            <span className="shrink-0 font-semibold">Tin không còn hiển thị</span>
+          ) : (
+            updated && <span className="shrink-0">Cập nhật {updated}</span>
+          )}
+        </div>
+      </div>
+    </article>
   );
-};
+}
