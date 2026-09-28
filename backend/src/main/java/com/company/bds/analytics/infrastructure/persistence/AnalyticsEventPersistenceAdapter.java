@@ -2,6 +2,7 @@ package com.company.bds.analytics.infrastructure.persistence;
 
 import com.company.bds.analytics.application.port.out.AnalyticsEventRepository;
 import com.company.bds.analytics.domain.AnalyticsEvent;
+import com.company.bds.analytics.domain.DeviceFlag;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -9,7 +10,12 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** {@link AnalyticsEventRepository} on {@code analytics_events}: append-only, a repeated event id is ignored (dedupe). */
 @Component
@@ -52,6 +58,30 @@ class AnalyticsEventPersistenceAdapter implements AnalyticsEventRepository {
             bindTail(statement, event, 10);
             return statement;
         }) == 1;
+    }
+
+    @Override
+    public Map<String, Set<DeviceFlag>> deviceFlags(Collection<String> anonymousIds) {
+        if (anonymousIds.isEmpty()) return Map.of();
+        Map<String, Set<DeviceFlag>> flags = new HashMap<>();
+        jdbc.query("SELECT anonymous_id, kind FROM analytics_client_flags WHERE anonymous_id = ANY (?)",
+                rs -> {
+                    flags.computeIfAbsent(rs.getString(1), key -> EnumSet.noneOf(DeviceFlag.class)).add(DeviceFlag.valueOf(rs.getString(2)));
+                },
+                (Object) anonymousIds.toArray(String[]::new));
+        return flags;
+    }
+
+    @Override
+    public boolean flagDevice(String anonymousId, DeviceFlag flag, String reason) {
+        int inserted = jdbc.update("""
+                INSERT INTO analytics_client_flags (anonymous_id, kind, reason) VALUES (?, ?, ?)
+                ON CONFLICT (anonymous_id, kind) DO NOTHING
+                """, anonymousId, flag.name(), reason);
+        if (inserted == 0) return false;
+        String column = flag == DeviceFlag.INTERNAL ? "is_internal" : "is_bot";
+        jdbc.update("UPDATE analytics_events SET " + column + " = TRUE WHERE anonymous_id = ? AND " + column + " = FALSE", anonymousId);
+        return true;
     }
 
     private static void bindHead(PreparedStatement statement, AnalyticsEvent event) throws SQLException {

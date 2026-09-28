@@ -3,6 +3,7 @@ package com.company.bds.analytics.application;
 import com.company.bds.analytics.application.port.out.AnalyticsEventRepository;
 import com.company.bds.analytics.domain.AnalyticsEvent;
 import com.company.bds.analytics.domain.BotDetector;
+import com.company.bds.analytics.domain.DeviceFlag;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,10 +44,21 @@ public class EventIngestionService {
     private static final Pattern CLIENT_ID = Pattern.compile("[A-Za-z0-9_-]{8,64}");
     private static final Pattern PAGE_PATH = Pattern.compile("/[A-Za-z0-9/_.~%:@!$&'()*+,;=-]{0,199}");
 
-    /** Who sent the batch, from the bearer token and request headers only. */
-    public record Viewer(@Nullable UUID userId, boolean staff, @Nullable String userAgent) {}
+    /**
+     * Who sent the batch, from the bearer token and request headers only. {@code internalNetwork}: the resolved client
+     * address is in {@code app.analytics.internal-networks} (office, VPN).
+     */
+    public record Viewer(@Nullable UUID userId, boolean staff, @Nullable String userAgent, boolean internalNetwork) {
+        public Viewer(@Nullable UUID userId, boolean staff, @Nullable String userAgent) {
+            this(userId, staff, userAgent, false);
+        }
+    }
 
-    public record IngestionResult(int accepted, int duplicates) {}
+    /**
+     * {@code dropped}: events not stored because the batch carried no analytics consent (Decree 13/2023: analytics is
+     * opt-in, so nothing is recorded before the visitor agrees, whatever an old or modified client sends).
+     */
+    public record IngestionResult(int accepted, int duplicates, int dropped) {}
 
     private final AnalyticsEventRepository store;
     private final Clock clock;
@@ -71,16 +84,41 @@ public class EventIngestionService {
             errors.add("events", "INVALID_BATCH_SIZE", "Cần từ 1 đến " + MAX_EVENTS + " sự kiện trong một lần gửi.");
             throw errors.exception();
         }
+        if (errors.any()) throw errors.exception();
+        if (!consent) return new IngestionResult(0, 0, events.size());
         Instant now = clock.instant();
         boolean bot = BotDetector.isBot(viewer.userAgent());
         Map<UUID, AnalyticsEvent> unique = new LinkedHashMap<>();
         for (int i = 0; i < events.size(); i++) {
-            AnalyticsEvent event = parse(events.get(i), "events[" + i + "]", consent, viewer, bot, now, errors);
+            AnalyticsEvent event = parse(events.get(i), "events[" + i + "]", true, viewer, bot, now, errors);
             if (event != null) unique.putIfAbsent(event.eventId(), event);
         }
         if (errors.any()) throw errors.exception();
-        int inserted = store.insertWebEvents(List.copyOf(unique.values()));
-        return new IngestionResult(inserted, events.size() - inserted);
+        int inserted = store.insertWebEvents(applyDeviceFlags(List.copyOf(unique.values()), viewer));
+        return new IngestionResult(inserted, events.size() - inserted, 0);
+    }
+
+    /**
+     * Internal/bot classification beyond the request itself: a device (anonymous id) that was ever used by staff is
+     * internal from then on, and a device the maintenance job flagged as a bot stays one. When staff use a device for
+     * the first time its earlier events are re-marked, so "internal" also covers the visit before the sign-in.
+     */
+    private List<AnalyticsEvent> applyDeviceFlags(List<AnalyticsEvent> events, Viewer viewer) {
+        Set<String> devices = new HashSet<>();
+        for (AnalyticsEvent event : events) if (event.anonymousId() != null) devices.add(event.anonymousId());
+        if (devices.isEmpty()) return events;
+        if (viewer.staff()) {
+            for (String device : devices) store.flagDevice(device, DeviceFlag.INTERNAL, "STAFF_SESSION");
+        }
+        Map<String, Set<DeviceFlag>> flags = store.deviceFlags(devices);
+        if (flags.isEmpty()) return events;
+        List<AnalyticsEvent> marked = new ArrayList<>(events.size());
+        for (AnalyticsEvent event : events) {
+            Set<DeviceFlag> kinds = event.anonymousId() == null ? Set.of() : flags.getOrDefault(event.anonymousId(), Set.of());
+            marked.add(kinds.isEmpty() ? event : event.withFlags(event.internal() || kinds.contains(DeviceFlag.INTERNAL),
+                    event.bot() || kinds.contains(DeviceFlag.BOT)));
+        }
+        return marked;
     }
 
     private static boolean consent(JsonNode value, Errors errors) {
@@ -134,7 +172,7 @@ public class EventIngestionService {
         String areaCode = properties != null && properties.hasNonNull("district") ? properties.get("district").asText() : null;
         return new AnalyticsEvent(eventId, name, definition.version(), occurredAt,
                 consent ? anonymousId : null, consent ? sessionId : null, consent ? viewer.userId() : null, listingId,
-                viewer.staff(), bot, AnalyticsEvent.ORIGIN_WEB, device, areaCode, pagePath,
+                viewer.staff() || viewer.internalNetwork(), bot, AnalyticsEvent.ORIGIN_WEB, device, areaCode, pagePath,
                 properties == null ? "{}" : properties.toString(), consent ? utm : null);
     }
 
