@@ -1,0 +1,42 @@
+# Optional point-in-time recovery for PostgreSQL: continuous WAL archiving (audit F21.2/F21.5).
+# Overlay for the root docker-compose.yml; paths are relative to the repository root.
+#
+#   docker compose -p bds-production -f docker-compose.yml -f infra/compose.pitr.yaml up -d postgres
+#
+# Changing archive_mode restarts PostgreSQL once (a few seconds of API errors). PITR also needs a periodic physical
+# base backup; WAL alone cannot be replayed. Trade-offs, base backup and recovery commands, RPO/RTO:
+# docs/ops/PRODUCTION_TOPOLOGY.md ("PITR"). Add infra/compose.pitr-backup.yaml to also ship the archived segments,
+# encrypted, to BACKUP_DIR. The archive volume lives on the same host: without the shipping step PITR protects
+# against operator mistakes and a corrupt data volume, not against losing the host.
+services:
+  postgres:
+    command: ["postgres", "-c", "config_file=/etc/postgresql/bds.conf"]
+    volumes:
+      - ./infra/postgres/bds.conf:/etc/postgresql/bds.conf:ro
+      - ./infra/postgres/conf.d/pitr.conf:/etc/postgresql/conf.d/pitr.conf:ro
+      - postgres-wal-archive:/var/lib/postgresql/wal-archive
+    depends_on:
+      postgres-wal-archive-init: { condition: service_completed_successfully }
+  postgres-wal-archive-init:
+    # The archive volume is created root-owned; the server runs as postgres (uid 999 in the postgis image).
+    image: alpine:3.22
+    command: ["sh", "-c", "chown 999:999 /archive && chmod 0700 /archive"]
+    volumes: [postgres-wal-archive:/archive]
+    restart: "no"
+    network_mode: none
+  postgres-wal-archive-prune:
+    # PostgreSQL never deletes archived segments, and archive_timeout forces a 16 MB segment every 5 minutes even
+    # when idle (~4.6 GB/day before compression), so the local archive is capped by age. Keep it longer than the
+    # base-backup interval (daily in compose.pitr-backup.yaml), otherwise the newest base backup cannot be replayed.
+    image: alpine:3.22
+    user: "999:999"
+    restart: unless-stopped
+    command: ["sh", "-c", "while true; do find /archive -type f -mmin +$${KEEP_MINUTES} -delete; sleep 3600; done"]
+    environment:
+      KEEP_MINUTES: ${WAL_ARCHIVE_KEEP_MINUTES:-4320}
+    volumes: [postgres-wal-archive:/archive]
+    network_mode: none
+    depends_on:
+      postgres-wal-archive-init: { condition: service_completed_successfully }
+volumes:
+  postgres-wal-archive:

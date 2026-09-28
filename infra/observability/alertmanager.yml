@@ -1,0 +1,37 @@
+# Alertmanager for Nhà Đất Chuẩn (audit D-14). No notification channel is committed: the repository does not
+# know the operators' addresses and must not hold their credentials. Until a receiver is configured, alerts are
+# visible in the Alertmanager UI (http://127.0.0.1:9093) and in Grafana, but nobody is paged.
+#
+# To page someone, add a receiver and point the route at it, e.g. e-mail through the SMTP account already used by
+# the backend (password from a mounted file, never inline):
+#   global:
+#     smtp_smarthost: smtp.gmail.com:587
+#     smtp_from: alerts@<domain>
+#     smtp_auth_username: <account>
+#     smtp_auth_password_file: /run/secrets/alertmanager_smtp_password
+#   receivers:
+#     - name: operators
+#       email_configs:
+#         - to: <on-call address>
+# Validate with: amtool check-config infra/observability/alertmanager.yml
+route:
+  receiver: operators
+  group_by: [alertname, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="info"]
+      receiver: operators
+      repeat_interval: 24h
+
+receivers:
+  - name: operators
+
+inhibit_rules:
+  # A backend that is down also produces latency/5xx noise; page once.
+  - source_matchers: [alertname="BdsBackendDown"]
+    target_matchers: [alertname=~"BdsHigh5xxRate|BdsHighLatencyP95|BdsDbPoolSaturated|BdsDbConnectionWaits"]
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [alertname]

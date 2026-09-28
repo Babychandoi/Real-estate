@@ -17,6 +17,11 @@ Máy chủ tạm thời dùng file `.env` ở thư mục gốc. File này bị G
 | `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` | Tài khoản và App Password SMTP | Là secret; không commit và phải xoay nếu lộ. |
 | `SPRING_MAIL_SMTP_AUTH`, `SPRING_MAIL_STARTTLS_ENABLE`, `SPRING_MAIL_STARTTLS_REQUIRED` | Bảo mật SMTP | Giữ `true` với Gmail cổng 587. |
 | `APP_MAIL_FROM` | Địa chỉ người gửi | Phải là địa chỉ được tài khoản/provider SMTP cho phép gửi. |
+| `APP_SECURITY_TRUSTED_PROXIES` | Dải CIDR của proxy mà backend tin `X-Real-IP`/`X-Forwarded-For` (mặc định loopback + dải Docker) | Chỉ thêm dải của proxy thật; sai dải làm rate limit gộp mọi người vào một IP hoặc cho phép giả mạo IP. CIDR sai làm backend từ chối khởi động. |
+| `APP_RATE_LIMIT_ENABLED` | Bật/tắt rate limiter (mặc định `true`) | Chỉ tắt tạm khi xử lý sự cố. |
+| `RATE_LIMIT_LIMIT_MULTIPLIER` | Nhân mọi giới hạn tần suất (mặc định `1`) | Giữ `1` ở production; chỉ stack demo/E2E nâng lên. |
+| `BACKUP_DIR`, `BACKUP_AGE_RECIPIENTS`, `BACKUP_ENV` | Thư mục sao lưu ngoài repository, public key age, nhãn môi trường | Xem `docs/ops/PRODUCTION_TOPOLOGY.md` mục 6. |
+| `GRAFANA_ADMIN_PASSWORD`, `PG_EXPORTER_USER`, `PG_EXPORTER_PASSWORD` | Overlay giám sát | Mật khẩu Grafana là secret; exporter nên dùng role `pg_monitor` riêng. |
 
 ## Secret chỉ thay khi xoay đồng bộ
 
@@ -28,6 +33,8 @@ Máy chủ tạm thời dùng file `.env` ở thư mục gốc. File này bị G
 | `PII_ENCRYPTION_KEY` | Không được thay nếu chưa re-encrypt dữ liệu PII cũ; thay trực tiếp sẽ làm mất khả năng giải mã. |
 | `PII_INDEX_KEY` | Không được thay nếu chưa dựng lại blind index PII. |
 | `OUTBOX_SIGNING_KEY` | Phải đồng bộ với hệ thống nhận webhook trước khi bật outbox. |
+| `RATE_LIMIT_KEY_PEPPER` | Bí mật trộn vào băm khóa rate limit trong Redis. Đổi giá trị làm mọi bộ đếm đang chạy về 0 (chấp nhận được); không log. |
+| Private key age của bản sao lưu | Không bao giờ nằm trên máy production hay trong `.env`; chỉ mang vào khi khôi phục/diễn tập. Mất key = mất mọi bản sao lưu. |
 | Credential Cloudflare Tunnel | Đang mount read-only từ `%USERPROFILE%/.cloudflared`; chuyển máy phải chép credential hoặc cấp tunnel mới. |
 
 ## Cờ production

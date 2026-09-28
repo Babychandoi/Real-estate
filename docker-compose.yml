@@ -140,6 +140,12 @@ services:
       APP_GEOCODING_CONTACT: ${APP_GEOCODING_CONTACT:-}
       APP_SHOWCASE_OWNER_ID: ${APP_SHOWCASE_OWNER_ID:-70000000-0000-0000-0000-000000000001}
       DEMO_ACCOUNT_PASSWORD: ${DEMO_ACCOUNT_PASSWORD:?Set DEMO_ACCOUNT_PASSWORD in .env}
+      # Peers allowed to assert the client address (X-Real-IP from Nginx); see docs/ops/PRODUCTION_TOPOLOGY.md.
+      APP_SECURITY_TRUSTED_PROXIES: ${APP_SECURITY_TRUSTED_PROXIES:-127.0.0.0/8,::1/128,172.16.0.0/12,192.168.0.0/16}
+      APP_RATE_LIMIT_ENABLED: ${APP_RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_KEY_PEPPER: ${RATE_LIMIT_KEY_PEPPER:-}
+      # Scales every rate limit; keep 1 in production. The demo/E2E stack raises it (all browsers share one IP).
+      APP_SECURITY_RATELIMIT_LIMITMULTIPLIER: ${RATE_LIMIT_LIMIT_MULTIPLIER:-1}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -159,7 +165,9 @@ services:
       dockerfile: Dockerfile
       args: { VITE_PUBLIC_API_BASE_URL: /api/v1 }
     restart: unless-stopped
-    ports: ["3000:3000"]
+    # Loopback only: Nginx trusts forwarded client addresses from the Docker/loopback ranges, so nothing on the LAN
+    # may reach it directly. Public traffic arrives through cloudflared inside the Compose network.
+    ports: ["127.0.0.1:3000:3000"]
     depends_on:
       backend: { condition: service_healthy }
     networks: [bds-network]

@@ -1,5 +1,8 @@
 package com.company.bds.notification;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -18,7 +21,13 @@ public class RealtimeNotificationService {
     private final JdbcTemplate jdbc;
     private final ConcurrentHashMap<UUID, CopyOnWriteArrayList<SseEmitter>> clients = new ConcurrentHashMap<>();
 
-    public RealtimeNotificationService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    public RealtimeNotificationService(JdbcTemplate jdbc, ObjectProvider<MeterRegistry> meters) {
+        this.jdbc = jdbc;
+        // Open SSE streams on this instance, for the observability dashboard (audit D-14).
+        meters.ifAvailable(registry -> Gauge.builder("bds.sse.connections", clients,
+                        map -> map.values().stream().mapToInt(List::size).sum())
+                .description("Open notification SSE streams on this instance").register(registry));
+    }
 
     public SseEmitter connect(UUID userId) {
         SseEmitter emitter = new SseEmitter(30 * 60_000L);

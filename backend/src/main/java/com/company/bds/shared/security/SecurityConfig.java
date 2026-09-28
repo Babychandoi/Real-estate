@@ -27,15 +27,18 @@ import java.util.List;
 public class SecurityConfig {
     private final BearerTokenFilter bearerTokenFilter;
     private final RequestRateLimitFilter rateLimitFilter;
+    private final AccountRateLimitFilter accountRateLimitFilter;
     private final AuditTrailFilter auditTrailFilter;
     private final List<String> allowedOrigins;
 
     public SecurityConfig(BearerTokenFilter bearerTokenFilter,
                           RequestRateLimitFilter rateLimitFilter,
+                          AccountRateLimitFilter accountRateLimitFilter,
                           AuditTrailFilter auditTrailFilter,
                           @Value("${app.security.allowed-origins:http://localhost:3000,http://127.0.0.1:3000}") String origins) {
         this.bearerTokenFilter = bearerTokenFilter;
         this.rateLimitFilter = rateLimitFilter;
+        this.accountRateLimitFilter = accountRateLimitFilter;
         this.auditTrailFilter = auditTrailFilter;
         this.allowedOrigins = Arrays.stream(origins.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList();
     }
@@ -91,9 +94,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/transactions/**").authenticated()
                         .requestMatchers("/api/v1/kyc/**", "/api/v1/listings/**", "/api/v1/auth/**", "/api/v1/billing/**", "/api/v1/notifications/**").authenticated()
                         .anyRequest().denyAll())
+                // IP/e-mail quotas before the bearer-token lookup (a token-spray flood never reaches the database),
+                // account quotas right after it, and both before the audit trail (rejected floods write no rows).
                 .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(bearerTokenFilter, RequestRateLimitFilter.class)
-                .addFilterAfter(auditTrailFilter, BearerTokenFilter.class);
+                .addFilterAfter(accountRateLimitFilter, BearerTokenFilter.class)
+                .addFilterAfter(auditTrailFilter, AccountRateLimitFilter.class);
         return http.build();
     }
 

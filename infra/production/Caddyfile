@@ -5,6 +5,29 @@
     X-Content-Type-Options nosniff
     Referrer-Policy strict-origin-when-cross-origin
   }
-  handle /api/* { reverse_proxy backend:8080 }
-  handle { reverse_proxy frontend:3000 }
+  # The backend and Nginx trust client-address headers from this proxy (Docker network), so Caddy must overwrite
+  # them with the peer it saw instead of passing client-supplied values through.
+  #
+  # X-Real-IP and CF-Connecting-IP are handled explicitly below because Caddy's reverse_proxy has no default
+  # behavior for them (it would pass a client-supplied value straight through untouched). X-Forwarded-For is
+  # different: Caddy's reverse_proxy *always* overwrites it with {remote_host} by default (verified against a live
+  # Caddy 2.8.4 container: a forged "X-Forwarded-For: 1.2.3.4, 5.6.7.8" sent by the client never reaches the
+  # upstream — Caddy replaces the whole header, it does not append to it, so there is no "trusted rightmost hop"
+  # to reason about here). The header_up line below is defense-in-depth against that default ever changing in a
+  # future Caddy version, not a fix for an unsafe default. Do NOT remove it or treat it as redundant with the
+  # X-Real-IP line above: they cover different headers with different (if currently identical) default behaviors.
+  handle /api/* {
+    reverse_proxy backend:8080 {
+      header_up X-Real-IP {remote_host}
+      header_up X-Forwarded-For {remote_host}
+      header_up -CF-Connecting-IP
+    }
+  }
+  handle {
+    reverse_proxy frontend:3000 {
+      header_up X-Real-IP {remote_host}
+      header_up X-Forwarded-For {remote_host}
+      header_up -CF-Connecting-IP
+    }
+  }
 }

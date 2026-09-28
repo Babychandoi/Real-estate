@@ -1,0 +1,3 @@
+# No Grafana-managed alerting: alert rules live in Prometheus (infra/observability/rules) and route through
+# Alertmanager, so they are versioned, unit-tested with promtool and independent of Grafana being up.
+apiVersion: 1

@@ -1,0 +1,55 @@
+# Encrypted, scheduled backups of PostgreSQL and MinIO (audit F21.2). Overlay for the root docker-compose.yml;
+# paths are relative to the repository root (the directory of the first -f file).
+#
+#   BACKUP_DIR=/Volumes/bds-backup/nhadatchuan \
+#   BACKUP_AGE_RECIPIENTS=age1... \
+#   docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops up -d backup
+#
+# - BACKUP_DIR: host directory OUTSIDE the repository (ideally an encrypted external disk or a mount that is synced
+#   off the host). Prepare it once: `mkdir -p "$BACKUP_DIR" && chmod 700 "$BACKUP_DIR"` (Linux hosts: owned by
+#   BACKUP_UID, default 10001).
+# - BACKUP_AGE_RECIPIENTS: age public key(s) only. Generate the key pair on an offline machine with `age-keygen`;
+#   the private key (identity) stays with the owner and is only brought to a restore or a drill.
+# - Least privilege (recommended): BACKUP_PGUSER/BACKUP_PGPASSWORD for a role with pg_read_all_data, and
+#   BACKUP_MINIO_ACCESS_KEY/BACKUP_MINIO_SECRET_KEY for a MinIO user with a read-only policy on the bucket;
+#   by default the service falls back to the application superuser and MinIO root credentials.
+# Schedule: database every hour, media every day; retention and intervals below. Restore: infra/backup/restore.sh,
+# drill: scripts/restore-drill.sh. Classification of the output: docs/ops/BACKUP_CLASSIFICATION.md.
+services:
+  backup:
+    profiles: ["ops"]
+    build: { context: ./infra/backup }
+    image: bds-backup:1
+    restart: unless-stopped
+    user: "${BACKUP_UID:-10001}:${BACKUP_GID:-10001}"
+    command: ["schedule"]
+    environment:
+      BACKUP_ENV: ${BACKUP_ENV:-production}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-bds}
+      PGUSER: ${BACKUP_PGUSER:-${POSTGRES_USER:-bds}}
+      PGPASSWORD: ${BACKUP_PGPASSWORD:-${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${BACKUP_MINIO_ACCESS_KEY:-${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}}
+      MINIO_SECRET_KEY: ${BACKUP_MINIO_SECRET_KEY:-${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}}
+      MINIO_BUCKETS: ${MINIO_BUCKET:-bds-listings}
+      AGE_RECIPIENTS: ${BACKUP_AGE_RECIPIENTS:?Set BACKUP_AGE_RECIPIENTS to the age public key(s), never the private key}
+      DB_INTERVAL_SECONDS: ${BACKUP_DB_INTERVAL_SECONDS:-3600}
+      MEDIA_INTERVAL_SECONDS: ${BACKUP_MEDIA_INTERVAL_SECONDS:-86400}
+      RETENTION_DB_HOURS: ${BACKUP_RETENTION_DB_HOURS:-48}
+      RETENTION_DB_DAYS: ${BACKUP_RETENTION_DB_DAYS:-14}
+      RETENTION_MEDIA_DAYS: ${BACKUP_RETENTION_MEDIA_DAYS:-14}
+      RETENTION_MIN_SETS: ${BACKUP_RETENTION_MIN_SETS:-3}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    volumes:
+      - ${BACKUP_DIR:?Set BACKUP_DIR to a host directory outside the repository}:/backups
+    read_only: true
+    tmpfs: ["/tmp:size=128m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    depends_on:
+      postgres: { condition: service_healthy }
+      minio: { condition: service_healthy }
+    networks: [bds-network]

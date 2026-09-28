@@ -23,7 +23,8 @@ import java.util.UUID;
 public class AuditTrailFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(AuditTrailFilter.class);
     private final JdbcTemplate jdbc;
-    public AuditTrailFilter(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final ClientIpResolver clientIp;
+    public AuditTrailFilter(JdbcTemplate jdbc, ClientIpResolver clientIp) { this.jdbc = jdbc; this.clientIp = clientIp; }
 
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
         boolean sensitiveRead = request.getMethod().equals("GET")
@@ -42,7 +43,8 @@ public class AuditTrailFilter extends OncePerRequestFilter {
             UUID actor = authentication != null && authentication.getPrincipal() instanceof AuthService.UserAccount user ? user.id() : null;
             String previous = jdbc.query("SELECT event_hash FROM audit_events ORDER BY occurred_at DESC LIMIT 1",
                     rs -> rs.next() ? rs.getString(1) : "GENESIS");
-            String fingerprint = AuthService.sha256(String.valueOf(request.getRemoteAddr()) + ':' +
+            // Behind Nginx the socket address is the proxy for everyone; fingerprint the resolved client instead.
+            String fingerprint = AuthService.sha256(clientIp.resolve(request) + ':' +
                     String.valueOf(request.getHeader("User-Agent")));
             Instant now = Instant.now();
             String material = previous + '|' + now + '|' + actor + '|' + request.getMethod() + '|' + request.getRequestURI() + '|' + response.getStatus();

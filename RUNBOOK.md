@@ -28,6 +28,12 @@ Mọi email (xác minh, đặt lại mật khẩu, thông báo đối soát) đi
 
 Sao lưu PostgreSQL và bucket MinIO mã hóa hằng ngày, giữ bản sao ngoài cụm và kiểm tra checksum. Hằng quý phải khôi phục đồng thời database + object storage vào môi trường cô lập, chạy Flyway validate và smoke test upload/đọc ảnh; ghi nhận RPO/RTO thực tế. Không coi một file dump hoặc bản sao bucket chưa thử khôi phục là bản sao lưu đạt chuẩn.
 
+Công cụ: `infra/compose.backup.yaml` (pg_dump hằng giờ + object hằng ngày, mã hóa age, ra `BACKUP_DIR` ngoài repository), `infra/compose.pitr.yaml` + `infra/compose.pitr-backup.yaml` (PITR), `scripts/restore-drill.sh` (diễn tập, biên bản trong `docs/ops/drills/`). Quy trình, RPO/RTO và rollback: `docs/ops/PRODUCTION_TOPOLOGY.md`; phân loại dữ liệu sao lưu: `docs/ops/BACKUP_CLASSIFICATION.md`. Không bao giờ commit bản sao lưu vào Git.
+
+## Giám sát và cảnh báo
+
+`infra/compose.observability.yaml` (Prometheus, Alertmanager, Grafana, exporter; chỉ nghe trên 127.0.0.1). Xử lý từng cảnh báo: `docs/operations/ALERT_RUNBOOK.md`. Kiểm tra header bảo mật ở response cuối sau mỗi thay đổi edge: `scripts/verify-headers.sh https://<domain>`.
+
 ## Sự cố P0
 
 Cô lập luồng ảnh hưởng, tắt capability liên quan, bảo toàn log/audit, luân chuyển secret nghi ngờ, thông báo đầu mối pháp lý và lập timeline. Không sửa/xóa audit event tại chỗ.

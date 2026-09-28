@@ -30,6 +30,11 @@ app:
   listing:
     require-verified-kyc: false
   mode: test
+  security:
+    rate-limit:
+      # Every MockMvc request comes from 127.0.0.1, so unrelated suites would share one IP budget. The rate-limit
+      # suites (shared.security.RequestRateLimit*Tests) set this back to 1 and test the real limits.
+      limit-multiplier: 1000
   features:
     real-kyc: true
     real-transactions: true

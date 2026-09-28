@@ -715,7 +715,7 @@ Sơ đồ luồng truy cập và thành phần triển khai đề xuất
 
 React xử lý giao diện, SSR và HTML công khai; Spring Boot xử lý API, phân quyền, trạng thái và lead. Module gồm IAM, Catalog, Listing, Media, Search, Moderation, Verification, Lead, Content, Privacy, Import và Audit. Worker Java nhận việc bền vững từ DB để xử lý ảnh, thông báo và hết hạn.
 
-PostgreSQL là nguồn chuẩn; lead và outbox được ghi cùng giao dịch. Worker đọc outbox có khóa nhận việc và retry giới hạn; Redis phục vụ cache và rate limit. Ảnh công khai qua CDN; hồ sơ xác minh ở kho riêng. Phiên dùng Spring Session JDBC; API cùng miền áp dụng Spring Security và CSRF. [\[S30\]](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html) [\[S33\]](https://docs.spring.io/spring-session/reference/configuration/jdbc.html)
+PostgreSQL là nguồn chuẩn; lead và outbox được ghi cùng giao dịch. Worker đọc outbox có khóa nhận việc và retry giới hạn; Redis phục vụ cache và rate limit. Ảnh công khai qua CDN; hồ sơ xác minh ở kho riêng. Phiên là bearer token opaque do server phát, chỉ lưu SHA-256 trong bảng `auth_sessions`, gửi qua header Authorization; không có cookie xác thực nên CSRF không áp dụng, rủi ro chính là XSS và được kiểm soát bằng CSP chặt (thay cho thiết kế Spring Session JDBC ban đầu — ADR `docs/adr/0001-session-model.md`). [\[S30\]](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html)
 
 ### Quyết định kiến trúc cần ghi tại G2
 
@@ -1363,7 +1363,7 @@ Trong UML, &lt;&lt;boundary&gt;&gt; là nơi trao đổi với tác nhân, &lt;&
 | --- | --- | --- |
 | Backend | Java Spring Boot | REST API; modular monolith; package theo nghiệp vụ, có application domain infrastructure web. |
 | Dữ liệu | Spring Data JPA và JDBC | JPA cho CRUD; truy vấn PostGIS, khóa và outbox có SQL tham số hóa; transaction ở application service. |
-| Xác thực | Spring Security và Spring Session JDBC | Cookie HttpOnly Secure SameSite; CSRF cho thao tác ghi; quyền và chủ sở hữu kiểm tra tại API. |
+| Xác thực | Spring Security; phiên là bearer token opaque lưu hash trong `auth_sessions` (ADR 0001) | Header `Authorization`, không cookie xác thực nên không cần CSRF; frontend giữ token trong `sessionStorage`, CSP chặt ở edge; quyền và chủ sở hữu kiểm tra tại API. |
 | Frontend | React TypeScript và React Router Framework Mode | Dùng Vite; SSR cho trang công khai, client data loading cho chức năng riêng; Tailwind CSS và daisyUI. |
 | Database | PostgreSQL và PostGIS | Flyway quản lý migration; Hibernate validate schema ở production; không dùng ddl-auto=update. |
 | Tác vụ nền | Worker Java và outbox trong PostgreSQL | Nhận việc theo lease, retry có hạn; Redis chỉ cache/rate limit trong phương án này. |
@@ -2167,11 +2167,11 @@ UCD08 Nội dung dự án dữ liệu và báo cáo
 
 **M3** Người dùng nhập mã; hệ thống khóa challenge, kiểm tra số lần sai, thời hạn và tài khoản.
 
-**M4** Mã đúng được tiêu thụ một lần; hệ thống tạo hoặc lấy tài khoản, xoay ID phiên.
+**M4** Mã đúng được tiêu thụ một lần; hệ thống tạo hoặc lấy tài khoản, phát một token phiên mới (không tái sử dụng token cũ).
 
-**M5** Hệ thống trả cookie phiên; giao diện tải hồ sơ và quyền phù hợp.
+**M5** Hệ thống trả bearer token phiên (server chỉ lưu hash); giao diện giữ token trong `sessionStorage`, tải hồ sơ và quyền phù hợp (ADR `docs/adr/0001-session-model.md`).
 
-**M6** Người dùng đăng xuất; hệ thống hủy phiên và xóa cookie.
+**M6** Người dùng đăng xuất; hệ thống thu hồi phiên (`revoked_at`) và giao diện xóa token.
 
 ### Kịch bản thay thế
 
@@ -3948,7 +3948,7 @@ PhoneChallenge ..> User : xác minh số
 
 ED01 Tài khoản và quyền dữ liệu
 
-User dùng @Version để phát hiện sửa đồng thời; Role là dữ liệu quyền. Phiên đăng nhập do Spring Session JDBC quản lý, không tạo một entity JPA để ghi trực tiếp bảng phiên.
+User dùng @Version để phát hiện sửa đồng thời; Role là dữ liệu quyền. Phiên đăng nhập lưu trong bảng `auth_sessions` (chỉ hash của token, thời hạn, thời điểm thu hồi), truy cập bằng JDBC trong `AuthService`, không tạo entity JPA cho bảng phiên (ADR `docs/adr/0001-session-model.md`).
 
 <a id="p078"></a>
 
@@ -4621,7 +4621,7 @@ Các tên bảng ở phần trước được cụ thể hóa trong từ điển
 | **Ký hiệu hoặc kiểu** | **Quy định** |
 | --- | --- |
 | tz và dấu ? | tz viết gọn cho timestamptz. Dấu ? là nullable; các cột không có ? bắt buộc, trừ ngoại lệ được nêu rõ. |
-| UUID và ID liên kết | Khóa ngoại cùng kiểu UUID; FK mặc định RESTRICT. Bảng Spring Session dùng schema riêng của thư viện. |
+| UUID và ID liên kết | Khóa ngoại cùng kiểu UUID; FK mặc định RESTRICT. Bảng phiên `auth_sessions` do Flyway (V008) tạo, FK tới `users` ON DELETE CASCADE. |
 | Enum nghiệp vụ | Java enum; SQL varchar kèm CHECK giá trị. Tránh đổi mã enum đã dùng; nhãn giao diện nằm trong từ điển đa ngôn ngữ. |
 | Tiền và diện tích | Java Long/BigDecimal; SQL bigint/numeric. JSON số tiền là chuỗi thập phân; không dùng float cho tiền. |
 | Địa danh | unit\_id trỏ bản ghi admin\_units chứa code và version; không ghi đè tên lịch sử. unit\_version khi hiển thị đọc từ snapshot đó. |
@@ -4635,7 +4635,7 @@ Các bảng logs/outbox nhận aggregate\_type và aggregate\_id cho nhiều lo�
 
 Ngoại lệ cho bản nháp: tại listing\_revisions, content\_revisions và project\_revisions, các cột nội dung được nullable khi DRAFT; ID cha, revision\_no và state luôn bắt buộc. Khi gửi, CHECK có IS NOT NULL và service buộc đủ các trường SRS theo loại nội dung. Kiểu có ? trong Java cũng hỗ trợ trạng thái nháp; null không hợp lệ trong bản đã gửi nếu trường đó bắt buộc.
 
-Mọi cột nội dung thuộc listing\_revisions có cùng revision ID; hàng “phần giá và vị trí” tiếp tục bảng đó, không phải bảng thứ hai. Hai bảng Spring Session do migration của thư viện tạo. Không tự chạy Hibernate tạo/sửa schema trên production. [\[S33\]](https://docs.spring.io/spring-session/reference/configuration/jdbc.html)
+Mọi cột nội dung thuộc listing\_revisions có cùng revision ID; hàng “phần giá và vị trí” tiếp tục bảng đó, không phải bảng thứ hai. Bảng phiên `auth_sessions` do migration Flyway V008 tạo (ADR `docs/adr/0001-session-model.md`). Không tự chạy Hibernate tạo/sửa schema trên production.
 
 <a id="p086"></a>
 
@@ -4649,7 +4649,7 @@ Quy ước id, thời gian chung, nullable và xóa theo trang Quy ước CSDL. 
 | roles<br>id UUID PK<br>Module IAM | code varchar(32); name varchar(100) | UQ(code); USER, POSTER, MODERATOR, EDITOR, CONTENT\_REVIEWER, ADMIN, PRIVACY\_OPERATOR, AUDITOR. |
 | user\_roles<br>PK(user\_id, role\_id)<br>Module IAM | user\_id UUID FK users; role\_id UUID FK roles; assigned\_by UUID FK users; assigned\_at tz | Không tự cấp quyền; thay đổi ghi audit; FK RESTRICT, xóa liên kết có kiểm soát. |
 | otp\_challenges<br>id UUID PK<br>Module IAM | phone\_cipher bytea; phone\_lookup char(64); scope\_hash char(64); purpose varchar(16); code\_mac bytea; status varchar(16); attempts smallint; expires\_at tz; consumed\_at tz?; listing\_id UUID? FK listings | CHECK attempts 0..5; code\_mac là HMAC có secret server; purpose LOGIN/CHANGE\_PHONE/LEAD; chỉ tiêu thụ một lần. |
-| SPRING\_SESSION và SPRING\_SESSION\_ATTRIBUTES<br>Khóa theo schema thư viện<br>Module IAM | Phiên: PRIMARY\_ID, SESSION\_ID, CREATION\_TIME, LAST\_ACCESS\_TIME, MAX\_INACTIVE\_INTERVAL, EXPIRY\_TIME, PRINCIPAL\_NAME. Thuộc tính: SESSION\_PRIMARY\_ID, ATTRIBUTE\_NAME, ATTRIBUTE\_BYTES. | PRINCIPAL\_NAME chứa user ID; 2 bảng framework, không ánh xạ JPA nghiệp vụ; schema PostgreSQL từ đúng bản Spring Session. [\[S33\]](https://docs.spring.io/spring-session/reference/configuration/jdbc.html) |
+| auth\_sessions<br>PK id (UUID)<br>Module IAM | id, user\_id, token\_hash (SHA-256 của token, UNIQUE), expires\_at, created\_at, revoked\_at. | Token gốc không bao giờ lưu; index một phần `(token_hash, expires_at) WHERE revoked_at IS NULL`; FK `user_id` ON DELETE CASCADE; không ánh xạ JPA; ADR `docs/adr/0001-session-model.md`. |
 
 <a id="p087"></a>
 
@@ -4848,13 +4848,14 @@ interface PrivacyStore {
 +save(request): void
 +appendEvent(event): void
 }
-class JdbcSessionAdapter <<adapter>> {
-+rotate(userId): void
+class AuthSessionStore <<adapter>> {
++issue(userId): BearerToken
++revoke(tokenHash): void
 +revokeUser(userId): void
 }
 AuthController --> AccountService
 AccountService --> AccountStore
-AccountService --> JdbcSessionAdapter
+AccountService --> AuthSessionStore
 PrivacyService --> PrivacyStore
 PrivacyService --> AccountStore
 @enduml
@@ -6049,7 +6050,7 @@ participant "form: LoginForm" as F
 participant "api: AuthController" as C
 participant "svc: AccountService" as S
 participant "store: AccountStore" as D
-participant "session: JdbcSessionAdapter" as J
+participant "sessions: auth_sessions (JDBC)" as J
 F -> C : requestOtp(phone)
 C -> S : requestOtp(command)
 S -> D : createChallenge(scope, expiresAt)
@@ -6060,10 +6061,10 @@ activate S
 S -> D : lockAndVerifyChallenge()
 alt mã đúng và tài khoản mở
  D --> S : userId; challenge consumed
- S -> J : rotate(userId)
- J --> S : session established
+ S -> J : insert(userId, sha256(token), expiresAt)
+ J --> S : session stored (hash only)
  S --> C : SessionResult
- C --> F : cookie HttpOnly Secure
+ C --> F : bearer accessToken + expiresAt
 else sai hết hạn hoặc bị khóa
  D --> S : failure; attempts updated
  S --> C : auth error
@@ -6921,7 +6922,7 @@ Cơ sở PK, FK, UNIQUE và CHECK; bất biến liên bảng còn cần giao d�
 
 [S33 Spring Session JDBC](https://docs.spring.io/spring-session/reference/configuration/jdbc.html)
 
-Kho phiên dùng JDBC; schema kỹ thuật được quản lý theo phiên bản thư viện.
+Tham khảo cho thiết kế ban đầu; hệ thống không dùng Spring Session (phiên là bearer token lưu hash trong `auth_sessions`, ADR `docs/adr/0001-session-model.md`).
 
 ### Quản lý mô hình trong dự án
 
