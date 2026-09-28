@@ -92,9 +92,9 @@ class ReportDeskTests {
         assertThat(order.indexOf(high.toString())).isLessThan(order.indexOf(low.toString()));
         JsonNode p0Item = item(page, p0);
         assertThat(p0Item.get("slaBreached").asBoolean()).isTrue();
-        assertThat(Duration.between(twoHoursAgo, Instant.parse(p0Item.get("slaDueAt").asText())).toMinutes()).isEqualTo(60);
-        assertThat(Duration.between(twoHoursAgo, Instant.parse(item(page, high).get("slaDueAt").asText())).toHours()).isEqualTo(4);
-        assertThat(Duration.between(twoHoursAgo, Instant.parse(item(page, low).get("slaDueAt").asText())).toHours()).isEqualTo(72);
+        assertSlaOffset(twoHoursAgo, p0Item, Duration.ofHours(1));
+        assertSlaOffset(twoHoursAgo, item(page, high), Duration.ofHours(4));
+        assertSlaOffset(twoHoursAgo, item(page, low), Duration.ofHours(72));
         assertThat(item(page, high).get("slaBreached").asBoolean()).isFalse();
 
         JsonNode breached = body(perform(staff, get("/api/v1/reports/queue?breached=true&size=100")));
@@ -187,6 +187,11 @@ class ReportDeskTests {
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("REPORT_CLOSED"));
         perform(a, post("/api/v1/reports/" + report + "/severity", Map.of("severity", "LOW", "reason", "Hạ mức độ sau khi đóng")))
                 .andExpect(status().isConflict());
+    }
+
+    private static void assertSlaOffset(Instant createdAt, JsonNode item, Duration expected) {
+        Duration actual = Duration.between(createdAt, Instant.parse(item.get("slaDueAt").asText()));
+        assertThat(Math.abs(actual.minus(expected).toMillis())).isLessThan(1000L);
     }
 
     private UUID insertReport(UUID listingId, String severity, Instant createdAt, String phone) {
