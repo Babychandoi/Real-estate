@@ -44,10 +44,26 @@ public class BdsIntegrationTestInitializer implements ApplicationContextInitiali
         environment.getPropertySources().addFirst(new MapPropertySource("bdsIntegrationTest", properties));
     }
 
+    /**
+     * Since S2 the configured name is an alias over versioned indices ({@code <name>-v2-<timestamp>}); deleting an alias
+     * by name is refused, so every concrete index starting with the name is listed and deleted by its own name.
+     */
     private static void deleteIndex(String baseUrl, String index) {
         try {
-            HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(baseUrl + "/" + index))
-                    .timeout(Duration.ofSeconds(5)).DELETE().build(), HttpResponse.BodyHandlers.discarding());
+            HttpClient client = HttpClient.newHttpClient();
+            HttpResponse<String> listed = client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/_cat/indices/" + index + "*?h=index"))
+                    .timeout(Duration.ofSeconds(5)).GET().build(), HttpResponse.BodyHandlers.ofString());
+            java.util.Set<String> names = new java.util.LinkedHashSet<>();
+            names.add(index);
+            if (listed.statusCode() == 200) {
+                for (String line : listed.body().split("\n")) {
+                    if (!line.isBlank() && line.trim().startsWith(index)) names.add(line.trim());
+                }
+            }
+            for (String name : names) {
+                client.send(HttpRequest.newBuilder(URI.create(baseUrl + "/" + name))
+                        .timeout(Duration.ofSeconds(5)).DELETE().build(), HttpResponse.BodyHandlers.discarding());
+            }
         } catch (Exception ignored) {
             // The shared test Elasticsearch is disposable; a leftover prefixed index does not affect other streams.
         }
