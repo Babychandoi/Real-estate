@@ -557,3 +557,10 @@ npm run build
 # 2026-09-26 - Profile avatar camera badge
 
 - `_account.profile.tsx`: only the photo is clipped to the circle; the camera badge sits on its edge with a white ring instead of being cut by `overflow-hidden`. Frontend build passed; verified by Playwright screenshot on the demo stack.
+
+# 2026-09-28 - Audit W1 merged: backend foundation, frontend foundation, ops security (phase A)
+
+- Streams S0-BE, S0-FE, S5-SEC phase A each passed an independent Review 2, fixed every finding, and were merged into `audit-2026-09-27` (conflicts: CI workflow, `.gitignore`, resolved keeping both sides).
+- Review 3 integration fixes: three S5 test classes still used the pre-PostgreSQL `@SpringBootTest` setup (connected to `localhost:5432`) — moved to `BdsIntegrationTestInitializer`, dropping the fixed Redis DB so each JVM claims its own; `EventIngestionTests` now checks `no-store` is present instead of an exact header that S5's `SensitiveResponseCacheFilter` intentionally strengthened.
+- Results on the merged branch: backend `mvnw verify` 154/154 (full test infra); frontend lint, typecheck, format, 142 unit tests, build and route budget all green.
+- Stream reports: `docs/audit-2026-09-27/streams/{s0-be,s0-fe,s5-sec-a}.md`; matrix statuses updated in `01_REQUIREMENTS.md`.

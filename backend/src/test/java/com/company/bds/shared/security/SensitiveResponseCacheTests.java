@@ -1,17 +1,15 @@
 package com.company.bds.shared.security;
 
+import com.company.bds.testsupport.BdsIntegrationTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -30,9 +28,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * Audit F10.2: KYC, lead, billing, admin, auth and moderation responses are never stored by a shared cache.
  * Same context configuration as {@code SecurityIntegrationTests}, so the Spring context is reused.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
+@BdsIntegrationTest
 class SensitiveResponseCacheTests {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper mapper;
@@ -90,8 +86,8 @@ class SensitiveResponseCacheTests {
         for (Probe probe : probes) {
             MockHttpServletRequestBuilder request = get(probe.path()).with(user(UUID.randomUUID().toString()).roles(probe.role()));
             MvcResult result = mockMvc.perform(request).andReturn();
-            // The handler ran (authorised). Its status depends on the test schema (the H2 schema lacks some billing
-            // tables); the cache policy has to hold for every status, success or error.
+            // The handler ran (authorised). Its exact status depends on what data exists for this probe (e.g. no
+            // bank settings row yet); the cache policy has to hold for every status, success or error.
             assertThat(result.getResponse().getStatus()).as(probe.path()).isNotIn(401, 403, 404);
             assertNotStored(result, probe.path());
         }

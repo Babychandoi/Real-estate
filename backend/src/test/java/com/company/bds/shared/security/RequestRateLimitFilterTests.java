@@ -6,6 +6,7 @@ import com.company.bds.shared.security.ratelimit.RateLimitDimension;
 import com.company.bds.shared.security.ratelimit.RateLimitPolicies;
 import com.company.bds.shared.security.ratelimit.RateLimitPolicy;
 import com.company.bds.shared.security.ratelimit.RateLimiter;
+import com.company.bds.testsupport.BdsIntegrationTestInitializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -19,6 +20,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -49,17 +51,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 /**
  * Rate limiter v2 end to end through the real filter chain and a real Redis (audit F13.1–F13.3).
- * Needs the shared test Redis: {@code eval "$(scripts/test-infra.sh env)"}; this stream uses DB 7.
+ * Needs the shared test infrastructure: {@code eval "$(scripts/test-infra.sh env)"}. The Redis database is the one
+ * {@link com.company.bds.testsupport.BdsTestRedis} claims for this JVM (via {@link BdsIntegrationTestInitializer}),
+ * not a fixed index, so concurrent runs never share rate-limit counters.
  */
 @SpringBootTest(properties = {
         "app.security.rate-limit.limit-multiplier=1",
         "app.security.rate-limit.policies.api-default.ip.limit=5",
         "app.security.rate-limit.policies.api-default.account.limit=5",
-        "app.security.rate-limit.policies.auth-login.email.limit=3",
-        "spring.data.redis.database=7"
+        "app.security.rate-limit.policies.auth-login.email.limit=3"
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@ContextConfiguration(initializers = BdsIntegrationTestInitializer.class)
 class RequestRateLimitFilterTests {
     /** The Nginx container as seen from the backend inside the Compose network. */
     private static final String NGINX = "172.18.0.2";

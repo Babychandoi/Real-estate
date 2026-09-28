@@ -4,6 +4,7 @@ import com.company.bds.shared.security.ratelimit.RateLimitDimension;
 import com.company.bds.shared.security.ratelimit.RateLimitPolicies;
 import com.company.bds.shared.security.ratelimit.RateLimitPolicy;
 import com.company.bds.shared.security.ratelimit.RateLimiter;
+import com.company.bds.testsupport.BdsIntegrationTestInitializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.MethodOrderer;
@@ -15,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -38,6 +40,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 })
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@ContextConfiguration(initializers = BdsIntegrationTestInitializer.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class RequestRateLimitRedisOutageTests {

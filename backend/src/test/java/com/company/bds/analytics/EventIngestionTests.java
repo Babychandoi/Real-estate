@@ -194,9 +194,12 @@ class EventIngestionTests {
     void ingestionIsPublicAndDoesNotWriteTheAuditChain() throws Exception {
         long auditBefore = jdbc.queryForObject("SELECT COUNT(*) FROM audit_events", Long.class);
 
+        // Cache-Control's exact value is the shared policy for every private/never-cache path (see
+        // SensitiveResponseCacheFilter, audit F10.2); this only checks that the no-store directive is present.
         send(batch("granted", event("kyc_required_shown", props -> props.put("context", "lead"))), BROWSER)
                 .andExpect(status().isAccepted())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "no-store"));
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().stringValues("Cache-Control",
+                        org.hamcrest.Matchers.contains(org.hamcrest.Matchers.containsString("no-store"))));
 
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM audit_events", Long.class)).isEqualTo(auditBefore);
     }

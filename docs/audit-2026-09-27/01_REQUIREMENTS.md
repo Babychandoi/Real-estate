@@ -5,17 +5,21 @@ Cột **Luồng** trỏ tới luồng triển khai trong `00_PLAN.md`. Cột **T
 `PARTIAL` (còn thiếu, ghi rõ) / `EXTERNAL` (cần con người hoặc hệ thống bên ngoài; đã chuẩn bị tài liệu/công cụ).
 Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồng>.md` và tổng hợp ở `04_EVIDENCE.md`.
 
+**Cập nhật sau đợt W1 (28/09/2026):** các dòng đánh `DONE (W1)`/`PARTIAL (W1)` đã qua Review 2 độc lập, sửa lại và
+xác minh trên nhánh tích hợp `audit-2026-09-27` (merge commit `7fd9c87`, backend + frontend build/test đều xanh).
+Bằng chứng chi tiết theo từng dòng: `streams/s0-be.md`, `streams/s0-fe.md`, `streams/s5-sec-a.md`.
+
 ## A. Phát hiện kỹ thuật (mục 6)
 
 | ID | Yêu cầu | Tiêu chí nghiệm thu | Luồng | Trạng thái |
 |---|---|---|---|---|
-| F01.1 | E2E theo route/slug thật; selector đúng nhãn hiện tại | Không còn selector `/Chi tiết/`, URL kiểm tra slug canonical | S0-FE | TODO |
-| F01.2 | Fixture dữ liệu xác định; chờ trạng thái thay cho sleep | Không còn `waitForTimeout` cố định trong spec; dữ liệu seed cố định đồng hồ | S0-FE, S0-BE | TODO |
-| F01.3 | Tách visual, a11y, navigation thành kiểm tra độc lập | Screenshot fail không chặn axe/overflow | S0-FE | TODO |
-| F01.4 | Upload report, diff, trace khi fail | CI upload `playwright-report`, `test-results` khi fail | S0-FE | TODO |
+| F01.1 | E2E theo route/slug thật; selector đúng nhãn hiện tại | Không còn selector `/Chi tiết/`, URL kiểm tra slug canonical | S0-FE | DONE (W1) |
+| F01.2 | Fixture dữ liệu xác định; chờ trạng thái thay cho sleep | Không còn `waitForTimeout` cố định trong spec; dữ liệu seed cố định đồng hồ | S0-FE, S0-BE | DONE (W1) |
+| F01.3 | Tách visual, a11y, navigation thành kiểm tra độc lập | Screenshot fail không chặn axe/overflow | S0-FE | DONE (W1) |
+| F01.4 | Upload report, diff, trace khi fail | CI upload `playwright-report`, `test-results` khi fail | S0-FE | DONE (W1) |
 | F01.5 | Baseline chỉ cập nhật sau review ảnh | Quy trình ghi trong tài liệu; baseline mới kèm ảnh đã xem | S11-UX | TODO |
-| F01.6 | Luồng buyer và broker xác thực dùng fixture | Spec đăng nhập buyer/broker chạy trong CI | S0-FE, S11-UX | TODO |
-| F01.7 | ESLint riêng, không đếm typecheck là lint | `npm run lint` = ESLint; `npm run typecheck` = tsc | S0-FE | TODO |
+| F01.6 | Luồng buyer và broker xác thực dùng fixture | Spec đăng nhập buyer/broker chạy trong CI | S0-FE, S11-UX | DONE (W1) |
+| F01.7 | ESLint riêng, không đếm typecheck là lint | `npm run lint` = ESLint; `npm run typecheck` = tsc | S0-FE | DONE (W1) |
 | F01.8 | Suite xanh, không skip để làm xanh | CI xanh trên commit phát hành | S11-UX | TODO |
 | F01.9 | Required checks + review trên main | Lệnh/tài liệu bật branch protection; cần quyền admin repo | S5-SEC | EXTERNAL |
 | F02.1 | List 20–24 tin/lần, envelope `items/pageInfo(hasNext,nextCursor)` | API v2 trả envelope; UI “Xem thêm”/cuộn tải tiếp | S2-SEARCH | TODO |
@@ -26,10 +30,10 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | F03.2 | Server chịu trách nhiệm mọi filter (kể cả xác thực) | Lọc xác thực ngoài trang đầu vẫn đúng | S2-SEARCH | TODO |
 | F03.3 | Đổi filter reset cursor; URL giữ location/bbox, purpose, đơn vị giá, sort, view | Copy URL/reload/back/forward khôi phục cùng tiêu chí (E2E) | S2-SEARCH | TODO |
 | F03.4 | push history cho thay đổi chủ ý, replace khi kéo bản đồ | E2E back/forward | S2-SEARCH | TODO |
-| F04.1 | Money contract amount/currency/period; phí quản lý/đặt cọc tách riêng | API trả `price{amount,currency,period}`, `rentTerms` | S0-BE, S2-SEARCH, S3a-SUPPLY | TODO |
+| F04.1 | Money contract amount/currency/period; phí quản lý/đặt cọc tách riêng | API trả `price{amount,currency,period}`, `rentTerms` | S0-BE, S2-SEARCH, S3a-SUPPLY | PARTIAL (W1) |
 | F04.2 | Bộ lọc thuê theo tháng, preset theo phân khúc; không dùng ngưỡng giá bán | Chip thuê khác chip bán; đổi SALE↔RENT reset filter giá | S2-SEARCH | TODO |
 | F04.3 | Card/detail/compare/search cùng đơn vị; ranh giới không chồng lấn | Test formatter + E2E hiển thị `/tháng` | S2-SEARCH | TODO |
-| F05.1 | Sự kiện thay đổi tin phát cùng transaction; consumer checkpoint riêng | Trigger/queue `search-index` riêng, không dùng cờ processed chung | S0-BE, S2-SEARCH | TODO |
+| F05.1 | Sự kiện thay đổi tin phát cùng transaction; consumer checkpoint riêng | Trigger/queue `search-index` riêng, không dùng cờ processed chung | S0-BE, S2-SEARCH | PARTIAL (W1) |
 | F05.2 | Bulk indexing, version chống sai thứ tự, delete khi ẩn | Test phát lại không hạ version; ẩn tin → xóa doc | S2-SEARCH | TODO |
 | F05.3 | Backfill theo batch/keyset; rebuild index mới rồi đổi alias | Test rebuild trong lúc có thay đổi không mất update/delete | S2-SEARCH | TODO |
 | F05.4 | Retry/backoff, DLQ, cảnh báo lag | Metric lag + DLQ; alert rule | S2-SEARCH, S5-SEC | TODO |
@@ -52,25 +56,25 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | F09.2 | Cột không gian + GiST cho bbox; FTS/trgm cho keyword | Index tồn tại và được EXPLAIN dùng | S2-SEARCH, S10-PERF | TODO |
 | F09.3 | EXPLAIN (ANALYZE, BUFFERS) ở 100k và 1M tin | Báo cáo kế hoạch truy vấn | S10-PERF | TODO |
 | F10.1 | Cache detail/search có invalidation khi approve/hide/đổi giá, version hóa key | Test invalidation | S2-SEARCH | TODO |
-| F10.2 | Không cache KYC/lead/admin ở shared cache | Header `no-store` cho endpoint nhạy cảm (test) | S5-SEC | TODO |
+| F10.2 | Không cache KYC/lead/admin ở shared cache | Header `no-store` cho endpoint nhạy cảm (test) | S5-SEC | DONE (W1) |
 | F10.3 | Geocode cache có hạn, normalized key, negative cache | Test expiry | S2-SEARCH | TODO |
 | F10.4 | Chống stampede, TTL jitter, Redis lỗi vẫn giới hạn tải DB | Test Redis down | S2-SEARCH | TODO |
-| F11.1 | Header bảo mật có ở mọi location | Include chung; script kiểm tra HTML/asset/API/lỗi/SSE | S5-SEC | TODO |
-| F11.2 | Kiểm tra response cuối qua CDN/proxy | Kết quả chạy script với domain thật | S5-SEC | TODO |
+| F11.1 | Header bảo mật có ở mọi location | Include chung; script kiểm tra HTML/asset/API/lỗi/SSE | S5-SEC | DONE (W1) |
+| F11.2 | Kiểm tra response cuối qua CDN/proxy | Kết quả chạy script với domain thật | S5-SEC | PARTIAL (W1) |
 | F12.1 | DB giữ lịch sử + cursor; Redis Pub/Sub fanout giữa node | Test 2 instance: ghi ở A, SSE ở B nhận | S6-ENGAGE | TODO |
 | F12.2 | Heartbeat, reconnect cả EOF, backoff+jitter, dedupe event ID, dọn client | Test reconnect không mất/không trùng | S6-ENGAGE | TODO |
-| F13.1 | Chỉ tin proxy khai báo; IP thật qua chuỗi proxy | Hai người qua proxy không dùng chung quota | S5-SEC | TODO |
-| F13.2 | Limit theo IP + account + endpoint; counter atomic; không dùng hashCode | Test | S5-SEC | TODO |
-| F13.3 | Fallback bị chặn bộ nhớ; policy theo route; Retry-After; dashboard 429 | Test Redis down không tăng bộ nhớ vô hạn | S5-SEC | TODO |
+| F13.1 | Chỉ tin proxy khai báo; IP thật qua chuỗi proxy | Hai người qua proxy không dùng chung quota | S5-SEC | DONE (W1) |
+| F13.2 | Limit theo IP + account + endpoint; counter atomic; không dùng hashCode | Test | S5-SEC | DONE (W1) |
+| F13.3 | Fallback bị chặn bộ nhớ; policy theo route; Retry-After; dashboard 429 | Test Redis down không tăng bộ nhớ vô hạn | S5-SEC | DONE (W1) |
 | F14.1 | Gallery/lightbox đủ ảnh, keyboard, đếm ảnh, alt | E2E 20 ảnh xem được | S2-SEARCH | TODO |
 | F14.2 | Upload tạo WebP (AVIF nếu có) 320/640/960/1600, EXIF, orientation, placeholder | Test pipeline | S1-MEDIA | TODO |
 | F14.3 | srcset/sizes; không tải ảnh gốc khi mở detail; LCP đúng kích thước | E2E kiểm tra request ảnh | S1-MEDIA, S2-SEARCH | TODO |
 | F14.4 | Tin ẩn xử lý asset theo chính sách có chủ đích | Chính sách + test | S1-MEDIA | TODO |
 | F15.1 | Dynamic import Map chỉ khi cần | List mobile không tải chunk map | S2-SEARCH | TODO |
-| F15.2 | Budget theo route | Script kiểm tra kích thước chunk trong CI | S0-FE | TODO |
+| F15.2 | Budget theo route | Script kiểm tra kích thước chunk trong CI | S0-FE | DONE (W1) |
 | F15.3 | Đo LCP/INP/CLS | RUM web-vitals về pipeline analytics | S8-ANALYTICS | TODO |
 | F16.1 | Prerender/SSR cho home, listing, project, area, bài viết | HTML ban đầu có title/canonical/nội dung chính | S7-SEO | TODO |
-| F16.2 | Metadata thống nhất theo route, không rò rỉ khi đổi route | Hook meta reset (test) | S0-FE, S7-SEO | TODO |
+| F16.2 | Metadata thống nhất theo route, không rò rỉ khi đổi route | Hook meta reset (test) | S0-FE, S7-SEO | DONE (W1) |
 | F16.3 | Status 404/410 đúng; redirect slug | Test HTTP status | S7-SEO | TODO |
 | F16.4 | Sitemap index nhiều phần từ projection, cache snapshot | >10.000 tin không hydrate domain (test) | S7-SEO | TODO |
 | F16.5 | Không index mọi tổ hợp filter | robots/noindex cho trang filter | S7-SEO | TODO |
@@ -80,19 +84,19 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | F17.3 | Chính sách pause listing cạnh tranh với tạo lead | Test + tài liệu | S3b-LEADS | TODO |
 | F17.4 | Đo tỷ lệ bỏ cuộc trước/sau KYC | Event funnel lead_form_opened→kyc_required→lead_submitted | S3b-LEADS, S8 | TODO |
 | F17.5 | Quyết định thay đổi yêu cầu KYC | Product/security chốt — giữ nguyên KYC | — | EXTERNAL |
-| F18.1 | Email billing qua outbox bền vững | SMTP lỗi không giữ transaction; retry | S0-BE, S4-ADMIN | TODO |
+| F18.1 | Email billing qua outbox bền vững | SMTP lỗi không giữ transaction; retry | S0-BE, S4-ADMIN | DONE (W1) |
 | F18.2 | Order create idempotency; không cộng quyền nhiều lần | Test song song | S4-ADMIN | TODO |
 | F18.3 | Compare-and-set bank settings | Hai admin sửa → một bên nhận 409 | S4-ADMIN | TODO |
 | F18.4 | Audit đầy đủ, trạng thái đối soát bền vững | Lịch sử sự kiện đơn | S4-ADMIN | TODO |
-| F19.1 | Event versioned: search, impression, detail, favorite, lead submitted/qualified, appointment confirmed/completed | Catalog + ingestion | S0-BE, S8 | TODO |
+| F19.1 | Event versioned: search, impression, detail, favorite, lead submitted/qualified, appointment confirmed/completed | Catalog + ingestion | S0-BE, S8 | DONE (W1) |
 | F19.2 | Dedupe event ID; loại bot/internal; consent và retention | Test | S8-ANALYTICS | TODO |
 | F19.3 | Dashboard phân biệt “chưa đo” và 0; theo nguồn/khu vực/thiết bị/thời gian; định nghĩa + độ trễ | Fixture 1 hành trình → funnel đúng một lần | S8-ANALYTICS | TODO |
-| F20.1 | ADR mô hình session nhất quán | `docs/adr/0001-session-model.md` | S5-SEC | TODO |
+| F20.1 | ADR mô hình session nhất quán | `docs/adr/0001-session-model.md` | S5-SEC | DONE (W1) |
 | F20.2 | Test logout/revoke/expiry | Test tích hợp | S5-SEC | TODO |
 | F20.3 | MFA admin | TOTP + recovery codes; test | S5-SEC | TODO |
 | F20.4 | Least privilege | Rà soát ma trận quyền + test | S5-SEC | TODO |
-| F21.1 | Phân loại backup trong Git LFS | Tài liệu phân loại | S5-SEC | TODO |
-| F21.2 | Backup mã hóa, ACL, retention, restore drill | Dịch vụ backup + script + biên bản drill | S5-SEC, S10-PERF | TODO |
+| F21.1 | Phân loại backup trong Git LFS | Tài liệu phân loại | S5-SEC | DONE (W1) |
+| F21.2 | Backup mã hóa, ACL, retention, restore drill | Dịch vụ backup + script + biên bản drill | S5-SEC, S10-PERF | DONE (W1) |
 | F21.3 | Kế hoạch xử lý lịch sử Git/rotation (không tự xóa) | Kế hoạch; thực thi cần chủ repo quyết | S5-SEC | EXTERNAL |
 | F21.4 | Tách production khỏi máy dev; đánh giá managed DB/object storage | Tài liệu topology; thực thi là việc hạ tầng | S5-SEC | EXTERNAL |
 | F21.5 | RPO/RTO đo được; rollback deploy + migration tương thích | Biên bản drill + runbook rollback | S10-PERF | TODO |
@@ -132,7 +136,7 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | UI-24 | Admin analytics | “Chưa đo” khác 0; cohort/khung thời gian | S8-ANALYTICS | TODO |
 | UI-25 | Admin projects/cms | Hoàn tất hành trình public dự án/bài viết | S7-SEO | TODO |
 | UI-26 | Alias admin | Regression test redirect alias, không đường cụt/không lộ quyền | S11-UX | TODO |
-| UI-27 | `_account.contracts.tsx` | Gỡ tệp chết/không tính là tính năng | S0-FE | TODO |
+| UI-27 | `_account.contracts.tsx` | Gỡ tệp chết/không tính là tính năng | S0-FE | DONE (W1) |
 
 ## C. Khoảng trống sản phẩm (mục 4.1, 4.2)
 
@@ -146,7 +150,7 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | P-06 | Khu vực/dự án | Trang public có inventory, tiện ích có nguồn, phương pháp thống kê, SEO | S7-SEO | TODO |
 | P-07 | Nội dung | CMS đã duyệt lên public, revision, preview, lịch xuất bản, tác giả/nguồn | S7-SEO | TODO |
 | P-08 | Seller/broker | Import có kiểm tra, chất lượng tin, SLA phản hồi, báo cáo lead đủ điều kiện và ROI | S3a (import, chất lượng), S3b (SLA, ROI) | TODO |
-| P-09 | Chủ nhà | Persona chủ nhà (vai trò OWNER) có capability đăng tin, nhãn rõ | S0-BE, S0-FE, S3a-SUPPLY | TODO |
+| P-09 | Chủ nhà | Persona chủ nhà (vai trò OWNER) có capability đăng tin, nhãn rõ | S0-BE, S0-FE, S3a-SUPPLY | DONE (W1) |
 | P-10 | Analytics | Event pipeline, cohort, nguồn traffic/attribution có giới hạn, chất lượng lead | S8-ANALYTICS | TODO |
 | P-11 | Thanh toán | Idempotency, audit, exception queue; tách dịch vụ đăng tin khỏi tiền cọc BĐS | S4-ADMIN | TODO |
 | P-12 | AI/3D/chat | Không giả lập; giữ 501 rõ ràng; tiêu chí mở khi có dữ liệu | S7-SEO (tài liệu) | TODO |
@@ -169,23 +173,23 @@ Bằng chứng (tên test, lệnh, báo cáo) được ghi trong `streams/<luồ
 | D-09 | Chính sách cache theo bảng 7.3 (assets, thumbnail, detail, search trang đầu, cluster, dự án/CMS, geocode, dữ liệu nhạy cảm, danh mục) | S2, S1, S7, S5 | TODO |
 | D-10 | Chống trùng: exact hash → candidate theo khu vực/diện tích/giá → similarity trên candidate (không O(n²)) | S4-ADMIN | TODO |
 | D-11 | Gợi ý top-k rule-based (tin tương tự, zero-result) | S2-SEARCH | TODO |
-| D-12 | Nhắc lịch bằng job bền vững có `due_at` index, lease/idempotency | S0-BE, S3b-LEADS | TODO |
+| D-12 | Nhắc lịch bằng job bền vững có `due_at` index, lease/idempotency | S0-BE, S3b-LEADS | PARTIAL (W1) |
 | D-13 | Benchmark: tải chuẩn 100 RPS đọc + 10 RPS ghi (constant-arrival-rate), cold/warm, 1M tin, burst/soak, ES/Redis hỏng, ghi cạnh tranh, rebuild index, khôi phục | S10-PERF | TODO |
-| D-14 | Observability tối thiểu (route RED, DB pool/slow/locks, ES lag, outbox/queue lag/DLQ, Redis hit/eviction, storage, 429, notification, CWV) | S5-SEC, S8 | TODO |
-| D-15 | Topology production nhỏ; 2 instance sau khi sửa SSE/scheduler | S5-SEC (tài liệu), S0-BE (scheduler lock) | TODO |
+| D-14 | Observability tối thiểu (route RED, DB pool/slow/locks, ES lag, outbox/queue lag/DLQ, Redis hit/eviction, storage, 429, notification, CWV) | S5-SEC, S8 | DONE (W1) |
+| D-15 | Topology production nhỏ; 2 instance sau khi sửa SSE/scheduler | S5-SEC (tài liệu), S0-BE (scheduler lock) | DONE (W1) |
 
 ## E. Thiết kế (mục 8)
 
 | ID | Yêu cầu | Luồng | Trạng thái |
 |---|---|---|---|
-| DS-01 | Một nguồn token (màu, chữ, spacing, radius, shadow, icon, control) cho Tailwind/CSS + catalog component | S0-FE | TODO |
-| DS-02 | Be Vietnam Pro tự host, chỉ weight cần | S0-FE | TODO |
-| DS-03 | Không dùng 10px cho thông tin quan trọng; control 44–48px; icon Lucide thống nhất, bỏ emoji | S0-FE, S11-UX | TODO |
+| DS-01 | Một nguồn token (màu, chữ, spacing, radius, shadow, icon, control) cho Tailwind/CSS + catalog component | S0-FE | DONE (W1) |
+| DS-02 | Be Vietnam Pro tự host, chỉ weight cần | S0-FE | DONE (W1) |
+| DS-03 | Không dùng 10px cho thông tin quan trọng; control 44–48px; icon Lucide thống nhất, bỏ emoji | S0-FE, S11-UX | PARTIAL (W1) |
 | DS-04 | WCAG 2.2 AA: contrast, focus, keyboard, reflow; kiểm tra trên cặp màu thực tế | S11-UX | TODO |
 | DS-05 | Layout theo trang (bảng 8.3) desktop/mobile | S2, S3a, S3b, S4, S7, S11 | TODO |
 | DS-06 | Kiểm tra 360/390/768/1024/1440 và zoom 200% | S11-UX | TODO |
 | DS-07 | Không dùng thuật ngữ nội bộ trong hành trình người tìm nhà | S11-UX | TODO |
-| DS-08 | Component tối thiểu và đủ trạng thái (SearchBox, FilterBar/Sheet, ListingCard, TrustBadge/Panel, Gallery, ContactPanel, Compare, FormField, DataTable/Queue, Toast/InlineFeedback) | S0-FE (+ luồng dùng) | TODO |
+| DS-08 | Component tối thiểu và đủ trạng thái (SearchBox, FilterBar/Sheet, ListingCard, TrustBadge/Panel, Gallery, ContactPanel, Compare, FormField, DataTable/Queue, Toast/InlineFeedback) | S0-FE (+ luồng dùng) | PARTIAL (W1) |
 | DS-09 | Tách anchor khỏi nút favorite/compare/link người đăng (không lồng tương tác) | S2-SEARCH | TODO |
 | DS-10 | Nhãn xác thực trả lời “xác thực cái gì” | S2-SEARCH | TODO |
 | DS-11 | UX flow người tìm nhà (khám phá trước đăng nhập, quay về mục đích sau xác minh) | S2, S3b, S5 | TODO |
