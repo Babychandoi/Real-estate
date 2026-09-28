@@ -60,7 +60,7 @@ describe('formatVndCompact boundaries', () => {
     [12_345_000_000, '12,35 tỷ'],
     [125_000_000_000, '125 tỷ'],
     [1_234_500_000_000, '1.234,5 tỷ'],
-  ])('%d → %s', (amount, expected) => {
+  ])('%d -> %s', (amount, expected) => {
     expect(formatVndCompact(amount)).toBe(expected);
   });
 

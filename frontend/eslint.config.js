@@ -5,6 +5,13 @@ import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import designSystem from './eslint-design-system-plugin.js';
+
+// Emoji/pictograph/symbol ranges (m6): dingbats, arrows, misc technical/symbols, enclosed alphanumerics
+// (covers the ● U+25CF this rule used to miss), the wide misc-symbols-and-arrows block (⬆ U+2B06, ⭐ U+2B50…),
+// the emoji presentation selector, and the three surrogate-pair lead bytes that cover essentially all emoji.
+const EMOJI_PATTERN =
+  '[\\u2190-\\u21FF\\u2300-\\u24FF\\u25A0-\\u27BF\\u2900-\\u29FF\\u2B00-\\u2BFF\\uFE0F]|\\uD83C[\\uDC00-\\uDFFF]|\\uD83D[\\uDC00-\\uDFFF]|\\uD83E[\\uDC00-\\uDFFF]';
 
 export default defineConfig(
   {
@@ -36,30 +43,34 @@ export default defineConfig(
     // Application code runs in the browser and renders React.
     files: ['app/**/*.{ts,tsx}'],
     extends: [jsxA11y.flatConfigs.recommended],
-    plugins: { 'react-hooks': reactHooks },
+    plugins: { 'react-hooks': reactHooks, local: designSystem },
     languageOptions: {
       globals: globals.browser,
     },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'error',
-      // Design-system guard rails (DS-03, docs/design-system.md).
+      // Design-system guard rails (DS-03, docs/design-system.md). Emoji/symbol text is checked wherever it could
+      // appear as an "icon" — JSX text, string literals (`aria-label="⭐"`, `const label = '🏠 …'`) and template
+      // literals — not only JSXText (m6). Text-size checks (px/rem/em arbitrary classes, inline fontSize) are
+      // local/no-tiny-text and local/no-tiny-inline-font-size below, which do the arithmetic a regex cannot.
       'no-restricted-syntax': [
         'error',
         {
-          selector:
-            'JSXText[value=/[\\u2600-\\u27BF\\u2B50\\u2B55]|\\uD83C[\\uDF00-\\uDFFF]|\\uD83D[\\uDC00-\\uDE4F\\uDE80-\\uDEFF]|\\uD83E[\\uDD00-\\uDFFF]/]',
+          selector: `JSXText[value=/${EMOJI_PATTERN}/]`,
           message: 'Use a Lucide icon (with aria-hidden or a label) instead of an emoji or symbol character.',
         },
         {
-          selector: 'Literal[value=/text-\\[(8|9|10|11)px\\]/]',
-          message: 'Text below 12px is not allowed for information; use text-xs/text-label (12px) or larger.',
+          selector: `Literal[value=/${EMOJI_PATTERN}/]`,
+          message: 'Use a Lucide icon (with aria-hidden or a label) instead of an emoji or symbol character.',
         },
         {
-          selector: 'TemplateElement[value.raw=/text-\\[(8|9|10|11)px\\]/]',
-          message: 'Text below 12px is not allowed for information; use text-xs/text-label (12px) or larger.',
+          selector: `TemplateElement[value.raw=/${EMOJI_PATTERN}/]`,
+          message: 'Use a Lucide icon (with aria-hidden or a label) instead of an emoji or symbol character.',
         },
       ],
+      'local/no-tiny-text': 'error',
+      'local/no-tiny-inline-font-size': 'error',
     },
   },
   {

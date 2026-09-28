@@ -6,7 +6,7 @@ export default mergeConfig(
   viteConfig,
   defineConfig({
     test: {
-      include: ['app/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
+      include: ['app/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs', '*.test.mjs'],
       environment: 'jsdom',
       setupFiles: ['./app/test/setup.ts'],
       restoreMocks: true,
