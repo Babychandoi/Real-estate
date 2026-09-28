@@ -17,4 +17,11 @@ public final class CurrentUser {
         }
         throw new IllegalStateException("Phiên đăng nhập không có định danh hợp lệ.");
     }
+
+    /** Id of the bearer session behind the request, or {@code null} (test principals, no session). */
+    public static UUID sessionId(Authentication authentication) {
+        return authentication != null && authentication.getDetails() instanceof SessionDetails details ? details.sessionId() : null;
+    }
+
+    public record SessionDetails(UUID sessionId) {}
 }

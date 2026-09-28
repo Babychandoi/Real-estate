@@ -26,10 +26,16 @@ public class AdminUserService {
 
     private final JdbcTemplate jdbc;
     private final Clock clock;
+    private final SessionService sessions;
+    private final MfaService mfa;
+    private final SecurityEventLog events;
 
-    public AdminUserService(JdbcTemplate jdbc, Clock clock) {
+    public AdminUserService(JdbcTemplate jdbc, Clock clock, SessionService sessions, MfaService mfa, SecurityEventLog events) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.sessions = sessions;
+        this.mfa = mfa;
+        this.events = events;
     }
 
     @Transactional
@@ -57,6 +63,9 @@ public class AdminUserService {
         jdbc.update("DELETE FROM user_roles WHERE user_id = ?", targetId);
         jdbc.update("INSERT INTO user_roles(user_id, role) VALUES (?, ?)", targetId, role);
         jdbc.update("UPDATE users SET updated_at = ? WHERE id = ?", Timestamp.from(clock.instant()), targetId);
+        // A new role takes effect at once anyway (roles are read per request), but open sessions were created under the
+        // old role's rules (staff: MFA and short TTL); the account signs in again under the new ones (ADR 0001 §4).
+        sessions.revokeAll(targetId, null, "ROLE_CHANGED");
         record(targetId, actorId, "ROLE_CHANGE", current, role, why);
         return new RoleChange(targetId, current, role);
     }
@@ -85,6 +94,38 @@ public class AdminUserService {
         record(targetId, actorId, "SUSPENDED".equals(requested) ? "LOCK" : "UNLOCK", status, requested, why);
     }
 
+    /** Removes the target's second factor and recovery codes and revokes their sessions; never one's own. */
+    @Transactional
+    public void resetMfa(UUID targetId, String reason, UUID actorId) {
+        String why = requireReason(reason);
+        if (targetId.equals(actorId)) {
+            throw ApiException.conflict("OWN_ACCOUNT", "Không thể tự đặt lại xác thực hai lớp; hãy nhờ quản trị viên khác.");
+        }
+        requireExisting(targetId);
+        if (!mfa.reset(targetId)) throw ApiException.conflict("MFA_NOT_ENROLLED", "Tài khoản chưa bật xác thực hai lớp.");
+        sessions.revokeAll(targetId, null, "MFA_RESET");
+        events.record(targetId, SecurityEventLog.Type.MFA_RESET_BY_ADMIN, null, actorId);
+        record(targetId, actorId, "MFA_RESET", null, null, why);
+    }
+
+    @Transactional
+    public SessionsRevoked revokeSessions(UUID targetId, String reason, UUID actorId) {
+        String why = requireReason(reason);
+        if (targetId.equals(actorId)) {
+            throw ApiException.conflict("OWN_ACCOUNT", "Dùng mục Bảo mật tài khoản để đăng xuất các thiết bị của chính bạn.");
+        }
+        requireExisting(targetId);
+        int revoked = sessions.revokeAll(targetId, null, "REVOKED_BY_ADMIN");
+        events.record(targetId, SecurityEventLog.Type.SESSIONS_REVOKED_BY_ADMIN, null, actorId);
+        record(targetId, actorId, "SESSIONS_REVOKE", null, String.valueOf(revoked), why);
+        return new SessionsRevoked(revoked);
+    }
+
+    private void requireExisting(UUID targetId) {
+        Integer count = jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Integer.class, targetId);
+        if (count == null || count == 0) throw ApiException.notFound("USER_NOT_FOUND", "Không tìm thấy tài khoản.");
+    }
+
     @Transactional(readOnly = true)
     public List<AdminAction> history(UUID targetId) {
         return jdbc.query("""
@@ -110,6 +151,8 @@ public class AdminUserService {
     }
 
     public record RoleChange(UUID userId, String fromRole, String toRole) {}
+
+    public record SessionsRevoked(int revokedSessions) {}
 
     public record AdminAction(UUID id, String action, String fromValue, String toValue, String reason, UUID actorId,
                               String actorName, Instant createdAt) {}

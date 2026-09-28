@@ -143,7 +143,10 @@ export const LoginModal: React.FC = () => {
 
     setRegLoading(true);
     try {
-      const result = await register(regEmail, regPassword, regName, regAccountType);
+      // The verification e-mail brings the person back to the page they were on (DS-11); the server keeps only a
+      // same-site relative path.
+      const returnTo = `${window.location.pathname}${window.location.search}`;
+      const result = await register(regEmail, regPassword, regName, regAccountType, returnTo);
       if (!result.success) {
         setRegError(result.error || 'Đăng ký thất bại.');
       } else {

@@ -43,6 +43,7 @@ describe('route access by role (contract §2.5)', () => {
       'adminAnalytics',
       'adminProjects',
       'adminCms',
+      'adminSecurity',
     ]);
   });
 

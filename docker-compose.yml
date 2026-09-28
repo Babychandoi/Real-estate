@@ -161,6 +161,11 @@ services:
       RATE_LIMIT_KEY_PEPPER: ${RATE_LIMIT_KEY_PEPPER:-}
       # Scales every rate limit; keep 1 in production. The demo/E2E stack raises it (all browsers share one IP).
       APP_SECURITY_RATELIMIT_LIMITMULTIPLIER: ${RATE_LIMIT_LIMIT_MULTIPLIER:-1}
+      # Staff second factor (ADR 0001 phase B). Keep true in production (refused false when APP_MODE=production);
+      # only the throwaway E2E stack turns it off, its demo staff accounts have no authenticator.
+      APP_SECURITY_MFA_REQUIRED: ${APP_SECURITY_MFA_REQUIRED:-true}
+      APP_SECURITY_SESSION_STAFF_TTL: ${APP_SECURITY_SESSION_STAFF_TTL:-PT8H}
+      APP_SECURITY_SESSION_STAFF_IDLE_TIMEOUT: ${APP_SECURITY_SESSION_STAFF_IDLE_TIMEOUT:-PT30M}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }

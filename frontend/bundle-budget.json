@@ -98,8 +98,15 @@
     },
     "admin/login": {
       "module": "app/routes/_admin.login.tsx",
-      "budgetKb": 130,
-      "measuredKb": 117.9
+      "budgetKb": 136,
+      "measuredKb": 130.3,
+      "note": "S5-SEC B: staff MFA steps (verify, enrol, one-time recovery codes) built on the UI kit FormField/TextInput/InlineFeedback/Checkbox instead of raw inputs (+12.4 kB gzip-1 vs 117.9). Budget = measured + ~5%."
+    },
+    "admin/security": {
+      "module": "app/routes/_admin.security.tsx",
+      "budgetKb": 145,
+      "measuredKb": 131.5,
+      "note": "S5-SEC B: staff account security page (MFA status and recovery codes, devices, password change, security events)."
     },
     "admin/moderation": {
       "module": "app/routes/_admin.moderation.tsx",

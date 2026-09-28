@@ -115,3 +115,45 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 - **Chẩn đoán:** `docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops logs --since 3h backup` (tìm `backup_failed`); quyền ghi và dung lượng của `BACKUP_DIR`; `BACKUP_METRICS_DIR` của node-exporter có trỏ tới `$BACKUP_DIR/metrics` không.
 - **Giảm thiểu:** sửa nguyên nhân rồi chạy tay: `docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops run --rm backup db`.
 - **Rollback:** không áp dụng. Sau sự cố kéo dài, chạy `scripts/restore-drill.sh` để xác nhận bản sao lưu mới khôi phục được.
+
+## BdsSearchIndexLagHigh
+- **Ý nghĩa:** job cũ nhất của hàng đợi `search-index` chờ quá 30 giây trong 5 phút — tin vừa sửa/ẩn chưa phản ánh vào kết quả tìm kiếm.
+- **Chẩn đoán:** "BDS — Tìm kiếm" và "BDS — Hàng đợi job"; `SELECT count(*), min(run_at) FROM background_jobs WHERE queue='search-index' AND completed_at IS NULL AND dead_lettered_at IS NULL;`; cảnh báo BdsElasticsearchDown/BdsSearchBulkFailures; có instance nào bật `APP_JOBS_ENABLED=true` không.
+- **Giảm thiểu:** khôi phục Elasticsearch; worker tự xử lý tồn đọng. Nếu cần kết quả đúng ngay, tìm kiếm đã tự chuyển sang PostgreSQL khi breaker mở.
+- **Rollback:** nếu do deploy mới, rollback ứng dụng; chỉ mục dựng lại được bằng `POST /api/v2/admin/search/index/rebuild`.
+
+## BdsEngageAlertLagHigh
+- **Ý nghĩa:** hàng đợi `engage-listing-change` (thông báo giá giảm/tin quay lại cho tin đã lưu, tìm kiếm đã lưu) chờ quá 2 phút.
+- **Chẩn đoán:** log backend của `ListingChangeJobHandler`; `SELECT attempts, last_error FROM background_jobs WHERE queue='engage-listing-change' AND completed_at IS NULL ORDER BY run_at LIMIT 20;`.
+- **Giảm thiểu:** sửa nguyên nhân (DB chậm, handler lỗi); job tự thử lại. Không cần gửi lại thủ công — thông báo bị trễ chứ không mất.
+- **Rollback:** rollback ứng dụng nếu do deploy.
+
+## BdsSearchBulkFailures
+- **Ý nghĩa:** Elasticsearch từ chối lệnh bulk (mapping sai, đĩa đầy, cụm đỏ) trong 10 phút qua.
+- **Chẩn đoán:** log backend của `ListingIndexWriter`/`SearchIndexJobHandler`; `last_error` của job `search-index` trong `background_jobs`; cảnh báo BdsElasticsearchRed/BdsDiskSpaceLow.
+- **Giảm thiểu:** sửa nguyên nhân; job lỗi thử lại với backoff, sau `maxAttempts` vào dead letter (xem BdsJobDeadLetters).
+- **Rollback:** dựng lại chỉ mục (alias swap, bản cũ giữ làm PREVIOUS).
+
+## BdsSearchBreakerOpen
+- **Ý nghĩa:** circuit breaker Elasticsearch mở hơn 5 phút; `/api/v2/listings/search` đang chạy bằng PostgreSQL.
+- **Chẩn đoán:** BdsElasticsearchDown; độ trễ ES trong "BDS — Tìm kiếm".
+- **Giảm thiểu:** khôi phục ES; breaker tự thử lại (half-open) và đóng khi ES trả lời.
+- **Rollback:** không áp dụng.
+
+## BdsNotificationFanoutFallback
+- **Ý nghĩa:** không phát được thông báo qua Redis Pub/Sub; mỗi instance chỉ đẩy SSE cho người dùng đang kết nối vào chính nó. Thông báo vẫn lưu trong DB và hiện khi tải lại/kết nối lại.
+- **Chẩn đoán:** BdsRedisDown; log backend `notification_fanout_failed fallback=local`.
+- **Giảm thiểu:** khôi phục Redis. Với một instance duy nhất cảnh báo này không làm mất thông báo.
+- **Rollback:** không áp dụng.
+
+## BdsMfaChallengeLocked
+- **Ý nghĩa:** một lần đăng nhập cổng quản trị đã qua bước mật khẩu nhưng nhập sai mã xác thực hai lớp 5 lần — mật khẩu nhân viên có thể đã lộ.
+- **Chẩn đoán:** `SELECT u.email, e.event_type, e.ip_hint, e.device_label, e.created_at FROM auth_security_events e JOIN users u ON u.id = e.user_id WHERE e.event_type IN ('MFA_FAILED','MFA_CHALLENGE_LOCKED','LOGIN_FAILED') AND e.created_at > now() - interval '1 hour' ORDER BY e.created_at DESC LIMIT 50;` Liên hệ người sở hữu tài khoản qua kênh khác email.
+- **Giảm thiểu:** nếu không phải chính họ: admin khác vào Quản lý người dùng → "Đăng xuất mọi nơi" (có lý do) và yêu cầu đổi mật khẩu qua "Quên mật khẩu"; khóa tài khoản nếu cần. Không đặt lại MFA của tài khoản đang bị tấn công.
+- **Rollback:** không áp dụng.
+
+## BdsMfaFailuresSpike
+- **Ý nghĩa:** hơn 20 lần sai mã MFA ở cổng quản trị trong 15 phút — dò mã hoặc nhiều mật khẩu nhân viên bị lộ.
+- **Chẩn đoán:** như BdsMfaChallengeLocked; xem thêm `bds_ratelimit_rejected_total{policy=~"auth-admin-login|auth-mfa-verify"}` trên dashboard "BDS — Rate limit".
+- **Giảm thiểu:** như trên cho từng tài khoản bị ảnh hưởng; cân nhắc hạ `app.security.rate-limit.policies.auth-mfa-verify.ip.limit` và `auth-admin-login` tạm thời, chặn dải IP ở Cloudflare.
+- **Rollback:** trả lại giới hạn cũ sau sự cố.

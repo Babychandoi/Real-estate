@@ -98,6 +98,9 @@ const ResetPasswordPage = lazy(() =>
     default: m.ResetPasswordPage,
   })),
 );
+const AdminSecurityPage = lazy(() =>
+  import('./routes/_admin.security').then((m) => ({ default: m.AdminSecurityPage })),
+);
 const AdminLoginPage = lazy(() => import('./routes/_admin.login').then((m) => ({ default: m.AdminLoginPage })));
 const InformationPage = lazy(() =>
   import('./routes/_public.information').then((m) => ({
@@ -227,6 +230,10 @@ export const router = createBrowserRouter([
         element: protect(<ProjectCatalogPage />, 'Danh mục dự án', ROUTE_ACCESS.adminProjects, true),
       },
       { path: 'cms', element: protect(<CmsManagementPage />, 'Quản trị nội dung', ROUTE_ACCESS.adminCms, true) },
+      {
+        path: 'security',
+        element: protect(<AdminSecurityPage />, 'Bảo mật tài khoản', ROUTE_ACCESS.adminSecurity, true),
+      },
     ],
   },
   ...(UiCatalogPage ? [{ path: '/__ui', element: load(<UiCatalogPage />) }] : []),

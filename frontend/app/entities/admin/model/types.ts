@@ -200,7 +200,7 @@ export interface ListingPreview {
 
 export interface AdminAction {
   id: string;
-  action: 'ROLE_CHANGE' | 'LOCK' | 'UNLOCK';
+  action: 'ROLE_CHANGE' | 'LOCK' | 'UNLOCK' | 'MFA_RESET' | 'SESSIONS_REVOKE';
   fromValue: string | null;
   toValue: string | null;
   reason: string;

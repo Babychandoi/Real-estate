@@ -135,6 +135,8 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
       # The frontend image is built with the UI catalog: its a11y checks must run, never skip.
       E2E_REQUIRE_UI_CATALOG: '1'
+      # Demo staff accounts have no authenticator; MFA itself is covered by AdminMfaTests and the Vitest suite.
+      APP_SECURITY_MFA_REQUIRED: 'false'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

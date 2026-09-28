@@ -138,6 +138,8 @@ psql_admin "CREATE DATABASE \"$DB_NAME\""
 "${COMPOSE[@]}" exec -T redis redis-cli -n "$REDIS_DB" FLUSHDB >/dev/null
 
 export APP_MODE=demo SPRING_PROFILES_ACTIVE=local SERVER_PORT="$BACKEND_PORT" SPRINGDOC_API_DOCS_ENABLED=false
+# Demo staff accounts have no authenticator: the staff API login in the specs gets a session directly.
+export APP_SECURITY_MFA_REQUIRED=false
 export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:55432/$DB_NAME"
 export SPRING_DATASOURCE_USERNAME="$BDS_TEST_PG_USER" SPRING_DATASOURCE_PASSWORD="$BDS_TEST_PG_PASSWORD"
 export SPRING_DATA_REDIS_HOST="$BDS_TEST_REDIS_HOST" SPRING_DATA_REDIS_PORT="$BDS_TEST_REDIS_PORT"
