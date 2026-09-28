@@ -73,7 +73,7 @@ Rollback: the previous release would display the ciphertext string (no leak); re
 - Duplicate detection for submissions runs in a minute-level sweep (no hook in S3a's write path); approval recomputes synchronously after commit.
 - `MediaController` staff read path (grant + log) is unit-level covered (`staffMayRead`); no MinIO end-to-end test.
 - Admin UI pages have no dedicated vitest; covered by E2E journeys and typecheck. E2E ran on chromium-1440 only.
-- V059 creates the unique open-order index only if production rows comply (warning otherwise); the advisory lock enforces it regardless.
+- V059/V061 create the unique open-order index only once production rows comply. V061 cleans up duplicate CREATED orders; reported or exception duplicates follow the runbook in section 9.
 - `IMPLEMENTATION_PLANS_HISTORY.md` / `WALKTHROUGHS_HISTORY.md` not edited (reserved for the orchestrator).
 
 ## 7. Deploy notes
@@ -136,5 +136,6 @@ Until then, the advisory lock keeps order creation serialised.
 **Rolling-deploy caveat (reporter phones).** While old-release instances are still serving, they write new reporter phones in plaintext. The hourly migrator re-run encrypts those rows. In the meantime every API response shows only the mask.
 
 **Re-verification.**
-- Backend `mvnw verify`: see the final numbers in the commit/hand-off.
+- Backend `mvnw verify`: **192 tests, 0 failures, 0 errors, 0 skipped, BUILD SUCCESS**.
+- E2E: `scripts/e2e-local.sh --suites admin --projects chromium-1440` passed **3/3**.
 - Frontend: lint 0, typecheck 0, vitest 15 files / 142 tests, build OK, `check:bundle` all ok.
