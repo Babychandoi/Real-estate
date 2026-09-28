@@ -242,7 +242,7 @@ public class BrokerWorkspaceService {
                 Timestamp.from(now), owner, member);
         if (removed == 0) throw ApiException.notFound("MEMBER_NOT_FOUND", "Không tìm thấy thành viên trong nhóm.");
         List<UUID> returned = jdbc.queryForList("""
-                UPDATE leads l SET assignee_id = NULL, assigned_at = ?, version = version + 1, updated_at = ?
+                UPDATE leads l SET assignee_id = NULL, assigned_at = ?, version = l.version + 1, updated_at = ?
                 FROM listings s WHERE s.id = l.listing_id AND s.owner_id = ? AND l.assignee_id = ? RETURNING l.id
                 """, UUID.class, Timestamp.from(now), Timestamp.from(now), owner, member);
         for (UUID leadId : returned) {
