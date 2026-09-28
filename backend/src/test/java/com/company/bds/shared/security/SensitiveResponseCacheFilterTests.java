@@ -78,7 +78,7 @@ class SensitiveResponseCacheFilterTests {
     }
 
     @Test
-    void publicMediaKeepsImmutableCachingWhilePrivateKycImagesAreNotStored() throws Exception {
+    void publicMediaIsCachedForADayWhileSignedAndKycImagesAreNotStored() throws Exception {
         MediaStorageService storage = mock(MediaStorageService.class);
         when(storage.read(anyString())).thenReturn(new MediaStorageService.StoredImage(mock(GetObjectResponse.class), "image/jpeg", 3));
         when(storage.readPrivate(any(UUID.class), anyBoolean(), anyString()))
@@ -92,7 +92,14 @@ class SensitiveResponseCacheFilterTests {
         String key = UUID.randomUUID() + ".jpg";
 
         MvcResult publicImage = mockMvc.perform(asyncDispatch(mockMvc.perform(get("/api/v1/public/media/" + key)).andReturn())).andReturn();
-        assertThat(publicImage.getResponse().getHeader("Cache-Control")).contains("max-age=31536000").contains("public").contains("immutable");
+        // S1-MEDIA: public media can be taken down (hidden listing), so shared caches keep it one day, not a year immutable.
+        assertThat(publicImage.getResponse().getHeader("Cache-Control")).contains("max-age=86400").contains("public")
+                .doesNotContain("immutable");
+        when(storage.readSigned(anyString(), org.mockito.ArgumentMatchers.anyLong(), anyString()))
+                .thenReturn(new MediaStorageService.StoredImage(mock(GetObjectResponse.class), "image/jpeg", 3));
+        MvcResult signedImage = mockMvc.perform(asyncDispatch(mockMvc.perform(
+                get("/api/v1/media/signed/" + key + "?exp=1&sig=x")).andReturn())).andReturn();
+        assertThat(signedImage.getResponse().getHeaders("Cache-Control")).containsExactly(SensitiveResponseCacheFilter.NO_STORE);
 
         UsernamePasswordAuthenticationToken moderator = UsernamePasswordAuthenticationToken.authenticated(
                 UUID.randomUUID().toString(), null, List.of(new SimpleGrantedAuthority("ROLE_MODERATOR")));

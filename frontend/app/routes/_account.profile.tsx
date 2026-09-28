@@ -3,8 +3,9 @@ import { Camera, CheckCircle2, Mail, Phone, Save, ShieldCheck, UserRound } from 
 import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { validationMessage } from '@/shared/types/problem-details';
+import { rememberSignedMediaUrl, useSignedMediaUrls } from '@/shared/media/useSignedMediaUrls';
 
-type UploadedImage = { url: string };
+type UploadedImage = { url: string; previewUrl?: string | null; previewExpiresAt?: string | null };
 
 export function AccountProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -15,6 +16,8 @@ export function AccountProfilePage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [avatarMessage, setAvatarMessage] = useState('');
+  // A new avatar is public only once processed (a second or two); until then the owner sees it through a signed URL.
+  const displayMedia = useSignedMediaUrls([avatarMediaUrl]);
 
   useEffect(() => {
     setName(user?.name ?? '');
@@ -50,9 +53,10 @@ export function AccountProfilePage() {
       const body = new FormData();
       body.append('file', file);
       const uploaded = await apiClient<UploadedImage>('/media/images', { method: 'POST', body });
+      rememberSignedMediaUrl(uploaded.url, uploaded.previewUrl, uploaded.previewExpiresAt);
       await persistAvatar(uploaded.url, 'Đã cập nhật ảnh đại diện.');
     } catch {
-      setAvatarMessage('Không thể tải ảnh. Chỉ nhận JPEG, PNG, WebP hoặc AVIF, tối đa 10 MB.');
+      setAvatarMessage('Không thể tải ảnh. Chỉ nhận JPEG, PNG hoặc WebP, tối đa 10 MB.');
     } finally {
       setUploading(false);
     }
@@ -105,7 +109,7 @@ export function AccountProfilePage() {
             {/* Only the photo is clipped to the circle; the camera badge sits on its edge. */}
             <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-primary/10 text-lg font-bold text-primary">
               {avatarMediaUrl ? (
-                <img src={avatarMediaUrl} alt="Ảnh đại diện" className="h-full w-full object-cover" />
+                <img src={displayMedia(avatarMediaUrl)} alt="Ảnh đại diện" className="h-full w-full object-cover" />
               ) : (
                 initials || <UserRound className="h-7 w-7" />
               )}
@@ -120,7 +124,7 @@ export function AccountProfilePage() {
               aria-label="Đổi ảnh đại diện"
               className="sr-only"
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/avif"
+              accept="image/jpeg,image/png,image/webp"
               disabled={uploading}
               onChange={(event) => {
                 void uploadAvatar(event.target.files?.[0]);
