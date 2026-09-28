@@ -1,7 +1,7 @@
 # ADR 0001 — Mô hình phiên đăng nhập
 
 ## Trạng thái
-Accepted — 28/09/2026 (audit 27/09/2026, yêu cầu F20.1). Các phần "pha B" do luồng S5-SEC pha B triển khai.
+Accepted — 28/09/2026 (audit 27/09/2026, yêu cầu F20.1). Các phần "pha B" đã được luồng S5-SEC pha B triển khai (nhánh `audit/s5b-sec`, báo cáo `docs/audit-2026-09-27/streams/s5b-sec.md`); kế hoạch kiểm thử bên dưới ánh xạ sang các lớp test ở đó.
 
 ## Bối cảnh
 
@@ -43,7 +43,7 @@ Giữ **bearer token opaque lưu phía server** (không JWT, không chuyển san
    `frame-ancestors 'none'`, API trả `default-src 'none'`. Mọi script bên thứ ba mới phải qua review CSP. Mục tiêu tiếp
    theo: bỏ `'unsafe-inline'` khỏi `style-src` khi UI kit không còn cần.
 2. **TTL phiên staff ngắn hơn** (pha B): ADMIN/MODERATOR 8 giờ tuyệt đối + 30 phút không hoạt động; người dùng giữ
-   12 giờ. Cần lưu thời điểm hoạt động cuối (migration V066–V067 của pha B).
+   12 giờ. Cần lưu thời điểm hoạt động cuối (migration V087 của pha B).
 3. **MFA TOTP + recovery code dùng một lần cho ADMIN/MODERATOR** (pha B, UI-17).
 4. **Danh sách phiên và thu hồi** (pha B): xem các phiên đang mở (thời điểm tạo, lần dùng cuối, thiết bị rút gọn),
    thu hồi từng phiên, "đăng xuất mọi nơi"; đổi vai trò hoặc đổi mật khẩu thu hồi mọi phiên của tài khoản đó.
@@ -58,7 +58,7 @@ Giữ **bearer token opaque lưu phía server** (không JWT, không chuyển san
 | D. Giữ nguyên, không bổ sung | Không tốn công | Phiên quản trị dài, không MFA | Không chọn |
 
 ## Hệ quả
-- **Mã nguồn:** pha A chỉ thay CSP/header và rate limit. Pha B thêm bảng/cột cho MFA và metadata phiên (V066–V067),
+- **Mã nguồn:** pha A chỉ thay CSP/header và rate limit. Pha B thêm bảng/cột cho MFA và metadata phiên (V087–V089; dải V066–V067 ban đầu không dùng được vì V085 đã tồn tại và `out-of-order` tắt),
   sửa `AuthService`/`BearerTokenFilter`, trang quản lý phiên và bước MFA ở admin login.
 - **Tài liệu:** `PROJECT_CODE_RULES_BDS.md` (§2, §12) và `Ke_hoach_du_an_website_BDS_Waterfall.md` được sửa để mô tả
   mô hình thật và trỏ về ADR này.
