@@ -1,7 +1,7 @@
 package com.company.bds.catalog.application;
 
 import com.company.bds.catalog.domain.model.Project;
-import com.company.bds.catalog.infrastructure.persistence.port.ProjectPersistencePort;
+import com.company.bds.catalog.application.port.out.ProjectPersistencePort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

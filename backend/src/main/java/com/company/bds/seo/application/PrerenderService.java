@@ -9,7 +9,6 @@ import com.company.bds.catalog.application.port.PublicCatalogStore.Amenity;
 import com.company.bds.catalog.application.port.PublicCatalogStore.AreaCard;
 import com.company.bds.catalog.application.port.PublicCatalogStore.ProjectCard;
 import com.company.bds.catalog.application.port.PublicCatalogStore.ProjectRow;
-import com.company.bds.cms.api.CmsDtos;
 import com.company.bds.cms.application.CmsArticleApplicationService;
 import com.company.bds.cms.application.CmsArticleApplicationService.PublicLookup;
 import com.company.bds.cms.application.CmsHtmlSanitizer;
@@ -116,8 +115,8 @@ public class PrerenderService {
             if (parts.length == 3 && parts[0].equals("tin-tuc") && parts[1].equals("xem-truoc")) return preview();
             return notFound();
         } catch (ApiException ex) {
-            if (ex.status().value() == 410) return gone(ex.getMessage());
-            if (ex.status().value() == 404) return notFound();
+            if (ex.statusCode() == 410) return gone(ex.getMessage());
+            if (ex.statusCode() == 404) return notFound();
             throw ex;
         } catch (SearchProblemException ex) {
             if (ex.status() == 410) return gone("Tin đăng này đã được ẩn, hết hạn hoặc bị gỡ.");
@@ -366,7 +365,7 @@ public class PrerenderService {
         }
         PublicPage result = cms.publicPage(category, page, 12);
         if (page > 0 && result.items().isEmpty()) return notFound();
-        String heading = category == null ? "Tin tức và cẩm nang" : CmsDtos.categoryLabel(category);
+        String heading = category == null ? "Tin tức và cẩm nang" : category.label();
         String base = "/tin-tuc" + (category == null ? "" : "?category=" + category.name());
         String path = page == 0 ? base : base + (category == null ? "?" : "&") + "page=" + page;
         String description = "Bài viết đã qua biên tập về pháp lý, kiến thức và thị trường nhà đất, ghi rõ tác giả và nguồn.";
@@ -392,7 +391,7 @@ public class PrerenderService {
         String cover = r.coverImageUrl() == null ? null : absolute(r.coverImageUrl());
         StringBuilder body = new StringBuilder("<main><article>")
                 .append(breadcrumbNav(List.of(new String[]{"Trang chủ", "/"}, new String[]{"Tin tức", "/tin-tuc"})))
-                .append("<p>").append(esc(CmsDtos.categoryLabel(article.article().category()))).append("</p>")
+                .append("<p>").append(esc(article.article().category().label())).append("</p>")
                 .append("<h1>").append(esc(r.title())).append("</h1>")
                 .append("<p>Tác giả: ").append(esc(r.authorName())).append(" · Xuất bản ").append(esc(com.company.bds.seo.render.Html.date(article.publishedAt())))
                 .append("</p>");

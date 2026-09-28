@@ -7,7 +7,6 @@ import com.company.bds.engagement.application.port.ShortlistStorePort.Shared;
 import com.company.bds.notification.NotificationRequest;
 import com.company.bds.notification.RealtimeNotificationService;
 import com.company.bds.shared.error.ApiException;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,7 +61,7 @@ public class ShortlistService {
         String clean = name(name);
         listings.lockUser(ownerId);
         if (store.countOwned(ownerId) >= MAX_OWNED) {
-            throw new ApiException(HttpStatus.CONFLICT, "SHORTLIST_LIMIT", "Bạn đã tạo tối đa " + MAX_OWNED + " danh sách.");
+            throw ApiException.conflict("SHORTLIST_LIMIT", "Bạn đã tạo tối đa " + MAX_OWNED + " danh sách.");
         }
         UUID id = UUID.randomUUID();
         store.create(id, ownerId, clean, clock.instant());
@@ -105,7 +104,7 @@ public class ShortlistService {
         }
         listings.lockUser(access.ownerId());
         if (store.countItems(shortlistId) >= MAX_ITEMS) {
-            throw new ApiException(HttpStatus.CONFLICT, "SHORTLIST_FULL", "Danh sách đã có tối đa " + MAX_ITEMS + " tin.");
+            throw ApiException.conflict("SHORTLIST_FULL", "Danh sách đã có tối đa " + MAX_ITEMS + " tin.");
         }
         Instant now = clock.instant();
         if (store.addItem(shortlistId, listingId, userId, now)) {
@@ -220,7 +219,7 @@ public class ShortlistService {
     private Access requireEditor(UUID shortlistId, UUID userId) {
         Access access = require(shortlistId, userId);
         if ("VIEWER".equals(access.role())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SHORTLIST_READ_ONLY", "Bạn chỉ có quyền xem danh sách này.");
+            throw ApiException.forbidden("SHORTLIST_READ_ONLY", "Bạn chỉ có quyền xem danh sách này.");
         }
         return access;
     }
@@ -228,7 +227,7 @@ public class ShortlistService {
     private Access requireOwner(UUID shortlistId, UUID userId) {
         Access access = require(shortlistId, userId);
         if (!"OWNER".equals(access.role())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "SHORTLIST_OWNER_ONLY", "Chỉ chủ danh sách mới làm được thao tác này.");
+            throw ApiException.forbidden("SHORTLIST_OWNER_ONLY", "Chỉ chủ danh sách mới làm được thao tác này.");
         }
         return access;
     }

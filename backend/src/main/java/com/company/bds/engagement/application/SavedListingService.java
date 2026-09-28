@@ -5,7 +5,6 @@ import com.company.bds.engagement.application.port.SavedListingStorePort;
 import com.company.bds.engagement.application.port.SavedListingStorePort.GoneListing;
 import com.company.bds.engagement.application.port.SavedListingStorePort.SavedRow;
 import com.company.bds.shared.error.ApiException;
-import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +45,7 @@ public class SavedListingService {
         }
         store.lockUser(userId);
         if (store.count(userId) >= MAX_SAVED) {
-            throw new ApiException(HttpStatus.CONFLICT, "SAVED_LISTINGS_LIMIT",
+            throw ApiException.conflict("SAVED_LISTINGS_LIMIT",
                     "Bạn đã lưu tối đa " + MAX_SAVED + " tin. Hãy bỏ lưu bớt tin cũ để lưu thêm.");
         }
         Instant now = clock.instant();

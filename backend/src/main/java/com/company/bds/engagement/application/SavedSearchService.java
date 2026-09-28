@@ -9,7 +9,6 @@ import com.company.bds.notification.application.port.SavedSearchAlertsPort;
 import com.company.bds.search.domain.SearchFilter;
 import com.company.bds.search.domain.SearchFilterParser;
 import com.company.bds.shared.error.ApiException;
-import org.springframework.http.HttpStatus;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,11 +57,11 @@ public class SavedSearchService implements SavedSearchAlertsPort {
         users.lockUser(userId);
         Optional<UUID> existing = store.findIdByHash(userId, hash);
         if (existing.isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "SAVED_SEARCH_EXISTS",
+            throw ApiException.conflict("SAVED_SEARCH_EXISTS",
                     "Bạn đã lưu tìm kiếm này (" + existing.get() + ").");
         }
         if (store.count(userId) >= MAX_SEARCHES) {
-            throw new ApiException(HttpStatus.CONFLICT, "SAVED_SEARCH_LIMIT",
+            throw ApiException.conflict("SAVED_SEARCH_LIMIT",
                     "Bạn đã lưu tối đa " + MAX_SEARCHES + " tìm kiếm. Hãy xóa bớt tìm kiếm cũ.");
         }
         TreeMap<String, String> params = new TreeMap<>(filter.canonicalParams());

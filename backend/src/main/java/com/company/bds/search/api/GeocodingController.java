@@ -1,4 +1,4 @@
-package com.company.bds.search;
+package com.company.bds.search.api;
 
 import com.company.bds.iam.application.AuthService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -61,7 +61,7 @@ public class GeocodingController {
      * Cache key text (audit F10.3): NFC, lower case (vi), whitespace collapsed, surrounding punctuation trimmed.
      * Diacritics are kept on purpose: the provider answers "Hà Nam" and "Hà Nậm" differently.
      */
-    static String normalizedKey(String query) {
+    public static String normalizedKey(String query) {
         String nfc = java.text.Normalizer.normalize(query, java.text.Normalizer.Form.NFC)
                 .toLowerCase(java.util.Locale.forLanguageTag("vi"));
         return nfc.replaceAll("\\s+", " ").replaceAll("^[\\p{Punct}\\s]+|[\\p{Punct}\\s]+$", "");

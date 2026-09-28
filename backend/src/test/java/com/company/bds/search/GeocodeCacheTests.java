@@ -1,5 +1,7 @@
 package com.company.bds.search;
 
+import com.company.bds.search.api.GeocodingController;
+
 import com.company.bds.testsupport.BdsIntegrationTest;
 import com.company.bds.testsupport.MutableClock;
 import com.fasterxml.jackson.databind.ObjectMapper;
