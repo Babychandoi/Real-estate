@@ -175,24 +175,36 @@ export function useListingSearch(filters: SearchFilters, historyKey: string) {
   const loadMore = useCallback(async () => {
     const current = stateRef.current;
     if (!current.nextCursor || current.loadingMore) return;
+    const cursor = current.nextCursor;
+    const requestKey = toApiParams(filtersRef.current).toString();
+    const abort = new AbortController();
+    controller.current = abort;
     setState((previous) => ({ ...previous, loadingMore: true, loadMoreError: null }));
     try {
       const page = await listingV2Api.search(
-        toApiParams(filtersRef.current, { size: PAGE_SIZE, cursor: current.nextCursor }),
+        toApiParams(filtersRef.current, { size: PAGE_SIZE, cursor }),
+        abort.signal,
       );
-      setState((previous) => ({
-        ...previous,
-        items: [
-          ...previous.items,
-          ...page.items.filter((item) => !previous.items.some((known) => known.id === item.id)),
-        ],
-        hasNext: page.pageInfo.hasNext,
-        nextCursor: page.pageInfo.nextCursor,
-        engine: page.engine,
-        degraded: page.degraded,
-        notices: page.notices,
-        loadingMore: false,
-      }));
+      if (abort.signal.aborted || requestKey !== toApiParams(filtersRef.current).toString()) return;
+      setState((previous) => {
+        if (previous.status !== 'ready' || previous.nextCursor !== cursor) return previous;
+        const seen = new Set(previous.items.map((item) => item.id));
+        const newItems = page.items.filter((item) => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return true;
+        });
+        return {
+          ...previous,
+          items: [...previous.items, ...newItems],
+          hasNext: page.pageInfo.hasNext,
+          nextCursor: page.pageInfo.nextCursor,
+          engine: page.engine,
+          degraded: page.degraded,
+          notices: page.notices,
+          loadingMore: false,
+        };
+      });
       const offset = current.items.length;
       void filterHash(filtersRef.current).then((hash) => {
         if (page.items.length) {
@@ -200,6 +212,7 @@ export function useListingSearch(filters: SearchFilters, historyKey: string) {
         }
       });
     } catch (error) {
+      if (abort.signal.aborted || requestKey !== toApiParams(filtersRef.current).toString()) return;
       if (isCursorRefused(error)) {
         await loadFirstPage(true);
         return;

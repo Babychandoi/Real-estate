@@ -433,3 +433,8 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Add a guarded, disposable PostGIS query-plan fixture at 100k/1M rows with the V033 leading indexes and four representative EXPLAIN (ANALYZE, BUFFERS) queries; output evidence in .artifacts/perf. The database name must begin bds_perf_ and the transaction rolls back.
 - Add a constant-arrival-rate 100 RPS read-only k6 scenario restricted to an explicitly isolated local stack. This is tooling, not a measured pass; 10 RPS writes, cold/warm, fault/burst/soak, restore and migration rollback still need isolated infrastructure and retained reports.
 - Review Chromium Home/Search snapshot changes against the fixed UAT fixture: the old images had 23 default SALE results because synthetic ACTIVE records expired; the corrected fixture has 46. Update seven affected Chromium images from CI #100 captures. Keep the snapshot gate blocking and rerun it.
+
+
+## 2026-09-30 — Search cursor safety and R-2 follow-up
+- In the v2 search hook, abort the in-flight “Xem thêm” request when filters/history change and ignore responses with a stale filter key or cursor. Deduplicate incoming cards in linear time with a Set, including duplicates inside one page.
+- Add a seeded E2E covering page 1 (24 cards), the next cursor (46 unique cards), and the terminal load-more state. Keep the existing v2 API and URL contract; CI remains the acceptance gate.
