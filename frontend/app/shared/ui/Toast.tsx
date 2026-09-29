@@ -72,7 +72,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {typeof document !== 'undefined' &&
         createPortal(
-          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-toast flex flex-col items-center gap-2 p-4 sm:bottom-4 sm:left-auto sm:right-4 sm:items-end sm:p-0">
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-toast flex flex-col items-center gap-2 p-4 sm:bottom-6 sm:left-auto sm:right-6 sm:items-end sm:p-0">
             <div aria-live="assertive" className="flex w-full flex-col items-center gap-2 sm:items-end">
               {assertive.map((toast) => (
                 <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
