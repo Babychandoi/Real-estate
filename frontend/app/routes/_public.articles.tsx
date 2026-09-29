@@ -77,9 +77,9 @@ export function ArticleListPage() {
         ) : data.items.length === 0 ? (
           <StatePanel title="Chưa có bài viết trong chuyên mục này" />
         ) : (
-          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {data.items.map((article) => (
-              <li key={article.id}>
+              <li key={article.id} className="min-w-0">
                 <ArticleCard article={article} />
               </li>
             ))}

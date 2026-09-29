@@ -151,12 +151,12 @@ export function ListingStrip({
 
 export function ProjectCardList({ projects }: { projects: ProjectCard[] }) {
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => (
-        <li key={project.slug}>
+        <li key={project.slug} className="min-w-0">
           <Link
             to={`/du-an/${project.slug}`}
-            className="flex h-full min-h-11 flex-col gap-2 rounded-2xl border border-outline-variant/40 bg-white p-5 transition hover:border-primary/40 hover:shadow-md"
+            className="flex h-full min-h-11 min-w-0 flex-col gap-2 rounded-2xl border border-outline-variant/40 bg-white p-5 [overflow-wrap:anywhere] transition hover:border-primary/40 hover:shadow-md"
           >
             <span className="flex items-center gap-2 text-xs font-medium text-on-surface-variant">
               <Building2 className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -183,7 +183,7 @@ export function AreaLinks({ areas }: { areas: AreaCard[] }) {
         <li key={area.slug}>
           <Link
             to={`/khu-vuc/${area.slug}`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-outline-variant/40 bg-white px-4 text-sm font-medium text-on-surface hover:border-primary/40 hover:text-primary"
+            className="inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border [overflow-wrap:anywhere] border-outline-variant/40 bg-white px-4 text-sm font-medium text-on-surface hover:border-primary/40 hover:text-primary"
           >
             <MapPin className="h-4 w-4 text-primary" aria-hidden="true" />
             {area.name}
