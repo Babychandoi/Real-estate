@@ -835,3 +835,7 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - R-2 explicitly reads “Search/filter/map/pagination thống nhất; không còn giới hạn 100; đơn vị thuê đúng”. Its TODO status means final acceptance is outstanding, not that every underlying capability is absent.
 - W1/S5A restore-drill PASS remains credited. Outstanding F21.5 work is measured RPO/RTO and compatible deploy/migration rollback; do not describe the restore drill itself as never performed.
 - Route map unchanged: /search. Full audit status remains unchanged until new CI and remaining acceptance evidence are reviewed.
+
+## 2026-09-30 — CI #107 findings and repair
+- CI #107 on 7c982f1 passed frontend typecheck, production build, unit tests (including all five new hook regression cases), backend tests and security. Frontend failed ESLint consistent-type-imports at useListingSearch.test.tsx:13 and Prettier for useMapPointListing.test.tsx; E2E was still running when inspected.
+- Repaired the type-only import and callback formatting without changing test assertions or disabling checks. The follow-up CI must confirm lint/format acceptance.

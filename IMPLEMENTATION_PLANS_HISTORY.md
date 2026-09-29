@@ -445,3 +445,6 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Fix cleanup for load-more requests started from a restored history snapshot.
 - Add five focused Vitest cases: map selection race, reuse of known cards, filter changes during cursor loading, duplicate IDs within/across pages, and restored-entry unmount cancellation.
 - Keep R-2 TODO pending end-to-end filter/map/pagination acceptance. Distinguish primary matrix statuses from external dependencies mentioned inside DONE/PARTIAL notes.
+
+## 2026-09-30 — CI #107 test-source style repair
+- Replace the inline import type query in the search hook test with an explicit type-only namespace import; format the map hook test callback according to the existing Prettier configuration. Preserve all assertions and CI gates.

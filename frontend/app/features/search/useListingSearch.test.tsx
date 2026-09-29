@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { listingV2Api } from '@/entities/listing/api/listingV2Api';
 import type { ListingSummaryV2, SearchResponseV2 } from '@/entities/listing/model/v2';
 import { DEFAULT_FILTERS } from './filterSchema';
+import type * as FilterSchema from './filterSchema';
 import { useListingSearch } from './useListingSearch';
 
 vi.mock('@/entities/listing/api/listingV2Api', () => ({
@@ -10,7 +11,7 @@ vi.mock('@/entities/listing/api/listingV2Api', () => ({
 }));
 vi.mock('@/shared/analytics/track', () => ({ track: vi.fn() }));
 vi.mock('./filterSchema', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./filterSchema')>()),
+  ...(await importOriginal<typeof FilterSchema>()),
   filterHash: vi.fn().mockResolvedValue('test-filter-hash'),
 }));
 

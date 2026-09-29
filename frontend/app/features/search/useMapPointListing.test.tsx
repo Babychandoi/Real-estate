@@ -17,10 +17,9 @@ describe('map point selection', () => {
       return new Promise((resolve) => pending.set(id, resolve));
     });
     const items: ListingSummaryV2[] = [];
-    const { result, rerender } = renderHook(
-      ({ id }: { id: string | null }) => useMapPointListing(id, items),
-      { initialProps: { id: 'a' as string | null } },
-    );
+    const { result, rerender } = renderHook(({ id }: { id: string | null }) => useMapPointListing(id, items), {
+      initialProps: { id: 'a' as string | null },
+    });
     rerender({ id: 'b' });
     expect(signals.get('a')?.aborted).toBe(true);
     await act(async () => pending.get('b')!({ id: 'b' } as ListingDetailV2));
