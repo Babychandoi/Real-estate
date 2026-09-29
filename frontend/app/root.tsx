@@ -360,7 +360,11 @@ function RootLayoutContent() {
           </button>
         </nav>
       </Dialog>
-      <main id="main-content" tabIndex={-1} className="min-w-0 flex-1">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className={`min-w-0 flex-1${isAuthenticated && accountPaths.has(location.pathname) ? ' ndc-account-page' : ''}`}
+      >
         {isAuthenticated && accountPaths.has(location.pathname) && (
           <div className="border-b bg-white">
             <AccountNavigation />

@@ -70,7 +70,7 @@ export function Dialog({
         aria-describedby={descriptionId}
         tabIndex={-1}
         className={cn(
-          'relative flex max-h-[calc(100dvh-2rem)] w-full min-w-0 flex-col [overflow-wrap:anywhere] [&_th]:[overflow-wrap:break-word] rounded-dialog bg-surface-container-lowest shadow-elevated focus:outline-none',
+          'ndc-overlay relative flex max-h-[calc(100dvh-2rem)] w-full min-w-0 flex-col [overflow-wrap:anywhere] [&_th]:[overflow-wrap:break-word] rounded-dialog bg-surface-container-lowest shadow-elevated focus:outline-none',
           widths[size],
           className,
         )}
