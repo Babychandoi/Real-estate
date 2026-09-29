@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Eye, EyeOff, KeyRound, LockKeyhole, Mail, ShieldCheck, Smartphone } from 'lucide-react';
 import { apiClient } from '@/shared/api/client';
@@ -10,6 +10,8 @@ import { FormField } from '@/shared/ui/FormField';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { TextInput } from '@/shared/ui/TextInput';
 import { RecoveryCodesPanel } from '@/features/account-security/RecoveryCodesPanel';
+
+const TotpQrCode = lazy(() => import('@/features/account-security/TotpQrCode'));
 
 const ADMIN_HOME = '/2026/nhadatchuan/admin/moderation';
 
@@ -319,15 +321,31 @@ export const AdminLoginPage: React.FC = () => {
               <form onSubmit={confirmEnrollment} className="space-y-4">
                 <ol className="list-decimal space-y-3 pl-5 text-body-sm text-on-surface">
                   <li>
-                    Trên điện thoại, chọn <strong>Thêm tài khoản</strong>, rồi <strong>Nhập khóa thiết lập</strong>{' '}
-                    (hoặc mở{' '}
-                    <a href={step.enrollment.otpauthUri} className="font-semibold text-primary underline">
-                      liên kết thiết lập
-                    </a>{' '}
-                    nếu đang dùng chính điện thoại này).
+                    Mở ứng dụng xác thực trên điện thoại, chọn <strong>Thêm tài khoản</strong> rồi{' '}
+                    <strong>Quét mã QR</strong>:
+                    <div className="mt-2 flex justify-center">
+                      <Suspense
+                        fallback={
+                          <div
+                            aria-hidden="true"
+                            className="h-52 w-52 animate-pulse rounded-card bg-surface-container"
+                          />
+                        }
+                      >
+                        <TotpQrCode uri={step.enrollment.otpauthUri} />
+                      </Suspense>
+                    </div>
+                    <span className="mt-2 block text-label text-on-surface-variant">
+                      Đang dùng chính điện thoại này? Mở{' '}
+                      <a href={step.enrollment.otpauthUri} className="font-semibold text-primary underline">
+                        liên kết thiết lập
+                      </a>
+                      .
+                    </span>
                   </li>
                   <li>
-                    Nhập khóa, chọn loại <strong>theo thời gian</strong>:
+                    Không quét được? Chọn <strong>Nhập khóa thiết lập</strong>, nhập khóa này và chọn loại{' '}
+                    <strong>theo thời gian</strong>:
                     <code
                       className="mt-2 block select-all break-all rounded-card border border-outline-variant bg-surface-container-low px-3 py-2 font-mono text-body-sm tracking-wider"
                       aria-label="Khóa thiết lập"
