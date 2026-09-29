@@ -145,13 +145,14 @@ export function ProjectProfileDialog({
               />
             )}
           </FormField>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <FormField label="Nguồn thông tin" hint="Ví dụ: Hồ sơ pháp lý chủ đầu tư cung cấp">
+          <div className="grid items-start gap-4 sm:grid-cols-3">
+            <FormField label="Nguồn thông tin">
               {(control) => (
                 <TextInput
                   {...control}
                   value={form.infoSource}
                   maxLength={255}
+                  placeholder="Ví dụ: Hồ sơ pháp lý"
                   onChange={(event) => update({ infoSource: event.target.value })}
                 />
               )}
@@ -167,12 +168,13 @@ export function ProjectProfileDialog({
                 />
               )}
             </FormField>
-            <FormField label="Website chủ đầu tư" hint="https://…">
+            <FormField label="Website chủ đầu tư">
               {(control) => (
                 <TextInput
                   {...control}
                   type="url"
                   value={form.websiteUrl}
+                  placeholder="https://…"
                   onChange={(event) => update({ websiteUrl: event.target.value })}
                 />
               )}
@@ -184,7 +186,7 @@ export function ProjectProfileDialog({
             {form.amenities.map((row, index) => (
               <div
                 key={index}
-                className="grid gap-3 rounded-xl border border-outline-variant/40 p-3 sm:grid-cols-[2fr_1fr_1fr_auto]"
+                className="grid items-start gap-3 rounded-xl border border-outline-variant/40 p-3 sm:grid-cols-[2fr_1fr_1fr_auto]"
               >
                 <FormField label="Tên tiện ích" required>
                   {(control) => (
@@ -222,7 +224,7 @@ export function ProjectProfileDialog({
                     />
                   )}
                 </FormField>
-                <div className="flex items-end">
+                <div className="flex items-end self-end">
                   <IconButton
                     aria-label={`Xóa tiện ích ${row.name || index + 1}`}
                     icon={Trash2}
@@ -245,6 +247,7 @@ export function ProjectProfileDialog({
                       {...control}
                       type="url"
                       value={row.sourceUrl ?? ''}
+                      placeholder="https://…"
                       onChange={(event) => updateAmenity(index, { sourceUrl: event.target.value })}
                     />
                   )}

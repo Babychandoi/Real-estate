@@ -15,7 +15,7 @@ import { FormField } from '@/shared/ui/FormField';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Select } from '@/shared/ui/Select';
-import { Sheet } from '@/shared/ui/Sheet';
+import { Dialog } from '@/shared/ui/Dialog';
 import { Skeleton } from '@/shared/ui/Skeleton';
 import { TextInput } from '@/shared/ui/TextInput';
 
@@ -146,7 +146,7 @@ export function AdminListingsPage() {
         </p>
       </header>
       <form
-        className="grid grid-cols-1 gap-3 rounded-lg border border-outline-variant p-4 sm:grid-cols-2 lg:grid-cols-5"
+        className="grid grid-cols-1 items-start gap-3 rounded-lg border border-outline-variant p-4 sm:grid-cols-2 lg:grid-cols-5"
         onSubmit={(event) => {
           event.preventDefault();
           setPage(0);
@@ -253,12 +253,12 @@ export function AdminListingsPage() {
           await load();
         }}
       />
-      {detail && <ListingDetailSheet row={detail} onClose={() => setDetail(null)} />}
+      {detail && <ListingDetailDialog row={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }
 
-function ListingDetailSheet({ row, onClose }: { row: AdminListingRow; onClose: () => void }) {
+function ListingDetailDialog({ row, onClose }: { row: AdminListingRow; onClose: () => void }) {
   const [revisions, setRevisions] = useState<RevisionRow[] | null>(null);
   const [history, setHistory] = useState<StatusHistoryRow[]>([]);
   const [preview, setPreview] = useState<ListingPreview | null>(null);
@@ -279,11 +279,17 @@ function ListingDetailSheet({ row, onClose }: { row: AdminListingRow; onClose: (
     }
   };
   return (
-    <Sheet
+    <Dialog
+      size="xl"
       open
       onClose={onClose}
       title={row.title}
       description="Phiên bản, lịch sử trạng thái và bản xem trước riêng tư"
+      footer={
+        <Button variant="outline" onClick={onClose}>
+          Đóng
+        </Button>
+      }
     >
       <div className="space-y-6">
         {error && <InlineFeedback kind="error" title={error} />}
@@ -357,6 +363,6 @@ function ListingDetailSheet({ row, onClose }: { row: AdminListingRow; onClose: (
           )}
         </section>
       </div>
-    </Sheet>
+    </Dialog>
   );
 }

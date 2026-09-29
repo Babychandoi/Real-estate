@@ -11,7 +11,7 @@ export function ArticleCard({ article }: { article: PublicArticle }) {
   return (
     <Link
       to={article.path}
-      className="flex h-full flex-col overflow-hidden rounded-2xl border border-outline-variant/40 bg-white transition hover:border-primary/40 hover:shadow-md"
+      className="flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-outline-variant/40 bg-white [overflow-wrap:anywhere] transition hover:border-primary/40 hover:shadow-md"
     >
       {revision.coverImageUrl && (
         <img src={revision.coverImageUrl} alt="" loading="lazy" className="aspect-[16/9] w-full object-cover" />

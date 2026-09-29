@@ -392,7 +392,7 @@ export const PropertyComparePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-surface py-8" data-ready={loading ? 'false' : 'true'}>
-      <div className="mx-auto max-w-[1360px] px-4">
+      <div className="mx-auto max-w-[1360px] px-4 sm:px-6 lg:px-8">
         <Link
           to="/search"
           className="mb-4 inline-flex min-h-11 items-center gap-2 text-body-sm font-medium text-on-surface-variant hover:text-on-surface"

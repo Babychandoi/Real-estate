@@ -15,7 +15,7 @@ import { FormField } from '@/shared/ui/FormField';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Select } from '@/shared/ui/Select';
-import { Sheet } from '@/shared/ui/Sheet';
+import { Dialog } from '@/shared/ui/Dialog';
 
 const SEVERITY: Record<ReportQueueItem['severity'], { label: string; variant: BadgeVariant; sla: string }> = {
   P0_EMERGENCY: { label: 'Khẩn cấp (P0)', variant: 'error', sla: '1 giờ' },
@@ -258,7 +258,7 @@ export function ReportsQueuePage() {
         }
       />
       {open && (
-        <CaseSheet
+        <CaseDialog
           item={open}
           onClose={() => setOpen(null)}
           onClaim={() => claim(open)}
@@ -333,7 +333,7 @@ export function ReportsQueuePage() {
   );
 }
 
-function CaseSheet({
+function CaseDialog({
   item,
   onClose,
   onClaim,
@@ -356,14 +356,19 @@ function CaseSheet({
   const closed = ['RESOLVED', 'DISMISSED'].includes(item.status);
   const blocked = item.claim != null && !item.claim.mine;
   return (
-    <Sheet
+    <Dialog
+      size="xl"
       open
       onClose={onClose}
       title={`${item.caseNumber} · ${CATEGORY[item.category]}`}
       description={`${SEVERITY[item.severity].label} · ${STATUS[item.status]} · tiếp nhận ${formatDateTime(item.createdAt)}`}
       footer={
-        closed ? undefined : (
-          <div className="flex flex-wrap items-center justify-between gap-6">
+        closed ? (
+          <Button variant="outline" onClick={onClose}>
+            Đóng
+          </Button>
+        ) : (
+          <div className="flex w-full flex-wrap items-center justify-between gap-6">
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" disabled={blocked} onClick={() => onAction('dismiss')}>
                 Bác bỏ…
@@ -463,6 +468,6 @@ function CaseSheet({
           </ol>
         </section>
       </div>
-    </Sheet>
+    </Dialog>
   );
 }

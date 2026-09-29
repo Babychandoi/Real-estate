@@ -69,6 +69,23 @@ describe('Dialog', () => {
     expect(document.body.style.overflow).toBe('');
   });
 
+  it('is centred with a title bar and footer outside the scrolling body, wide sizes for diff views', () => {
+    render(
+      <Dialog open onClose={() => undefined} title="Đối chiếu bằng chứng" size="xl" footer={<Button>Xác nhận</Button>}>
+        <p>Nội dung dài</p>
+      </Dialog>,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Đối chiếu bằng chứng' });
+    expect(dialog.className).toContain('max-w-4xl');
+    expect(dialog.className).toContain('max-h-[min(90dvh,calc(100dvh-2rem))]');
+    // The portal root centres the panel (never a right-hand edge) and keeps a margin to the viewport.
+    expect(dialog.parentElement!.className).toContain('items-center justify-center');
+    const body = screen.getByText('Nội dung dài').parentElement!;
+    expect(body.className).toContain('overflow-y-auto');
+    expect(dialog.lastElementChild).toContainElement(screen.getByRole('button', { name: 'Xác nhận' }));
+    expect(dialog.lastElementChild).not.toBe(body);
+  });
+
   it('pulls focus back when it escapes to the page behind', () => {
     render(<DialogHarness />);
     const opener = screen.getByRole('button', { name: 'Mở báo cáo' });

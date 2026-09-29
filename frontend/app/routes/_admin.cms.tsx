@@ -25,7 +25,6 @@ import { FormField } from '@/shared/ui/FormField';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
 import { Select } from '@/shared/ui/Select';
-import { Sheet } from '@/shared/ui/Sheet';
 import { TextArea, TextInput } from '@/shared/ui/TextInput';
 
 const PAGE_SIZE = 20;
@@ -167,7 +166,7 @@ export function CmsManagementPage() {
   ];
 
   return (
-    <div className="ndc-admin-page flex flex-col gap-5" data-ready={tableStatus === 'loading' ? 'false' : 'true'}>
+    <div className="flex flex-col gap-5" data-ready={tableStatus === 'loading' ? 'false' : 'true'}>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1>Quản trị nội dung</h1>
@@ -232,7 +231,7 @@ export function CmsManagementPage() {
           label="Trang bài viết"
         />
       )}
-      <ArticleSheet
+      <ArticleDialog
         articleId={openId}
         onClose={() => setOpenId(null)}
         onChanged={(message) => {
@@ -255,7 +254,7 @@ export function CmsManagementPage() {
   );
 }
 
-function ArticleSheet({
+function ArticleDialog({
   articleId,
   onClose,
   onChanged,
@@ -305,12 +304,91 @@ function ArticleSheet({
 
   const latest = article?.revisions?.[0] ?? null;
   const live = article?.revisions?.find((revision) => revision.id === article.publishedRevisionId) ?? null;
+  // The actions of the latest revision sit in the footer, so they stay visible while the history scrolls.
+  const actions =
+    article && latest ? (
+      <>
+        {latest.status === 'DRAFT' && (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<Pencil className="h-4 w-4" />}
+              onClick={() => onEdit({ kind: 'draft', article, revision: latest })}
+            >
+              Sửa bản nháp
+            </Button>
+            <Button
+              size="sm"
+              leftIcon={<Send className="h-4 w-4" />}
+              disabled={busy}
+              onClick={() => run(() => cmsAdminApi.submit(article.id, latest.id), 'Đã nộp duyệt.')}
+            >
+              Nộp duyệt
+            </Button>
+          </>
+        )}
+        {latest.status === 'SUBMITTED' && (
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() => run(() => cmsAdminApi.approve(article.id, latest.id, null), 'Đã duyệt và xuất bản.')}
+          >
+            Duyệt và xuất bản ngay
+          </Button>
+        )}
+        {(latest.status === 'SUBMITTED' || latest.status === 'SCHEDULED') && (
+          <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting(latest)}>
+            Từ chối
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          leftIcon={<Eye className="h-4 w-4" />}
+          disabled={busy}
+          onClick={async () => {
+            try {
+              const link = await cmsAdminApi.previewLink(article.id, latest.id);
+              setPreviewPath(link.path);
+            } catch (failure) {
+              setError(errorMessage(failure, 'Không tạo được liên kết xem trước.'));
+            }
+          }}
+        >
+          Liên kết xem trước
+        </Button>
+        {latest.status !== 'DRAFT' && (
+          <Button
+            size="sm"
+            variant="outline"
+            leftIcon={<Pencil className="h-4 w-4" />}
+            onClick={() => onEdit({ kind: 'revision', article })}
+          >
+            Tạo bản sửa mới {live ? 'từ bản đang công khai' : ''}
+          </Button>
+        )}
+        {article.status === 'PUBLISHED' && (
+          <Button
+            size="sm"
+            variant="danger"
+            leftIcon={<Undo2 className="h-4 w-4" />}
+            disabled={busy}
+            onClick={() => setConfirmUnpublish(true)}
+          >
+            Gỡ khỏi trang công khai
+          </Button>
+        )}
+      </>
+    ) : undefined;
   return (
-    <Sheet
+    <Dialog
+      size="lg"
       open={Boolean(articleId)}
       onClose={onClose}
       title={latest?.title ?? 'Bài viết'}
       description={article ? `/tin-tuc/${article.slug} · ${articleCategoryLabel(article.category)}` : undefined}
+      footer={actions}
     >
       {error && (
         <InlineFeedback kind="error" title="Có lỗi">
@@ -362,87 +440,35 @@ function ArticleSheet({
                 Bản #{latest.revisionNumber} · {REVISION_STATUS_LABELS[latest.status]}
               </p>
               {latest.rejectionReason && <p className="text-error">Lý do từ chối: {latest.rejectionReason}</p>}
-              <div className="flex flex-wrap gap-2">
-                {latest.status === 'DRAFT' && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      leftIcon={<Pencil className="h-4 w-4" />}
-                      onClick={() => onEdit({ kind: 'draft', article, revision: latest })}
-                    >
-                      Sửa bản nháp
-                    </Button>
-                    <Button
-                      size="sm"
-                      leftIcon={<Send className="h-4 w-4" />}
-                      disabled={busy}
-                      onClick={() => run(() => cmsAdminApi.submit(article.id, latest.id), 'Đã nộp duyệt.')}
-                    >
-                      Nộp duyệt
-                    </Button>
-                  </>
-                )}
-                {latest.status === 'SUBMITTED' && (
-                  <Button
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => run(() => cmsAdminApi.approve(article.id, latest.id, null), 'Đã duyệt và xuất bản.')}
-                  >
-                    Duyệt và xuất bản ngay
-                  </Button>
-                )}
-                {(latest.status === 'SUBMITTED' || latest.status === 'SCHEDULED') && (
-                  <Button size="sm" variant="danger" disabled={busy} onClick={() => setRejecting(latest)}>
-                    Từ chối
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  leftIcon={<Eye className="h-4 w-4" />}
-                  disabled={busy}
-                  onClick={async () => {
-                    try {
-                      const link = await cmsAdminApi.previewLink(article.id, latest.id);
-                      setPreviewPath(link.path);
-                    } catch (failure) {
-                      setError(errorMessage(failure, 'Không tạo được liên kết xem trước.'));
-                    }
-                  }}
-                >
-                  Liên kết xem trước
-                </Button>
-              </div>
               {latest.status === 'SUBMITTED' && (
-                <div className="flex flex-wrap items-end gap-2">
-                  <FormField
-                    label="Hẹn giờ xuất bản"
-                    hint="Giờ theo máy của bạn; trang công khai hiện bài từ thời điểm này."
-                  >
-                    {(control) => (
+                <FormField
+                  label="Hẹn giờ xuất bản"
+                  hint="Giờ theo máy của bạn; trang công khai hiện bài từ thời điểm này."
+                >
+                  {(control) => (
+                    <div className="flex flex-wrap items-start gap-2">
                       <TextInput
                         {...control}
                         type="datetime-local"
                         value={scheduleAt}
                         onChange={(event) => setScheduleAt(event.target.value)}
+                        className="min-w-0 flex-1"
                       />
-                    )}
-                  </FormField>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={busy || !localToIso(scheduleAt)}
-                    onClick={() =>
-                      run(
-                        () => cmsAdminApi.approve(article.id, latest.id, localToIso(scheduleAt)),
-                        'Đã duyệt và hẹn giờ xuất bản.',
-                      )
-                    }
-                  >
-                    Duyệt và hẹn giờ
-                  </Button>
-                </div>
+                      <Button
+                        variant="outline"
+                        disabled={busy || !localToIso(scheduleAt)}
+                        onClick={() =>
+                          run(
+                            () => cmsAdminApi.approve(article.id, latest.id, localToIso(scheduleAt)),
+                            'Đã duyệt và hẹn giờ xuất bản.',
+                          )
+                        }
+                      >
+                        Duyệt và hẹn giờ
+                      </Button>
+                    </div>
+                  )}
+                </FormField>
               )}
               {previewPath && (
                 <p className="break-all rounded-lg bg-surface-container-low p-3">
@@ -454,26 +480,6 @@ function ArticleSheet({
                 </p>
               )}
             </section>
-          )}
-
-          {latest && latest.status !== 'DRAFT' && (
-            <Button
-              variant="outline"
-              leftIcon={<Pencil className="h-4 w-4" />}
-              onClick={() => onEdit({ kind: 'revision', article })}
-            >
-              Tạo bản sửa mới {live ? 'từ bản đang công khai' : ''}
-            </Button>
-          )}
-          {article.status === 'PUBLISHED' && (
-            <Button
-              variant="danger"
-              leftIcon={<Undo2 className="h-4 w-4" />}
-              disabled={busy}
-              onClick={() => setConfirmUnpublish(true)}
-            >
-              Gỡ khỏi trang công khai
-            </Button>
           )}
 
           <section aria-labelledby="revision-history">
@@ -542,7 +548,7 @@ function ArticleSheet({
           </>
         }
       />
-    </Sheet>
+    </Dialog>
   );
 }
 
@@ -627,7 +633,7 @@ function ArticleEditor({
           </InlineFeedback>
         )}
         {mode?.kind === 'create' && (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid items-start gap-4 sm:grid-cols-2">
             <FormField
               label="Đường dẫn (slug)"
               hint="Chữ thường không dấu, số, dấu gạch ngang. Không đổi được sau khi tạo."
@@ -669,22 +675,37 @@ function ArticleEditor({
         >
           {(control) => <TextArea {...control} rows={10} value={values.contentHtml} onChange={set('contentHtml')} />}
         </FormField>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid items-start gap-4 sm:grid-cols-2">
           <FormField label="Tác giả / ban biên tập" required>
             {(control) => (
               <TextInput {...control} value={values.authorName} onChange={set('authorName')} maxLength={255} />
             )}
           </FormField>
-          <FormField label="Ảnh bìa" hint="Ảnh đã tải lên (/api/v1/public/media/…) hoặc https://">
-            {(control) => <TextInput {...control} value={values.coverImageUrl} onChange={set('coverImageUrl')} />}
+          <FormField label="Ảnh bìa" hint="Đường dẫn https hoặc ảnh đã tải lên (/api/v1/public/media/…).">
+            {(control) => (
+              <TextInput
+                {...control}
+                value={values.coverImageUrl}
+                onChange={set('coverImageUrl')}
+                placeholder="https://…"
+              />
+            )}
           </FormField>
           <FormField label="Tên nguồn">
             {(control) => (
               <TextInput {...control} value={values.sourceName} onChange={set('sourceName')} maxLength={255} />
             )}
           </FormField>
-          <FormField label="Đường dẫn nguồn" hint="https://…">
-            {(control) => <TextInput {...control} type="url" value={values.sourceUrl} onChange={set('sourceUrl')} />}
+          <FormField label="Đường dẫn nguồn">
+            {(control) => (
+              <TextInput
+                {...control}
+                type="url"
+                value={values.sourceUrl}
+                onChange={set('sourceUrl')}
+                placeholder="https://…"
+              />
+            )}
           </FormField>
           <FormField label="Căn cứ pháp lý">
             {(control) => (

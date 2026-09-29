@@ -21,7 +21,6 @@ import { EmptyState } from '@/shared/ui/EmptyState';
 import { FormField } from '@/shared/ui/FormField';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
-import { Sheet } from '@/shared/ui/Sheet';
 import { TextInput } from '@/shared/ui/TextInput';
 
 const QUEUE: OrderStatus[] = [
@@ -214,11 +213,17 @@ export function AdminBillingPage() {
         }}
       />
       {detail && (
-        <Sheet
+        <Dialog
+          size="lg"
           open
           onClose={() => setDetail(null)}
           title={`Lịch sử ${detail.order.reference}`}
           description={ORDER_STATUS[detail.order.status].label}
+          footer={
+            <Button variant="outline" onClick={() => setDetail(null)}>
+              Đóng
+            </Button>
+          }
         >
           <ol className="space-y-2 text-sm">
             {detail.events.map((e) => (
@@ -230,7 +235,7 @@ export function AdminBillingPage() {
               </li>
             ))}
           </ol>
-        </Sheet>
+        </Dialog>
       )}
     </div>
   );
@@ -338,7 +343,7 @@ function BankSettingsPanel() {
       <p className="text-sm text-on-surface-variant">
         Phiên bản {bank?.version ?? 'chưa cấu hình'}. Nếu người khác vừa sửa, bạn sẽ được yêu cầu tải lại trước khi lưu.
       </p>
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
         {field('bankBin', 'Mã BIN ngân hàng')}
         {field('bankName', 'Tên ngân hàng')}
         {field('accountNumber', 'Số tài khoản')}

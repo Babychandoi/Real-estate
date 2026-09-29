@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { ClampedText } from '@/shared/ui/ClampedText';
-import { useModal } from '@/shared/ui/useModal';
+import { Button } from '@/shared/ui/Button';
+import { Dialog } from '@/shared/ui/Dialog';
+import { FormField } from '@/shared/ui/FormField';
+import { TextInput } from '@/shared/ui/TextInput';
 import { PROJECT_STATUS_LABELS, type ProjectDetail } from '@/entities/content/model';
 import { ProjectProfileDialog } from '@/features/places/ProjectProfileDialog';
 
@@ -43,10 +46,7 @@ export function ProjectCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const formPanelRef = useRef<HTMLFormElement>(null);
   const [profileOf, setProfileOf] = useState<Project | null>(null);
-  // Shared modal stack (M2): this dialog had no focus trap, no Escape handling and no focus return at all.
-  useModal({ open: showForm, onClose: () => setShowForm(false), panelRef: formPanelRef });
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -97,7 +97,7 @@ export function ProjectCatalogPage() {
     legalLicenseNumber: 'Số giấy phép pháp lý',
   };
   return (
-    <section className="mx-auto max-w-6xl space-y-6 px-4 py-10" data-ready={loading ? undefined : 'true'}>
+    <section className="space-y-6" data-ready={loading ? undefined : 'true'}>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Danh mục dự án</h1>
@@ -185,32 +185,33 @@ export function ProjectCatalogPage() {
           void load();
         }}
       />
-      {showForm && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/60 p-4"
-          role="presentation"
-          // click (not mousedown): see shared/ui/Dialog.tsx for why mousedown races focus-return on close (m1).
-          onClick={(event) => {
-            if (event.target === event.currentTarget) setShowForm(false);
-          }}
-        >
-          <form
-            ref={formPanelRef}
-            tabIndex={-1}
-            aria-modal="true"
-            role="dialog"
-            aria-labelledby="project-form-title"
-            onSubmit={create}
-            className="grid w-full max-w-2xl gap-3 rounded-2xl bg-white p-6"
-          >
-            <h2 id="project-form-title" className="text-xl font-bold">
-              Tạo dự án mới
-            </h2>
-            {(Object.keys(labels) as Array<keyof typeof labels>).map((key) => (
-              <label key={key} className="text-sm font-semibold">
-                {labels[key]}
-                <input
-                  required={!['handoverYear', 'legalLicenseNumber'].includes(key)}
+      <Dialog
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        size="lg"
+        title="Tạo dự án mới"
+        footer={
+          <>
+            <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>
+              Hủy
+            </Button>
+            <Button type="submit" form="project-create-form" isLoading={busy}>
+              Lưu dự án
+            </Button>
+          </>
+        }
+      >
+        <form id="project-create-form" onSubmit={create} className="grid items-start gap-4 sm:grid-cols-2">
+          {(Object.keys(labels) as Array<keyof typeof labels>).map((key) => (
+            <FormField
+              key={key}
+              label={labels[key]}
+              required={!['handoverYear', 'legalLicenseNumber'].includes(key)}
+              className={key === 'name' || key === 'address' ? 'sm:col-span-2' : undefined}
+            >
+              {(control) => (
+                <TextInput
+                  {...control}
                   type={['totalAreaM2', 'totalBlocks', 'totalUnits', 'handoverYear'].includes(key) ? 'number' : 'text'}
                   value={form[key]}
                   onChange={(event) =>
@@ -221,24 +222,12 @@ export function ProjectCatalogPage() {
                         : event.target.value,
                     })
                   }
-                  className="mt-1 min-h-11 w-full rounded-lg border px-3"
                 />
-              </label>
-            ))}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowForm(false)} className="min-h-11 rounded-lg border px-4">
-                Hủy
-              </button>
-              <button
-                disabled={busy}
-                className="min-h-11 rounded-lg bg-primary px-5 font-bold text-white disabled:opacity-50"
-              >
-                {busy ? 'Đang lưu…' : 'Lưu dự án'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+              )}
+            </FormField>
+          ))}
+        </form>
+      </Dialog>
     </section>
   );
 }

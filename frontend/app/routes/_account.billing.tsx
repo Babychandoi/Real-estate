@@ -10,7 +10,7 @@ import { Button } from '@/shared/ui/Button';
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
-import { Sheet } from '@/shared/ui/Sheet';
+import { Dialog } from '@/shared/ui/Dialog';
 import { Skeleton } from '@/shared/ui/Skeleton';
 
 type Plan = { code: string; name: string; priceVnd: number; quota: number; durationDays: number; description: string };
@@ -215,11 +215,17 @@ export function BillingPage() {
       </section>
 
       {detail && (
-        <Sheet
+        <Dialog
+          size="lg"
           open
           onClose={() => setDetail(null)}
           title={`Yêu cầu ${detail.order.reference}`}
           description={ORDER_STATUS[detail.order.status].label}
+          footer={
+            <Button variant="outline" onClick={() => setDetail(null)}>
+              Đóng
+            </Button>
+          }
         >
           <ol className="space-y-2 text-sm">
             {detail.events.map((e) => (
@@ -234,7 +240,7 @@ export function BillingPage() {
             <Info className="h-4 w-4 shrink-0" aria-hidden="true" />
             Gói, số tiền và tài khoản nhận là bản chốt tại lúc tạo yêu cầu.
           </p>
-        </Sheet>
+        </Dialog>
       )}
     </section>
   );

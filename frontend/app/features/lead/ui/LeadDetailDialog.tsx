@@ -30,7 +30,7 @@ import { Button } from '@/shared/ui/Button';
 import { FormField } from '@/shared/ui/FormField';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Select } from '@/shared/ui/Select';
-import { Sheet } from '@/shared/ui/Sheet';
+import { Dialog } from '@/shared/ui/Dialog';
 import { TextArea } from '@/shared/ui/TextInput';
 import { AppointmentPanel } from './AppointmentPanel';
 import { LeadHistory } from './LeadHistory';
@@ -49,7 +49,7 @@ interface Props {
  * Owner-side lead workspace (UI-09): status with note, qualification with reason, assignment, appointments and history.
  * Every write sends the version the page showed; a 409 conflict reloads the lead and says so, nothing is overwritten.
  */
-export function LeadDetailSheet({ leadId, onClose, onChanged, team, currentUserId }: Props) {
+export function LeadDetailDialog({ leadId, onClose, onChanged, team, currentUserId }: Props) {
   const [lead, setLead] = useState<LeadItem | null>(null);
   const [history, setHistory] = useState<LeadHistoryEntry[] | null>(null);
   const [phone, setPhone] = useState('');
@@ -114,11 +114,17 @@ export function LeadDetailSheet({ leadId, onClose, onChanged, team, currentUserI
   const open = lead != null && ['NEW', 'CONTACTED', 'APPOINTED'].includes(lead.status);
 
   return (
-    <Sheet
+    <Dialog
+      size="lg"
       open={leadId != null}
       onClose={onClose}
       title={lead ? lead.fullName : 'Yêu cầu liên hệ'}
       description={lead?.listingTitle}
+      footer={
+        <Button variant="outline" onClick={onClose}>
+          Đóng
+        </Button>
+      }
     >
       {!lead ? (
         feedback ? (
@@ -315,6 +321,6 @@ export function LeadDetailSheet({ leadId, onClose, onChanged, team, currentUserI
           </section>
         </div>
       )}
-    </Sheet>
+    </Dialog>
   );
 }

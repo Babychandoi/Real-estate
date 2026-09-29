@@ -286,7 +286,7 @@
     border-color: var(--ndc-border);
   }
   .ndc-admin-header {
-    @apply sticky top-0 z-20 flex min-h-20 items-center justify-between gap-3 border-b bg-white px-4 sm:px-6;
+    @apply sticky top-0 z-20 flex min-h-20 items-center justify-between gap-3 border-b bg-white px-4 sm:px-6 lg:px-8;
     border-color: var(--ndc-border);
   }
   /*
@@ -302,6 +302,15 @@
   .ndc-account-page {
     @apply min-w-0;
     overflow-wrap: anywhere;
+  }
+  /*
+   * The gutter of every staff page lives here, once: 16 px on phones, 24 px from `sm`, 32 px from `lg`, and the
+   * content is centred up to 96 rem. A page inside <main> must not add its own horizontal padding or max width
+   * (that used to leave tables flush with both edges of the viewport, and doubled the gutter on the few pages that
+   * had their own).
+   */
+  .ndc-admin-page {
+    @apply mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 sm:py-8 lg:px-8;
   }
   .ndc-admin-page :is(td, th, [role='tab']),
   .ndc-account-page :is(td, th, [role='tab']) {

@@ -65,9 +65,9 @@ test('moderator claims a submission and approves it with a reason', async ({ pag
     .getByRole('button', { name: `Đối chiếu ${title}` })
     .first()
     .click();
-  const sheet = page.getByRole('dialog', { name: title });
-  await expect(sheet.getByText(/Bạn đang nhận xử lý đến/)).toBeVisible();
-  await sheet.getByRole('button', { name: 'Phê duyệt…' }).click();
+  const detail = page.getByRole('dialog', { name: title });
+  await expect(detail.getByText(/Bạn đang nhận xử lý đến/)).toBeVisible();
+  await detail.getByRole('button', { name: 'Phê duyệt…' }).click();
 
   const decision = page.getByRole('dialog', { name: 'Phê duyệt nội dung tin' });
   await expect(decision.getByLabel('Lý do')).toHaveValue('');

@@ -93,7 +93,7 @@ export function SellerProfilePage() {
   if (state === 'loading') {
     return (
       <div
-        className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-10"
+        className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-10 sm:px-6 lg:px-8"
         data-ready="false"
         role="status"
         aria-label="Đang tải"

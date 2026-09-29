@@ -163,7 +163,7 @@ export const ListingDetailPage: React.FC = () => {
   if (state.kind === 'loading') {
     return (
       <div
-        className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6"
+        className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:px-6 lg:px-8"
         data-ready="false"
         role="status"
         aria-label="Đang tải tin đăng"
@@ -588,7 +588,7 @@ function ListingDetailView({
       </section>
 
       {!isOwn && (
-        <div className="fixed inset-x-0 bottom-0 z-header flex items-center gap-3 border-t border-outline-variant bg-surface-container-lowest/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-header flex items-center gap-3 border-t border-outline-variant bg-surface-container-lowest/95 px-4 py-3 backdrop-blur sm:px-6 lg:hidden">
           <div className="min-w-0 flex-1">
             <Money price={listing.price} className="block truncate text-body font-bold text-primary" />
             <p className="truncate text-label font-normal text-on-surface-variant">{formatArea(listing.areaM2)}</p>

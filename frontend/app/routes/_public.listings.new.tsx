@@ -394,7 +394,7 @@ export const CreateListingPage: React.FC = () => {
 
   if (kyc === 'loading' || loadState === 'loading') {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-10" role="status" aria-label="Đang tải">
+      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8" role="status" aria-label="Đang tải">
         <Skeleton className="h-10 w-2/3" />
         <Skeleton className="mt-6 h-64 w-full" />
       </div>
@@ -427,7 +427,7 @@ export const CreateListingPage: React.FC = () => {
 
   if (loadState === 'error') {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
         <InlineFeedback
           kind="error"
           title="Không tải được tin để chỉnh sửa"
@@ -477,7 +477,7 @@ export const CreateListingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 py-8" data-ready={loadState === 'ready' ? 'true' : undefined}>
-      <div className="container mx-auto max-w-6xl px-4">
+      <div className="container mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <Link
             to="/my-listings"
@@ -624,12 +624,12 @@ export const CreateListingPage: React.FC = () => {
                       />
                     )}
                   </FormField>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
                     <FormField
                       label={rent ? 'Giá thuê mỗi tháng (VNĐ)' : 'Giá bán (VNĐ)'}
                       required
                       id="field-priceVnd"
-                      hint={price && fields.priceVnd ? `= ${formatMoney(price)}` : 'Nhập số, ví dụ 3950000000'}
+                      hint={price && fields.priceVnd ? `= ${formatMoney(price)}` : undefined}
                       error={shownError('priceVnd')}
                     >
                       {(control) => (
@@ -637,6 +637,7 @@ export const CreateListingPage: React.FC = () => {
                           {...control}
                           inputMode="numeric"
                           autoComplete="off"
+                          placeholder="Ví dụ: 3950000000"
                           value={groupDigits(fields.priceVnd)}
                           onBlur={() => touch('priceVnd')}
                           onChange={(e) => update('priceVnd', parseInteger(e.target.value))}
@@ -670,7 +671,7 @@ export const CreateListingPage: React.FC = () => {
                     </FormField>
                   </div>
                   {rent && (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
                       <FormField label="Tiền đặt cọc (VNĐ)" id="field-depositVnd" error={shownError('depositVnd')}>
                         {(control) => (
                           <TextInput
@@ -698,7 +699,7 @@ export const CreateListingPage: React.FC = () => {
                       </FormField>
                     </div>
                   )}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-3">
                     {(['bedrooms', 'bathrooms', 'floors'] as const).map((key) => (
                       <FormField
                         key={key}
@@ -716,7 +717,7 @@ export const CreateListingPage: React.FC = () => {
                       </FormField>
                     ))}
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
                     <FormField label="Giấy tờ pháp lý" id="field-legalStatusCode" error={shownError('legalStatusCode')}>
                       {(control) => (
                         <Select
@@ -731,7 +732,6 @@ export const CreateListingPage: React.FC = () => {
                     <FormField
                       label="Chi tiết giấy tờ"
                       id="field-legalStatus"
-                      hint="Ví dụ: sổ hồng riêng, đã hoàn công"
                       required={fields.legalStatusCode === 'OTHER'}
                       error={shownError('legalStatus')}
                     >
@@ -739,6 +739,7 @@ export const CreateListingPage: React.FC = () => {
                         <TextInput
                           {...control}
                           maxLength={100}
+                          placeholder="Ví dụ: sổ hồng riêng, đã hoàn công"
                           value={fields.legalStatus}
                           onBlur={() => touch('legalStatus')}
                           onChange={(e) => update('legalStatus', e.target.value)}
@@ -789,7 +790,7 @@ export const CreateListingPage: React.FC = () => {
 
               {step === 2 && (
                 <>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-3">
                     <FormField label="Mã tỉnh/thành" id="field-provinceCode" error={shownError('provinceCode')}>
                       {(control) => (
                         <TextInput

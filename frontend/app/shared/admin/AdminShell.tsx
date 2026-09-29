@@ -52,7 +52,7 @@ const AdminShellContent: React.FC = () => {
   const navigate = useNavigate();
   const close = () => setMobileOpen(false);
   const mobilePanelRef = useRef<HTMLElement>(null);
-  // Shared modal stack (M2): this drawer had no focus trap and no Escape handling at all.
+  // Shared modal stack (M2): this menu drawer had no focus trap and no Escape handling at all.
   useModal({ open: mobileOpen, onClose: close, panelRef: mobilePanelRef });
   const visibleNavigation = navigation.filter((item) => canOpen(user?.role, item.page));
   const sideNav = (

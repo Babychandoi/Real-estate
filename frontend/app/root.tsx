@@ -97,7 +97,7 @@ function AccountMenu() {
         className="flex min-h-11 items-center gap-2 rounded-lg px-1.5 hover:bg-surface-container-low focus-visible:ring-2 focus-visible:ring-primary"
       >
         <Avatar name={user?.name || ''} src={user?.avatarMediaUrl} size="sm" />
-        <span className="hidden max-w-28 truncate text-sm font-semibold xl:inline">{user?.name}</span>
+        <span className="hidden max-w-28 truncate text-sm font-semibold 2xl:inline">{user?.name}</span>
         <ChevronDown
           className={`hidden h-4 w-4 text-on-surface-variant transition-transform sm:block ${open ? 'rotate-180' : ''}`}
           aria-hidden="true"
@@ -174,10 +174,18 @@ function RootLayoutContent() {
   const nav = [
     { to: '/search?purpose=SALE', label: ui.sale },
     { to: '/search?purpose=RENT', label: ui.rent },
+    { to: '/du-an', label: ui.projects },
+    { to: '/khu-vuc', label: ui.areas },
+    { to: '/tin-tuc', label: ui.news },
     { to: '/compare', label: ui.compare },
   ];
+  // Content sections stay highlighted on their detail pages (/du-an/:slug, /tin-tuc/:slug, /khu-vuc/:slug).
+  const isSection = (pathname: string) => ['/du-an', '/khu-vuc', '/tin-tuc'].includes(pathname);
   const selected = (to: string) => {
     const target = new URL(to, 'https://example.invalid');
+    if (isSection(target.pathname)) {
+      return location.pathname === target.pathname || location.pathname.startsWith(`${target.pathname}/`);
+    }
     return (
       location.pathname === target.pathname &&
       (!target.search ||
@@ -207,7 +215,7 @@ function RootLayoutContent() {
               <small>Tìm nhà, rõ từng thông tin</small>
             </span>
           </Link>
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Điều hướng chính">
+          <nav className="hidden items-center gap-0.5 whitespace-nowrap xl:flex" aria-label="Điều hướng chính">
             {nav.map((item) => (
               <Link
                 key={item.to}
@@ -260,7 +268,7 @@ function RootLayoutContent() {
               </Link>
             ) : null}
             <button
-              className="ndc-icon-button lg:hidden"
+              className="ndc-icon-button xl:hidden"
               type="button"
               aria-label="Mở menu"
               aria-expanded={menuOpen}
@@ -270,7 +278,7 @@ function RootLayoutContent() {
             </button>
             {isAuthenticated && (
               <button
-                className="ndc-icon-button hidden lg:inline-flex"
+                className="ndc-icon-button hidden xl:inline-flex"
                 type="button"
                 onClick={logout}
                 aria-label="Đăng xuất"

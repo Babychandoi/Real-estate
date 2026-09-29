@@ -24,7 +24,7 @@ import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
 import { PrivateMediaImage } from '@/shared/ui/PrivateMediaImage';
 import { Select } from '@/shared/ui/Select';
-import { Sheet } from '@/shared/ui/Sheet';
+import { Dialog } from '@/shared/ui/Dialog';
 import { TextInput } from '@/shared/ui/TextInput';
 
 interface UserItem {
@@ -256,7 +256,7 @@ export function AdminUsersPage() {
       </header>
       <form
         onSubmit={submit}
-        className="grid grid-cols-1 gap-3 rounded-lg border border-outline-variant p-4 sm:grid-cols-4"
+        className="grid grid-cols-1 items-start gap-3 rounded-lg border border-outline-variant p-4 sm:grid-cols-4"
       >
         <FormField label="Tìm theo tên hoặc email" className="sm:col-span-2">
           {(control) => <TextInput {...control} value={query} onChange={(e) => setQuery(e.target.value)} />}
@@ -392,13 +392,13 @@ export function AdminUsersPage() {
           await load();
         }}
       />
-      {historyTarget && <HistorySheet user={historyTarget} onClose={() => setHistoryTarget(null)} />}
-      {kycTarget && <KycSheet user={kycTarget} onClose={() => setKycTarget(null)} onChanged={() => void load()} />}
+      {historyTarget && <HistoryDialog user={historyTarget} onClose={() => setHistoryTarget(null)} />}
+      {kycTarget && <KycDialog user={kycTarget} onClose={() => setKycTarget(null)} onChanged={() => void load()} />}
     </div>
   );
 }
 
-function HistorySheet({ user, onClose }: { user: UserItem; onClose: () => void }) {
+function HistoryDialog({ user, onClose }: { user: UserItem; onClose: () => void }) {
   const [actions, setActions] = useState<AdminAction[] | null>(null);
   const [access, setAccess] = useState<KycAccessLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -411,11 +411,17 @@ function HistorySheet({ user, onClose }: { user: UserItem; onClose: () => void }
       .catch((err) => setError(errorMessage(err, 'Không tải được lịch sử.')));
   }, [user.id]);
   return (
-    <Sheet
+    <Dialog
+      size="lg"
       open
       onClose={onClose}
       title={`Lịch sử: ${user.fullName}`}
       description="Đổi vai trò, khóa/mở khóa và các lần xem giấy tờ định danh"
+      footer={
+        <Button variant="outline" onClick={onClose}>
+          Đóng
+        </Button>
+      }
     >
       <div className="space-y-6">
         {error && <InlineFeedback kind="error" title={error} />}
@@ -455,11 +461,11 @@ function HistorySheet({ user, onClose }: { user: UserItem; onClose: () => void }
           )}
         </section>
       </div>
-    </Sheet>
+    </Dialog>
   );
 }
 
-function KycSheet({ user, onClose, onChanged }: { user: UserItem; onClose: () => void; onChanged: () => void }) {
+function KycDialog({ user, onClose, onChanged }: { user: UserItem; onClose: () => void; onChanged: () => void }) {
   const [kyc, setKyc] = useState<UserKycProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reasons, setReasons] = useState<{ approve: TrustReasonOption[]; reject: TrustReasonOption[] }>({
@@ -479,14 +485,15 @@ function KycSheet({ user, onClose, onChanged }: { user: UserItem; onClose: () =>
       .catch(() => undefined);
   }, [user.id]);
   return (
-    <Sheet
+    <Dialog
+      size="lg"
       open
       onClose={onClose}
       title={`Hồ sơ định danh: ${user.fullName}`}
       description="Ảnh giấy tờ chỉ mở sau khi bạn nhập lại mật khẩu và nêu lý do; mỗi lần mở đều được ghi lại."
       footer={
         kyc?.status === 'PENDING' ? (
-          <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="flex w-full flex-wrap items-center justify-between gap-6">
             <Button leftIcon={<ShieldCheck className="h-4 w-4" />} onClick={() => setDecision('approve')}>
               Xác minh danh tính…
             </Button>
@@ -494,7 +501,11 @@ function KycSheet({ user, onClose, onChanged }: { user: UserItem; onClose: () =>
               Từ chối…
             </Button>
           </div>
-        ) : undefined
+        ) : (
+          <Button variant="outline" onClick={onClose}>
+            Đóng
+          </Button>
+        )
       }
     >
       <div className="space-y-4 text-sm">
@@ -575,6 +586,6 @@ function KycSheet({ user, onClose, onChanged }: { user: UserItem; onClose: () =>
           onChanged();
         }}
       />
-    </Sheet>
+    </Dialog>
   );
 }

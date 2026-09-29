@@ -269,8 +269,8 @@ export function ProductAnalyticsPage({ load = fetchAnalyticsDashboard }: { load?
   const presets = [7, 28, 90];
 
   return (
-    <section className="min-h-screen bg-surface-container-low py-8" data-ready={loading && !data ? undefined : 'true'}>
-      <div className="ndc-page">
+    <section className="pb-2" data-ready={loading && !data ? undefined : 'true'}>
+      <div>
         <header className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-on-surface">Phân tích sản phẩm</h1>
