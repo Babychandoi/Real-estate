@@ -448,3 +448,11 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 
 ## 2026-09-30 — CI #107 test-source style repair
 - Replace the inline import type query in the search hook test with an explicit type-only namespace import; format the map hook test callback according to the existing Prettier configuration. Preserve all assertions and CI gates.
+
+## 2026-09-30 — S10 CI query-plan evidence (F09.3, D-05)
+- Add a CI-only runner that copies the already migrated integration schema into a separate bds_perf_ci_* database, executes the existing 100k/1M synthetic TEMP-table harness, and drops the database on exit.
+- Run after browser suites to avoid competing with UI assertions. Archive completed plans and environment metadata for 30 days; SQL failures remain blocking.
+- No application/API/schema migration changes. Validate shell syntax, refusal outside isolated CI, workflow parsing and CI execution. This measures warm synthetic query plans, not production throughput or cold-cache latency.
+
+## 2026-09-30 — S10 fixture integer overflow repair
+- Promote generated price operands to bigint before multiplication/addition; the former outer cast happened after int4 overflow. Keep dataset sizes and price distribution unchanged. Verify the failing original expression and corrected range over both dataset sizes with PostgreSQL semantics.
