@@ -9,4 +9,7 @@ export const ui = {
   sale: 'Mua nhà',
   rent: 'Thuê nhà',
   compare: 'So sánh',
+  projects: 'Dự án',
+  areas: 'Khu vực',
+  news: 'Tin tức',
 } as const;
