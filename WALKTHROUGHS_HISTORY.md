@@ -823,3 +823,5 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - CI #104 on b55e233 passed backend, frontend, E2E and security after the owner repaired the visual snapshots and waited for the search index to become non-degraded.
 - Updated frontend/app/features/search/useListingSearch.ts to cancel and ignore stale cursor requests when filters change and to deduplicate loaded cards with Set instead of repeatedly scanning the accumulated list. Added a seeded navigation E2E for 24→46 unique sale cards and no further page.
 - Acceptance for this follow-up is pending the next CI run. R-2 remains TODO until cross-filter/map parity and the legacy 100-item limit are fully audited; S10 benchmark and restore results remain pending isolated runs.
+
+- CI #105 (https://github.com/Babychandoi/Real-estate/actions/runs/36608783013) on 9e56b4c: frontend checks, backend tests, E2E and security scan all SUCCESS. The new 24→46 unique-card cursor navigation check and the blocking Chromium visual gate passed; Firefox/WebKit visual ran as an informational step. This verifies the code follow-up, while S10 measurements and real assistive-technology testing remain open.
