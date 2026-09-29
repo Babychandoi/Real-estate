@@ -5,7 +5,11 @@ import { cn } from './cn';
 import { IconButton } from './IconButton';
 import { useModal } from './internal/useModal';
 
-const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' } as const;
+/**
+ * `sm` confirmations, `md` short forms, `lg` forms and detail views (max-w-2xl), `xl` comparison and diff views
+ * (max-w-4xl). A dialog is never wider than the viewport minus its 16/24 px margin, whatever the size.
+ */
+const widths = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' } as const;
 
 export interface DialogProps {
   open: boolean;
@@ -25,8 +29,9 @@ export interface DialogProps {
 }
 
 /**
- * Modal dialog: role="dialog" + aria-modal, labelled by its title, focus trapped inside, Escape and the close
- * button close it, the page does not scroll behind it and focus returns to the opener.
+ * Modal dialog, centred in the viewport (about 90 % of its height at most): role="dialog" + aria-modal, labelled by
+ * its title, focus trapped inside, Escape, the backdrop and the close button close it, the page does not scroll behind
+ * it and focus returns to the opener. The title bar and the `footer` (the actions) stay put; only the body scrolls.
  */
 export function Dialog({
   open,
@@ -54,7 +59,7 @@ export function Dialog({
 
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 z-overlay flex items-center justify-center p-4" role="presentation">
+    <div className="fixed inset-0 z-overlay flex items-center justify-center p-4 sm:p-6" role="presentation">
       <div
         className="absolute inset-0 bg-inverse-surface/60"
         aria-hidden="true"
@@ -70,7 +75,7 @@ export function Dialog({
         aria-describedby={descriptionId}
         tabIndex={-1}
         className={cn(
-          'ndc-overlay relative flex max-h-[calc(100dvh-2rem)] w-full min-w-0 flex-col [overflow-wrap:anywhere] [&_th]:[overflow-wrap:break-word] rounded-dialog bg-surface-container-lowest shadow-elevated focus:outline-none',
+          'ndc-overlay relative flex max-h-[min(90dvh,calc(100dvh-2rem))] w-full min-w-0 flex-col [overflow-wrap:anywhere] [&_th]:[overflow-wrap:break-word] rounded-dialog bg-surface-container-lowest shadow-elevated focus:outline-none',
           widths[size],
           className,
         )}

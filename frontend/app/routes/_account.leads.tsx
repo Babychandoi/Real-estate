@@ -23,9 +23,9 @@ import { Skeleton } from '@/shared/ui/Skeleton';
 import { Tabs } from '@/shared/ui/Tabs';
 import { TextInput } from '@/shared/ui/TextInput';
 
-// Loaded on demand: the sheet (with appointments/history) opens on click, the report on its tab (bundle budget F15.2).
-const LeadDetailSheet = lazy(() =>
-  import('@/features/lead/ui/LeadDetailSheet').then((m) => ({ default: m.LeadDetailSheet })),
+// Loaded on demand: the detail dialog (with appointments/history) opens on click, the report on its tab (bundle budget F15.2).
+const LeadDetailDialog = lazy(() =>
+  import('@/features/lead/ui/LeadDetailDialog').then((m) => ({ default: m.LeadDetailDialog })),
 );
 const LeadReportView = lazy(() =>
   import('@/features/lead/ui/LeadReportView').then((m) => ({ default: m.LeadReportView })),
@@ -254,7 +254,7 @@ function LeadInbox() {
       )}
       {selected && (
         <Suspense fallback={null}>
-          <LeadDetailSheet
+          <LeadDetailDialog
             leadId={selected}
             onClose={() => setSelected(null)}
             onChanged={() => void load()}

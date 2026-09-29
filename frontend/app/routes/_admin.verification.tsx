@@ -19,7 +19,7 @@ import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { PrivateMediaImage } from '@/shared/ui/PrivateMediaImage';
-import { Sheet } from '@/shared/ui/Sheet';
+import { Dialog } from '@/shared/ui/Dialog';
 import { Skeleton } from '@/shared/ui/Skeleton';
 
 const STATUS: Record<VerificationStatus, { label: string; variant: BadgeVariant }> = {
@@ -121,12 +121,12 @@ export default function VerificationDeskPage() {
         onRetry={() => void load()}
         empty={<EmptyState title="Không có hồ sơ nào" />}
       />
-      {open && <EvidenceSheet verificationId={open.id} onClose={() => setOpen(null)} onChanged={() => void load()} />}
+      {open && <EvidenceDialog verificationId={open.id} onClose={() => setOpen(null)} onChanged={() => void load()} />}
     </div>
   );
 }
 
-function EvidenceSheet({
+function EvidenceDialog({
   verificationId,
   onClose,
   onChanged,
@@ -169,7 +169,8 @@ function EvidenceSheet({
   ];
 
   return (
-    <Sheet
+    <Dialog
+      size="xl"
       open
       onClose={onClose}
       title={evidence?.listingTitle ?? 'Hồ sơ giấy tờ'}
@@ -178,7 +179,7 @@ function EvidenceSheet({
       }
       footer={
         evidence?.status === 'PENDING' ? (
-          <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="flex w-full flex-wrap items-center justify-between gap-6">
             <Button onClick={() => setDecision('approve')}>Xác nhận đã đối chiếu…</Button>
             <Button variant="danger" onClick={() => setDecision('reject')}>
               Từ chối…
@@ -190,7 +191,11 @@ function EvidenceSheet({
               Thu hồi…
             </Button>
           </div>
-        ) : undefined
+        ) : (
+          <Button variant="outline" onClick={onClose}>
+            Đóng
+          </Button>
+        )
       }
     >
       {error && <InlineFeedback kind="error" title={error} />}
@@ -356,6 +361,6 @@ function EvidenceSheet({
           onChanged();
         }}
       />
-    </Sheet>
+    </Dialog>
   );
 }

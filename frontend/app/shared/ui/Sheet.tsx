@@ -19,7 +19,9 @@ export interface SheetProps {
 }
 
 /**
- * Bottom sheet on phones, right-hand panel from the `sm` breakpoint (filters, marker details). Same modal
+ * Bottom sheet on phones, right-hand panel from the `sm` breakpoint. Only for what belongs beside the results on the
+ * public search page: the mobile filter sheet and the map marker panel. Detail and edit views of staff and account
+ * pages are centred `Dialog`s (owner review), never a Sheet. Same modal
  * behaviour as Dialog: focus trap, Escape, scroll lock, focus return. The drag handle is decorative; closing
  * never depends on a swipe gesture.
  */

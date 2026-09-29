@@ -32,7 +32,7 @@ import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/
 import { EmptyState } from '@/shared/ui/EmptyState';
 import { InlineFeedback } from '@/shared/ui/InlineFeedback';
 import { Pagination } from '@/shared/ui/Pagination';
-import { Sheet } from '@/shared/ui/Sheet';
+import { Dialog } from '@/shared/ui/Dialog';
 import { Skeleton } from '@/shared/ui/Skeleton';
 import { Tabs } from '@/shared/ui/Tabs';
 
@@ -337,7 +337,7 @@ function QueuePanel() {
       />
 
       {open && (
-        <ReviewSheet
+        <ReviewDialog
           item={open}
           onClose={() => setOpen(null)}
           onChanged={() => void load()}
@@ -422,7 +422,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'wa
   );
 }
 
-function ReviewSheet({
+function ReviewDialog({
   item,
   onClose,
   onChanged,
@@ -481,13 +481,14 @@ function ReviewSheet({
 
   const blocked = claim != null && !claim.mine;
   return (
-    <Sheet
+    <Dialog
+      size="xl"
       open
       onClose={onClose}
       title={item.title}
       description={`${item.kind === 'EDIT' ? `Bản sửa #${item.revisionNumber} so với bản đang công khai` : 'Lần gửi duyệt đầu tiên'} · chờ ${formatAge(item.ageMinutes)}`}
       footer={
-        <div className="flex flex-wrap items-center justify-between gap-6">
+        <div className="flex w-full flex-wrap items-center justify-between gap-6">
           <Button disabled={blocked} onClick={() => onDecide('approve')}>
             Phê duyệt…
           </Button>
@@ -638,7 +639,7 @@ function ReviewSheet({
           )}
         </section>
       </div>
-    </Sheet>
+    </Dialog>
   );
 }
 

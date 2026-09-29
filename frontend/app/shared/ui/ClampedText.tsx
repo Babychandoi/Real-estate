@@ -11,7 +11,7 @@ const CLAMP_CLASS = {
 /**
  * User-supplied text in a dense row or card: at most `lines` lines (equal-ish row and card heights), breaks anywhere so
  * an unbroken value cannot widen anything, and the full text stays in the DOM (screen readers) and in the tooltip; the
- * detail drawer of the row shows it in full.
+ * detail dialog of the row shows it in full.
  */
 export function ClampedText({
   text,
