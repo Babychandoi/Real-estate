@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
+import { ClampedText } from '@/shared/admin/adminUi';
 import { useModal } from '@/shared/ui/useModal';
 import { PROJECT_STATUS_LABELS, type ProjectDetail } from '@/entities/content/model';
 import { ProjectProfileDialog } from '@/features/places/ProjectProfileDialog';
@@ -137,22 +138,22 @@ export function ProjectCatalogPage() {
       ) : (
         <section className="grid gap-4 md:grid-cols-2">
           {items.map((item) => (
-            <article key={item.id} className="rounded-2xl border bg-white p-5">
-              <div className="flex justify-between gap-3">
-                <h2 className="text-lg font-bold">{item.name}</h2>
-                <span className="text-xs font-bold text-on-surface-variant">
+            <article key={item.id} className="flex h-full min-w-0 flex-col rounded-2xl border bg-white p-5">
+              <div className="flex min-w-0 justify-between gap-3">
+                <ClampedText as="h2" text={item.name} lines={3} className="min-w-0 text-lg font-bold" />
+                <span className="shrink-0 text-right text-xs font-bold text-on-surface-variant">
                   {PROJECT_STATUS_LABELS[item.status as ProjectDetail['status']] ?? item.status}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-slate-600">{item.developerName}</p>
-              <p className="mt-3 text-sm">{item.address || 'Chưa cung cấp địa chỉ'}</p>
+              <ClampedText text={item.developerName} className="mt-1 text-sm text-slate-600" />
+              <ClampedText text={item.address || 'Chưa cung cấp địa chỉ'} lines={3} className="mt-3 text-sm" />
               <p className="mt-3 text-sm">
                 {item.totalAreaM2.toLocaleString('vi-VN')} m² · {item.totalBlocks} khối · {item.totalUnits} căn
               </p>
               <p className="mt-4 text-xs text-on-surface-variant">
                 Cập nhật: {new Date(item.updatedAt).toLocaleString('vi-VN')}
               </p>
-              <div className="mt-4 flex flex-wrap gap-3 text-sm">
+              <div className="mt-auto flex flex-wrap gap-3 pt-4 text-sm">
                 <button
                   type="button"
                   className="min-h-11 font-semibold text-primary"
