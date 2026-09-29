@@ -33,8 +33,10 @@ SELECT md5('listing:' || n)::uuid,
        'BROKER', 'NOT_SUBMITTED', 'NOT_SUBMITTED',
        TIMESTAMPTZ '2026-09-01 03:00:00+00' - (n % 365) * interval '1 day' - (n % 24) * interval '1 hour',
        TIMESTAMPTZ '2026-09-01 03:00:00+00' - (n % 365) * interval '1 day',
-       CASE WHEN n % 10 = 0 THEN 'can ho cau giay' ELSE 'nha pho ha noi' END,
-       to_tsvector('simple', CASE WHEN n % 10 = 0 THEN 'can ho cau giay' ELSE 'nha pho ha noi' END),
+       CASE WHEN n % 10000 = 0 THEN 'can ho landmarkrare'
+            WHEN n % 10 = 0 THEN 'can ho cau giay' ELSE 'nha pho ha noi' END,
+       to_tsvector('simple', CASE WHEN n % 10000 = 0 THEN 'can ho landmarkrare'
+                                   WHEN n % 10 = 0 THEN 'can ho cau giay' ELSE 'nha pho ha noi' END),
        n
 FROM generate_series(1, :dataset_size) AS n;
 
@@ -62,13 +64,13 @@ ORDER BY price_vnd, listing_id LIMIT 24;
 \echo Map bbox with the PostGIS GiST index
 EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
 SELECT listing_id FROM perf_lpr
-WHERE public_location && ST_MakeEnvelope(105.72, 20.82, 105.74, 20.84, 4326)
+WHERE public_location && ST_MakeEnvelope(105.7200, 20.8200, 105.7203, 20.8203, 4326)
 LIMIT 200;
 
 \echo Keyword with the search_tsv GIN index
 EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
 SELECT listing_id FROM perf_lpr
-WHERE search_tsv @@ plainto_tsquery('simple', 'can ho')
+WHERE search_tsv @@ plainto_tsquery('simple', 'landmarkrare')
 LIMIT 24;
 
 ROLLBACK;

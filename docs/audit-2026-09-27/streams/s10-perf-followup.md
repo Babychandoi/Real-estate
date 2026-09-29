@@ -20,7 +20,9 @@ constant-arrival-rate scenario, fault tests and restore/rollback drill remain op
    shared/temp blocks; note whether the intended B-tree/GiST/GIN index was used. The generator uses deterministic
    distribution and creates indexes matching the relevant V033 leading columns **on a temporary table**. All rows
    disappear when its transaction rolls back. The SQL refuses any database whose name does not start with
-   `bds_perf_`.
+   `bds_perf_`. The bbox and keyword probes are deliberately selective so their GiST/GIN plans are meaningful;
+   review the actual planner decision rather than assuming it uses either index. An unsuccessful run removes its
+   partial report.
 
 This synthetic distribution is useful for a reproducible query-plan regression, but does not represent actual market
 data skew. Repeat EXPLAIN against an approved anonymized production-shaped test snapshot before approving index changes.
