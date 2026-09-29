@@ -25,6 +25,18 @@ describe('FormField', () => {
     expect(input).toHaveAccessibleDescription('Diện tích phải lớn hơn 0. Diện tích sử dụng');
   });
 
+  it('puts the control directly under the label and the hint below the control', () => {
+    const { container } = render(
+      <FormField label="Nguồn thông tin" hint="Tối đa 255 ký tự.">
+        {(field) => <TextInput {...field} placeholder="Ví dụ: Hồ sơ pháp lý" />}
+      </FormField>,
+    );
+    const children = Array.from(container.firstElementChild!.children).map((el) => el.tagName);
+    // label, input, hint: nothing sits between the label and the control, so neighbours in a row start at the same y.
+    expect(children).toEqual(['LABEL', 'INPUT', 'P']);
+    expect(screen.getByRole('textbox', { name: 'Nguồn thông tin' })).toHaveAccessibleDescription('Tối đa 255 ký tự.');
+  });
+
   it('announces autosave status for the field', () => {
     render(
       <FormField label="Địa chỉ" status="saving">

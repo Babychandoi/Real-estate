@@ -270,7 +270,7 @@ export function PasswordReasonDialog({ open, title, description, onConfirm, onCl
       }
     >
       <form id={formId} className="space-y-4" onSubmit={submit}>
-        <FormField label="Lý do xem" required hint="Ví dụ: đối chiếu hồ sơ khiếu nại mã CASE-…">
+        <FormField label="Lý do xem" required>
           {(control) => (
             <TextArea
               {...control}

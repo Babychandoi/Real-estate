@@ -15,7 +15,10 @@ export type FieldStatus = 'saving' | 'saved';
 
 interface FormFieldProps {
   label: React.ReactNode;
-  /** Help shown under the label (never only a placeholder). */
+  /**
+   * Guidance (limits, rules) shown under the control, never between label and control: a line there would push this
+   * control lower than its neighbours in the same row. Short examples belong in the control's `placeholder`.
+   */
   hint?: React.ReactNode;
   /** Error for this field, shown next to it and announced through aria-describedby. */
   error?: React.ReactNode;
@@ -30,8 +33,9 @@ interface FormFieldProps {
 }
 
 /**
- * Label + control + hint + error. The label is a real <label for>, hint and error are linked with
- * aria-describedby (error first) and the control gets aria-invalid while there is an error.
+ * Label, then the control directly under it, then error, hint and status. Everything the control needs to say sits
+ * below it, so every control in a row of a form starts at the same y. The label is a real <label for>, hint and error
+ * are linked with aria-describedby (error first) and the control gets aria-invalid while there is an error.
  */
 export function FormField({ label, hint, error, required, disabled, status, id, className, children }: FormFieldProps) {
   const generated = useId();
@@ -55,11 +59,6 @@ export function FormField({ label, hint, error, required, disabled, status, id, 
           </span>
         )}
       </label>
-      {hint && (
-        <p id={hintId} className="text-label font-normal text-on-surface-variant">
-          {hint}
-        </p>
-      )}
       {children({
         id: controlId,
         'aria-describedby': describedBy,
@@ -71,6 +70,11 @@ export function FormField({ label, hint, error, required, disabled, status, id, 
         <p id={errorId} className="flex items-start gap-1.5 text-label font-normal text-error">
           <AlertCircle className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{error}</span>
+        </p>
+      )}
+      {hint && (
+        <p id={hintId} className="text-label font-normal text-on-surface-variant">
+          {hint}
         </p>
       )}
       {status && (

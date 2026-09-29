@@ -247,7 +247,7 @@ export function ChangePasswordSection({ onChanged }: { onChanged?: () => void })
         title="Đổi mật khẩu"
         description="Sau khi đổi, các thiết bị khác sẽ bị đăng xuất và email của bạn nhận thông báo."
       />
-      <form onSubmit={submit} className="mt-4 grid gap-4 md:grid-cols-3">
+      <form onSubmit={submit} className="mt-4 grid items-start gap-4 md:grid-cols-3">
         <FormField label="Mật khẩu hiện tại" required>
           {(control) => (
             <TextInput
