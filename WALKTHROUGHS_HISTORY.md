@@ -839,3 +839,10 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 ## 2026-09-30 — CI #107 findings and repair
 - CI #107 on 7c982f1 passed frontend typecheck, production build, unit tests (including all five new hook regression cases), backend tests and security. Frontend failed ESLint consistent-type-imports at useListingSearch.test.tsx:13 and Prettier for useMapPointListing.test.tsx; E2E was still running when inspected.
 - Repaired the type-only import and callback formatting without changing test assertions or disabling checks. The follow-up CI must confirm lint/format acceptance.
+
+## 2026-09-30 — S10 evidence automation
+- Main f50c076 CI #109 (run 36615996757) completed SUCCESS after PR #16 merge.
+- Added scripts/ci-search-explain.sh and an E2E-job step/upload for 100k/1M EXPLAIN reports. It uses schema-only cloning, bds_perf_ci_* name validation, explicit CI/isolation guards and EXIT cleanup. No application records are copied.
+- Reports distinguish post-ANALYZE warm TEMP-table execution from cold production I/O, and record CPU/RAM/disk, PostgreSQL/PostGIS versions, settings and container limits.
+- Local validation: bash syntax, refusal without CI/isolation flags (exit 2), and YAML parsing passed.
+- Query-plan CI execution pending; F09.3 stays TODO until reports are reviewed. D-13/R-5 load and failure scenarios, measured RPO/RTO and migration rollback remain open. Route map unchanged.

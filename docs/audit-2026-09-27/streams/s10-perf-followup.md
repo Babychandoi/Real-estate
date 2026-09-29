@@ -49,3 +49,16 @@ The thresholds are a gate for a single run, not evidence of the achieved rate un
 - **F21.5 / R-6:** measured RPO/RTO, encrypted-backup restore, compatible migration rollback and response headers
   through the final CDN/proxy. Do not operate the production stack from this harness.
 - **F09.3:** pending outputs for both dataset sizes. Passing CI or having indexes present is not benchmark evidence.
+
+## Automated CI capture (2026-09-30)
+
+The integration E2E job now runs `scripts/ci-search-explain.sh` after browser suites. The runner requires
+`GITHUB_ACTIONS=true` and `BDS_PERF_ISOLATED=1`, clones schema only into a separate `bds_perf_ci_*` database,
+runs both sizes, and drops that database on exit. The `s10-query-plans-<attempt>` artifact retains completed
+reports plus environment metadata for 30 days. SQL errors fail the step; partial reports are not uploaded as results.
+
+This captures warm, synthetic TEMP-table plans after insertion/index creation/ANALYZE. Buffers for TEMP relations
+are local buffers; do not interpret them as production shared-buffer/cache performance. CI shares hardware with
+the integration services. Review the actual plans and archive accepted evidence before changing F09.3 status.
+The earlier W1/S5A restore drill already passed; outstanding restore acceptance concerns measured RPO/RTO
+and deploy/migration rollback, not an absence of any successful restore drill.
