@@ -138,17 +138,29 @@ export function SearchError({ error, onRetry }: { error: NonNullable<SearchState
 export function MapPointSheet({
   point,
   listing,
+  error,
+  onRetry,
   onClose,
   onOpen,
 }: {
   point: MapPoint;
   listing: ListingSummaryV2 | null;
+  error: boolean;
+  onRetry: () => void;
   onClose: () => void;
   onOpen: (point: MapPoint) => void;
 }) {
   return (
     <Sheet open onClose={onClose} title="Tin trên bản đồ">
-      {listing ? <ListingCard listing={listing} headingLevel="h2" /> : <Skeleton className="h-72 rounded-card" />}
+      {listing ? (
+        <ListingCard listing={listing} headingLevel="h2" />
+      ) : error ? (
+        <ErrorState title="Không tải được tin trên bản đồ" onRetry={onRetry} />
+      ) : (
+        <div role="status" aria-label="Đang tải tin trên bản đồ">
+          <Skeleton className="h-72 rounded-card" />
+        </div>
+      )}
       <Button variant="ghost" className="mt-3 w-full" onClick={() => onOpen(point)}>
         Mở trang chi tiết
       </Button>

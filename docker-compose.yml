@@ -194,7 +194,9 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args: { VITE_PUBLIC_API_BASE_URL: /api/v1 }
+      args:
+        VITE_PUBLIC_API_BASE_URL: /api/v1
+        VITE_KYC_RETENTION_NOTICE: ${VITE_KYC_RETENTION_NOTICE:-}
     restart: unless-stopped
     # Loopback only: Nginx trusts forwarded client addresses from the Docker/loopback ranges, so nothing on the LAN
     # may reach it directly. Public traffic arrives through cloudflared inside the Compose network.

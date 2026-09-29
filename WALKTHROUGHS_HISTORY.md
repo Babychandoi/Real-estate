@@ -851,3 +851,10 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - The CI schema clone completed; fixture price arithmetic overflowed int4 before the outer bigint cast. Changed infra/perf/explain-search.sql to cast operands before arithmetic.
 - Verified with the PostgreSQL WASM engine (PGlite): original expression reproduces SQLSTATE 22003; corrected expression evaluates all 100000 and 1000000 rows, with min 1000000000 and max 5990000000 in both cases. This checks arithmetic only, not full PostGIS EXPLAIN performance; full CI rerun remains required.
 - No application behavior, migration, price distribution or dataset size changed. Route map unchanged.
+
+## 2026-09-30 — Product state completion: map and private KYC previews
+- Search map sheet now has an announced loading state, explicit error and retry action; stale selection cancellation remains intact.
+- KYC private images are revoked on expiry/unmount/failure, requests abort on cleanup, and late responses cannot create leaked blob URLs. Expiry is checked on timer, focus and visibility changes; failed/expired grants return to password confirmation.
+- UI-12 disclosure now supports VITE_KYC_RETENTION_NOTICE through frontend Docker build args and Compose/env examples, with a privacy-policy link and explicit missing-policy fallback. Product/security must supply approved wording; no retention/deletion period is invented or enforced by this UI setting.
+- Local acceptance: frontend ESLint, TypeScript, production build, route bundle budget and Prettier PASS. Seven focused hook tests PASS (three map lifecycle/retry, four KYC expiry/cleanup/error cases). Full backend/E2E not rerun locally; no backend or migration changes.
+- Routes affected: /search and account KYC; route paths unchanged. DS-08/R-3/UI-12 gain this implementation evidence but wider audit acceptance remains open.

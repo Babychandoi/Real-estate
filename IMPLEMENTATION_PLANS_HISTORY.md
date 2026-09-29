@@ -456,3 +456,9 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 
 ## 2026-09-30 — S10 fixture integer overflow repair
 - Promote generated price operands to bigint before multiplication/addition; the former outer cast happened after int4 overflow. Keep dataset sizes and price distribution unchanged. Verify the failing original expression and corrected range over both dataset sizes with PostgreSQL semantics.
+
+## 2026-09-30 — Product state completion (DS-08, R-3, UI-12)
+- Preserve existing map sheet/design tokens; add explicit request failure and retry instead of an endless skeleton. Preserve cancellation when selecting another marker.
+- Extract private KYC previews into a grant-scoped hook: abort requests, revoke blob URLs, hide images on expiry and recheck expiry on focus/visibility changes; offer reauthentication on load failure.
+- Add public build-time VITE_KYC_RETENTION_NOTICE configuration through Docker/Compose and env examples. Display only owner-approved wording; absent policy stays explicit. This disclosure does not implement retention/deletion rules.
+- Batch frontend lint/typecheck/build and focused regression tests locally. No backend API or migration changes; production measurements/manual acceptance remain separate.
