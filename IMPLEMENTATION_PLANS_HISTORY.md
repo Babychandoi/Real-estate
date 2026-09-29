@@ -427,3 +427,9 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Signed-in header overflowed at 360px; hide its text below 421px for authenticated sessions while retaining logo and accessible home link.
 - Fixed-clock UAT listings expired during CI and changed Search screenshot counts from 23 to 21. Extend synthetic ACTIVE expiry and guard the seed invariant; product expiry remains unchanged. Keep reviewed baselines and rerun CI.
 - Integrate updated main `c93688a` without discarding W5 status/history.
+
+
+## 2026-09-29 — S10 performance evidence harness (F09.2, F09.3, D-13, F21.5)
+- Add a guarded, disposable PostGIS query-plan fixture at 100k/1M rows with the V033 leading indexes and four representative EXPLAIN (ANALYZE, BUFFERS) queries; output evidence in .artifacts/perf. The database name must begin bds_perf_ and the transaction rolls back.
+- Add a constant-arrival-rate 100 RPS read-only k6 scenario restricted to an explicitly isolated local stack. This is tooling, not a measured pass; 10 RPS writes, cold/warm, fault/burst/soak, restore and migration rollback still need isolated infrastructure and retained reports.
+- Review Chromium Home/Search snapshot changes against the fixed UAT fixture: the old images had 23 default SALE results because synthetic ACTIVE records expired; the corrected fixture has 46. Update seven affected Chromium images from CI #100 captures. Keep the snapshot gate blocking and rerun it.
