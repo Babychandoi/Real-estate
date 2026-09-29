@@ -123,20 +123,20 @@ test('seeker signs in from the contact button, the form reopens and the lead rea
   await expect(card).toHaveCount(1);
   await expect(card).toContainText('Mới nhận');
   await card.getByRole('button', { name: /^Xử lý yêu cầu của / }).click();
-  const sheet = broker.getByRole('dialog', { name: 'Người dùng Demo' });
-  await expect(sheet.getByText(note)).toBeVisible();
-  await sheet.getByRole('button', { name: 'Đề xuất lịch hẹn xem' }).click();
+  const detail = broker.getByRole('dialog', { name: 'Người dùng Demo' });
+  await expect(detail.getByText(note)).toBeVisible();
+  await detail.getByRole('button', { name: 'Đề xuất lịch hẹn xem' }).click();
   // Tomorrow 10:00 (Vietnam time) is always ≥ 30 minutes ahead and inside the 60-day window.
   const tomorrow = new Date(Date.now() + 24 * 3600 * 1000).toLocaleDateString('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
   });
   // Distinct hour per project so demo.broker's calendar never collides across parallel projects.
   const hour = String(10 + projectSlot(info.project.name)).padStart(2, '0');
-  await sheet.getByLabel('Ngày của khung giờ 1').fill(tomorrow);
-  await sheet.getByLabel('Giờ bắt đầu khung giờ 1').fill(`${hour}:00`);
-  await sheet.getByLabel('Ghi chú cho lịch hẹn').fill('Gặp ở sảnh tòa nhà');
-  await sheet.getByRole('button', { name: 'Gửi đề xuất' }).click();
-  await expect(sheet.getByText('Bạn đã đề xuất')).toBeVisible();
+  await detail.getByLabel('Ngày của khung giờ 1').fill(tomorrow);
+  await detail.getByLabel('Giờ bắt đầu khung giờ 1').fill(`${hour}:00`);
+  await detail.getByLabel('Ghi chú cho lịch hẹn').fill('Gặp ở sảnh tòa nhà');
+  await detail.getByRole('button', { name: 'Gửi đề xuất' }).click();
+  await expect(detail.getByText('Bạn đã đề xuất')).toBeVisible();
 
   // 4. The seeker sees the proposal in "Yêu cầu đã gửi", picks the slot and confirms it.
   await page.goto('/my-inquiries');
@@ -157,11 +157,11 @@ test('seeker signs in from the contact button, the form reopens and the lead rea
   await broker.getByLabel('Tìm theo tên hoặc lời nhắn').fill(note);
   await broker.getByRole('button', { name: 'Tìm', exact: true }).click();
   await card.getByRole('button', { name: /^Xử lý yêu cầu của / }).click();
-  await expect(sheet.getByText('Đã xác nhận').first()).toBeVisible();
-  await sheet.getByLabel('Chuyển trạng thái').selectOption({ label: 'Hoàn tất' });
-  await sheet.getByLabel('Ghi chú cho thay đổi').fill('Khách đã chốt lịch xem');
-  await sheet.getByRole('button', { name: 'Lưu trạng thái' }).click();
-  await expect(sheet.getByText('Đã cập nhật trạng thái.')).toBeVisible();
+  await expect(detail.getByText('Đã xác nhận').first()).toBeVisible();
+  await detail.getByLabel('Chuyển trạng thái').selectOption({ label: 'Hoàn tất' });
+  await detail.getByLabel('Ghi chú cho thay đổi').fill('Khách đã chốt lịch xem');
+  await detail.getByRole('button', { name: 'Lưu trạng thái' }).click();
+  await expect(detail.getByText('Đã cập nhật trạng thái.')).toBeVisible();
   await broker.close();
 });
 

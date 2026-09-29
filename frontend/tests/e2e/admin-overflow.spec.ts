@@ -8,8 +8,8 @@ import { auditLayout, type LayoutFinding } from './support/layoutAudit';
 // (200+ character unbroken titles, e-mail addresses and URLs, 150+ character Vietnamese titles, multi-paragraph
 // descriptions, long names, reasons and notes, huge amounts; see support/adminAdversarial.ts) and checked at 360, 768,
 // 1024 and 1440 px: no sideways scrolling of the document, nothing sticking out of the card / table cell / dialog that
-// holds it (support/layoutAudit.ts), and cards side by side in one row keep the same height. Drawers and dialogs that
-// show the long text in full (detail sheets, reason dialogs) are opened and checked too.
+// holds it (support/layoutAudit.ts), and cards side by side in one row keep the same height. Dialogs that
+// show the long text in full (detail and reason dialogs) are opened and checked too.
 //
 // The rows are this spec's own (fresh letter-only tag per run, own listings, users, reports, orders …), created through
 // the APIs; the spec never edits rows other specs use. It runs only in the chromium-1440 project because it sets its
@@ -54,7 +54,7 @@ async function newChecker(context: BrowserContext, route: string, width: number)
   const page = await context.newPage();
   const findings: string[] = [];
   const check = async (step: string) => {
-    // Let layout settle: fonts, images and the sheet's slide-in.
+    // Let layout settle: fonts, images and the dialog's enter animation.
     await page.evaluate(async () => {
       await document.fonts.ready;
     });
@@ -70,7 +70,7 @@ async function newChecker(context: BrowserContext, route: string, width: number)
   return { page, route, width, findings, check };
 }
 
-/** Escape closes the topmost dialog or sheet only; a stack of them needs one press per layer. */
+/** Escape closes the topmost dialog only; a stack of them needs one press per layer. */
 async function closeTopDialog(page: Page) {
   const dialogs = page.getByRole('dialog');
   const before = await dialogs.count();
@@ -122,7 +122,7 @@ const scenarios: Array<{
       await expect(
         page.getByRole('heading', { name: 'Bản công khai so với bản gửi duyệt', exact: false }),
       ).toBeVisible();
-      await c.check('review-sheet');
+      await c.check('review-dialog');
       await page.getByRole('button', { name: 'Từ chối…' }).click();
       await c.check('reject-dialog');
       await closeTopDialog(page);
@@ -153,7 +153,7 @@ const scenarios: Array<{
       await c.check('filtered');
       await rowAction(page, /^Chi tiết Nha pho tieudekhongngat/).click();
       await expect(page.getByRole('heading', { name: 'Lịch sử trạng thái' })).toBeVisible();
-      await c.check('detail-sheet');
+      await c.check('detail-dialog');
       // The preview shows the multi-paragraph description with its unbroken URL.
       await page
         .getByRole('button', { name: /^Xem trước phiên bản/ })
@@ -212,7 +212,7 @@ const scenarios: Array<{
       await c.check('mine');
       await rowAction(page, /^Mở vụ việc/).click();
       await expect(page.getByRole('dialog')).toBeVisible();
-      await c.check('case-sheet');
+      await c.check('case-dialog');
       await page.getByRole('button', { name: 'Ghi chú…' }).click();
       await c.check('note-dialog');
       await closeTopDialog(page);
@@ -232,7 +232,7 @@ const scenarios: Array<{
       await expect(page.getByRole('button', { name: /^Đối chiếu Nha pho tieudekhongngat/ }).first()).toBeVisible();
       await rowAction(page, /^Đối chiếu Nha pho tieudekhongngat/).click();
       await expect(page.getByRole('heading', { name: 'Đối chiếu bằng chứng' })).toBeVisible();
-      await c.check('evidence-sheet');
+      await c.check('evidence-dialog');
       await page.getByRole('button', { name: 'Từ chối…' }).click();
       await c.check('reject-dialog');
     },
@@ -260,7 +260,7 @@ const scenarios: Array<{
         .first()
         .click();
       await expect(page.getByRole('dialog')).toBeVisible();
-      await c.check('history-sheet');
+      await c.check('history-dialog');
     },
   },
   { route: 'analytics' },
@@ -291,7 +291,7 @@ const scenarios: Array<{
       await c.check('list');
       await page.getByRole('button', { name: 'Mở', exact: true }).first().click();
       await expect(page.getByRole('dialog')).toBeVisible();
-      await c.check('article-sheet');
+      await c.check('article-dialog');
       await closeTopDialog(page);
       await page.getByRole('button', { name: 'Bài viết mới' }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
@@ -302,7 +302,7 @@ const scenarios: Array<{
 ];
 
 for (const scenario of scenarios) {
-  test(`admin/${scenario.route}: long text stays inside its cards, cells and drawers`, async ({ browser }) => {
+  test(`admin/${scenario.route}: long text stays inside its cards, cells and dialogs`, async ({ browser }) => {
     test.setTimeout(240_000);
     for (const width of WIDTHS) await run(browser, scenario.route, width, scenario.steps);
   });
