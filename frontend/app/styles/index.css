@@ -286,8 +286,28 @@
     @apply sticky top-0 z-20 flex min-h-20 items-center justify-between gap-3 border-b bg-white px-4 sm:px-6;
     border-color: var(--ndc-border);
   }
+  /*
+   * Staff pages show text people typed (titles, names, e-mail addresses, reasons, URLs). `anywhere` (unlike
+   * `break-word`) also shrinks the min-content size, so a 200 character unbroken value can never widen a flex item or
+   * a grid track (`1fr` is `minmax(auto, 1fr)`), and it is inherited by everything inside, dialogs excepted (those are
+   * portalled and set it themselves). Table cells and tabs keep `break-word`: their min-content stays the longest
+   * real word, so short columns are not squeezed into mid-word breaks (Button does the same itself) (DataTable wraps cell content in
+   * `.ndc-cell`, which is where the long text is allowed to break).
+   */
   .ndc-admin-page {
     @apply min-w-0;
+    overflow-wrap: anywhere;
+  }
+  .ndc-admin-page :is(td, th, [role='tab']) {
+    overflow-wrap: break-word;
+  }
+  /* Content of a table cell: user text breaks anywhere, and one cell can claim only so much of the row. */
+  .ndc-cell {
+    @apply min-w-0 max-w-[28rem];
+    overflow-wrap: anywhere;
+  }
+  .ndc-cell-end {
+    @apply ml-auto;
   }
   .ndc-admin-page table {
     @apply w-full text-left text-sm;

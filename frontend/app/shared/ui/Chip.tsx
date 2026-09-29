@@ -21,7 +21,7 @@ export const Chip = React.forwardRef<HTMLButtonElement, ChipProps>(function Chip
       type={type}
       aria-pressed={selected}
       className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 rounded-pill border px-3 font-semibold transition-colors duration-fast',
+        'inline-flex max-w-full shrink-0 items-center gap-1.5 break-words rounded-pill border px-3 font-semibold transition-colors duration-fast',
         'disabled:pointer-events-none disabled:opacity-50',
         size === 'md' ? 'min-h-control-md text-body-sm' : 'min-h-control-sm text-label',
         selected

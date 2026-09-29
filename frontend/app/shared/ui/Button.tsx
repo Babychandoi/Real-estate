@@ -8,7 +8,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'dan
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const base =
-  'inline-flex items-center justify-center rounded-input font-medium transition-colors duration-fast ease-standard ' +
+  'inline-flex items-center justify-center break-words rounded-input font-medium transition-colors duration-fast ease-standard ' +
   'focus-visible:outline focus:ring-2 focus:ring-primary/20 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none ' +
   'aria-disabled:opacity-50 motion-reduce:active:scale-100';
 

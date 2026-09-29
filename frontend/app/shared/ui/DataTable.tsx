@@ -160,7 +160,8 @@ export function DataTable<Row>({
         {selection && selectedOnPage > 0 && <p>Đã chọn {selectedOnPage} dòng trên trang này</p>}
       </div>
       <div
-        className="overflow-x-auto rounded-card border border-outline-variant bg-surface-container-lowest"
+        // `relative`: absolutely positioned content (sr-only header text) is placed inside the scroll area, not at the far right of the page.
+        className="relative overflow-x-auto rounded-card border border-outline-variant bg-surface-container-lowest"
         role="region"
         aria-labelledby={captionId}
         // Keyboard users can scroll wide tables: the scroll area is focusable and named by the caption.
@@ -276,7 +277,9 @@ export function DataTable<Row>({
                             column.className,
                           )}
                         >
-                          {column.cell(row)}
+                          <div className={cn('ndc-cell', column.align === 'end' && 'ndc-cell-end')}>
+                            {column.cell(row)}
+                          </div>
                         </td>
                       ))}
                     </tr>
