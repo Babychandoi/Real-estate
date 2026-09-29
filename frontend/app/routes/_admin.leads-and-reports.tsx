@@ -476,7 +476,11 @@ export default function LeadsAndReportsPage() {
                         </div>
                         <div className="mt-3 flex items-center gap-3 rounded-lg border border-slate-200 p-3">
                           {lead.listingImageUrl ? (
-                            <img src={lead.listingImageUrl} alt="" className="h-14 w-20 shrink-0 rounded-md object-cover" />
+                            <img
+                              src={lead.listingImageUrl}
+                              alt=""
+                              className="h-14 w-20 shrink-0 rounded-md object-cover"
+                            />
                           ) : (
                             <span className="grid h-14 w-20 shrink-0 place-items-center rounded-md bg-slate-100">
                               <Building2 className="h-5 w-5 text-slate-500" />
