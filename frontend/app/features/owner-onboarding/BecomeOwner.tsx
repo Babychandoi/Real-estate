@@ -48,7 +48,7 @@ export const BecomeOwnerPage: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="mx-auto max-w-2xl px-4 py-10" data-ready="true">
       <h1 className="text-headline-md text-on-surface">Đăng tin với vai trò Chủ nhà</h1>
       <p className="mt-2 text-body-sm text-on-surface-variant">
         Tài khoản {user?.email} hiện là người tìm nhà. Vai trò Chủ nhà dành cho người đăng bất động sản của chính mình

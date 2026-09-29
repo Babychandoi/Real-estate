@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { apiLogin, DEMO_ACCOUNTS, skipConsentBanner, useSession, waitUntilReady } from './support/helpers';
+import { apiLogin, DEMO_ACCOUNTS, skipConsentBanner, useSession } from './support/helpers';
 import { staffToken } from './support/adminAdversarial';
 import { auditFieldRows, auditGutters } from './support/uiAudit';
 
@@ -62,11 +62,12 @@ test.beforeAll(async ({ playwright }, workerInfo) => {
 });
 
 async function settle(page: Page) {
-  try {
-    await waitUntilReady(page);
-  } catch {
-    await page.waitForLoadState('load');
-  }
+  // Pages set data-ready once their data is in; the few that do not (static states) are given a short grace period.
+  await page
+    .locator('[data-ready="true"]')
+    .first()
+    .waitFor({ state: 'attached', timeout: 8_000 })
+    .catch(() => undefined);
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
