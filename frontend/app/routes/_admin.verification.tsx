@@ -10,7 +10,14 @@ import type {
 import { fetchVerificationQueue } from '@/entities/verification/api/verificationApi';
 import type { ListingVerification, VerificationStatus } from '@/entities/verification/model/types';
 import { errorMessage } from '@/shared/api/errors';
-import { PasswordReasonDialog, ReasonDialog, StatusBadge, formatDate, formatDateTime } from '@/shared/admin/adminUi';
+import {
+  ClampedText,
+  PasswordReasonDialog,
+  ReasonDialog,
+  StatusBadge,
+  formatDate,
+  formatDateTime,
+} from '@/shared/admin/adminUi';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
@@ -71,12 +78,12 @@ export default function VerificationDeskPage() {
       header: 'Tin đăng',
       cell: (v) => (
         <div className="min-w-[12rem]">
-          <p className="font-semibold">{v.listingTitle ?? 'Chưa có tiêu đề'}</p>
-          <p className="text-xs text-on-surface-variant">{v.listingAddress ?? ''}</p>
+          <ClampedText text={v.listingTitle ?? 'Chưa có tiêu đề'} className="font-semibold" />
+          <ClampedText text={v.listingAddress ?? ''} className="text-xs text-on-surface-variant" />
         </div>
       ),
     },
-    { key: 'owner', header: 'Tên trên giấy tờ', cell: (v) => v.ownerNameOnDoc },
+    { key: 'owner', header: 'Tên trên giấy tờ', cell: (v) => <ClampedText text={v.ownerNameOnDoc} /> },
     { key: 'submitted', header: 'Gửi lúc', cell: (v) => formatDateTime(v.createdAt) },
     { key: 'status', header: 'Trạng thái', cell: (v) => <StatusBadge {...STATUS[v.status]} /> },
     {

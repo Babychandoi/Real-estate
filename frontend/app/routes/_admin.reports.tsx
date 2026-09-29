@@ -3,7 +3,7 @@ import { EyeOff, Hand, History, RefreshCw, Undo2 } from 'lucide-react';
 import { reportDeskApi, type ReportQueueFilters } from '@/entities/admin/api/adminApi';
 import type { ReportEvent, ReportQueueItem } from '@/entities/admin/model/types';
 import { errorMessage } from '@/shared/api/errors';
-import { ReasonDialog, SlaBadge, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ClampedText, ReasonDialog, SlaBadge, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -103,7 +103,7 @@ export function ReportsQueuePage() {
           <p className="font-semibold">
             {r.caseNumber} · {CATEGORY[r.category]}
           </p>
-          <p className="text-xs text-on-surface-variant">{r.listingTitle ?? r.listingId}</p>
+          <ClampedText text={r.listingTitle ?? r.listingId} className="text-xs text-on-surface-variant" />
           {r.ownerOutcome && <p className="text-xs font-semibold">{OUTCOME[r.ownerOutcome]}</p>}
         </div>
       ),
@@ -139,7 +139,7 @@ export function ReportsQueuePage() {
           r.claim.mine ? (
             'Bạn'
           ) : (
-            r.claim.staffName
+            <ClampedText text={r.claim.staffName} />
           )
         ) : (
           <span className="text-on-surface-variant">Chưa ai nhận</span>
@@ -150,7 +150,7 @@ export function ReportsQueuePage() {
       header: 'Thao tác',
       align: 'end',
       cell: (r) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           {!r.claim && ['PENDING', 'WAITING_REPLY', 'APPEALED'].includes(r.status) && (
             <Button
               size="sm"
