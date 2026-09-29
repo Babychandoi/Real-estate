@@ -60,6 +60,32 @@ async function ok<T>(response: Awaited<ReturnType<APIRequestContext['get']>>, wh
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
+interface CreatedOrder {
+  id: string;
+  reference: string;
+  status: string;
+  amountVnd: number;
+}
+
+/**
+ * Opens a standard-plan order for the broker. A broker may have one open order per plan and admin.spec.ts opens
+ * (and closes again) its own orders for the same broker at any moment, so a 409 is retried for a while.
+ */
+async function openStandardOrder(request: APIRequestContext, broker: string, key: string): Promise<CreatedOrder> {
+  let last = '';
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const response = await request.post('/api/v1/billing/orders', {
+      headers: { ...auth(broker), 'Idempotency-Key': `${key}-${attempt}` },
+      data: { planCode: 'STANDARD' },
+    });
+    if (response.ok()) return (await response.json()) as CreatedOrder;
+    last = `${response.status()}: ${(await response.text()).slice(0, 200)}`;
+    if (response.status() !== 409) break;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(`order for the standard plan answered ${last}`);
+}
+
 /**
  * Tops the broker's listing quota up (app.billing.quota-enforced) the way a real broker does: buys the standard plan
  * and staff records the exact transfer. The order is closed at once, so it never blocks the open order per user and
@@ -85,13 +111,7 @@ async function ensureQuota(request: APIRequestContext, broker: string, admin: st
       },
     });
   }
-  const order = await ok<{ id: string; reference: string; status: string; amountVnd: number }>(
-    await request.post('/api/v1/billing/orders', {
-      headers: { ...auth(broker), 'Idempotency-Key': `overflow-${tag}-a` },
-      data: { planCode: 'STANDARD' },
-    }),
-    'top-up order',
-  );
+  const order = await openStandardOrder(request, broker, `overflow-${tag}-a`);
   if (order.status === 'CREATED') {
     await ok(await request.post(`/api/v1/billing/orders/${order.id}/reported`, { headers: auth(broker) }), 'reported');
   }
@@ -106,13 +126,7 @@ async function ensureQuota(request: APIRequestContext, broker: string, admin: st
 
 /** A second order whose receipt does not match (huge amount, long reference) and is then rejected with a long note. */
 async function seedBillingException(request: APIRequestContext, broker: string, admin: string, tag: string) {
-  const order = await ok<{ id: string; reference: string; status: string; amountVnd: number }>(
-    await request.post('/api/v1/billing/orders', {
-      headers: { ...auth(broker), 'Idempotency-Key': `overflow-${tag}-b` },
-      data: { planCode: 'STANDARD' },
-    }),
-    'exception order',
-  );
+  const order = await openStandardOrder(request, broker, `overflow-${tag}-b`);
   if (order.status === 'CREATED') {
     await ok(await request.post(`/api/v1/billing/orders/${order.id}/reported`, { headers: auth(broker) }), 'reported');
   }

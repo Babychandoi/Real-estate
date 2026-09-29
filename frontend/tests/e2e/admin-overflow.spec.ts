@@ -21,6 +21,9 @@ const WIDTHS = [360, 768, 1024, 1440] as const;
 const BASE = '/2026/nhadatchuan/admin';
 const SHOTS = process.env.ADMIN_OVERFLOW_SHOTS;
 
+// One worker runs the whole file (fullyParallel would otherwise seed the same broker's orders from two workers at once).
+test.describe.configure({ mode: 'default' });
+
 // A missing button fails in seconds with its locator, not after the whole test timeout.
 test.use({ actionTimeout: 15_000 });
 
