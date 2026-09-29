@@ -19,7 +19,7 @@ jobs:
     # Integration tests run on PostgreSQL/PostGIS + Flyway (no H2). The service containers mirror
     # infra/test/compose.yaml and expose the same BDS_TEST_* variables as `scripts/test-infra.sh env`.
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
         image: postgis/postgis:16-3.4
@@ -62,6 +62,9 @@ jobs:
       BDS_TEST_SMTP_HOST: 127.0.0.1
       BDS_TEST_SMTP_PORT: '51025'
       BDS_TEST_MAILPIT_API: http://127.0.0.1:58025
+      BDS_TEST_MINIO_URL: http://127.0.0.1:59000
+      BDS_TEST_MINIO_USER: bds-test-media
+      BDS_TEST_MINIO_PASSWORD: bds-test-media-only
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -69,9 +72,17 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
+      - name: Start test MinIO
+        run: |
+          docker build -t bds-minio:RELEASE.2025-10-15T17-29-55Z infra/minio
+          docker compose -f infra/test/compose.yaml up -d minio
+          curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 http://127.0.0.1:59000/minio/health/ready
       - name: Backend tests
         working-directory: backend
         run: sh mvnw --batch-mode verify
+      - name: Stop test MinIO
+        if: always()
+        run: docker compose -f infra/test/compose.yaml down -v
       - name: Upload backend test reports
         if: failure()
         uses: actions/upload-artifact@v4
@@ -174,6 +185,18 @@ jobs:
           docker compose $COMPOSE_FILE_ARGS restart backend
           docker compose $COMPOSE_FILE_ARGS restart frontend
           docker compose $COMPOSE_FILE_ARGS up -d --wait
+      - name: Wait for the search index
+        # The backend is healthy before Elasticsearch has taken the seeded listings; until then search answers from
+        # the database with degraded=true and the page shows a maintenance notice, which made the visual baselines
+        # depend on timing. Wait for the real engine so every test (and every baseline) sees the same page.
+        run: |
+          for i in $(seq 1 60); do
+            body=$(curl -fsS "http://127.0.0.1:3000/api/v2/listings/search" || true)
+            if echo "$body" | grep -q '"degraded":false'; then echo "search index ready after $((i * 3)) s"; exit 0; fi
+            sleep 3
+          done
+          echo "search index not ready after 180 s: $body"
+          exit 1
       - name: Install Playwright browsers
         id: browsers
         working-directory: frontend
@@ -205,6 +228,15 @@ jobs:
         run: |
           export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
           npx playwright test tests/e2e/authenticated.spec.ts --project=chromium-1440
+      - name: 'E2E: 360/1024 reflow and authenticated accessibility'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: responsive-a11y
+        # One desktop project, with explicit viewport changes. A single buyer/moderator login avoids auth rate limits.
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/responsive-auth-a11y.spec.ts --project=chromium-1440
       - name: 'E2E: visual regression (chromium)'
         id: visual
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
@@ -214,6 +246,16 @@ jobs:
         env:
           PLAYWRIGHT_SUITE: visual
         run: npx playwright test tests/e2e/visual.spec.ts --project=chromium-320 --project=chromium-768 --project=chromium-1440 --project=android-chrome
+      - name: Upload Chromium visual diffs for review
+        if: ${{ !cancelled() && steps.visual.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: chromium-visual-diffs-${{ github.run_attempt }}
+          path: |
+            frontend/test-results/visual/artifacts/**/*-actual.png
+            frontend/test-results/visual/artifacts/**/*-diff.png
+          retention-days: 14
+          if-no-files-found: ignore
       - name: 'E2E: visual regression (firefox, webkit)'
         id: visual-other-engines
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}

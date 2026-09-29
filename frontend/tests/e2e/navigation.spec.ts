@@ -54,3 +54,14 @@ test('an unknown route shows the 404 page inside the layout', async ({ page }) =
   await expect(page.getByRole('heading', { level: 1, name: 'Không tìm thấy trang' })).toBeVisible();
   await expect(page.getByRole('main')).toHaveCount(1);
 });
+
+test('loads the next search cursor without duplicate cards', async ({ page }) => {
+  await gotoReady(page, '/search');
+  const cards = page.getByRole('link', { name: /^Xem chi tiết: / });
+  await expect(cards).toHaveCount(24);
+  await page.getByRole('button', { name: 'Xem thêm' }).click();
+  await expect(cards).toHaveCount(46);
+  const destinations = await cards.evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  expect(new Set(destinations).size).toBe(destinations.length);
+  await expect(page.getByRole('button', { name: 'Xem thêm' })).toHaveCount(0);
+});

@@ -481,7 +481,8 @@ public class UatDataSeeder implements ApplicationRunner {
         boolean live = state.equals("ACTIVE") || state.equals("PAUSED") || state.equals("PENDING_REVIEW_EDIT");
         // Last availability confirmation: between creation and the last update, so some live listings are stale (> 14 days).
         Timestamp confirmed = live ? ago(age.dividedBy(1 + n % 3)) : state.equals("EXPIRED") ? ago(age) : null;
-        Timestamp expires = state.equals("ACTIVE") || state.equals("PENDING_REVIEW_EDIT") ? Timestamp.from(now.plus(Duration.ofDays(3 + n % 40)))
+        // Synthetic ACTIVE fixtures outlive CI dates; this is not the product listing expiry policy.
+        Timestamp expires = state.equals("ACTIVE") || state.equals("PENDING_REVIEW_EDIT") ? Timestamp.from(now.plus(Duration.ofDays(3650 + n % 40)))
                 : state.equals("EXPIRED") ? ago(age.dividedBy(2)) : null;
         jdbc.update("""
                 INSERT INTO listings(id,owner_id,status,is_verified_owner,version,slug,created_at,updated_at,availability_confirmed_at,expires_at,source)

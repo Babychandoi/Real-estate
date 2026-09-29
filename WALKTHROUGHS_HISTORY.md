@@ -796,3 +796,46 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 | Dev-only (not production, no bundle budget entry required) | `/__ui` (UI component catalog) |
 
 **Chương trình audit 2026-09-27 (W1 → W5) hoàn tất: toàn bộ các luồng đã review, tích hợp, merge vào `main` (`dcc63c3`) và triển khai production.** Các gap còn lại (DS-06 phủ viewport một phần, DS-14 usability protocol EXTERNAL, axe chưa chạy trên trang đã đăng nhập/admin, E2E/visual non-chromium chưa chạy, quan sát mất localStorage chưa xử lý) và các việc cần làm sau deploy (media backfill, purge CDN, MFA re-enroll, bật analytics ingestion) được liệt kê ở trên và cần theo dõi ở một đợt kế tiếp nếu tổ chức quyết định mở lại.
+
+## 2026-09-29 — CI gate diagnosis after main merge
+- The main CI run `36475584795` failed in backend tests because the OpenAPI and media integration contexts could not connect to test MinIO (`127.0.0.1:59000`); frontend checks and security scan passed. E2E stopped before build because `MEDIA_SIGNING_SECRET` was absent from `.env.demo.example`.
+- This patch starts disposable MinIO for backend tests and supplies a demo-only signing key to the E2E stack. CI on the resulting PR remains the acceptance evidence; no backend test pass or E2E pass is claimed until it runs.
+
+- First PR CI run `36476964181` built the test MinIO image, but the immediate readiness request was reset during container startup (`curl` exit 56). Added `--retry-all-errors` so the health probe tolerates this startup race; backend tests remain pending the next run.
+
+- PR CI run `36478775976`: backend tests, frontend checks, security scan, navigation, accessibility, auth dialog and authenticated flows passed. Chromium visual snapshots failed for Home/Search on several widths (4–6% pixel difference); retained the blocking gate and added a small diff-only artifact to review the actual images on the next run.
+
+- Reviewed `chromium-visual-diffs-1` from run `36481785223`: Home layout and Compare Android remain structurally consistent; Search now renders 23 default SALE results under the v2 contract versus 46 in the older baseline. Eight CI actual PNGs are used as the new expected snapshots, and their blob SHA-1 hashes were checked against the local files. Backend/frontend/security gates were green in this run; final visual gate awaits CI after the snapshot commit.
+
+## 2026-09-29 — W5 responsive and authenticated accessibility follow-up
+- Added `frontend/tests/e2e/responsive-auth-a11y.spec.ts` and a blocking Chromium CI step for 360/1024 viewport reflow, a 320 CSS-pixel equivalent of 200% zoom at 640, and axe/overflow checks for `/my-inquiries`, `/account`, and admin moderation using UAT-seeded accounts.
+- Acceptance: pending PR CI on this commit. This does not replace manual NVDA/VoiceOver testing or a native browser zoom run; those remain separate evidence for DS-04/DS-15.
+
+- PR CI #98 (`36523704900`): new public 360/1024/320 reflow and moderator axe checks passed; buyer account axe passed but /my-inquiries and /account overflowed at 360px. Search visual failed when two synthetic listings expired. Fixes to shared header and UAT seed are pending CI verification; baseline images are unchanged.
+
+
+## 2026-09-29 — PR CI #100 and S10 evidence preparation
+- PR CI run 36526548900 on ba9988b: frontend, backend and security jobs passed. E2E navigation, public accessibility, auth dialog, buyer/broker flows and the new 360/1024 authenticated accessibility step passed. Chromium visual failed on seven Home/Search images; Compare passed. Reviewed the CI actual captures side by side: previous Search baseline displayed 23 SALE listings, but repaired fixed-clock fixture returns 46 ACTIVE listings; Home card and area order reflect that corrected dataset. Seven Chromium baselines are refreshed from these actual captures, pending a fresh blocking CI run. Firefox/WebKit visual remains informational and its historic baselines are stale; no cross-browser visual pass is claimed.
+- Added infra/perf/explain-search.sql, scripts/run-search-explain.sh, infra/k6/steady-search.js and docs/audit-2026-09-27/streams/s10-perf-followup.md. Static checks: bash -n and node --check passed in scratch. No PostgreSQL/PostGIS, Docker or k6 runner was available here, so no 100k/1M EXPLAIN timing, 100/10 RPS measurement, failure drill or RPO/RTO result is claimed. F09.3, D-13 and F21.5 remain TODO until reports are run and reviewed on isolated infrastructure.
+
+
+## 2026-09-30 — Search pagination follow-up
+- CI #104 on b55e233 passed backend, frontend, E2E and security after the owner repaired the visual snapshots and waited for the search index to become non-degraded.
+- Updated frontend/app/features/search/useListingSearch.ts to cancel and ignore stale cursor requests when filters change and to deduplicate loaded cards with Set instead of repeatedly scanning the accumulated list. Added a seeded navigation E2E for 24→46 unique sale cards and no further page.
+- Acceptance for this follow-up is pending the next CI run. R-2 remains TODO until cross-filter/map parity and the legacy 100-item limit are fully audited; S10 benchmark and restore results remain pending isolated runs.
+
+- CI #105 (https://github.com/Babychandoi/Real-estate/actions/runs/36608783013) on 9e56b4c: frontend checks, backend tests, E2E and security scan all SUCCESS. The new 24→46 unique-card cursor navigation check and the blocking Chromium visual gate passed; Firefox/WebKit visual ran as an informational step. This verifies the code follow-up, while S10 measurements and real assistive-technology testing remain open.
+
+## 2026-09-30 — R-2 asynchronous selection follow-up (acceptance pending)
+- Updated Search route and useListingSearch; added useMapPointListing and two regression-test files (five cases).
+- Local TypeScript transpilation checked syntax for all five TS/TSX files. Full typecheck/build/Vitest are not available in this scratch checkout; PR CI must supply acceptance evidence. No backend tests or performance measurements are claimed for this change.
+- User flow: selecting another map marker or closing/changing filters cancels the old detail request; a late response cannot display another listing. Restored search pages now also cancel load-more on unmount.
+- Audit clarification against main c93688a: 143 DONE / 16 PARTIAL / 6 TODO / 7 EXTERNAL primary statuses; 12 requirement rows mention EXTERNAL including notes within other statuses. These are different counts.
+- PR #16 has separate fixture and pagination changes: fixture expiry repair changed 23→46 available SALE listings; commit 9e56b4c additionally changed useListingSearch and added a real 24→46 unique-card navigation E2E. Neither proves all of R-2.
+- R-2 explicitly reads “Search/filter/map/pagination thống nhất; không còn giới hạn 100; đơn vị thuê đúng”. Its TODO status means final acceptance is outstanding, not that every underlying capability is absent.
+- W1/S5A restore-drill PASS remains credited. Outstanding F21.5 work is measured RPO/RTO and compatible deploy/migration rollback; do not describe the restore drill itself as never performed.
+- Route map unchanged: /search. Full audit status remains unchanged until new CI and remaining acceptance evidence are reviewed.
+
+## 2026-09-30 — CI #107 findings and repair
+- CI #107 on 7c982f1 passed frontend typecheck, production build, unit tests (including all five new hook regression cases), backend tests and security. Frontend failed ESLint consistent-type-imports at useListingSearch.test.tsx:13 and Prettier for useMapPointListing.test.tsx; E2E was still running when inspected.
+- Repaired the type-only import and callback formatting without changing test assertions or disabling checks. The follow-up CI must confirm lint/format acceptance.

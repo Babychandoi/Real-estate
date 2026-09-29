@@ -410,3 +410,41 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - **S11-UX** (`audit/s11-ux`, no new Flyway migration, backend port 18125): final UX/a11y/responsive review plus new Playwright journeys — `journeys.spec.ts` (seeker contact→lead→appointment round trip incl. reschedule/confirm/withdraw, unverified-seeker `/kyc?returnTo=` redirect), `engagement.spec.ts` (favourite/saved-search/shortlist-share/notifications/unsubscribe/consent), `places.spec.ts` (project/area/article list→detail→not-found on real slugs), `mfa.spec.ts` (TOTP enrol→recovery codes→sign-in, its own MFA-required stack); both known E2E caveats from `00_PLAN.md` fixed (`UatDataSeeder` KYC-verified seeding for `demo.broker`/`demo.user`; `projectSlot()` giving each parallel Playwright project its own submission/order/account in `admin.spec.ts`); visual baselines (chromium-1440/768/320 + android-chrome) reviewed image-by-image before regenerating (F01.5); `AdminAlias.tsx` fixing UI-26's dead-end admin aliases.
 - **Real bugs found and fixed by S11-UX** (see `streams/s11-ux.md` §4 for full detail): **`ShortlistsPanel`'s share-link dialog lost the just-generated one-time link** — `onShared()` called the detail panel's own `load()`, which flips to a loading skeleton over the open `ShareDialog` the instant the link is created, so the owner never saw it; fixed with a quiet reload (`reloadQuietly`) that updates data without the loading flash — this is the most significant fix, a real data-loss-from-the-user's-perspective bug, not a test artifact. Also: ten account/admin pages never set `data-ready="true"` (`/notifications`, `/saved`, `/unsubscribe`, `/shortlists/:token`, `/my-inquiries`, `/my-leads`, `/kyc`, `/broker/workspace`, `/account`, admin analytics/leads-and-reports/login/projects); full-page not-found/gone/invalid-link states had no `<h1>` at all (`StatePanel`/`EmptyState`/`ErrorState` gained a `headingLevel` prop); frontage/road-width used a period decimal (`"4.6 m"`) instead of the app's Vietnamese comma convention (new `formatMetres` helper); `/my-inquiries` cards showed a raw broken-image icon instead of the `ResponsiveImage` "Không có ảnh" fallback; `authenticated.spec.ts` had a pre-existing copy-drift bug (expected h1 text no longer matched shipped copy on two pages neither touched by this stream) fixed to match reality.
 - Test plan: per stream `mvnw verify` on the shared isolated test infra, frontend lint/tsc/vitest/build/`check:bundle`; S11 additionally runs the full Playwright matrix (default suites on chromium-1440 + chromium-320, visual on chromium-engine projects, MFA on its own MFA-required stack) against a single fresh seeded database — see `docs/audit-2026-09-27/streams/{s9-quality,s11-ux}.md` §1, and `WALKTHROUGHS_HISTORY.md` for the merged/integrated results and the subsequent production deployment.
+
+## 2026-09-29 — CI recovery after W1–W5 merge (F01)
+- Based on main `dcc63c3`: restore the backend integration environment by building and starting the project’s test MinIO at `127.0.0.1:59000`, with explicit `BDS_TEST_MINIO_*` settings and a readiness probe.
+- Add a disposable demo media signing key to `.env.demo.example` so E2E Docker Compose can interpolate the required backend setting. Production still uses separately managed secrets.
+- Validate both independent CI gates on the PR; inspect any subsequent test failures without hiding or skipping suites.
+
+- F01 visual baseline review: inspect CI run `36481785223` actual/diff images for Home/Search and Android Compare; preserve the blocking Chromium gate. Search v2 defaults to SALE and the seeded current catalog reports 23 matching public sale listings, while the older snapshot showed 46; update only the eight mismatched Chromium snapshots with the reviewed CI captures.
+
+## 2026-09-29 — W5 UX follow-up (DS-04, DS-06, DS-15)
+- Basis: `docs/audit-2026-09-27/streams/s11-ux.md` §8 records missing 360/1024 widths, 200% reflow equivalence and axe checks on authenticated/admin pages. Use the existing React routes, UAT seeded accounts and shared Playwright helpers; no schema or API change.
+- Add a focused Chromium E2E suite for public home/search/listing at 360/1024 CSS pixels and 320 CSS pixels (the reflow width equivalent to a 640-pixel viewport at 200% zoom). Exercise buyer inquiry/profile and moderator desk with axe WCAG 2.2 AA and overflow checks at 360/1024; isolate the suite to one Chromium project to bound demo sign-ins and avoid increasing the existing visual projects.
+- Gate the suite in CI after authenticated flows. Verify in PR CI, then record observed results and remaining manual screen-reader/real-browser zoom limitations without marking the whole WCAG requirement complete.
+
+## 2026-09-29 — PR CI #98 fixes (DS-06, F01.5)
+- Signed-in header overflowed at 360px; hide its text below 421px for authenticated sessions while retaining logo and accessible home link.
+- Fixed-clock UAT listings expired during CI and changed Search screenshot counts from 23 to 21. Extend synthetic ACTIVE expiry and guard the seed invariant; product expiry remains unchanged. Keep reviewed baselines and rerun CI.
+- Integrate updated main `c93688a` without discarding W5 status/history.
+
+
+## 2026-09-29 — S10 performance evidence harness (F09.2, F09.3, D-13, F21.5)
+- Add a guarded, disposable PostGIS query-plan fixture at 100k/1M rows with the V033 leading indexes and four representative EXPLAIN (ANALYZE, BUFFERS) queries; output evidence in .artifacts/perf. The database name must begin bds_perf_ and the transaction rolls back.
+- Add a constant-arrival-rate 100 RPS read-only k6 scenario restricted to an explicitly isolated local stack. This is tooling, not a measured pass; 10 RPS writes, cold/warm, fault/burst/soak, restore and migration rollback still need isolated infrastructure and retained reports.
+- Review Chromium Home/Search snapshot changes against the fixed UAT fixture: the old images had 23 default SALE results because synthetic ACTIVE records expired; the corrected fixture has 46. Update seven affected Chromium images from CI #100 captures. Keep the snapshot gate blocking and rerun it.
+
+
+## 2026-09-30 — Search cursor safety and R-2 follow-up
+- In the v2 search hook, abort the in-flight “Xem thêm” request when filters/history change and ignore responses with a stale filter key or cursor. Deduplicate incoming cards in linear time with a Set, including duplicates inside one page.
+- Add a seeded E2E covering page 1 (24 cards), the next cursor (46 unique cards), and the terminal load-more state. Keep the existing v2 API and URL contract; CI remains the acceptance gate.
+
+## 2026-09-30 — R-2 map selection and cursor lifecycle regression coverage
+- Preserve the existing Search/map design and v2 API contract; no migration or backend change.
+- Extract selected map detail loading into a hook that cancels requests on selection change, close and unmount, rejects late responses, and reuses loaded cards. Clear map selection when URL filters/view change.
+- Fix cleanup for load-more requests started from a restored history snapshot.
+- Add five focused Vitest cases: map selection race, reuse of known cards, filter changes during cursor loading, duplicate IDs within/across pages, and restored-entry unmount cancellation.
+- Keep R-2 TODO pending end-to-end filter/map/pagination acceptance. Distinguish primary matrix statuses from external dependencies mentioned inside DONE/PARTIAL notes.
+
+## 2026-09-30 — CI #107 test-source style repair
+- Replace the inline import type query in the search hook test with an explicit type-only namespace import; format the map hook test callback according to the existing Prettier configuration. Preserve all assertions and CI gates.
