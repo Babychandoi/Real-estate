@@ -736,3 +736,63 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
   - **Thứ tự migration**: V090/V091 (S7) đứng trước V095 (S8) — ổn cho DB mới và cho production (đang ở V026).
 - **Known gaps carried forward** (chi tiết trong từng `streams/*.md`): chưa có Playwright E2E cho MFA/token pages/banner/trang public mới (S11); SSE stream không bị cắt ngay khi phiên bị thu hồi (S6/S9); `auth_security_events` chưa có retention job (S8); `/analytics/funnel`/`/overview` cũ còn tồn tại nhưng không dùng (S9 dọn); dashboard analytics chưa có Prometheus alert rule; thống kê khu vực/dự án là giá rao bán, không phải giá giao dịch; EXPLAIN ở 1M dòng cho sitemap/`areas()`/dashboard = S10.
 - Stream reports: `docs/audit-2026-09-27/streams/{s5b-sec,s7-seo,s8-analytics}.md`; matrix rows `DONE (W4)`/`PARTIAL (W4)` in `01_REQUIREMENTS.md`.
+
+# 2026-09-29 - Audit W5 merged + production deploy: architecture gate/quality tooling, final UX/a11y/E2E review (S9-QUALITY, S11-UX) — audit programme complete
+
+- Merged into `audit-2026-09-27`: S9-QUALITY (`780a340`), S11-UX (`99fddc6`). The integration branch was then merged into `main` (`dcc63c3`) with one follow-up commit (`4f7da6c`, dropping the dev-only `/__ui` route from the bundle budget file since it is not a production route), pushed to GitHub, and **deployed to production**.
+- **Files/modules/routes touched**:
+  - S9-QUALITY (backend only): `ArchitectureTests` (new ArchUnit suite), `ApiException` factories used by `engagement`/`iam`/`lead`/`cms`/`catalog` application services, `catalog`/`transaction` output ports moved to `application.port.out`, CMS category labels moved onto the `ArticleCategory` domain enum, `GeocodingController` moved into `search.api`, `ProductionSafetyValidator` constructor injection; `RequestIdFilter`, Logstash JSON structured logging, `PiiLogMasker`; `ProblemDetails`/`GlobalExceptionHandler`/`ProblemErrorController`; `OpenApiSnapshotTests`/`OpenApiSchemaNames`/`SchemaRefRewriter` + committed `backend/src/test/resources/openapi/openapi.json`; frontend `app/shared/api/generated/openapi.ts` (generated, `npm run gen:api`) and `app/shared/api/contract.ts` (new compile-time DTO/view-type check); Spotless bound into backend `verify`; whole-tree `prettier --write .` (one file changed: `app/routes/_public.listings.new.tsx`).
+  - S11-UX: `AdminAlias.tsx` (+ `AdminAlias.test.tsx`), `ShortlistsPanel.tsx` (share-link bug fix), `ResponsiveImage` used on `/my-inquiries`, `formatMetres` helper (`shared/format`), `StatePanel`/`EmptyState`/`ErrorState` `headingLevel` prop, ten pages gaining `data-ready="true"` (`/notifications`, `/saved`, `/unsubscribe`, `/shortlists/:token`, `/my-inquiries`, `/my-leads`, `/kyc`, `/broker/workspace`, `/account`, admin analytics/leads-and-reports/login/projects), `UatDataSeeder` KYC-verified-account seeding, `projectSlot()` E2E helper; new Playwright specs `journeys.spec.ts`, `engagement.spec.ts`, `places.spec.ts`, `mfa.spec.ts`; regenerated visual baselines (`visual.spec.ts`, chromium-engine projects).
+  - Routes exercised/fixed: `/notifications`, `/saved`, `/unsubscribe`, `/shortlists/:token`, `/my-inquiries`, `/my-leads`, `/kyc`, `/broker/workspace`, `/account`, `/du-an`, `/khu-vuc`, `/tin-tuc` (+ detail/not-found), admin analytics/leads-and-reports/login/projects, `/admin/*` and `/2026/nhadatchua/admin/*` aliases.
+- **Test evidence (final integrated run before deploying to production)**:
+  - Backend `mvnw verify`: **439 tests, 0 failures, 0 errors, BUILD SUCCESS**.
+  - Frontend: `lint` 0, `tsc -b` 0 errors, `vitest` **231/231**, `build` OK, `check:bundle` OK (dev-only `/__ui` route dropped from the bundle budget file — it is not a production route).
+  - E2E (S11): **102/102** default suites (chromium-1440 + chromium-320) + **6/6** visual + **3/3** MFA, all on one fresh seeded database.
+- **Real bugs S11 found and fixed** (see `streams/s11-ux.md` §4):
+  1. **Most significant — `ShortlistsPanel` share-link dialog lost the just-generated one-time link.** `onShared()` reloaded the whole detail panel (`load()`), which briefly renders a loading skeleton over the open `ShareDialog`, so the owner never saw the link they had just created (only the "already shared" state after the flash). Fixed with a quiet reload (`reloadQuietly`) that updates data without the loading flash.
+  2. Ten account/admin pages never set `data-ready="true"`, silently degrading E2E/CWV-tooling readiness signalling to a fixed 20 s timeout.
+  3. Full-page not-found/gone/invalid-link states had no `<h1>` at all (projects/areas/articles not-found, shared-shortlist "link no longer valid", unsubscribe "invalid/expired link"); fixed via a new `headingLevel` prop on `StatePanel`/`EmptyState`/`ErrorState`.
+  4. Frontage/road-width used a period decimal (`"4.6 m"`) instead of the app's Vietnamese comma convention; new `formatMetres` helper applied on listing detail and compare pages.
+  5. `/my-inquiries` cards showed the browser's broken-image icon for a hidden listing's photo instead of the `ResponsiveImage` "Không có ảnh" fallback.
+  6. A pre-existing copy-drift bug in `authenticated.spec.ts` (not caused by this stream): expected h1 text no longer matched shipped copy on two pages; fixed to match reality.
+  - Also: UI-26 admin aliases were dead ends (`/admin/*` always → `/moderation`, `/2026/nhadatchua/admin/*` always → `/login`) regardless of the page requested; `AdminAlias.tsx` now maps to the same page under the real prefix.
+- **Remaining gaps (verbatim from stream reports)**:
+  - From `s9-quality.md` §4 (remaining/gaps): the OpenAPI *document* itself is not fully annotated with per-operation error response schemas (runtime Problem Details guarantee is covered by tests, but springdoc doesn't document it without ~150 per-controller `@ApiResponse` annotations); `app/shared/api/contract.ts` covers ~55 of ~90 hand-written response view types (4 deliberately excluded due to name collisions, others no longer match post-disambiguation); backend formatting is conservative (whitespace/imports only, no full re-flow — "tách file dài" is only partially addressed, tooling is in place but the actual splitting pass on existing long controllers/services was not attempted); no dedicated ArchUnit rule for one-output-port-per-interface or God-class/line-count limits; Flyway V100–V104 were reserved but unused (no schema change needed).
+  - From `s11-ux.md` §8 (known gaps): **DS-06** — viewports 360/1024 and 200% zoom were not added as their own Playwright projects this stream (320/768/1440 + two mobile device profiles were exercised instead) — partial viewport coverage. **DS-04/DS-15** — axe is still public-pages-only (`a11y.spec.ts`); it was not extended to authenticated account pages or admin desks (new specs exercise those pages' dialogs/sheets/forms via role/label selectors, which is not the same guarantee as a dedicated axe pass). **DS-14** — real screen-reader software (NVDA/VoiceOver) and the 5–8-person usability protocol are EXTERNAL, requiring a human, out of scope regardless of budget. Firefox/WebKit E2E and visual baselines were not run (no browser installed in this environment); their baselines are still pre-redesign and will fail once CI's browser install step succeeds (chromium-engine visual blocks the CI job, non-chromium keeps `continue-on-error: true`). **An unresolved localStorage-loss observation** flagged for follow-up: granting analytics consent then immediately doing a *hard* browser navigation (`page.goto`, not client-side routing) was observed, in this specific dev environment, to lose the `bds.consent.analytics*` localStorage keys (an unrelated key written the same way survived); the final spec avoids the hard navigation and is reliably green, but whether this is a sandbox/browser quirk or a real risk for a user who reloads or opens a new tab right after deciding consent was not resolved — worth a follow-up look with real browser devtools (HAR/CDP).
+- **Production deployment** (this is new — no wave before this was actually deployed):
+  - Merged `audit-2026-09-27` into `main` (commit `dcc63c3`) and pushed to GitHub.
+  - Built new backend/frontend images; stopped the old backend, started the new backend+frontend with `docker compose -p bds-production up -d --no-deps backend frontend`.
+  - Flyway migrated 31 versions cleanly to **V095**.
+  - Site verified 200 OK.
+  - Two new required secrets were generated and added to the production `.env`: `SEARCH_CURSOR_SECRET` and `MEDIA_SIGNING_SECRET` (both 64+ chars), plus `APP_SECURITY_MFA_ISSUER` and `APP_SECURITY_MFA_REQUIRED=true`. `APP_PUBLIC_BASE_URL` was already set from an earlier wave.
+- **Post-deploy follow-ups still owed** (open items):
+  - Run the media backfill (`POST /api/v2/admin/media/backfill`) repeatedly until `enqueued: 0`, then purge the CDN cache for `/api/v1/public/media/*`.
+  - Run `scripts/verify-prerender.sh` against the real domain.
+  - Every admin/moderator must re-enroll MFA on next login (V088 signed them all out) — notify them.
+  - Consider enabling `APP_ANALYTICS_INGESTION_ENABLED=true` once things are stable in production; it defaults to `false`.
+- Stream reports: `docs/audit-2026-09-27/streams/{s9-quality,s11-ux}.md`; matrix rows `DONE (W5)`/`PARTIAL (W5)`/`EXTERNAL` in `01_REQUIREMENTS.md`.
+
+## Bảng tổng hợp kiểm thử toàn chương trình (W1 → W5, cuối cùng trước khi deploy)
+
+| Đợt | Backend (`mvnw verify`) | Frontend (lint / tsc / vitest / build / check:bundle) | E2E |
+| --- | --- | --- | --- |
+| W1 | 154/154 | lint 0, tsc 0, vitest 142, build OK, bundle OK | — |
+| W2 | 272/272 | lint 0, tsc 0, vitest 19 file / 158 test, build OK, bundle OK | — |
+| W3 | 332/332 | lint 0, tsc 0, vitest 24 file / 178 test, build OK, bundle OK | — |
+| W4 | 398/398 | lint 0, tsc 0, vitest 215, build OK, bundle OK | — |
+| **W5 (cuối cùng, đã deploy)** | **439/439** | lint 0, tsc 0, vitest **231/231**, build OK, bundle OK (`/__ui` dev-only route bỏ khỏi ngân sách) | **102/102** default + **6/6** visual + **3/3** MFA |
+
+## Bảng ánh xạ route toàn hệ thống (cập nhật W5, cuối chương trình)
+
+| Nhóm | Route |
+| --- | --- |
+| Public khám phá | `/`, `/search`, `/listings/:slug`, `/compare`, `/nguoi-dang/:sellerId` |
+| Public nội dung (prerendered) | `/du-an`, `/du-an/:slug`, `/khu-vuc`, `/khu-vuc/:slug`, `/tin-tuc`, `/tin-tuc/:slug`, `/about`, `/terms`, `/privacy`, `/contact` |
+| Public xác thực/token | `/forgot-password`, `/reset-password`, `/verify-email`, `*` (404 thật); login/register modal |
+| Đăng/sửa tin | `/listings/new`, `/listings/new?edit=:id` |
+| Account | `/account`, `/my-listings`, `/my-leads`, `/my-inquiries`, `/broker/workspace`, `/billing`, `/kyc`, `/saved`, `/notifications`, `/shortlists/:token`, `/unsubscribe` |
+| Admin prefix `/2026/nhadatchuan/admin` | index → moderation; `/login` (MFA), `/security`, `/moderation`, `/listings`, `/users`, `/reports`, `/leads-and-reports`, `/verification`, `/billing`, `/analytics`, `/projects`, `/cms` |
+| Admin alias (fixed W5, no dead end / no privilege leak) | `/admin/*`, `/2026/nhadatchua/admin/*` → same page under the real prefix |
+| Dev-only (not production, no bundle budget entry required) | `/__ui` (UI component catalog) |
+
+**Chương trình audit 2026-09-27 (W1 → W5) hoàn tất: toàn bộ các luồng đã review, tích hợp, merge vào `main` (`dcc63c3`) và triển khai production.** Các gap còn lại (DS-06 phủ viewport một phần, DS-14 usability protocol EXTERNAL, axe chưa chạy trên trang đã đăng nhập/admin, E2E/visual non-chromium chưa chạy, quan sát mất localStorage chưa xử lý) và các việc cần làm sau deploy (media backfill, purge CDN, MFA re-enroll, bật analytics ingestion) được liệt kê ở trên và cần theo dõi ở một đợt kế tiếp nếu tổ chức quyết định mở lại.
