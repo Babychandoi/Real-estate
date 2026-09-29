@@ -409,3 +409,8 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Validate both independent CI gates on the PR; inspect any subsequent test failures without hiding or skipping suites.
 
 - F01 visual baseline review: inspect CI run `36481785223` actual/diff images for Home/Search and Android Compare; preserve the blocking Chromium gate. Search v2 defaults to SALE and the seeded current catalog reports 23 matching public sale listings, while the older snapshot showed 46; update only the eight mismatched Chromium snapshots with the reviewed CI captures.
+
+## 2026-09-29 — W5 UX follow-up (DS-04, DS-06, DS-15)
+- Basis: `docs/audit-2026-09-27/streams/s11-ux.md` §8 records missing 360/1024 widths, 200% reflow equivalence and axe checks on authenticated/admin pages. Use the existing React routes, UAT seeded accounts and shared Playwright helpers; no schema or API change.
+- Add a focused Chromium E2E suite for public home/search/listing at 360/1024 CSS pixels and 320 CSS pixels (the reflow width equivalent to a 640-pixel viewport at 200% zoom). Exercise buyer inquiry/profile and moderator desk with axe WCAG 2.2 AA and overflow checks at 360/1024; isolate the suite to one Chromium project to bound demo sign-ins and avoid increasing the existing visual projects.
+- Gate the suite in CI after authenticated flows. Verify in PR CI, then record observed results and remaining manual screen-reader/real-browser zoom limitations without marking the whole WCAG requirement complete.

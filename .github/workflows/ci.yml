@@ -216,6 +216,15 @@ jobs:
         run: |
           export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
           npx playwright test tests/e2e/authenticated.spec.ts --project=chromium-1440
+      - name: 'E2E: 360/1024 reflow and authenticated accessibility'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: responsive-a11y
+        # One desktop project, with explicit viewport changes. A single buyer/moderator login avoids auth rate limits.
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/responsive-auth-a11y.spec.ts --project=chromium-1440
       - name: 'E2E: visual regression (chromium)'
         id: visual
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}

@@ -747,3 +747,7 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - PR CI run `36478775976`: backend tests, frontend checks, security scan, navigation, accessibility, auth dialog and authenticated flows passed. Chromium visual snapshots failed for Home/Search on several widths (4–6% pixel difference); retained the blocking gate and added a small diff-only artifact to review the actual images on the next run.
 
 - Reviewed `chromium-visual-diffs-1` from run `36481785223`: Home layout and Compare Android remain structurally consistent; Search now renders 23 default SALE results under the v2 contract versus 46 in the older baseline. Eight CI actual PNGs are used as the new expected snapshots, and their blob SHA-1 hashes were checked against the local files. Backend/frontend/security gates were green in this run; final visual gate awaits CI after the snapshot commit.
+
+## 2026-09-29 — W5 responsive and authenticated accessibility follow-up
+- Added `frontend/tests/e2e/responsive-auth-a11y.spec.ts` and a blocking Chromium CI step for 360/1024 viewport reflow, a 320 CSS-pixel equivalent of 200% zoom at 640, and axe/overflow checks for `/my-inquiries`, `/account`, and admin moderation using UAT-seeded accounts.
+- Acceptance: pending PR CI on this commit. This does not replace manual NVDA/VoiceOver testing or a native browser zoom run; those remain separate evidence for DS-04/DS-15.
