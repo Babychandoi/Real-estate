@@ -681,13 +681,13 @@ function ArticleEditor({
               <TextInput {...control} value={values.authorName} onChange={set('authorName')} maxLength={255} />
             )}
           </FormField>
-          <FormField label="Ảnh bìa" hint="Ảnh đã tải lên hệ thống hoặc đường dẫn https.">
+          <FormField label="Ảnh bìa" hint="Đường dẫn https hoặc ảnh đã tải lên (/api/v1/public/media/…).">
             {(control) => (
               <TextInput
                 {...control}
                 value={values.coverImageUrl}
                 onChange={set('coverImageUrl')}
-                placeholder="/api/v1/public/media/… hoặc https://…"
+                placeholder="https://…"
               />
             )}
           </FormField>

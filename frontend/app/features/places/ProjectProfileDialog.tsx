@@ -152,7 +152,7 @@ export function ProjectProfileDialog({
                   {...control}
                   value={form.infoSource}
                   maxLength={255}
-                  placeholder="Ví dụ: Hồ sơ pháp lý chủ đầu tư cung cấp"
+                  placeholder="Ví dụ: Hồ sơ pháp lý"
                   onChange={(event) => update({ infoSource: event.target.value })}
                 />
               )}
