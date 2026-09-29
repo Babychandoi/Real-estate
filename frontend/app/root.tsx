@@ -200,7 +200,7 @@ function RootLayoutContent() {
             <span className="ndc-brand-symbol">
               <Building2 className="h-6 w-6" aria-hidden="true" />
             </span>
-            <span>
+            <span className={isAuthenticated ? 'hidden min-[421px]:block' : undefined}>
               <strong>
                 nhà đất chuẩn<span className="text-secondary">.</span>
               </strong>

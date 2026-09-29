@@ -28,6 +28,15 @@ S8-ANALYTICS được tích hợp vào `audit-2026-09-27` (S8 `70e29cd`, S5 phas
 OK, `check:bundle` OK. Bằng chứng: `streams/s5b-sec.md`, `streams/s7-seo.md`, `streams/s8-analytics.md`. F16.6 (Search
 Console) và mục tiêu p75 CWV (DS-15) vẫn EXTERNAL — cần tài khoản Search Console và lưu lượng production thật.
 
+**Cập nhật sau đợt W5 (29/09/2026):** các dòng đánh `DONE (W5)`/`PARTIAL (W5)` thuộc S9-QUALITY, S11-UX được tích
+hợp vào `audit-2026-09-27` (S9 `780a340`, S11 `99fddc6`) rồi merge vào `main` (`dcc63c3`, sửa tiếp `4f7da6c`) và
+**đã triển khai production**. Tích hợp cuối cùng trước khi deploy: backend `mvnw verify` 439 test 0 lỗi; frontend
+lint 0, tsc 0, vitest 231/231, build OK, `check:bundle` OK (route dev-only `/__ui` bỏ khỏi ngân sách bundle vì không
+phải route production); E2E (S11) 102/102 suite mặc định (chromium-1440 + chromium-320) + 6/6 visual + 3/3 MFA.
+Bằng chứng: `streams/s9-quality.md`, `streams/s11-ux.md`. DS-14 (usability protocol) và một phần DS-06/DS-04/DS-15
+(xem chi tiết ở từng dòng) vẫn EXTERNAL/PARTIAL — xem `WALKTHROUGHS_HISTORY.md` mục "W5" để biết các gap còn lại và
+các việc cần làm sau khi deploy (media backfill, purge CDN, MFA re-enroll bắt buộc).
+
 ## A. Phát hiện kỹ thuật (mục 6)
 
 | ID | Yêu cầu | Tiêu chí nghiệm thu | Luồng | Trạng thái |
@@ -36,10 +45,10 @@ Console) và mục tiêu p75 CWV (DS-15) vẫn EXTERNAL — cần tài khoản S
 | F01.2 | Fixture dữ liệu xác định; chờ trạng thái thay cho sleep | Không còn `waitForTimeout` cố định trong spec; dữ liệu seed cố định đồng hồ | S0-FE, S0-BE | DONE (W1) |
 | F01.3 | Tách visual, a11y, navigation thành kiểm tra độc lập | Screenshot fail không chặn axe/overflow | S0-FE | DONE (W1) |
 | F01.4 | Upload report, diff, trace khi fail | CI upload `playwright-report`, `test-results` khi fail | S0-FE | DONE (W1) |
-| F01.5 | Baseline chỉ cập nhật sau review ảnh | Quy trình ghi trong tài liệu; baseline mới kèm ảnh đã xem | S11-UX | TODO |
-| F01.6 | Luồng buyer và broker xác thực dùng fixture | Spec đăng nhập buyer/broker chạy trong CI | S0-FE, S11-UX | DONE (W1) |
+| F01.5 | Baseline chỉ cập nhật sau review ảnh | Quy trình ghi trong tài liệu; baseline mới kèm ảnh đã xem | S11-UX | DONE (W5): mọi diff chromium-engine (320/768/1440/android-chrome) đọc ảnh trước khi regenerate, commit `a482c81`; webkit/firefox baseline chưa đụng tới = EXTERNAL (chưa cài browser) |
+| F01.6 | Luồng buyer và broker xác thực dùng fixture | Spec đăng nhập buyer/broker chạy trong CI | S0-FE, S11-UX | DONE (W5): `authenticated.spec.ts` sửa lại theo copy đã đổi (h1 drift, không phải do S11 gây ra) và xanh trở lại |
 | F01.7 | ESLint riêng, không đếm typecheck là lint | `npm run lint` = ESLint; `npm run typecheck` = tsc | S0-FE | DONE (W1) |
-| F01.8 | Suite xanh, không skip để làm xanh | CI xanh trên commit phát hành | S11-UX | TODO |
+| F01.8 | Suite xanh, không skip để làm xanh | CI xanh trên commit phát hành | S11-UX | DONE (W5): 102/102 default + 6/6 visual + 3/3 MFA, không `test.skip` nào che giấu lỗi (hai skip có điều kiện môi trường, không phải để né fail) |
 | F01.9 | Required checks + review trên main | Lệnh/tài liệu bật branch protection; cần quyền admin repo | S5-SEC | EXTERNAL |
 | F02.1 | List 20–24 tin/lần, envelope `items/pageInfo(hasNext,nextCursor)` | API v2 trả envelope; UI “Xem thêm”/cuộn tải tiếp | S2-SEARCH | DONE (W2): v2 envelope items/pageInfo/total; 'Xem thêm' e2e (s2-search) |
 | F02.2 | `total` tùy chọn, ghi rõ exact/estimated | `total.relation` = `eq`/`gte`; UI không lấy độ dài trang làm tổng | S2-SEARCH | DONE (W2): total eq/gte cap 10k (s2-search) |
@@ -119,11 +128,11 @@ Console) và mục tiêu p75 CWV (DS-15) vẫn EXTERNAL — cần tài khoản S
 | F21.3 | Kế hoạch xử lý lịch sử Git/rotation (không tự xóa) | Kế hoạch; thực thi cần chủ repo quyết | S5-SEC | EXTERNAL |
 | F21.4 | Tách production khỏi máy dev; đánh giá managed DB/object storage | Tài liệu topology; thực thi là việc hạ tầng | S5-SEC | EXTERNAL |
 | F21.5 | RPO/RTO đo được; rollback deploy + migration tương thích | Biên bản drill + runbook rollback | S10-PERF | TODO |
-| F22.1 | Format tự động; tách query/transport/mapping/retry | Spotless/Prettier; file dài được tách | S9-QUALITY | TODO |
-| F22.2 | Log có cấu trúc + requestId, không log PII | MDC filter + masking + test | S9-QUALITY | TODO |
-| F22.3 | DTO validation + Problem Details nhất quán | Test lỗi chuẩn | S9-QUALITY | TODO |
-| F22.4 | OpenAPI snapshot/diff, generate type/client | CI kiểm tra snapshot; FE dùng type sinh ra | S9-QUALITY | TODO |
-| F22.5 | ArchUnit cho boundary | Test ArchUnit | S9-QUALITY | TODO |
+| F22.1 | Format tự động; tách query/transport/mapping/retry | Spotless/Prettier; file dài được tách | S9-QUALITY | DONE (W5): Spotless (whitespace/import/newline) bind vào `verify`; `npx prettier --write .` toàn frontend, 1 file thay đổi; tách file dài chưa làm (out of budget, xem s9-quality.md §4.3) |
+| F22.2 | Log có cấu trúc + requestId, không log PII | MDC filter + masking + test | S9-QUALITY | DONE (W5): `RequestIdFilter` + Logstash JSON logging + `PiiLogMasker`; `StructuredLoggingTests`, `PiiLogMaskerTests` (10 case) |
+| F22.3 | DTO validation + Problem Details nhất quán | Test lỗi chuẩn | S9-QUALITY | DONE (W5): `ProblemDetails.of` dùng thống nhất qua `GlobalExceptionHandler`/security handlers/`ProblemErrorController`; `ProblemDetailsContractTests` (7), `GlobalExceptionHandlerTests` (5) |
+| F22.4 | OpenAPI snapshot/diff, generate type/client | CI kiểm tra snapshot; FE dùng type sinh ra | S9-QUALITY | DONE (W5), một phần: `OpenApiSnapshotTests` diff byte-for-byte trong `verify`; FE `npm run gen:api`/`check:api` là bước CI mới; `contract.ts` mới check ~55/90 kiểu view thủ công (xem s9-quality.md §4.2) |
+| F22.5 | ArchUnit cho boundary | Test ArchUnit | S9-QUALITY | DONE (W5): `ArchitectureTests` (10) chặn domain/application/api/infrastructure lẫn lộn, field injection, cross-module infra/api; mọi allowance hiện có phải còn đúng nếu không build fail |
 
 ## B. Hành trình và giao diện (mục 5)
 
@@ -154,7 +163,7 @@ Console) và mục tiêu p75 CWV (DS-15) vẫn EXTERNAL — cần tài khoản S
 | UI-23 | Admin billing | Đối soát theo trạng thái, kiểm soát cạnh tranh, ngoại lệ/chênh tiền, lịch sử người duyệt | S4-ADMIN | DONE (W2): admin billing reconciliation, exception resolution, approver history (s4-admin) |
 | UI-24 | Admin analytics | “Chưa đo” khác 0; cohort/khung thời gian | S8-ANALYTICS | DONE (W4): dashboard shows "Chưa đo" with reason vs 0, source/device/area breakdowns, cohort retention, 1–92 day range (s8-analytics) |
 | UI-25 | Admin projects/cms | Hoàn tất hành trình public dự án/bài viết | S7-SEO | DONE (W4): create → draft edits → submit → publish now/schedule → preview link → reject with reason → new revision → unpublish; project profile edit with source/lock (s7-seo) |
-| UI-26 | Alias admin | Regression test redirect alias, không đường cụt/không lộ quyền | S11-UX | TODO |
+| UI-26 | Alias admin | Regression test redirect alias, không đường cụt/không lộ quyền | S11-UX | DONE (W5): `AdminAlias.tsx` map đúng trang dưới prefix thật thay vì luôn về moderation/login; `AdminAlias.test.tsx` (16 test) |
 | UI-27 | `_account.contracts.tsx` | Gỡ tệp chết/không tính là tính năng | S0-FE | DONE (W1) |
 
 ## C. Khoảng trống sản phẩm (mục 4.1, 4.2)
@@ -203,29 +212,29 @@ Console) và mục tiêu p75 CWV (DS-15) vẫn EXTERNAL — cần tài khoản S
 |---|---|---|---|
 | DS-01 | Một nguồn token (màu, chữ, spacing, radius, shadow, icon, control) cho Tailwind/CSS + catalog component | S0-FE | DONE (W1) |
 | DS-02 | Be Vietnam Pro tự host, chỉ weight cần | S0-FE | DONE (W1) |
-| DS-03 | Không dùng 10px cho thông tin quan trọng; control 44–48px; icon Lucide thống nhất, bỏ emoji | S0-FE, S11-UX | PARTIAL (W1) |
-| DS-04 | WCAG 2.2 AA: contrast, focus, keyboard, reflow; kiểm tra trên cặp màu thực tế | S11-UX | TODO |
+| DS-03 | Không dùng 10px cho thông tin quan trọng; control 44–48px; icon Lucide thống nhất, bỏ emoji | S0-FE, S11-UX | PARTIAL (W5): spot-check các trang mới trong đợt review, không thấy vi phạm mới; audit thủ công toàn bộ component vẫn chưa làm (out of budget) |
+| DS-04 | WCAG 2.2 AA: contrast, focus, keyboard, reflow; kiểm tra trên cặp màu thực tế | S11-UX | PARTIAL (W5): `a11y.spec.ts` (axe + overflow) vẫn chỉ chạy trên trang public; spec journeys/engagement/places/admin/supply thao tác dialog/sheet/form bằng role/label thật nhưng không thay thế một lượt axe riêng cho trang đã đăng nhập/admin (gap) |
 | DS-05 | Layout theo trang (bảng 8.3) desktop/mobile | S2, S3a, S3b, S4, S7, S11 | PARTIAL (W3): lead pages card lists + Sheet (s3b-leads), UI redesign merged (docs/ui); visual/E2E pass S11 |
-| DS-06 | Kiểm tra 360/390/768/1024/1440 và zoom 200% | S11-UX | TODO |
-| DS-07 | Không dùng thuật ngữ nội bộ trong hành trình người tìm nhà | S11-UX | TODO |
+| DS-06 | Kiểm tra 360/390/768/1024/1440 và zoom 200% | S11-UX | PARTIAL (W5): 320/768/1440 + 2 mobile device profile chạy trên mọi spec mới; 360/1024/zoom-200% chưa làm đợt này (gap) |
+| DS-07 | Không dùng thuật ngữ nội bộ trong hành trình người tìm nhà | S11-UX | DONE (W5): review lại copy hướng người tìm nhà bị đụng trong đợt này (lead form, KYC gate, appointment panel, saved/notifications/shortlist), không thấy mã FR/UC hay enum thô nào lộ ra |
 | DS-08 | Component tối thiểu và đủ trạng thái (SearchBox, FilterBar/Sheet, ListingCard, TrustBadge/Panel, Gallery, ContactPanel, Compare, FormField, DataTable/Queue, Toast/InlineFeedback) | S0-FE (+ luồng dùng) | PARTIAL (W1) |
 | DS-09 | Tách anchor khỏi nút favorite/compare/link người đăng (không lồng tương tác) | S2-SEARCH | DONE (W2): stretched link, favorite/compare/seller-link not nested (s2-search) |
 | DS-10 | Nhãn xác thực trả lời “xác thực cái gì” | S2-SEARCH | DONE (W2): badges state what was checked (identity/listing/ownership) (s2-search) |
-| DS-11 | UX flow người tìm nhà (khám phá trước đăng nhập, quay về mục đích sau xác minh) | S2, S3b, S5 | PARTIAL (W4): contact intent kept across sign-in and KYC (s3b-leads); `returnTo` same-site-only restores original page after verification/MFA (s5b-sec); E2E journey S11 |
+| DS-11 | UX flow người tìm nhà (khám phá trước đăng nhập, quay về mục đích sau xác minh) | S2, S3b, S5 | DONE (W5): contact intent kept across sign-in and KYC (s3b-leads); `returnTo` same-site-only restores original page after verification/MFA (s5b-sec); `journeys.spec.ts` (S11) covers the full E2E round trip |
 | DS-12 | UX flow người đăng (draft tự lưu → preview → gửi duyệt → lý do từ chối → quản lý bản công khai/bản sửa → lead → xác nhận còn hàng; tin hết hiệu lực được nhắc) | S3a-SUPPLY | DONE (W2): draft autosave -> preview -> submit -> rejection reason -> public/edit split -> lead flow (s3a-supply) |
 | DS-13 | UX flow admin (ưu tiên → claim → đối chiếu → quyết định có lý do → audit; không dùng màu làm tín hiệu duy nhất; nút chấp nhận/từ chối không sát nhau) | S4-ADMIN | DONE (W2): claim -> compare -> reasoned decision -> audit, approve/reject separated (s4-admin) |
-| DS-14 | Thử tác vụ với 5–8 người mỗi nhóm | Chuẩn bị protocol; thực hiện cần người dùng thật | EXTERNAL |
-| DS-15 | CWV p75 LCP ≤2,5 s, INP ≤200 ms, CLS ≤0,1 bằng RUM; a11y axe + keyboard/screen reader cho dialog, filter sheet, map, gallery | S8, S11 | PARTIAL (W4): RUM collection (`web-vitals` sampled, consent-gated) + p75/rating dashboard shipped (s8-analytics); meeting the p75 targets needs production traffic = EXTERNAL; a11y axe/keyboard/screen-reader pass = S11 |
+| DS-14 | Thử tác vụ với 5–8 người mỗi nhóm | Chuẩn bị protocol; thực hiện cần người dùng thật | EXTERNAL (W5): vẫn cần người dùng thật, không phải việc browser automation có thể làm; ngoài scope S11 |
+| DS-15 | CWV p75 LCP ≤2,5 s, INP ≤200 ms, CLS ≤0,1 bằng RUM; a11y axe + keyboard/screen reader cho dialog, filter sheet, map, gallery | S8, S11 | PARTIAL (W5): RUM collection (`web-vitals` sampled, consent-gated) + p75/rating dashboard shipped (s8-analytics); meeting the p75 targets needs production traffic = EXTERNAL; `/__ui` axe pass unchanged + real E2E exercise of dialog/sheet/map/gallery keyboard reachability (journeys/engagement/admin/supply, s11-ux); real screen-reader software (NVDA/VoiceOver) = EXTERNAL |
 
 ## F. Điều kiện phát hành (mục 10)
 
 | ID | Điều kiện | Luồng | Trạng thái |
 |---|---|---|---|
-| R-1 | CI bắt buộc xanh; E2E theo route/slug thật; có artifact | S0-FE, S11 | TODO |
+| R-1 | CI bắt buộc xanh; E2E theo route/slug thật; có artifact | S0-FE, S11 | DONE (W5): `places.spec.ts` dùng slug thật từ API, mọi spec mới assert trên nội dung thật, artifact upload không đổi |
 | R-2 | Search/filter/map/pagination thống nhất; không còn giới hạn 100; đơn vị thuê đúng | S2 | TODO |
 | R-3 | Không lộ draft/private media qua API/cache; kiểm tra quyền owner/admin/inactive; badge đúng phạm vi | S2, S1, S4 | PARTIAL (W3): media policy + signed URLs, KYC never capability URL (s1-media); S2 public detail W2; S4 badge scope open |
 | R-4 | Lead, approve gói, sửa revision, retry không double effect/lost update (test PostgreSQL cạnh tranh) | S3a (revision), S3b (lead), S4 (gói) | PARTIAL (W3): lead part DONE on PostgreSQL (s3b-leads), S3a revision W2; S4 package approval per s4-admin |
 | R-5 | Query count/p95/p99, index lag, outbox backlog, error rate được đo; fallback có kiểm soát | S10 | TODO |
 | R-6 | Header/IP chain/session kiểm chứng từ response cuối; backup phân loại, restore có bằng chứng | S5, S10 | TODO |
-| R-7 | Core flows mobile/desktop, keyboard, screen reader nghiệm thu; đủ trạng thái giá/empty/error/loading/offline | S11 | TODO |
+| R-7 | Core flows mobile/desktop, keyboard, screen reader nghiệm thu; đủ trạng thái giá/empty/error/loading/offline | S11 | PARTIAL (W5): `journeys`/`engagement`/`admin` spec phủ round-trip seeker/owner/broker, empty state, trên cả chromium-1440 và chromium-320; screen-reader thật (NVDA/VoiceOver) vẫn EXTERNAL |
 | R-8 | Người sở hữu SLA kiểm duyệt/lead/còn hàng/khiếu nại; dashboard phân biệt không đo với 0 | S8 (dashboard) + tổ chức | PARTIAL (W4): dashboard MEASURED/NOT_MEASURED with definitions shipped (s8-analytics); an org owner committing to the SLA numbers = EXTERNAL |

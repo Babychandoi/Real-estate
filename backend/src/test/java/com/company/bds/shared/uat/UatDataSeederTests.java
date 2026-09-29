@@ -206,6 +206,10 @@ class UatDataSeederTests {
                 SELECT COUNT(*) FROM listings WHERE id::text ~ '^ee5eed[0-9a-f]{2}-0000-4000-8000-' AND status = 'EXPIRED' AND (expires_at IS NULL OR expires_at > ?)
                 """, Integer.class, Timestamp.from(NOW))).isZero();
         assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM listings WHERE id::text ~ '^ee5eed[0-9a-f]{2}-0000-4000-8000-' AND status = 'ACTIVE'
+                  AND expires_at <= ?
+                """, Integer.class, Timestamp.from(NOW.plus(Duration.ofDays(365))))).as("fixed-clock E2E listings stay visible for at least a year").isZero();
+        assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM user_kyc_profiles WHERE user_id::text ~ '^ee5eed[0-9a-f]{2}-0000-4000-8000-' AND status = 'VERIFIED'
                   AND expires_at IS DISTINCT FROM verified_at + interval '24 months'
                 """, Integer.class)).isZero();
