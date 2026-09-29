@@ -825,3 +825,13 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - Acceptance for this follow-up is pending the next CI run. R-2 remains TODO until cross-filter/map parity and the legacy 100-item limit are fully audited; S10 benchmark and restore results remain pending isolated runs.
 
 - CI #105 (https://github.com/Babychandoi/Real-estate/actions/runs/36608783013) on 9e56b4c: frontend checks, backend tests, E2E and security scan all SUCCESS. The new 24→46 unique-card cursor navigation check and the blocking Chromium visual gate passed; Firefox/WebKit visual ran as an informational step. This verifies the code follow-up, while S10 measurements and real assistive-technology testing remain open.
+
+## 2026-09-30 — R-2 asynchronous selection follow-up (acceptance pending)
+- Updated Search route and useListingSearch; added useMapPointListing and two regression-test files (five cases).
+- Local TypeScript transpilation checked syntax for all five TS/TSX files. Full typecheck/build/Vitest are not available in this scratch checkout; PR CI must supply acceptance evidence. No backend tests or performance measurements are claimed for this change.
+- User flow: selecting another map marker or closing/changing filters cancels the old detail request; a late response cannot display another listing. Restored search pages now also cancel load-more on unmount.
+- Audit clarification against main c93688a: 143 DONE / 16 PARTIAL / 6 TODO / 7 EXTERNAL primary statuses; 12 requirement rows mention EXTERNAL including notes within other statuses. These are different counts.
+- PR #16 has separate fixture and pagination changes: fixture expiry repair changed 23→46 available SALE listings; commit 9e56b4c additionally changed useListingSearch and added a real 24→46 unique-card navigation E2E. Neither proves all of R-2.
+- R-2 explicitly reads “Search/filter/map/pagination thống nhất; không còn giới hạn 100; đơn vị thuê đúng”. Its TODO status means final acceptance is outstanding, not that every underlying capability is absent.
+- W1/S5A restore-drill PASS remains credited. Outstanding F21.5 work is measured RPO/RTO and compatible deploy/migration rollback; do not describe the restore drill itself as never performed.
+- Route map unchanged: /search. Full audit status remains unchanged until new CI and remaining acceptance evidence are reviewed.

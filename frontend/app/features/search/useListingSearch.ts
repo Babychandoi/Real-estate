@@ -160,7 +160,7 @@ export function useListingSearch(filters: SearchFilters, historyKey: string) {
   useEffect(() => {
     if (restoredKey.current === snapshotKey && reloadToken === 0) {
       restoredKey.current = null;
-      return;
+      return () => controller.current?.abort();
     }
     restoredKey.current = null;
     void loadFirstPage(false);

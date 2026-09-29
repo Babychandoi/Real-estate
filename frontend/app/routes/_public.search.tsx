@@ -1,8 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Columns2, LayoutList, Map as MapIcon, SlidersHorizontal } from 'lucide-react';
-import { listingV2Api } from '@/entities/listing/api/listingV2Api';
-import type { ListingSummaryV2, MapPoint } from '@/entities/listing/model/v2';
+import type { MapPoint } from '@/entities/listing/model/v2';
 import { ListingCard } from '@/entities/listing/ui/ListingCard';
 import {
   activeFilterCount,
@@ -17,6 +16,7 @@ import {
   type SearchView,
 } from '@/features/search/filterSchema';
 import { useListingSearch } from '@/features/search/useListingSearch';
+import { useMapPointListing } from '@/features/search/useMapPointListing';
 import { FavoriteButton } from '@/features/engagement/FavoriteButton';
 import { SaveSearchButton } from '@/features/engagement/SaveSearchButton';
 import { PriceTypeChips } from '@/features/search/ui/PriceTypeChips';
@@ -67,7 +67,12 @@ export function SearchAndMapPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null);
-  const [pointListing, setPointListing] = useState<ListingSummaryV2 | null>(null);
+  const pointListing = useMapPointListing(selectedPoint?.id ?? null, state.items);
+
+  useEffect(() => {
+    setSelectedPoint(null);
+    setHoveredId(null);
+  }, [location.search]);
 
   useDocumentMeta({
     title: `${filters.purpose === 'RENT' ? 'Nhà đất cho thuê' : 'Nhà đất bán'} | Tìm kiếm | Nhà Đất Chuẩn`,
@@ -104,18 +109,11 @@ export function SearchAndMapPage() {
   const selectPoint = (point: MapPoint) => {
     setSelectedPoint(point);
     const known = state.items.find((item) => item.id === point.id) ?? null;
-    setPointListing(known);
     if (known && view === 'split') {
       document
         .querySelector(`[data-listing-id="${point.id}"]`)
         ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       return;
-    }
-    if (!known) {
-      listingV2Api
-        .detail(point.id)
-        .then(setPointListing)
-        .catch(() => setPointListing(null));
     }
   };
 

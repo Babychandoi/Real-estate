@@ -438,3 +438,10 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 ## 2026-09-30 — Search cursor safety and R-2 follow-up
 - In the v2 search hook, abort the in-flight “Xem thêm” request when filters/history change and ignore responses with a stale filter key or cursor. Deduplicate incoming cards in linear time with a Set, including duplicates inside one page.
 - Add a seeded E2E covering page 1 (24 cards), the next cursor (46 unique cards), and the terminal load-more state. Keep the existing v2 API and URL contract; CI remains the acceptance gate.
+
+## 2026-09-30 — R-2 map selection and cursor lifecycle regression coverage
+- Preserve the existing Search/map design and v2 API contract; no migration or backend change.
+- Extract selected map detail loading into a hook that cancels requests on selection change, close and unmount, rejects late responses, and reuses loaded cards. Clear map selection when URL filters/view change.
+- Fix cleanup for load-more requests started from a restored history snapshot.
+- Add five focused Vitest cases: map selection race, reuse of known cards, filter changes during cursor loading, duplicate IDs within/across pages, and restored-entry unmount cancellation.
+- Keep R-2 TODO pending end-to-end filter/map/pagination acceptance. Distinguish primary matrix statuses from external dependencies mentioned inside DONE/PARTIAL notes.
