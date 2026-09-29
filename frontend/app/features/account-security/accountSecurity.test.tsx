@@ -131,6 +131,9 @@ describe('staff login with a second factor (UI-17)', () => {
     await submitPassword();
     fireEvent.click(await screen.findByRole('button', { name: 'Tạo khóa cho ứng dụng xác thực' }));
     expect(await screen.findByLabelText('Khóa thiết lập')).toHaveTextContent('JBSW Y3DP EHPK 3PXP');
+    // The QR encodes the same otpauth link, drawn in the browser, and the typed key stays as the fallback.
+    const qr = await screen.findByRole('img', { name: /Mã QR thiết lập ứng dụng xác thực/ });
+    expect(qr.getAttribute('src')).toMatch(/^data:image\/svg\+xml/);
     fireEvent.change(screen.getByLabelText(/^Mã xác thực/), { target: { value: '654321' } });
     fireEvent.click(screen.getByRole('button', { name: 'Xác nhận và bật xác thực hai lớp' }));
     expect(await screen.findByText('AAAAA-BBBBB')).toBeInTheDocument();
