@@ -146,7 +146,9 @@ describe('project page (P-06)', () => {
     );
     renderAt('/du-an/da-khoa', '/du-an/:slug', <ProjectDetailPage />);
     expect(await screen.findByText('Dự án không còn hiển thị')).toBeInTheDocument();
-    expect(document.head.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex,follow');
+    await waitFor(() =>
+      expect(document.head.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex,follow'),
+    );
   });
 });
 
@@ -216,9 +218,12 @@ describe('article pages (P-07)', () => {
       'nofollow noopener noreferrer',
     );
     expect(within(sources).getByText('Luật Đất đai 2024')).toBeInTheDocument();
-    const jsonLd = JSON.parse(document.head.querySelector('script[type="application/ld+json"]')?.textContent ?? '{}');
-    expect(jsonLd['@type']).toBe('Article');
-    expect(jsonLd.author.name).toBe('Ban biên tập');
+    // The head is written by an effect that runs after the body is on screen, so wait for it.
+    await waitFor(() => {
+      const jsonLd = JSON.parse(document.head.querySelector('script[type="application/ld+json"]')?.textContent ?? '{}');
+      expect(jsonLd['@type']).toBe('Article');
+      expect(jsonLd.author.name).toBe('Ban biên tập');
+    });
   });
 
   it('says an unpublished article is no longer shown', async () => {
@@ -235,7 +240,9 @@ describe('article pages (P-07)', () => {
     );
     renderAt('/tin-tuc/xem-truoc/tok', '/tin-tuc/xem-truoc/:token', <ArticlePreviewPage />);
     expect(await screen.findByRole('note')).toHaveTextContent('bản nháp');
-    expect(document.head.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex,nofollow');
+    await waitFor(() =>
+      expect(document.head.querySelector('meta[name="robots"]')?.getAttribute('content')).toBe('noindex,nofollow'),
+    );
   });
 });
 
@@ -264,6 +271,6 @@ describe('information pages (UI-15)', () => {
     expect(await screen.findByText('Công ty TNHH Ví Dụ')).toBeInTheDocument();
     expect(screen.getAllByText('Chưa có dữ liệu').length).toBeGreaterThan(3);
     expect(screen.getByRole('link', { name: 'Quy chế hoạt động' })).toHaveAttribute('href', '/tin-tuc/quy-che');
-    expect(document.title).toBe('Điều khoản sử dụng | Nhà Đất Chuẩn');
+    await waitFor(() => expect(document.title).toBe('Điều khoản sử dụng | Nhà Đất Chuẩn'));
   });
 });
