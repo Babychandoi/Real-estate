@@ -846,3 +846,8 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - Reports distinguish post-ANALYZE warm TEMP-table execution from cold production I/O, and record CPU/RAM/disk, PostgreSQL/PostGIS versions, settings and container limits.
 - Local validation: bash syntax, refusal without CI/isolation flags (exit 2), and YAML parsing passed.
 - Query-plan CI execution pending; F09.3 stays TODO until reports are reviewed. D-13/R-5 load and failure scenarios, measured RPO/RTO and migration rollback remain open. Route map unchanged.
+
+## 2026-09-30 — S10 integer overflow correction
+- The CI schema clone completed; fixture price arithmetic overflowed int4 before the outer bigint cast. Changed infra/perf/explain-search.sql to cast operands before arithmetic.
+- Verified with the PostgreSQL WASM engine (PGlite): original expression reproduces SQLSTATE 22003; corrected expression evaluates all 100000 and 1000000 rows, with min 1000000000 and max 5990000000 in both cases. This checks arithmetic only, not full PostGIS EXPLAIN performance; full CI rerun remains required.
+- No application behavior, migration, price distribution or dataset size changed. Route map unchanged.
