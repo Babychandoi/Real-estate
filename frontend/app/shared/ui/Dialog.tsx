@@ -80,7 +80,7 @@ export function Dialog({
           className,
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-outline-variant px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-outline-variant px-4 py-3 sm:px-5 sm:py-4">
           <div className="min-w-0">
             <h2
               id={titleId}
@@ -98,9 +98,11 @@ export function Dialog({
           </div>
           <IconButton icon={X} aria-label={closeLabel} onClick={onClose} className="-mr-2 -mt-1" />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-body-sm text-on-surface">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 text-body-sm text-on-surface sm:px-5">{children}</div>
         {footer && (
-          <div className="flex flex-wrap justify-end gap-3 border-t border-outline-variant px-5 py-3">{footer}</div>
+          <div className="flex flex-wrap justify-end gap-3 border-t border-outline-variant px-4 py-3 sm:px-5">
+            {footer}
+          </div>
         )}
       </div>
     </div>,

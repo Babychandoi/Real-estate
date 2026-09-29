@@ -554,10 +554,10 @@ function ReviewDialog({
                         {d.fieldLabel}
                         {d.isChanged && <span className="ml-1 text-xs font-bold">(đã đổi)</span>}
                       </th>
-                      <td className="min-w-24 py-2 pr-3 align-top whitespace-pre-line [overflow-wrap:anywhere]">
+                      <td className="min-w-16 py-2 pr-3 align-top whitespace-pre-line [overflow-wrap:anywhere]">
                         {d.oldValue || 'Trống'}
                       </td>
-                      <td className="min-w-24 py-2 align-top whitespace-pre-line [overflow-wrap:anywhere]">
+                      <td className="min-w-16 py-2 align-top whitespace-pre-line [overflow-wrap:anywhere]">
                         {d.newValue || 'Trống'}
                       </td>
                     </tr>
