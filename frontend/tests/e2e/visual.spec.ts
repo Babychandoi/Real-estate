@@ -16,6 +16,9 @@ for (const { name, path } of PAGES) {
   test(`${name} matches the reviewed baseline`, async ({ page }, testInfo) => {
     await page.clock.setFixedTime(FIXED_NOW);
     await gotoReady(page, path);
+    // The degraded-search notice means Elasticsearch was not ready and the page came from the database fallback: a
+    // different page from the one the baselines show. Fail with that reason instead of a 6% pixel diff.
+    await expect(page.getByText('Công cụ tìm kiếm đang bảo trì')).toHaveCount(0);
     await expect(page).toHaveScreenshot(`${name}-${testInfo.project.name}.png`, {
       fullPage: true,
       mask: volatileRegions(page),

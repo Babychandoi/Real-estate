@@ -185,6 +185,18 @@ jobs:
           docker compose $COMPOSE_FILE_ARGS restart backend
           docker compose $COMPOSE_FILE_ARGS restart frontend
           docker compose $COMPOSE_FILE_ARGS up -d --wait
+      - name: Wait for the search index
+        # The backend is healthy before Elasticsearch has taken the seeded listings; until then search answers from
+        # the database with degraded=true and the page shows a maintenance notice, which made the visual baselines
+        # depend on timing. Wait for the real engine so every test (and every baseline) sees the same page.
+        run: |
+          for i in $(seq 1 60); do
+            body=$(curl -fsS "http://127.0.0.1:3000/api/v2/listings/search" || true)
+            if echo "$body" | grep -q '"degraded":false'; then echo "search index ready after $((i * 3)) s"; exit 0; fi
+            sleep 3
+          done
+          echo "search index not ready after 180 s: $body"
+          exit 1
       - name: Install Playwright browsers
         id: browsers
         working-directory: frontend
