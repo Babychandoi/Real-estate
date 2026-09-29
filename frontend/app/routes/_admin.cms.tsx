@@ -15,6 +15,7 @@ import {
 } from '@/entities/content/model';
 import { errorMessage } from '@/shared/api/errors';
 import { ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
@@ -126,8 +127,8 @@ export function CmsManagementPage() {
       header: 'Bài viết',
       cell: (row) => (
         <div className="min-w-0">
-          <p className="font-medium text-on-surface">{row.currentRevision?.title ?? row.slug}</p>
-          <p className="text-xs text-on-surface-variant">/tin-tuc/{row.slug}</p>
+          <ClampedText text={row.currentRevision?.title ?? row.slug} className="font-medium text-on-surface" />
+          <ClampedText text={`/tin-tuc/${row.slug}`} className="text-xs text-on-surface-variant" />
         </div>
       ),
     },

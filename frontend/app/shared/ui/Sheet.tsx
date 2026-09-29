@@ -56,7 +56,7 @@ export function Sheet({
         aria-describedby={descriptionId}
         tabIndex={-1}
         className={cn(
-          'relative flex max-h-[88dvh] w-full flex-col rounded-t-panel bg-surface-container-lowest shadow-elevated focus:outline-none',
+          'ndc-overlay relative flex max-h-[88dvh] w-full min-w-0 flex-col [overflow-wrap:anywhere] [&_th]:[overflow-wrap:break-word] rounded-t-panel bg-surface-container-lowest shadow-elevated focus:outline-none',
           'sm:h-full sm:max-h-none sm:max-w-md sm:rounded-none sm:rounded-l-panel',
           className,
         )}

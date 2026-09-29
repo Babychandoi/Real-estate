@@ -131,28 +131,30 @@ const AdminShellContent: React.FC = () => {
           </aside>
         </div>
       )}
-      <div className="lg:pl-64">
+      <div className="min-w-0 lg:pl-64">
         <header className="ndc-admin-header">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-label="Mở menu quản trị"
-              className="grid h-10 w-10 place-items-center rounded-lg text-slate-700 hover:bg-surface lg:hidden"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-slate-700 hover:bg-surface lg:hidden"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold text-slate-950">Quản trị & vận hành</p>
               <p className="hidden text-xs text-slate-500 sm:block">Khu vực nội bộ được phân quyền</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-right sm:block">
-              <span className="block text-sm font-semibold text-slate-900">{user?.name}</span>
-              <span className="block text-xs text-slate-500">{user?.roleLabel}</span>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="hidden min-w-0 max-w-[16rem] text-right sm:block">
+              <span className="block truncate text-sm font-semibold text-slate-900" title={user?.name}>
+                {user?.name}
+              </span>
+              <span className="block truncate text-xs text-slate-500">{user?.roleLabel}</span>
             </span>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-surface text-sm font-bold text-primary">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-surface text-sm font-bold text-primary">
               {user?.avatarInitial}
             </span>
             <button

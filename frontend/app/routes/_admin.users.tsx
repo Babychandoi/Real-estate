@@ -14,6 +14,7 @@ import { useAuth } from '@/shared/auth/AuthContext';
 import { ROLE_LABELS, ROLE_PRIORITY } from '@/shared/auth/roles';
 import { errorMessage } from '@/shared/api/errors';
 import { PasswordReasonDialog, ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';
@@ -111,8 +112,8 @@ export function AdminUsersPage() {
       header: 'Người dùng',
       cell: (u) => (
         <div className="min-w-[12rem]">
-          <p className="font-semibold">{u.fullName}</p>
-          <p className="text-xs text-on-surface-variant">{u.email ?? 'Không có email'}</p>
+          <ClampedText text={u.fullName} className="font-semibold" />
+          <ClampedText text={u.email ?? 'Không có email'} className="text-xs text-on-surface-variant" />
           <p className="text-xs text-on-surface-variant">Tham gia {formatDateTime(u.createdAt)}</p>
         </div>
       ),

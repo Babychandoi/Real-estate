@@ -5,6 +5,7 @@ import type { AdminListingRow, ListingPreview, RevisionRow, StatusHistoryRow } f
 import { formatPriceVnd, formatPropertyType } from '@/entities/listing/model/types';
 import { errorMessage } from '@/shared/api/errors';
 import { ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
@@ -81,14 +82,16 @@ export function AdminListingsPage() {
       header: 'Tin đăng',
       cell: (row) => (
         <div className="min-w-[14rem]">
-          <p className="font-semibold">{row.title}</p>
-          <p className="text-xs text-on-surface-variant">
-            {formatPropertyType(row.propertyType)} · {formatPriceVnd(row.priceVnd)} · {row.areaM2} m² ·{' '}
-            {row.addressSummary ?? 'Chưa có địa chỉ'}
-          </p>
-          <p className="text-xs text-on-surface-variant">
-            {row.ownerName} · nguồn {row.source} · tạo {formatDateTime(row.createdAt)}
-          </p>
+          <ClampedText text={row.title} className="font-semibold" />
+          <ClampedText
+            text={`${formatPropertyType(row.propertyType)} · ${formatPriceVnd(row.priceVnd)} · ${row.areaM2} m² · ${row.addressSummary ?? 'Chưa có địa chỉ'}`}
+            className="text-xs text-on-surface-variant"
+          />
+          <ClampedText
+            text={`${row.ownerName} · nguồn ${row.source} · tạo ${formatDateTime(row.createdAt)}`}
+            lines={1}
+            className="text-xs text-on-surface-variant"
+          />
         </div>
       ),
     },

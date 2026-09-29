@@ -19,6 +19,7 @@ import {
 import { Link } from 'react-router-dom';
 import { fetchLeadListings, revealLeadContact, searchLeads, updateLeadStatus } from '@/entities/lead/api/leadApi';
 import type { LeadListingItem, LeadListingPage, LeadPage, LeadStatus } from '@/entities/lead/model/types';
+import { ClampedText, ExpandableText } from '@/shared/ui/ClampedText';
 import { Button } from '@/shared/ui/Button';
 
 type View = 'leads' | 'reports';
@@ -309,21 +310,25 @@ export default function LeadsAndReportsPage() {
                       key={listing.listingId}
                       type="button"
                       onClick={() => void openListing(listing)}
-                      className="overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                      className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white text-left transition hover:border-blue-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                     >
                       {listing.imageUrl ? (
-                        <img src={listing.imageUrl} alt="" className="h-40 w-full object-cover" />
+                        <img src={listing.imageUrl} alt="" className="h-40 w-full shrink-0 object-cover" />
                       ) : (
-                        <span className="grid h-40 place-items-center bg-slate-100">
+                        <span className="grid h-40 shrink-0 place-items-center bg-slate-100">
                           <Building2 className="h-8 w-8 text-on-surface-variant" />
                         </span>
                       )}
-                      <span className="block p-4">
-                        <span className="line-clamp-2 font-bold text-slate-950">{listing.title}</span>
+                      <span className="flex min-w-0 flex-1 flex-col p-4">
+                        <span className="line-clamp-2 font-bold text-slate-950" title={listing.title}>
+                          {listing.title}
+                        </span>
                         {listing.address && (
-                          <span className="mt-1 line-clamp-1 block text-sm text-slate-600">{listing.address}</span>
+                          <span className="mt-1 line-clamp-2 text-sm text-slate-600" title={listing.address}>
+                            {listing.address}
+                          </span>
                         )}
-                        <span className="mt-4 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-center text-xs">
+                        <span className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-center text-xs">
                           <span>
                             <strong className="block text-lg text-amber-700">{listing.newLeads}</strong>
                             Mới
@@ -449,7 +454,7 @@ export default function LeadsAndReportsPage() {
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-bold text-slate-950">{lead.fullName}</h3>
+                          <ClampedText as="h3" text={lead.fullName} className="min-w-0 font-bold text-slate-950" />
                           <span
                             className={`rounded-md px-2 py-1 text-xs font-semibold ring-1 ring-inset ${LEAD_BADGES[lead.status]}`}
                           >
@@ -471,24 +476,28 @@ export default function LeadsAndReportsPage() {
                         </div>
                         <div className="mt-3 flex items-center gap-3 rounded-lg border border-slate-200 p-3">
                           {lead.listingImageUrl ? (
-                            <img src={lead.listingImageUrl} alt="" className="h-14 w-20 rounded-md object-cover" />
+                            <img
+                              src={lead.listingImageUrl}
+                              alt=""
+                              className="h-14 w-20 shrink-0 rounded-md object-cover"
+                            />
                           ) : (
-                            <span className="grid h-14 w-20 place-items-center rounded-md bg-slate-100">
+                            <span className="grid h-14 w-20 shrink-0 place-items-center rounded-md bg-slate-100">
                               <Building2 className="h-5 w-5 text-slate-500" />
                             </span>
                           )}
                           <div className="min-w-0">
-                            <p className="font-semibold text-slate-900">{lead.listingTitle}</p>
+                            <ClampedText text={lead.listingTitle} className="font-semibold text-slate-900" />
                             {lead.listingAddress && (
-                              <p className="mt-0.5 text-xs text-slate-600">{lead.listingAddress}</p>
+                              <ClampedText text={lead.listingAddress} className="mt-0.5 text-xs text-slate-600" />
                             )}
                           </div>
                         </div>
                         {lead.note && (
-                          <p className="mt-3 flex gap-2 text-sm text-slate-700">
+                          <div className="mt-3 flex gap-2 text-sm text-slate-700">
                             <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" />
-                            <span className="break-words">{lead.note}</span>
-                          </p>
+                            <ExpandableText text={lead.note} className="min-w-0 flex-1" />
+                          </div>
                         )}
                       </div>
                       <div className="grid gap-2">

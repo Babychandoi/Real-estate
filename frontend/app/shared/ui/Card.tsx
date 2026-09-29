@@ -9,7 +9,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 export const Card: React.FC<CardProps> = ({ children, hoverable = false, className, ...props }) => (
   <div
     className={cn(
-      'bg-surface-container-lowest rounded-xl border border-outline-variant/50 p-4 shadow-card transition-all',
+      'min-w-0 [overflow-wrap:anywhere] bg-surface-container-lowest rounded-xl border border-outline-variant/50 p-4 shadow-card transition-all',
       hoverable && 'hover:shadow-card-hover hover:-translate-y-0.5 motion-reduce:hover:translate-y-0',
       className,
     )}

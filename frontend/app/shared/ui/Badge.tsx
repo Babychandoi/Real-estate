@@ -33,7 +33,7 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', icon, className, ...props }) => (
   <span
     className={cn(
-      'inline-flex items-center gap-1 rounded-pill px-2.5 py-0.5 text-xs font-semibold',
+      'inline-flex max-w-full items-center gap-1 break-words rounded-pill px-2.5 py-0.5 text-xs font-semibold',
       variants[variant],
       className,
     )}

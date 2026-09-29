@@ -24,6 +24,7 @@ import {
   formatDateTime,
   type ReasonChoice,
 } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import { Badge } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';
@@ -152,12 +153,12 @@ function QueuePanel() {
       header: 'Tin đăng',
       cell: (item) => (
         <div className="min-w-[14rem]">
-          <p className="font-semibold text-on-surface">{item.title}</p>
-          <p className="text-xs text-on-surface-variant">
-            {formatPropertyType(item.propertyType)} · {formatPriceVnd(item.priceVnd)} · {item.areaM2} m² ·{' '}
-            {item.addressSummary ?? 'Chưa có địa chỉ'}
-          </p>
-          <p className="text-xs text-on-surface-variant">Người đăng: {item.ownerName}</p>
+          <ClampedText text={item.title} className="font-semibold text-on-surface" />
+          <ClampedText
+            text={`${formatPropertyType(item.propertyType)} · ${formatPriceVnd(item.priceVnd)} · ${item.areaM2} m² · ${item.addressSummary ?? 'Chưa có địa chỉ'}`}
+            className="text-xs text-on-surface-variant"
+          />
+          <ClampedText text={`Người đăng: ${item.ownerName}`} lines={1} className="text-xs text-on-surface-variant" />
         </div>
       ),
     },
@@ -210,7 +211,7 @@ function QueuePanel() {
       header: 'Thao tác',
       align: 'end',
       cell: (item) => (
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap justify-end gap-2">
           {!item.claim && (
             <Button
               size="sm"
@@ -367,7 +368,9 @@ function QueuePanel() {
               <p className="font-semibold">Phạm vi áp dụng ({decision.items.length} tin):</p>
               <ul className="mt-1 list-disc pl-5">
                 {decision.items.slice(0, 10).map((i) => (
-                  <li key={i.listingId}>{i.title}</li>
+                  <li key={i.listingId}>
+                    <ClampedText as="span" text={i.title} />
+                  </li>
                 ))}
                 {decision.items.length > 10 && <li>… và {decision.items.length - 10} tin khác</li>}
               </ul>
@@ -550,8 +553,12 @@ function ReviewSheet({
                         {d.fieldLabel}
                         {d.isChanged && <span className="ml-1 text-xs font-bold">(đã đổi)</span>}
                       </th>
-                      <td className="py-2 pr-3 align-top whitespace-pre-line break-words">{d.oldValue || 'Trống'}</td>
-                      <td className="py-2 align-top whitespace-pre-line break-words">{d.newValue || 'Trống'}</td>
+                      <td className="min-w-24 py-2 pr-3 align-top whitespace-pre-line [overflow-wrap:anywhere]">
+                        {d.oldValue || 'Trống'}
+                      </td>
+                      <td className="min-w-24 py-2 align-top whitespace-pre-line [overflow-wrap:anywhere]">
+                        {d.newValue || 'Trống'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -689,7 +696,7 @@ function AuditPanel() {
 
   const columns: DataTableColumn<AuditSample>[] = [
     { key: 'week', header: 'Tuần', cell: (s) => `Từ ${s.weekStart}` },
-    { key: 'title', header: 'Tin đã duyệt', cell: (s) => <span className="font-semibold">{s.title}</span> },
+    { key: 'title', header: 'Tin đã duyệt', cell: (s) => <ClampedText text={s.title} className="font-semibold" /> },
     {
       key: 'by',
       header: 'Người duyệt gốc',
@@ -701,7 +708,7 @@ function AuditPanel() {
       align: 'end',
       cell: (s) =>
         s.status === 'OPEN' ? (
-          <div className="flex justify-end gap-4">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button
               size="sm"
               variant="outline"
