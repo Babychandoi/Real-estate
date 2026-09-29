@@ -14,7 +14,8 @@ import {
   type ArticleCategory,
 } from '@/entities/content/model';
 import { errorMessage } from '@/shared/api/errors';
-import { ClampedText, ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { DataTable, type DataTableColumn, type DataTableStatus } from '@/shared/ui/DataTable';

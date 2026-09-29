@@ -17,7 +17,6 @@ import { formatPriceVnd, formatPropertyType } from '@/entities/listing/model/typ
 import { errorMessage } from '@/shared/api/errors';
 import { ApiProblemException } from '@/shared/types/problem-details';
 import {
-  ClampedText,
   ReasonDialog,
   SlaBadge,
   StatusBadge,
@@ -25,6 +24,7 @@ import {
   formatDateTime,
   type ReasonChoice,
 } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import { Badge } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';

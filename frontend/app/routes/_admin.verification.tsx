@@ -10,14 +10,8 @@ import type {
 import { fetchVerificationQueue } from '@/entities/verification/api/verificationApi';
 import type { ListingVerification, VerificationStatus } from '@/entities/verification/model/types';
 import { errorMessage } from '@/shared/api/errors';
-import {
-  ClampedText,
-  PasswordReasonDialog,
-  ReasonDialog,
-  StatusBadge,
-  formatDate,
-  formatDateTime,
-} from '@/shared/admin/adminUi';
+import { PasswordReasonDialog, ReasonDialog, StatusBadge, formatDate, formatDateTime } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { Chip } from '@/shared/ui/Chip';

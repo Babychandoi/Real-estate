@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
-import { ClampedText } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import { useModal } from '@/shared/ui/useModal';
 import { PROJECT_STATUS_LABELS, type ProjectDetail } from '@/entities/content/model';
 import { ProjectProfileDialog } from '@/features/places/ProjectProfileDialog';

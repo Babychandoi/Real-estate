@@ -19,7 +19,7 @@ import {
 import { Link } from 'react-router-dom';
 import { fetchLeadListings, revealLeadContact, searchLeads, updateLeadStatus } from '@/entities/lead/api/leadApi';
 import type { LeadListingItem, LeadListingPage, LeadPage, LeadStatus } from '@/entities/lead/model/types';
-import { ClampedText, ExpandableText } from '@/shared/admin/adminUi';
+import { ClampedText, ExpandableText } from '@/shared/ui/ClampedText';
 import { Button } from '@/shared/ui/Button';
 
 type View = 'leads' | 'reports';

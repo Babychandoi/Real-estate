@@ -4,7 +4,8 @@ import { adminListingsApi, type AdminListingFilters } from '@/entities/admin/api
 import type { AdminListingRow, ListingPreview, RevisionRow, StatusHistoryRow } from '@/entities/admin/model/types';
 import { formatPriceVnd, formatPropertyType } from '@/entities/listing/model/types';
 import { errorMessage } from '@/shared/api/errors';
-import { ClampedText, ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ReasonDialog, StatusBadge, formatDateTime } from '@/shared/admin/adminUi';
+import { ClampedText } from '@/shared/ui/ClampedText';
 import type { BadgeVariant } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
 import { Checkbox } from '@/shared/ui/Checkbox';
