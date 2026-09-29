@@ -82,7 +82,7 @@ export function CompareTray() {
         aria-label="Danh sách so sánh"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-8px_24px_rgba(15,39,66,0.12)] backdrop-blur"
       >
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8 md:flex-row md:items-center">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
             <Scale className="h-5 w-5 text-primary" aria-hidden="true" />
             So sánh {items.length}/{MAX_COMPARE} tin

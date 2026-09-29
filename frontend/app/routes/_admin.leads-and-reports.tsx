@@ -196,7 +196,7 @@ export default function LeadsAndReportsPage() {
   };
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8" data-ready={loading ? undefined : 'true'}>
+    <section data-ready={loading ? undefined : 'true'}>
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-950">Giám sát khách quan tâm</h1>

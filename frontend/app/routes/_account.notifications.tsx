@@ -117,7 +117,7 @@ export function NotificationCenterPage() {
 
   return (
     <div
-      className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8"
+      className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8 sm:px-6"
       data-ready={status === 'loading' ? undefined : 'true'}
     >
       <header className="flex flex-wrap items-center justify-between gap-3">

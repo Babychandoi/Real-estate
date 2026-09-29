@@ -217,13 +217,13 @@ export function KycPage() {
 
   if (loading)
     return (
-      <section className="mx-auto max-w-5xl px-4 py-10" role="status">
+      <section className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8" role="status">
         Đang kiểm tra hồ sơ eKYC…
       </section>
     );
   if (profile && profile.status !== 'REJECTED' && !(myStatus?.status === 'EXPIRED'))
     return (
-      <section className="mx-auto max-w-3xl px-4 py-10" data-ready="true">
+      <section className="mx-auto max-w-3xl px-4 py-10 sm:px-6" data-ready="true">
         <section className="rounded-2xl border border-outline-variant/50 bg-surface-container-lowest p-6 md:p-8">
           <ShieldCheck className="h-10 w-10 text-emerald-700" />
           <h1 className="mt-4 text-3xl font-extrabold text-on-surface">{STATUS_TEXT[profile.status]}</h1>
@@ -347,7 +347,7 @@ export function KycPage() {
         </p>
       )}
       <form onSubmit={submit} className="mt-6 space-y-6">
-        <section className="grid gap-4 rounded-2xl border bg-white p-5 sm:grid-cols-2">
+        <section className="grid items-start gap-4 rounded-2xl border bg-white p-5 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-semibold">
             Họ và tên trên CCCD
             <input
