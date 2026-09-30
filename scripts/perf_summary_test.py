@@ -33,6 +33,25 @@ class SummaryEvidenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 summary_parser.metric({'metrics': {'errors': {'values': {'rate': rate}}}}, 'errors', 'rate')
 
+    def test_fault_and_recovery_require_the_expected_engine_on_every_read(self):
+        metrics = {'read_attempts': {'values': {'count': 6000}}, 'degraded_reads': {'values': {'count': 6000}}}
+        summary_parser.verify_engine_state({'metrics': metrics}, 1)
+        with self.assertRaises(ValueError):
+            summary_parser.verify_engine_state({'metrics': metrics}, 0)
+        metrics['degraded_reads']['values']['count'] = 5999
+        with self.assertRaises(ValueError):
+            summary_parser.verify_engine_state({'metrics': metrics}, 1)
+        metrics['degraded_reads']['values']['count'] = 0
+        summary_parser.verify_engine_state({'metrics': metrics}, 0)
+
+    def test_redis_outage_evidence_cannot_be_missing_or_claim_recovery_while_down(self):
+        sample = 'bds_ratelimit_redis_available{application="bds"} 0.0\n'
+        summary_parser.verify_redis_state(sample, 0)
+        for bad in ['', sample, sample + sample, 'bds_ratelimit_redis_available NaN\n']:
+            with self.assertRaises(ValueError):
+                summary_parser.verify_redis_state(bad, 1)
+        summary_parser.verify_redis_state('bds_ratelimit_redis_available 1.0\n', 1)
+
 
 if __name__ == '__main__':
     unittest.main()

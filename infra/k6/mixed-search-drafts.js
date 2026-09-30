@@ -33,6 +33,7 @@ const rates = (read) => ({
 });
 const draftsCreated = new Counter('drafts_created');
 const degradedReads = new Counter('degraded_reads');
+const readAttempts = new Counter('read_attempts');
 export const options = {
   scenarios: {
     reads: { ...rates(true), exec: 'readSearch' },
@@ -47,15 +48,18 @@ export const options = {
     checks: ['rate>0.99'],
     dropped_iterations: ['count==0'],
     drafts_created: ['count>0'],
+    read_attempts: ['count>0'],
+    degraded_reads: ['count>=0'],
   },
 };
 export function readSearch() {
+  readAttempts.add(1);
   const response = http.get(`${baseUrl}/api/v2/listings/search?purpose=SALE&size=24`, {
     tags: { endpoint: 'search-v2' }, timeout: '10s',
   });
   let body;
   try { body = response.json(); } catch { body = null; }
-  if (body?.degraded) degradedReads.add(1);
+  degradedReads.add(body?.degraded === true ? 1 : 0);
   check(response, {
     'read succeeds with a v2 page': (r) => r.status === 200 && Array.isArray(body?.items) && !!body?.pageInfo,
     'expected search engine state': () => __ENV.EXPECT_DEGRADED === '1' ? body?.degraded === true : body?.degraded === false,

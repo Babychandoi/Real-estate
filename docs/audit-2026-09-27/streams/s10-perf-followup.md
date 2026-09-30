@@ -103,3 +103,40 @@ at 200/20, and soak lasts thirty minutes. Rate limiting stays enabled with multi
 shares one CI IP; this is a diagnostic under the stated test policy. The read mix repeats the warmed SALE
 first page against the small UAT dataset. It does not close the 1M/cold-cache/real distribution, publication
 lag, ES/Redis outage, rebuild or restore acceptance requirements. Do not mark D-13/R-5 DONE from this workflow alone.
+
+
+## Accepted small-fixture baseline
+
+GitHub run [36686479978](https://github.com/Babychandoi/Real-estate/actions/runs/36686479978),
+artifact `mixed-load-36686479978-1` (11084400418), passed at PR head `4b7f106` / merge commit `0db634d`.
+Steady constant arrival rate was 100 read + 10 draft-create starts/s for one minute, warmed SALE first page,
+small deterministic UAT fixture, shared GitHub-hosted application/load generator, rate-limit multiplier 50.
+
+| Endpoint | p50 ms | p95 ms | p99 ms | HTTP errors |
+|---|---:|---:|---:|---:|
+| Reads | 2.74 | 17.58 | 229.06 | 0% |
+| Draft creates | 21.04 | 310.70 | 553.99 | 0% |
+
+Dropped iterations: 0. k6 exit: 0. PostgreSQL independently verified **601 distinct persisted drafts**
+against the successful-create counter. These numbers certify that specific diagnostic run only.
+
+## Cache/fault/recovery extension
+
+The runner now executes six ordered phases: warm baseline; search-cache cold start; ES unavailable;
+ES recovered; Redis unavailable; Redis recovered. Only the warm phase uses the chosen steady/burst/soak
+profile; each remaining phase runs steady 100/10 for one minute. Soak explicitly lasts thirty minutes
+(the earlier runner unintentionally passed a five-minute DURATION override to soak; no completed soak result existed).
+Each phase has its own write marker, k6 summary and PostgreSQL count verification. A failed phase makes the job fail,
+even if later phases pass; missing or inconsistent metrics are not acceptance.
+
+Search-key eviction is limited to the runner's Redis `bds:search:v1:*` namespace and preserves session/rate-limit
+keys. It is **one-time application-cache eviction**, not cold database/OS buffers or an uncached sustained load.
+ES outage first evicts search keys and waits for database fallback so a warm cached response cannot hide the failure.
+Measured outage traffic begins after that readiness probe; failover transition latency is not measured here.
+Every ES-outage read must be degraded, every other phase read must be non-degraded. Redis limiter availability
+must be 0 in its outage phase and 1 after recovery; auth is performed before the outage, preserving fail-closed login.
+
+Before/after snapshots include private-container Prometheus search/cache/index-lag, durable-job queue/backlog,
+rate-limit fallback, Hikari/JVM/process metrics and pg_stat_database aggregate activity. Database activity is
+not a per-endpoint SQL query count. Draft-related index jobs do not prove public publication throughput.
+Artifacts contain no fixture token files. Integrated six-phase acceptance is pending; D-13/R-5 remain PARTIAL.

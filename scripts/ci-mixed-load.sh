@@ -31,7 +31,8 @@ trap cleanup EXIT
   printf '# Isolated mixed-load diagnostic\n\n- Commit: %s\n- Run: %s/%s\n' "${GITHUB_SHA:?}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
   printf -- '- Project/database: %s / %s\n- Profile: %s; steady duration: %s\n' "$project" "$database" "$profile" "$duration"
   echo '- Fixture: small deterministic UAT dataset, not a 1M-listing capacity certification.'
-  echo '- Cache: warmed by index readiness; workload repeats the SALE first page.'
+  echo '- Phases: warm, search-cache cold start, ES outage/recovery, Redis outage/recovery.'
+  echo '- Cache cold start evicts search keys once; this is not cold PostgreSQL/OS cache or continuously uncached traffic.'
   echo '- Security: rate limiting ON, multiplier 50 for the single shared CI IP; all 429 responses count as failures.'
   echo '- Writes: real KYC-verified broker draft creation, not publication/index lag.'
   echo '- Load generator shares the runner with the application. No production SLO/RPO/RTO is inferred.'
@@ -65,6 +66,41 @@ for attempt in $(seq 1 60); do
 done
 [[ "$ready" == 1 ]] || { echo 'Index did not become ready.' >&2; exit 1; }
 
+evict_search_cache() {
+  # Only the throwaway project's public search keys. Preserve auth and rate-limit state.
+  "${compose[@]}" exec -T redis sh -ec '
+    export REDISCLI_AUTH="$REDIS_PASSWORD"
+    redis-cli --scan --pattern "bds:search:v1:*" | while IFS= read -r key; do
+      redis-cli UNLINK "$key" > /dev/null
+    done
+    test -z "$(redis-cli --scan --pattern "bds:search:v1:*")"
+  '
+}
+
+wait_search_state() {
+  local expected="$1"
+  for attempt in $(seq 1 60); do
+    if curl -fsS --max-time 10 "$base_url/api/v2/listings/search?purpose=SALE&size=24" > "$work_dir/search.json" && \
+      python3 -c 'import json,sys; s=json.load(open(sys.argv[1])); sys.exit(0 if s.get("degraded") is (sys.argv[2] == "1") and s.get("items") else 1)' "$work_dir/search.json" "$expected"; then
+      return 0
+    fi
+    sleep 2
+  done
+  echo "Search did not reach expected degraded=$expected." >&2
+  return 1
+}
+
+snapshot_metrics() {
+  local target="$1"
+  # Scrape from inside the backend container, without exposing an admin/metrics endpoint publicly.
+  "${compose[@]}" exec -T backend curl -fsS --max-time 15 http://localhost:8080/actuator/prometheus \
+    | grep -E '^(# (HELP|TYPE) )?(bds_search_|bds_jobs_|bds_ratelimit_|hikaricp_|jvm_|process_)' \
+    > "$target.prometheus"
+  "${compose[@]}" exec -T postgres sh -ec \
+    'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "SELECT datname, numbackends, xact_commit, xact_rollback, blks_read, blks_hit, tup_returned, tup_fetched, tup_inserted, tup_updated, deadlocks, temp_bytes FROM pg_stat_database WHERE datname=current_database();"' \
+    > "$target.postgres.txt"
+}
+
 # Session material stays in a private temporary directory and is deleted on exit; never upload this file.
 export PERF_LOGIN_PASSWORD="$password" PERF_LOGIN_URL="$base_url"
 python3 - "$work_dir/k6.env" <<'PY'
@@ -82,26 +118,66 @@ with open(sys.argv[1], 'w') as target:
 os.chmod(sys.argv[1], 0o600)
 PY
 unset PERF_LOGIN_PASSWORD password
-marker="$(sed -n 's/^PERF_RUN_ID=//p' "$work_dir/k6.env")"
 image=grafana/k6:1.7.0
 docker pull "$image" > /dev/null
 docker image inspect --format '{{json .RepoDigests}}' "$image" >> "$output_dir/environment.txt"
 docker run --rm "$image" version >> "$output_dir/environment.txt"
-k6_status=0
-docker run --rm --network host --user "$(id -u):$(id -g)" \
-  --env-file "$work_dir/k6.env" -e BDS_PERF_ISOLATED=1 -e BASE_URL="$base_url" \
-  -e PROFILE="$profile" -e DURATION="$duration" -e PERF_SUMMARY_PATH=/results/summary.json \
-  -v "$repo_dir/infra/k6:/scripts:ro" -v "$output_dir:/results" \
-  "$image" run /scripts/mixed-search-drafts.js \
-  > "$output_dir/k6.txt" 2>&1 || k6_status=$?
-printf '\n- k6 exit status: %s (0 means every threshold passed).\n' "$k6_status" >> "$output_dir/report.md"
+overall_status=0
+run_phase() {
+  local phase="$1" expected="$2" phase_profile="$3" phase_duration="$4"
+  local phase_dir="$output_dir/$phase" k6_status=0 effect_status=0 evidence_status=0 count marker
+  mkdir -p "$phase_dir"
+  # Every phase has its own marker, so matching counts cannot be satisfied by an earlier phase's writes.
+  marker="$(python3 -c 'import secrets; print("".join(secrets.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(20)))')"
+  sed "s/^PERF_RUN_ID=.*/PERF_RUN_ID=$marker/" "$work_dir/k6.env" > "$work_dir/phase.env"
+  chmod 600 "$work_dir/phase.env"
+  snapshot_metrics "$phase_dir/before"
+  docker run --rm --network host --user "$(id -u):$(id -g)" \
+    --env-file "$work_dir/phase.env" -e BDS_PERF_ISOLATED=1 -e BASE_URL="$base_url" \
+    -e EXPECT_DEGRADED="$expected" -e PROFILE="$phase_profile" -e DURATION="$phase_duration" \
+    -e PERF_SUMMARY_PATH=/results/summary.json \
+    -v "$repo_dir/infra/k6:/scripts:ro" -v "$phase_dir:/results" \
+    "$image" run /scripts/mixed-search-drafts.js > "$phase_dir/k6.txt" 2>&1 || k6_status=$?
+  snapshot_metrics "$phase_dir/after"
+  printf '\n## Phase: %s\n\n- Profile/duration: %s/%s\n- Expected degraded: %s\n- k6 exit status: %s\n' \
+    "$phase" "$phase_profile" "$phase_duration" "$expected" "$k6_status" >> "$output_dir/report.md"
+  # Still verify durable effects when latency thresholds fail; never relabel a failed phase as PASS.
+  if count="$(python3 scripts/perf-summary.py "$phase_dir/summary.json" --count)"; then
+    local redis_expected=1
+    [[ "$phase" != redis-unavailable ]] || redis_expected=0
+    python3 scripts/perf-summary.py "$phase_dir/summary.json" --expected-degraded "$expected" \
+      --redis-state "$redis_expected" --metrics "$phase_dir/after.prometheus" \
+      >> "$output_dir/report.md" || evidence_status=$?
+    "${compose[@]}" exec -T -e PERF_RUN_ID="$marker" -e PERF_COUNT="$count" postgres sh -ec \
+      'psql -X -v ON_ERROR_STOP=1 -v run_id="$PERF_RUN_ID" -v expected_count="$PERF_COUNT" -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+      < infra/perf/verify-draft-writes.sql > "$phase_dir/persisted-effects.txt" 2>&1 || effect_status=$?
+  else
+    evidence_status=2; effect_status=2
+  fi
+  printf '\n- Evidence parser status: %s\n- Persisted-effect status: %s\n' \
+    "$evidence_status" "$effect_status" >> "$output_dir/report.md"
+  if [[ "$k6_status" != 0 || "$effect_status" != 0 || "$evidence_status" != 0 ]]; then overall_status=1; fi
+}
 
-# Check durable effects even when latency/error thresholds fail. A failed generator never becomes a PASS report.
-count="$(python3 scripts/perf-summary.py "$output_dir/summary.json" --count)"
-python3 scripts/perf-summary.py "$output_dir/summary.json" >> "$output_dir/report.md"
-effect_status=0
-"${compose[@]}" exec -T -e PERF_RUN_ID="$marker" -e PERF_COUNT="$count" postgres sh -ec \
-  'psql -X -v ON_ERROR_STOP=1 -v run_id="$PERF_RUN_ID" -v expected_count="$PERF_COUNT" -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
-  < infra/perf/verify-draft-writes.sql > "$output_dir/persisted-effects.txt" 2>&1 || effect_status=$?
-printf '\n- Persisted-effect verification exit status: %s\n' "$effect_status" >> "$output_dir/report.md"
-[[ "$k6_status" == 0 && "$effect_status" == 0 ]]
+# Only the baseline follows the selected profile. Fault/recovery probes remain one minute each even for soak.
+[[ "$profile" != soak ]] || duration=30m
+run_phase warm 0 "$profile" "$duration"
+evict_search_cache
+run_phase cache-cold-start 0 steady 1m
+
+"${compose[@]}" stop elasticsearch > /dev/null
+evict_search_cache
+wait_search_state 1
+run_phase es-unavailable 1 steady 1m
+"${compose[@]}" up -d --wait --no-deps elasticsearch > /dev/null
+wait_search_state 0
+run_phase es-recovered 0 steady 1m
+
+# Obtain the session before stopping Redis: auth credential endpoints deliberately fail closed in an outage.
+"${compose[@]}" stop redis > /dev/null
+wait_search_state 0
+run_phase redis-unavailable 0 steady 1m
+"${compose[@]}" up -d --wait --no-deps redis > /dev/null
+wait_search_state 0
+run_phase redis-recovered 0 steady 1m
+exit "$overall_status"

@@ -3,6 +3,7 @@
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 
 
@@ -20,6 +21,19 @@ def draft_count(summary):
     if count <= 0 or count != int(count):
         raise ValueError('Expected a positive integer successful-draft count')
     return int(count)
+
+
+def verify_engine_state(summary, expected):
+    reads = metric(summary, 'read_attempts', 'count')
+    degraded = metric(summary, 'degraded_reads', 'count')
+    if reads <= 0 or reads != int(reads) or degraded != int(degraded) or degraded != (reads if expected else 0):
+        raise ValueError('Search engine state mismatch across measured read attempts')
+
+
+def verify_redis_state(text, expected):
+    samples = re.findall(r'^bds_ratelimit_redis_available(?:\{[^\n]*\})?\s+(\S+)', text, re.MULTILINE)
+    if len(samples) != 1 or float(samples[0]) != expected:
+        raise ValueError('Redis limiter state does not match the injected outage/recovery')
 
 
 def report(summary):
@@ -41,9 +55,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('summary', type=Path)
     parser.add_argument('--count', action='store_true')
+    parser.add_argument('--expected-degraded', type=int, choices=[0, 1])
+    parser.add_argument('--redis-state', type=int, choices=[0, 1])
+    parser.add_argument('--metrics', type=Path)
     args = parser.parse_args()
     try:
         summary = json.loads(args.summary.read_text())
+        if args.expected_degraded is not None:
+            verify_engine_state(summary, args.expected_degraded)
+        if args.redis_state is not None:
+            if not args.metrics:
+                raise ValueError('--redis-state requires --metrics')
+            verify_redis_state(args.metrics.read_text(), args.redis_state)
         print(draft_count(summary) if args.count else report(summary))
     except (ValueError, OSError, TypeError, AttributeError) as error:
         parser.exit(2, f'Invalid k6 evidence: {error}\n')
