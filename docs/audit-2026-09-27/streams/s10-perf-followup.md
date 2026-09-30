@@ -73,7 +73,7 @@ a unique lowercase-letter `PERF_RUN_ID`, and dedicated verified actor tokens sup
 
 ```bash
 # Configure BASE_URL, PERF_ACTOR_TOKENS_JSON, PERF_RUN_ID in the isolated runner environment.
-BDS_PERF_ISOLATED=1 PROFILE=steady k6 run --summary-export=.artifacts/perf/mixed.json infra/k6/mixed-search-drafts.js
+BDS_PERF_ISOLATED=1 PROFILE=steady PERF_SUMMARY_PATH=.artifacts/perf/mixed.json k6 run infra/k6/mixed-search-drafts.js
 ```
 
 Run `infra/perf/verify-draft-writes.sql` with psql variables `run_id` and `expected_count` (the k6
@@ -86,3 +86,20 @@ claim published-write/index-lag performance. Index lag, outbox metrics, cold/war
 still require a controlled run with the existing integration tests/observability tools. For an intentionally
 unavailable search engine use `EXPECT_DEGRADED=1`; normal runs require non-degraded responses. Rate-limit
 responses remain failures, never excluded from the measurement. Provision approved fixture capacity first.
+
+
+## Isolated mixed-load workflow (2026-09-30)
+
+`.github/workflows/performance.yml` runs an independent GitHub-hosted job for harness changes and offers
+manual steady/burst/soak profiles. `scripts/ci-mixed-load.sh` creates a unique Compose project and fresh
+`bds_perf_ci_*` database, seeds synthetic listings/KYC, waits for non-degraded search, obtains a throwaway
+broker session, runs pinned `grafana/k6:1.7.0`, compares successful creates with persisted draft IDs, and
+removes the project/volumes on exit. Credentials are kept in a private temporary directory outside uploaded evidence.
+The artifact retains hardware/image metadata, p50/p95/p99, error rates, dropped starts, k6 threshold status
+and PostgreSQL effect verification. Failures remain failures, including latency, 429, and count mismatches.
+
+PRs run one minute at 100 read/10 create starts per second. Manual steady runs last five minutes, burst peaks
+at 200/20, and soak lasts thirty minutes. Rate limiting stays enabled with multiplier 50 because every client
+shares one CI IP; this is a diagnostic under the stated test policy. The read mix repeats the warmed SALE
+first page against the small UAT dataset. It does not close the 1M/cold-cache/real distribution, publication
+lag, ES/Redis outage, rebuild or restore acceptance requirements. Do not mark D-13/R-5 DONE from this workflow alone.

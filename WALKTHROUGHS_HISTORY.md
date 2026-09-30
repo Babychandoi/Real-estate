@@ -881,3 +881,7 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 
 ## 2026-09-30 — Acceptance CORS configuration fix
 - CI run 36679264383: search acceptance PASS; supply, contact and admin FAIL. Downloaded Playwright traces confirm seven failing browser writes returned HTTP 403 with body Invalid CORS request. The demo allowlist contained localhost only while Playwright used 127.0.0.1. API-only setup omitted Origin and therefore passed. Updated demo configuration and added an early CORS preflight gate. YAML and shell syntax checked locally; integrated rerun pending, no acceptance PASS claimed for the failed flows.
+
+## 2026-09-30 — Isolated mixed-load evidence runner
+- CI 36681537495 at 1a5d3a6: frontend, backend, security and E2E all PASS, including four separate ordered core-flow acceptance suites. Those suites validate seeded journeys, not full production acceptance. Added performance.yml, ci-mixed-load.sh and perf-summary.py; exported the modern k6 summary for stable metric parsing. Local validation recorded below; actual mixed-load results pending CI. No production capacity numbers claimed.
+- Local checks PASS: three summary-parser regressions (finite/integer effect count, separate endpoint p50/p95/p99/error rates, incomplete/out-of-range evidence rejection), bash syntax, k6 JavaScript syntax, workflow YAML/embedded shell syntax, Prettier YAML, diff whitespace. Runner refuses execution without GitHub Actions/isolation flags (exit 2). Docker/k6 unavailable locally; no actual throughput result claimed.

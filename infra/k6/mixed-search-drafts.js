@@ -79,3 +79,11 @@ export function writeDraft() {
   if (success) draftsCreated.add(1);
 }
 // No tokens or response bodies are written to summaries. Verify persisted draft count separately by title marker.
+
+// The modern summary object preserves metric types and nested values for the evidence parser.
+export function handleSummary(data) {
+  return {
+    [__ENV.PERF_SUMMARY_PATH || 'summary.json']: JSON.stringify(data),
+    stdout: `${JSON.stringify(data.metrics, null, 2)}\n`,
+  };
+}

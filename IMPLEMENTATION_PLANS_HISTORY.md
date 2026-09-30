@@ -482,3 +482,6 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 
 ## 2026-09-30 — Acceptance CORS configuration fix
 - Fix the disposable demo origin allowlist to include both localhost and 127.0.0.1. Add a preflight gate using the actual Playwright origin immediately after stack startup. Preserve production CORS policy and all acceptance assertions.
+
+## 2026-09-30 — Isolated mixed-load evidence runner
+- D-13/R-5: implement independent isolated mixed-load workflow, runner and metric report parser using the existing k6 draft harness/verification SQL. Keep application/API/schema untouched. PR baseline 1m; manual steady/burst/soak. Require private fixture tokens, unique Compose project/database, cleanup and durable-count verification. No UI prototype changes apply.
