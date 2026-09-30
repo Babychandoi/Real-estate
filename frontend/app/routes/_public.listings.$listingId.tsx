@@ -90,7 +90,9 @@ export const ListingDetailPage: React.FC = () => {
     setSimilar(null);
     listingV2Api
       .detail(legacyId ?? route, abort.signal)
-      .then((listing) => setState({ kind: 'ready', listing }))
+      .then((listing) => {
+        if (!abort.signal.aborted) setState({ kind: 'ready', listing });
+      })
       .catch((error: unknown) => {
         if (abort.signal.aborted) return;
         const problem = error instanceof ApiProblemException ? error.problem : null;
@@ -110,11 +112,15 @@ export const ListingDetailPage: React.FC = () => {
     const abort = new AbortController();
     listingV2Api
       .priceHistory(listing.id, abort.signal)
-      .then(setHistory)
+      .then((value) => {
+        if (!abort.signal.aborted) setHistory(value);
+      })
       .catch(() => !abort.signal.aborted && setHistory({ listingId: listing.id, purpose: null, points: [] }));
     listingV2Api
       .similar(listing.id, 6, abort.signal)
-      .then(setSimilar)
+      .then((value) => {
+        if (!abort.signal.aborted) setSimilar(value);
+      })
       .catch(() => !abort.signal.aborted && setSimilar([]));
     track(
       'listing_detail_viewed',

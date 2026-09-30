@@ -51,9 +51,10 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
       setStatus('idle');
       return;
     }
+    setPlaces([]);
+    setStatus('loading');
     const abort = new AbortController();
     const timer = window.setTimeout(() => {
-      setStatus('loading');
       geocodePlaces(query, abort.signal)
         .then((found) => {
           if (abort.signal.aborted) return;
@@ -90,7 +91,7 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
-          choose(options[active] ?? { kind: 'keyword', text: text.trim() });
+          choose((open ? options[active] : undefined) ?? { kind: 'keyword', text: text.trim() });
         }}
         className="relative"
       >

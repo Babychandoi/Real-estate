@@ -1,0 +1,31 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
+import { geocodePlaces } from '@/shared/api/geocodingApi';
+import { SearchBox } from './SearchBox';
+vi.mock('@/shared/api/geocodingApi', () => ({ geocodePlaces: vi.fn() }));
+const place = { label: 'Cầu Giấy', type: 'district', lat: 21.03, lon: 105.8 };
+it('removes suggestions from the previous query before the next response', async () => {
+  vi.mocked(geocodePlaces).mockResolvedValueOnce([place]).mockRejectedValueOnce(new Error('offline'));
+  render(<SearchBox keyword="" onKeyword={vi.fn()} onPlace={vi.fn()} onClearPlace={vi.fn()} />);
+  const input = screen.getByRole('combobox');
+  fireEvent.change(input, { target: { value: 'Cầu Giấy' } });
+  await screen.findByText('Khu vực: Cầu Giấy');
+  fireEvent.change(input, { target: { value: 'Hà Đông' } });
+  expect(screen.queryByText('Khu vực: Cầu Giấy')).not.toBeInTheDocument();
+  await screen.findByText(/Chưa tìm được địa điểm lúc này/);
+  expect(screen.queryByText('Khu vực: Cầu Giấy')).not.toBeInTheDocument();
+});
+it('submits the keyword after Escape instead of the previously highlighted place', async () => {
+  vi.mocked(geocodePlaces).mockResolvedValue([place]);
+  const onKeyword = vi.fn();
+  const onPlace = vi.fn();
+  render(<SearchBox keyword="" onKeyword={onKeyword} onPlace={onPlace} onClearPlace={vi.fn()} />);
+  const input = screen.getByRole('combobox');
+  fireEvent.change(input, { target: { value: 'Cầu Giấy' } });
+  await screen.findByText('Khu vực: Cầu Giấy');
+  fireEvent.keyDown(input, { key: 'ArrowDown' });
+  fireEvent.keyDown(input, { key: 'Escape' });
+  fireEvent.submit(screen.getByRole('search'));
+  expect(onKeyword).toHaveBeenCalledWith('Cầu Giấy');
+  expect(onPlace).not.toHaveBeenCalled();
+});

@@ -867,3 +867,9 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - Routes: /search, admin users and admin verification; no route/API/schema contract changes. CI/E2E remains a batched gate, not a per-edit stopping point.
 
 - Additional snapshot-cache regression: all four useListingSearch tests PASS, including prevention of SALE rows being restored under RENT filters.
+
+## 2026-09-30 — Stale-response follow-up
+- SearchBox, LeadDetailDialog, public article list and listing-detail async handlers updated. Added geocoding keyboard/stale-choice regressions and a lead-switch private-state regression.
+- SearchBox fixture now includes the required GeocodePlace.type, fixing the local strict-type error before publication.
+- All changes remain on PR #21; unrelated backup archive changes are excluded. API endpoints and database schema unchanged.
+- Final local result for this follow-up: 41 Vitest files / 257 tests PASS; ESLint, TypeScript production build, Prettier and every route bundle budget PASS. Backend/E2E/load runs remain deferred as requested; no production result claimed.

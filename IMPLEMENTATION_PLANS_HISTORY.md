@@ -468,3 +468,9 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - R-3: apply expiry/cancellation/blob cleanup to staff private-document images as well as account KYC; add explicit reauthentication actions.
 - D-13: add guarded mixed read/draft-write k6 scenarios (100/10 steady, burst, soak), independent thresholds and read-only database effect verification. No production writes, no fabricated measurements.
 - Reconcile every remaining audit group with implementation evidence in streams/code-gap-reconciliation.md. Preserve unresolved acceptance statuses; previously shipped billing concurrency, analytics funnel and data-restore timing are credited rather than rewritten.
+
+## 2026-09-30 — Final stale-response follow-up (R-2, R-3, DS-08)
+- Clear old geocoding choices immediately on a new query; Escape followed by submit uses the typed keyword, not a hidden highlighted place.
+- Key lead-dialog state by lead ID so previous contact/phone/form requests cannot populate another lead's dialog.
+- Ignore aborted successes in public listing detail, price history, similar listings and article pagination.
+- Validate with the full frontend test suite, lint/typecheck/build and formatting before publishing this batch.
