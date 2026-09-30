@@ -878,3 +878,6 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - The prior CI ran smoke/a11y/visual suites but did not invoke search.spec.ts, supply.spec.ts, journeys.spec.ts or admin.spec.ts. Added those four separate, ordered acceptance steps after visual tests.
 - Added Search rent-filter/detail/back regression and removed the pagination fixture skip. Missing required seeded data now fails acceptance.
 - Test discovery/YAML/static checks only are local evidence. Actual integrated acceptance results must come from CI; no four-flow PASS is claimed before it runs.
+
+## 2026-09-30 — Acceptance CORS configuration fix
+- CI run 36679264383: search acceptance PASS; supply, contact and admin FAIL. Downloaded Playwright traces confirm seven failing browser writes returned HTTP 403 with body Invalid CORS request. The demo allowlist contained localhost only while Playwright used 127.0.0.1. API-only setup omitted Origin and therefore passed. Updated demo configuration and added an early CORS preflight gate. YAML and shell syntax checked locally; integrated rerun pending, no acceptance PASS claimed for the failed flows.

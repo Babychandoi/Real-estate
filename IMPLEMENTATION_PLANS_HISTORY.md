@@ -479,3 +479,6 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Wire existing search, supply, cross-role contact/KYC and admin moderation/billing E2E suites into CI in that order on Chromium desktop, one worker per suite.
 - Run mutation journeys after visual baselines to preserve deterministic screenshot fixtures. Keep per-suite reports and failure artifacts.
 - Add rent-filter/detail/back result preservation to Search acceptance; require the seeded pagination fixture instead of skipping it.
+
+## 2026-09-30 — Acceptance CORS configuration fix
+- Fix the disposable demo origin allowlist to include both localhost and 127.0.0.1. Add a preflight gate using the actual Playwright origin immediately after stack startup. Preserve production CORS policy and all acceptance assertions.

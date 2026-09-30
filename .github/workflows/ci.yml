@@ -167,6 +167,16 @@ jobs:
           docker compose $COMPOSE_FILE_ARGS build --build-arg VITE_ENABLE_UI_CATALOG=true frontend
       - name: Start integration stack
         run: docker compose $COMPOSE_FILE_ARGS up -d --wait
+      - name: Verify browser origin before acceptance
+        run: |
+          headers=$(mktemp)
+          curl --fail --silent --show-error --dump-header "$headers" --output /dev/null \
+            --request OPTIONS "$PLAYWRIGHT_BASE_URL/api/v1/auth/login" \
+            --header "Origin: $PLAYWRIGHT_BASE_URL" \
+            --header 'Access-Control-Request-Method: POST' \
+            --header 'Access-Control-Request-Headers: content-type'
+          tr -d '\r' < "$headers" | grep -Fiqx "Access-Control-Allow-Origin: $PLAYWRIGHT_BASE_URL"
+          rm "$headers"
       - name: Seed fixture data (UAT seeder, fixed clock)
         # The running stack created the demo accounts; this one-off container adds deterministic listings, leads,
         # reports and orders for them and exits.
