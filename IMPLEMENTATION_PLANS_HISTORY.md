@@ -474,3 +474,8 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Key lead-dialog state by lead ID so previous contact/phone/form requests cannot populate another lead's dialog.
 - Ignore aborted successes in public listing detail, price history, similar listings and article pagination.
 - Validate with the full frontend test suite, lint/typecheck/build and formatting before publishing this batch.
+
+## 2026-09-30 — Sequential core-flow acceptance
+- Wire existing search, supply, cross-role contact/KYC and admin moderation/billing E2E suites into CI in that order on Chromium desktop, one worker per suite.
+- Run mutation journeys after visual baselines to preserve deterministic screenshot fixtures. Keep per-suite reports and failure artifacts.
+- Add rent-filter/detail/back result preservation to Search acceptance; require the seeded pagination fixture instead of skipping it.

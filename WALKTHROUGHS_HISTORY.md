@@ -873,3 +873,8 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - SearchBox fixture now includes the required GeocodePlace.type, fixing the local strict-type error before publication.
 - All changes remain on PR #21; unrelated backup archive changes are excluded. API endpoints and database schema unchanged.
 - Final local result for this follow-up: 41 Vitest files / 257 tests PASS; ESLint, TypeScript production build, Prettier and every route bundle budget PASS. Backend/E2E/load runs remain deferred as requested; no production result claimed.
+
+## 2026-09-30 — Core-flow acceptance gate enabled
+- The prior CI ran smoke/a11y/visual suites but did not invoke search.spec.ts, supply.spec.ts, journeys.spec.ts or admin.spec.ts. Added those four separate, ordered acceptance steps after visual tests.
+- Added Search rent-filter/detail/back regression and removed the pagination fixture skip. Missing required seeded data now fails acceptance.
+- Test discovery/YAML/static checks only are local evidence. Actual integrated acceptance results must come from CI; no four-flow PASS is claimed before it runs.

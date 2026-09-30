@@ -267,6 +267,39 @@ jobs:
         env:
           PLAYWRIGHT_SUITE: visual
         run: npx playwright test tests/e2e/visual.spec.ts --project=ios-safari --project=webkit-desktop --project=firefox-desktop
+      # Mutation journeys run after visual baselines, in the agreed acceptance order.
+      - name: 'Acceptance 1: Search and navigation'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: acceptance-search
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/search.spec.ts --project=chromium-1440 --workers=1
+      - name: 'Acceptance 2: Listing supply'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: acceptance-supply
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/supply.spec.ts --project=chromium-1440 --workers=1
+      - name: 'Acceptance 3: Contact and KYC'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: acceptance-contact
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/journeys.spec.ts --project=chromium-1440 --workers=1
+      - name: 'Acceptance 4: Moderation and billing'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: acceptance-admin
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/admin.spec.ts --project=chromium-1440 --workers=1
       - name: S10 query plans (isolated 100k and 1M)
         timeout-minutes: 15
         env:
