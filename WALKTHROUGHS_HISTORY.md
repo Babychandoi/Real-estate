@@ -858,3 +858,12 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - UI-12 disclosure now supports VITE_KYC_RETENTION_NOTICE through frontend Docker build args and Compose/env examples, with a privacy-policy link and explicit missing-policy fallback. Product/security must supply approved wording; no retention/deletion period is invented or enforced by this UI setting.
 - Local acceptance: frontend ESLint, TypeScript, production build, route bundle budget and Prettier PASS. Seven focused hook tests PASS (three map lifecycle/retry, four KYC expiry/cleanup/error cases). Full backend/E2E not rerun locally; no backend or migration changes.
 - Routes affected: /search and account KYC; route paths unchanged. DS-08/R-3/UI-12 gain this implementation evidence but wider audit acceptance remains open.
+
+## 2026-09-30 — Consolidated follow-up acceptance
+- Changed SearchMap/useListingSearch, staff PrivateMediaImage and admin document dialogs; added map/expiry/late-response tests and mixed-search-drafts.js plus verify-draft-writes.sql.
+- Local ESLint, TypeScript production build, bundle budgets and Prettier passed. Full Vitest suite: 39 files / 253 tests passed before adding the snapshot-cache regression; follow-up result recorded below.
+- k6 script syntax checked with node --check. Persisted-effect SQL verified with PGlite: matching draft count passes and mismatch fails. No actual k6 load or PostgreSQL/PostGIS production-capacity result is claimed.
+- Scope/status reconciliation is in streams/code-gap-reconciliation.md. The 260-row keyset traversal, billing concurrency and KYC funnel already existed; remaining RPO/RTO questions concern end-to-end production/deploy compatibility beyond the W1 data-only drill.
+- Routes: /search, admin users and admin verification; no route/API/schema contract changes. CI/E2E remains a batched gate, not a per-edit stopping point.
+
+- Additional snapshot-cache regression: all four useListingSearch tests PASS, including prevention of SALE rows being restored under RENT filters.

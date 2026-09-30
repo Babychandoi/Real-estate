@@ -62,3 +62,27 @@ are local buffers; do not interpret them as production shared-buffer/cache perfo
 the integration services. Review the actual plans and archive accepted evidence before changing F09.3 status.
 The earlier W1/S5A restore drill already passed; outstanding restore acceptance concerns measured RPO/RTO
 and deploy/migration rollback, not an absence of any successful restore drill.
+
+## Mixed workload implementation (2026-09-30)
+
+`infra/k6/mixed-search-drafts.js` now offers steady (100 read + 10 draft-create starts/s), burst
+(200 + 20 peak) and soak profiles, independent endpoint latency/error thresholds, p95/p99, dropped iterations,
+created-draft counts and degraded-read counts. It requires an explicitly isolated loopback HTTP stack,
+a unique lowercase-letter `PERF_RUN_ID`, and dedicated verified actor tokens supplied through
+`PERF_ACTOR_TOKENS_JSON`. Never use production tokens; summaries do not include tokens or response bodies.
+
+```bash
+# Configure BASE_URL, PERF_ACTOR_TOKENS_JSON, PERF_RUN_ID in the isolated runner environment.
+BDS_PERF_ISOLATED=1 PROFILE=steady k6 run --summary-export=.artifacts/perf/mixed.json infra/k6/mixed-search-drafts.js
+```
+
+Run `infra/perf/verify-draft-writes.sql` with psql variables `run_id` and `expected_count` (the k6
+`drafts_created` count) against the same disposable `bds_perf_*` database. The read-only SQL rejects a
+wrong database and mismatched persisted effects. Use a fresh marker for each run. After collecting evidence,
+dispose of the fixture stack; do not delete individual application records through this harness.
+
+This workload creates real private drafts (requires KYC, no publishing quota is consumed). It does **not**
+claim published-write/index-lag performance. Index lag, outbox metrics, cold/warm conditions, faults and rebuild
+still require a controlled run with the existing integration tests/observability tools. For an intentionally
+unavailable search engine use `EXPECT_DEGRADED=1`; normal runs require non-degraded responses. Rate-limit
+responses remain failures, never excluded from the measurement. Provision approved fixture capacity first.

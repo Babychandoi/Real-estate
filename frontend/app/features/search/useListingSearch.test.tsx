@@ -94,4 +94,20 @@ describe('search cursor lifecycle', () => {
     restored.unmount();
     expect(signal?.aborted).toBe(true);
   });
+  it('never caches old sale results under a new rent history entry', async () => {
+    vi.mocked(listingV2Api.search).mockImplementation((params) =>
+      params.get('purpose') === 'RENT' ? new Promise(() => {}) : Promise.resolve(page(['sale'])),
+    );
+    const first = renderHook(
+      ({ purpose }: { purpose: 'SALE' | 'RENT' }) =>
+        useListingSearch({ ...DEFAULT_FILTERS, purpose }, 'snapshot-filter-test'),
+      { initialProps: { purpose: 'SALE' as 'SALE' | 'RENT' } },
+    );
+    await waitFor(() => expect(first.result.current.state.status).toBe('ready'));
+    first.rerender({ purpose: 'RENT' });
+    first.unmount();
+    const next = renderHook(() => useListingSearch({ ...DEFAULT_FILTERS, purpose: 'RENT' }, 'snapshot-filter-test'));
+    expect(next.result.current.state.restored).toBe(false);
+    expect(next.result.current.state.items).toEqual([]);
+  });
 });

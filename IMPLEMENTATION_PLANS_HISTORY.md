@@ -462,3 +462,9 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 - Extract private KYC previews into a grant-scoped hook: abort requests, revoke blob URLs, hide images on expiry and recheck expiry on focus/visibility changes; offer reauthentication on load failure.
 - Add public build-time VITE_KYC_RETENTION_NOTICE configuration through Docker/Compose and env examples. Display only owner-approved wording; absent policy stays explicit. This disclosure does not implement retention/deletion rules.
 - Batch frontend lint/typecheck/build and focused regression tests locally. No backend API or migration changes; production measurements/manual acceptance remain separate.
+
+## 2026-09-30 — Consolidated remaining code audit and completion
+- R-2/DS-08: clear outdated map points during filter reload, reject late aborted responses, add map retry; prevent previous-query results entering a new history snapshot; enlarge map point targets to 44px.
+- R-3: apply expiry/cancellation/blob cleanup to staff private-document images as well as account KYC; add explicit reauthentication actions.
+- D-13: add guarded mixed read/draft-write k6 scenarios (100/10 steady, burst, soak), independent thresholds and read-only database effect verification. No production writes, no fabricated measurements.
+- Reconcile every remaining audit group with implementation evidence in streams/code-gap-reconciliation.md. Preserve unresolved acceptance statuses; previously shipped billing concurrency, analytics funnel and data-restore timing are credited rather than rewritten.

@@ -535,21 +535,27 @@ function KycDialog({ user, onClose, onChanged }: { user: UserItem; onClose: () =
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-on-surface-variant">Quyền xem hết hạn lúc {formatDateTime(docs.expiresAt)}.</p>
+            <Button variant="outline" onClick={() => setAsking(true)}>
+              Xác nhận lại để mở ảnh
+            </Button>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <PrivateMediaImage
                 src={docs.identity?.idCardFrontUrl ?? undefined}
                 alt={`Mặt trước CCCD của ${user.fullName}`}
                 accessToken={docs.token}
+                expiresAt={docs.expiresAt}
               />
               <PrivateMediaImage
                 src={docs.identity?.idCardBackUrl ?? undefined}
                 alt={`Mặt sau CCCD của ${user.fullName}`}
                 accessToken={docs.token}
+                expiresAt={docs.expiresAt}
               />
               <PrivateMediaImage
                 src={docs.identity?.selfieUrl ?? undefined}
                 alt={`Ảnh chân dung của ${user.fullName}`}
                 accessToken={docs.token}
+                expiresAt={docs.expiresAt}
               />
             </div>
           </div>
