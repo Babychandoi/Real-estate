@@ -1,5 +1,6 @@
 package com.company.bds.shared.security.ratelimit;
 
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RateLimiterTests {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-09-28T00:00:00Z"));
     private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
+    private final RedisCircuitBreaker breaker = new RedisCircuitBreaker(clock, meters, Duration.ofSeconds(5));
     private LettuceConnectionFactory unreachable;
 
     @AfterEach
@@ -43,8 +45,7 @@ class RateLimiterTests {
         RateLimitProperties properties = new RateLimitProperties();
         properties.setLocalMaxEntries(generalCapacity);
         properties.setLocalStrictMaxEntries(1_000);
-        properties.setRedisRetryInterval(Duration.ofSeconds(5));
-        return new RateLimiter(properties, new RateLimitPolicies(List.of(policies), properties), redis, meters, clock);
+        return new RateLimiter(properties, new RateLimitPolicies(List.of(policies), properties), redis, breaker, meters, clock);
     }
 
     private StringRedisTemplate unreachableRedis() throws IOException {
@@ -60,7 +61,7 @@ class RateLimiterTests {
     }
 
     @Test
-    void redisOutageStillLimitsAndOnlyProbesRedisOncePerRetryInterval() throws IOException {
+    void redisOutageStillLimitsAndOnlyProbesRedisOncePerBreakerPeriod() throws IOException {
         RateLimitPolicy browse = browsePolicy();
         RateLimiter limiter = limiter(unreachableRedis(), 1_000, browse);
         Map<RateLimitDimension, String> client = Map.of(RateLimitDimension.IP, "203.0.113.9");
@@ -78,9 +79,14 @@ class RateLimiterTests {
         assertThat(meters.get("bds.ratelimit.fallback").tag("policy", "api-default").counter().count()).isEqualTo(3.0);
         assertThat(meters.get("bds.ratelimit.rejected").tags("policy", "api-default", "dimension", "ip").counter().count()).isEqualTo(1.0);
 
+        assertThat(meters.get("bds.redis.unavailable").tags("caller", "rate-limit", "outcome", "skipped").counter().count())
+                .as("Redis not called while the breaker is open").isEqualTo(2.0);
+
         clock.advance(Duration.ofSeconds(6));
         limiter.check(browse, client);
-        assertThat(meters.get("bds.ratelimit.redis.errors").counter().count()).as("probed again after the interval").isEqualTo(2.0);
+        assertThat(meters.get("bds.ratelimit.redis.errors").counter().count()).as("probed again after the period").isEqualTo(2.0);
+        limiter.check(browse, client);
+        assertThat(meters.get("bds.ratelimit.redis.errors").counter().count()).as("the failed probe opened it again").isEqualTo(2.0);
     }
 
     @Test

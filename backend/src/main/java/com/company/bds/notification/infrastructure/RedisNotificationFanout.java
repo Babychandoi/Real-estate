@@ -2,6 +2,7 @@ package com.company.bds.notification.infrastructure;
 
 import com.company.bds.notification.application.port.NotificationFanoutPort;
 import com.company.bds.notification.domain.NotificationEvent;
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -18,20 +19,26 @@ import java.util.UUID;
  * publisher included, and delivers the message to its local streams; so each stream receives a notification once no
  * matter which instance wrote it. Pub/Sub is fire-and-forget: history and replay stay in PostgreSQL. When publishing
  * fails (Redis down) the notification is delivered to this instance's streams directly and the other instances' clients
- * get it from the database when they reconnect.
+ * get it from the database when they reconnect. While the shared {@link RedisCircuitBreaker} is open (Redis known to be
+ * down) publishing goes straight to local delivery without calling Redis, so a notification never waits on Redis.
+ * Receiving runs on the listener container's own threads, never on request threads.
  */
 public class RedisNotificationFanout implements NotificationFanoutPort, MessageListener {
     public static final String CHANNEL = "bds:notifications:v1";
     private static final Logger log = LoggerFactory.getLogger(RedisNotificationFanout.class);
+    private static final String REDIS_CALLER = "notifications";
 
     private final StringRedisTemplate redis;
+    private final RedisCircuitBreaker breaker;
     private final NotificationSseHub hub;
     private final ObjectMapper json;
     private final MeterRegistry meters;
     private final String instanceId = UUID.randomUUID().toString();
 
-    public RedisNotificationFanout(StringRedisTemplate redis, NotificationSseHub hub, ObjectMapper json, MeterRegistry meters) {
+    public RedisNotificationFanout(StringRedisTemplate redis, RedisCircuitBreaker breaker, NotificationSseHub hub, ObjectMapper json,
+                                   MeterRegistry meters) {
         this.redis = redis;
+        this.breaker = breaker;
         this.hub = hub;
         this.json = json;
         this.meters = meters;
@@ -39,14 +46,32 @@ public class RedisNotificationFanout implements NotificationFanoutPort, MessageL
 
     @Override
     public void publish(NotificationEvent event) {
+        String message;
         try {
-            redis.convertAndSend(CHANNEL, json.writeValueAsString(new Envelope(1, instanceId, event)));
-            meters.counter("bds.notifications.fanout", "outcome", "published").increment();
+            message = json.writeValueAsString(new Envelope(1, instanceId, event));
         } catch (Exception ex) {
-            meters.counter("bds.notifications.fanout", "outcome", "local_fallback").increment();
-            log.warn("notification_fanout_failed fallback=local reason={}", ex.getClass().getSimpleName());
-            hub.deliverLocal(event);
+            localFallback(event, ex);
+            return;
         }
+        if (!breaker.tryAcquire(REDIS_CALLER)) {
+            meters.counter("bds.notifications.fanout", "outcome", "local_fallback").increment();
+            hub.deliverLocal(event);
+            return;
+        }
+        try {
+            redis.convertAndSend(CHANNEL, message);
+            breaker.recordSuccess();
+            meters.counter("bds.notifications.fanout", "outcome", "published").increment();
+        } catch (RuntimeException ex) {
+            breaker.recordFailure(REDIS_CALLER, ex);
+            localFallback(event, ex);
+        }
+    }
+
+    private void localFallback(NotificationEvent event, Exception ex) {
+        meters.counter("bds.notifications.fanout", "outcome", "local_fallback").increment();
+        log.warn("notification_fanout_failed fallback=local reason={}", ex.getClass().getSimpleName());
+        hub.deliverLocal(event);
     }
 
     @Override

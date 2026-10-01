@@ -1,11 +1,10 @@
 package com.company.bds.shared.security.ratelimit;
 
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,15 +16,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Counts a request against every applicable rule of its policy and decides (audit F13.2–F13.3).
  *
- * <p>Redis is the shared store. After a Redis failure the limiter counts in the bounded {@link LocalRateLimitStore}
- * for {@code redis-retry-interval} before probing Redis again, so an outage costs one timeout per interval instead of
- * one per request. Credential policies ({@code FAIL_CLOSED}) and the rest ({@code EVICT}) use separate local tables so
- * a flood on public reads cannot evict login counters.</p>
+ * <p>Redis is the shared store. While Redis is unavailable (the shared {@link RedisCircuitBreaker} is open) the limiter
+ * counts in the bounded {@link LocalRateLimitStore} without calling Redis, so an outage costs one failed call per
+ * breaker period instead of one timeout per request; the breaker's probe brings it back to Redis. Credential policies
+ * ({@code FAIL_CLOSED}) and the rest ({@code EVICT}) use separate local tables so a flood on public reads cannot evict
+ * login counters.</p>
  *
  * <p>Metrics: {@code bds.ratelimit.rejected{policy,dimension}} (dimension {@code capacity} = fail-closed table full),
  * {@code bds.ratelimit.fallback{policy}} (decisions taken locally), {@code bds.ratelimit.redis.errors},
@@ -33,35 +32,31 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @Component
 public class RateLimiter {
-    private static final Logger log = LoggerFactory.getLogger(RateLimiter.class);
     static final String CAPACITY_TAG = "capacity";
+    static final String REDIS_CALLER = "rate-limit";
 
     private final RedisRateLimitStore redis;
+    private final RedisCircuitBreaker breaker;
     private final LocalRateLimitStore strictTable;
     private final LocalRateLimitStore generalTable;
-    private final Clock clock;
-    private final long redisRetryMillis;
     private final byte[] pepper;
     private final MeterRegistry meters;
     private final Map<String, Counter> rejected = new ConcurrentHashMap<>();
     private final Map<String, Counter> fallback = new ConcurrentHashMap<>();
     private final Counter redisErrors;
-    private final AtomicBoolean redisDown = new AtomicBoolean(false);
-    private volatile long redisRetryAt;
 
     @Autowired
     public RateLimiter(RateLimitProperties properties, RateLimitPolicies policies, ObjectProvider<StringRedisTemplate> redis,
-                       ObjectProvider<MeterRegistry> meters, Clock clock) {
-        this(properties, policies, redis.getIfAvailable(), meters.getIfAvailable(), clock);
+                       RedisCircuitBreaker breaker, ObjectProvider<MeterRegistry> meters, Clock clock) {
+        this(properties, policies, redis.getIfAvailable(), breaker, meters.getIfAvailable(), clock);
     }
 
     RateLimiter(RateLimitProperties properties, RateLimitPolicies policies, StringRedisTemplate redis,
-                MeterRegistry meters, Clock clock) {
+                RedisCircuitBreaker breaker, MeterRegistry meters, Clock clock) {
         this.redis = redis == null ? null : new RedisRateLimitStore(redis);
+        this.breaker = breaker;
         this.strictTable = new LocalRateLimitStore(properties.getLocalStrictMaxEntries(), clock);
         this.generalTable = new LocalRateLimitStore(properties.getLocalMaxEntries(), clock);
-        this.clock = clock;
-        this.redisRetryMillis = Math.max(100, properties.getRedisRetryInterval().toMillis());
         this.pepper = properties.getKeyPepper().getBytes(StandardCharsets.UTF_8);
         this.meters = meters != null ? meters : new SimpleMeterRegistry();
         this.redisErrors = Counter.builder("bds.ratelimit.redis.errors")
@@ -106,7 +101,7 @@ public class RateLimiter {
         return decide(policy, keys, counters, local);
     }
 
-    public boolean redisAvailable() { return redis != null && !redisDown.get(); }
+    public boolean redisAvailable() { return redis != null && breaker.available(); }
 
     int localEntries(RateLimitFailureMode mode) {
         return (mode == RateLimitFailureMode.FAIL_CLOSED ? strictTable : generalTable).size();
@@ -116,21 +111,16 @@ public class RateLimiter {
         return (mode == RateLimitFailureMode.FAIL_CLOSED ? strictTable : generalTable).capacity();
     }
 
+    /** Counters from Redis, or null when the decision must be taken locally (no Redis, breaker open, call failed). */
     private List<RateLimitCounter> countInRedis(List<RateLimitKey> keys) {
-        if (redis == null) return null;
-        long now = clock.millis();
-        if (now < redisRetryAt) return null;
+        if (redis == null || !breaker.tryAcquire(REDIS_CALLER)) return null;
         try {
             List<RateLimitCounter> counters = redis.increment(keys);
-            redisRetryAt = 0;
-            if (redisDown.compareAndSet(true, false)) log.info("rate_limit_redis_recovered store=redis");
+            breaker.recordSuccess();
             return counters;
         } catch (RuntimeException ex) {
             redisErrors.increment();
-            redisRetryAt = now + redisRetryMillis;
-            if (redisDown.compareAndSet(false, true)) {
-                log.warn("rate_limit_redis_unavailable fallback=local retryInMs={} error={}", redisRetryMillis, ex.getClass().getSimpleName());
-            }
+            breaker.recordFailure(REDIS_CALLER, ex);
             return null;
         }
     }

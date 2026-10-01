@@ -1,6 +1,7 @@
 package com.company.bds.search;
 
 import com.company.bds.search.infrastructure.cache.ListingResponseCache;
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 import com.company.bds.testsupport.BdsIntegrationTest;
 import com.company.bds.testsupport.MutableClock;
 import com.company.bds.testsupport.QueryCount;
@@ -126,13 +127,14 @@ class ListingCacheTests {
         StringRedisTemplate template = new StringRedisTemplate(broken);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         MutableClock clock = new MutableClock(Instant.now());
+        RedisCircuitBreaker breaker = new RedisCircuitBreaker(clock, registry, Duration.ofSeconds(10));
         ListingResponseCache down = new ListingResponseCache(
-                new StaticListableBeanFactory(Map.of("redis", template)).getBeanProvider(StringRedisTemplate.class), json, clock,
+                new StaticListableBeanFactory(Map.of("redis", template)).getBeanProvider(StringRedisTemplate.class), breaker, json,
                 new StaticListableBeanFactory(Map.of("meters", registry)).getBeanProvider(MeterRegistry.class),
-                true, "s2-test:", Duration.ofSeconds(10));
+                true, "s2-test:");
         try {
             assertThat(down.getOrCompute("probe", "first", Duration.ofSeconds(5), String.class, () -> "computed")).isEqualTo("computed");
-            assertThat(down.available()).as("Redis error opens a bypass window").isFalse();
+            assertThat(down.available()).as("Redis error opens the breaker").isFalse();
             assertThat(down.generation()).isEqualTo(-1);
             AtomicInteger computations = new AtomicInteger();
             long started = System.nanoTime();
@@ -140,8 +142,14 @@ class ListingCacheTests {
             assertThat((System.nanoTime() - started) / 1_000_000).as("no Redis timeouts while bypassed").isLessThan(1_500);
             assertThat(computations.get()).as("single flight bounds the database load").isEqualTo(1);
             assertThat(registry.get("bds.search.cache").tag("result", "bypass").counter().count()).isGreaterThanOrEqualTo(2);
+            assertThat(registry.get("bds.redis.unavailable").tags("caller", "search-cache", "outcome", "failed").counter().count())
+                    .as("one failed Redis call, the rest skipped it").isEqualTo(1.0);
             clock.advance(Duration.ofSeconds(11));
-            assertThat(down.available()).as("retried after the window").isTrue();
+            assertThat(breaker.state()).as("probed after the period").isEqualTo(RedisCircuitBreaker.State.HALF_OPEN);
+            assertThat(down.generation()).as("the probe fails again (Redis still down)").isEqualTo(-1);
+            assertThat(registry.get("bds.redis.unavailable").tags("caller", "search-cache", "outcome", "failed").counter().count())
+                    .isEqualTo(2.0);
+            assertThat(breaker.state()).isEqualTo(RedisCircuitBreaker.State.OPEN);
         } finally {
             broken.destroy();
         }

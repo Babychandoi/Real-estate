@@ -1,6 +1,7 @@
 package com.company.bds.notification.infrastructure;
 
 import com.company.bds.notification.application.port.NotificationFanoutPort;
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,9 +22,9 @@ public class NotificationFanoutConfig {
 
     @Bean
     @ConditionalOnProperty(name = "app.notifications.fanout", havingValue = "redis", matchIfMissing = true)
-    RedisNotificationFanout redisNotificationFanout(StringRedisTemplate redis, NotificationSseHub hub, ObjectMapper json,
-                                                    MeterRegistry meters) {
-        return new RedisNotificationFanout(redis, hub, json, meters);
+    RedisNotificationFanout redisNotificationFanout(StringRedisTemplate redis, RedisCircuitBreaker breaker, NotificationSseHub hub,
+                                                    ObjectMapper json, MeterRegistry meters) {
+        return new RedisNotificationFanout(redis, breaker, hub, json, meters);
     }
 
     /** Subscribes in the background and re-subscribes with backoff after a Redis outage; never blocks startup. */

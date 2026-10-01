@@ -1,11 +1,13 @@
 package com.company.bds.search;
 
 import com.company.bds.search.api.GeocodingController;
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 
 import com.company.bds.testsupport.BdsIntegrationTest;
 import com.company.bds.testsupport.MutableClock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,8 +54,8 @@ class GeocodeCacheTests {
         });
         provider.start();
         String url = "http://127.0.0.1:" + provider.getAddress().getPort() + "/s2-" + UUID.randomUUID();
-        controller = new GeocodingController(jdbc, new StaticListableBeanFactory().getBeanProvider(StringRedisTemplate.class), json,
-                clock, url.substring(0, url.lastIndexOf('/')) , "", Duration.ofDays(14), Duration.ofHours(1));
+        controller = new GeocodingController(jdbc, new StaticListableBeanFactory().getBeanProvider(StringRedisTemplate.class),
+                new RedisCircuitBreaker(clock, new SimpleMeterRegistry(), Duration.ofSeconds(5)), json, clock, url.substring(0, url.lastIndexOf('/')) , "", Duration.ofDays(14), Duration.ofHours(1));
     }
 
     @AfterEach
