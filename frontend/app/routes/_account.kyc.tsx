@@ -2,10 +2,11 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Eye, FileImage, LockKeyhole, ShieldCheck, Upload } from 'lucide-react';
 import type { UserKycProfile } from '@/entities/verification/model/types';
-import { apiClient, apiFetch } from '@/shared/api/client';
+import { apiClient } from '@/shared/api/client';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { trustApi } from '@/entities/admin/api/adminApi';
 import type { MyKycStatus } from '@/entities/admin/model/types';
+import { useKycDocumentPreviews } from '@/features/kyc/useKycDocumentPreviews';
 import { KycScopePanel } from '@/features/kyc/KycScopePanel';
 
 type DocumentField = 'idCardFrontUrl' | 'idCardBackUrl' | 'selfieUrl';
@@ -53,7 +54,7 @@ export function KycPage() {
   const [unlocking, setUnlocking] = useState(false);
   const [access, setAccess] = useState<DocumentAccess | null>(null);
   const [documents, setDocuments] = useState<KycDocuments | null>(null);
-  const [previews, setPreviews] = useState<PreviewUrls>({});
+  const { previews, error: previewError, expired } = useKycDocumentPreviews(access, documents);
   const [uploadPreviews, setUploadPreviews] = useState<PreviewUrls>({});
   const uploadPreviewUrls = useRef<PreviewUrls>({});
   const [form, setForm] = useState({
@@ -89,33 +90,6 @@ export function KycPage() {
       })
       .finally(() => setLoading(false));
   }, [user]);
-
-  useEffect(() => {
-    if (!access || !documents) return;
-    let cancelled = false;
-    const objectUrls: string[] = [];
-    void Promise.all(
-      DOCUMENTS.map(async ({ field }) => {
-        const response = await apiFetch(documents[field], {
-          headers: { 'X-Kyc-Document-Access': access.token, Accept: 'image/*' },
-        });
-        if (!response.ok) throw new Error('Không thể tải ảnh định danh.');
-        const objectUrl = URL.createObjectURL(await response.blob());
-        objectUrls.push(objectUrl);
-        return [field, objectUrl] as const;
-      }),
-    )
-      .then((items) => {
-        if (!cancelled) setPreviews(Object.fromEntries(items));
-      })
-      .catch(() => {
-        if (!cancelled) setError('Phiên xem ảnh đã hết hạn hoặc ảnh không còn khả dụng. Hãy xác nhận lại mật khẩu.');
-      });
-    return () => {
-      cancelled = true;
-      objectUrls.forEach(URL.revokeObjectURL);
-    };
-  }, [access, documents]);
 
   useEffect(
     () => () => {
@@ -251,7 +225,7 @@ export function KycPage() {
               </p>
             </div>
           </div>
-          {!documents ? (
+          {!documents || expired || previewError ? (
             <form onSubmit={unlockDocuments} className="mt-5 flex max-w-md flex-col gap-3 sm:flex-row">
               <label className="sr-only" htmlFor="kyc-view-password">
                 Mật khẩu hiện tại
@@ -304,6 +278,11 @@ export function KycPage() {
                 ))}
               </div>
             </>
+          )}
+          {(expired || previewError) && (
+            <p role="status" className="mt-4 text-sm text-on-surface-variant">
+              {previewError || 'Phiên xem ảnh đã hết hạn. Hãy xác nhận lại mật khẩu để mở ảnh.'}
+            </p>
           )}
           {error && (
             <p role="alert" className="mt-4 text-sm text-rose-700">

@@ -93,6 +93,8 @@ public class ListingSearchService {
                 if (cached != null) return fromCached(cached, request, filter);
                 return compute(request, null, current);
             }
+            // Cache unavailable (Redis down): identical concurrent first pages are still computed once, not once each.
+            return cache.collapse("search:" + current + ":" + hash + ":" + request.size(), () -> compute(request, null, current));
         }
         return compute(request, cursor, current);
     }

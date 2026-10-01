@@ -286,13 +286,23 @@ function EvidenceDialog({
               </Button>
             ) : (
               <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Button variant="outline" onClick={() => setAsking(true)}>
+                  Xác nhận lại để mở ảnh
+                </Button>
                 <PrivateMediaImage
                   src={docs.identity?.idCardFrontUrl ?? undefined}
                   alt="Mặt trước CCCD người đăng"
                   accessToken={docs.token}
+                  expiresAt={docs.expiresAt}
                 />
                 {privateUrls.map((url, index) => (
-                  <PrivateMediaImage key={url} src={url} alt={`Giấy tờ sở hữu ${index + 1}`} accessToken={docs.token} />
+                  <PrivateMediaImage
+                    key={url}
+                    src={url}
+                    alt={`Giấy tờ sở hữu ${index + 1}`}
+                    accessToken={docs.token}
+                    expiresAt={docs.expiresAt}
+                  />
                 ))}
                 {evidence.documentUrls
                   .filter((u) => !u.startsWith('/api/v1/media/kyc/'))

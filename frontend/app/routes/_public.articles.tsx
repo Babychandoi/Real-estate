@@ -36,7 +36,9 @@ export function ArticleListPage() {
     setFailed(false);
     contentApi
       .articles(category, page, 12, abort.signal)
-      .then(setData)
+      .then((value) => {
+        if (!abort.signal.aborted) setData(value);
+      })
       .catch(() => {
         if (!abort.signal.aborted) setFailed(true);
       });

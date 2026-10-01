@@ -851,3 +851,46 @@ Ma trận mức thay đổi và phụ thuộc backend từng trang: `docs/ui/PAG
 - The CI schema clone completed; fixture price arithmetic overflowed int4 before the outer bigint cast. Changed infra/perf/explain-search.sql to cast operands before arithmetic.
 - Verified with the PostgreSQL WASM engine (PGlite): original expression reproduces SQLSTATE 22003; corrected expression evaluates all 100000 and 1000000 rows, with min 1000000000 and max 5990000000 in both cases. This checks arithmetic only, not full PostGIS EXPLAIN performance; full CI rerun remains required.
 - No application behavior, migration, price distribution or dataset size changed. Route map unchanged.
+
+## 2026-09-30 — Product state completion: map and private KYC previews
+- Search map sheet now has an announced loading state, explicit error and retry action; stale selection cancellation remains intact.
+- KYC private images are revoked on expiry/unmount/failure, requests abort on cleanup, and late responses cannot create leaked blob URLs. Expiry is checked on timer, focus and visibility changes; failed/expired grants return to password confirmation.
+- UI-12 disclosure now supports VITE_KYC_RETENTION_NOTICE through frontend Docker build args and Compose/env examples, with a privacy-policy link and explicit missing-policy fallback. Product/security must supply approved wording; no retention/deletion period is invented or enforced by this UI setting.
+- Local acceptance: frontend ESLint, TypeScript, production build, route bundle budget and Prettier PASS. Seven focused hook tests PASS (three map lifecycle/retry, four KYC expiry/cleanup/error cases). Full backend/E2E not rerun locally; no backend or migration changes.
+- Routes affected: /search and account KYC; route paths unchanged. DS-08/R-3/UI-12 gain this implementation evidence but wider audit acceptance remains open.
+
+## 2026-09-30 — Consolidated follow-up acceptance
+- Changed SearchMap/useListingSearch, staff PrivateMediaImage and admin document dialogs; added map/expiry/late-response tests and mixed-search-drafts.js plus verify-draft-writes.sql.
+- Local ESLint, TypeScript production build, bundle budgets and Prettier passed. Full Vitest suite: 39 files / 253 tests passed before adding the snapshot-cache regression; follow-up result recorded below.
+- k6 script syntax checked with node --check. Persisted-effect SQL verified with PGlite: matching draft count passes and mismatch fails. No actual k6 load or PostgreSQL/PostGIS production-capacity result is claimed.
+- Scope/status reconciliation is in streams/code-gap-reconciliation.md. The 260-row keyset traversal, billing concurrency and KYC funnel already existed; remaining RPO/RTO questions concern end-to-end production/deploy compatibility beyond the W1 data-only drill.
+- Routes: /search, admin users and admin verification; no route/API/schema contract changes. CI/E2E remains a batched gate, not a per-edit stopping point.
+
+- Additional snapshot-cache regression: all four useListingSearch tests PASS, including prevention of SALE rows being restored under RENT filters.
+
+## 2026-09-30 — Stale-response follow-up
+- SearchBox, LeadDetailDialog, public article list and listing-detail async handlers updated. Added geocoding keyboard/stale-choice regressions and a lead-switch private-state regression.
+- SearchBox fixture now includes the required GeocodePlace.type, fixing the local strict-type error before publication.
+- All changes remain on PR #21; unrelated backup archive changes are excluded. API endpoints and database schema unchanged.
+- Final local result for this follow-up: 41 Vitest files / 257 tests PASS; ESLint, TypeScript production build, Prettier and every route bundle budget PASS. Backend/E2E/load runs remain deferred as requested; no production result claimed.
+
+## 2026-09-30 — Core-flow acceptance gate enabled
+- The prior CI ran smoke/a11y/visual suites but did not invoke search.spec.ts, supply.spec.ts, journeys.spec.ts or admin.spec.ts. Added those four separate, ordered acceptance steps after visual tests.
+- Added Search rent-filter/detail/back regression and removed the pagination fixture skip. Missing required seeded data now fails acceptance.
+- Test discovery/YAML/static checks only are local evidence. Actual integrated acceptance results must come from CI; no four-flow PASS is claimed before it runs.
+
+## 2026-09-30 — Acceptance CORS configuration fix
+- CI run 36679264383: search acceptance PASS; supply, contact and admin FAIL. Downloaded Playwright traces confirm seven failing browser writes returned HTTP 403 with body Invalid CORS request. The demo allowlist contained localhost only while Playwright used 127.0.0.1. API-only setup omitted Origin and therefore passed. Updated demo configuration and added an early CORS preflight gate. YAML and shell syntax checked locally; integrated rerun pending, no acceptance PASS claimed for the failed flows.
+
+## 2026-09-30 — Isolated mixed-load evidence runner
+- CI 36681537495 at 1a5d3a6: frontend, backend, security and E2E all PASS, including four separate ordered core-flow acceptance suites. Those suites validate seeded journeys, not full production acceptance. Added performance.yml, ci-mixed-load.sh and perf-summary.py; exported the modern k6 summary for stable metric parsing. Local validation recorded below; actual mixed-load results pending CI. No production capacity numbers claimed.
+- Local checks PASS: three summary-parser regressions (finite/integer effect count, separate endpoint p50/p95/p99/error rates, incomplete/out-of-range evidence rejection), bash syntax, k6 JavaScript syntax, workflow YAML/embedded shell syntax, Prettier YAML, diff whitespace. Runner refuses execution without GitHub Actions/isolation flags (exit 2). Docker/k6 unavailable locally; no actual throughput result claimed.
+
+## 2026-09-30 — Cache/fault/recovery workload acceptance
+- Previous baseline CI 36686479978 PASS; artifact 11084400418 inspected: read p50/p95/p99 2.74/17.58/229.06 ms, write 21.04/310.70/553.99 ms, HTTP errors 0%, dropped starts 0, 601 successful creates matched 601 PostgreSQL drafts. Full CI 36686479859 also PASS. Added six-phase runner and two fault-evidence parser regressions; local five Python tests, bash/node syntax and diff whitespace PASS. Fixed soak duration override to 30m. Actual extended fault/recovery acceptance remains pending CI; all audit limits explicitly retained.
+
+## 2026-10-01 — Redis outage must not slow every request
+- Root cause (from CI 36692698150 mixed-load evidence and a local reproduction): `spring.data.redis.timeout: 2000ms` + Lettuce buffering commands while disconnected made every Redis touch wait 2 s (search = rate limiter + cache = ~4 s); the limiter/cache back-offs only started after that timeout and released all concurrent requests together; Lettuce's reconnect back-off (up to 30 s) kept the stalls going ~15 s after Redis was back.
+- Built: `shared/redis/RedisClientConfig` (reject commands while disconnected, reconnect back-off ≤ `APP_REDIS_RECONNECT_MAX_DELAY`=PT2S), `shared/redis/RedisCircuitBreaker` (shared by `RateLimiter`, `ListingResponseCache`, `GeocodingController` throttle, `RedisNotificationFanout`; open for `APP_REDIS_BREAKER_OPEN_FOR`=PT5S, single probe, metrics `bds_redis_breaker_state`, `bds_redis_unavailable_total{caller,outcome}`, log `redis_unavailable`/`redis_recovered` at most once a minute), `SPRING_DATA_REDIS_TIMEOUT`=250ms, `SPRING_DATA_REDIS_CONNECT_TIMEOUT`=500ms, first-page single flight while the cache generation is unknown. `app.security.rate-limit.redis-retry-interval` and `app.search.cache.redis-retry` are replaced by the breaker period. Rate-limit FAIL_CLOSED/EVICT outage behaviour unchanged. No route/UI/schema change.
+- Lightweight local reproduction (not the CI harness): one backend JVM on the shared test PostgreSQL (own database), a throwaway Redis container stopped/started/paused, ES behind a local fault proxy, Node constant-arrival load 100 searches/s + 10 draft creates/s, 40 s phases. Before → after p95: Redis stopped reads 4484 → 33 ms, writes 2395 → 94 ms, starts dropped at 300 in flight 226 → 0; Redis restarting reads 3007 → 69 ms, writes 2572 → 155 ms (69 → 0 dropped); Redis frozen reads 4121 → 35 ms, writes 2826 → 98 ms. ES unavailable unchanged by design (first ~2 s of the outage still up to ~1.9 s, see s10 note).
+- Tests: `RedisCircuitBreakerTests` (5), `RedisOutageResilienceTests` (6, TCP fault proxy before the shared test Redis: stop, hang, recovery, FAIL_CLOSED 429 + Retry-After, EVICT local counting), updated `RateLimiterTests`, `ListingCacheTests`, `NotificationUnitTests`, `GeocodeCacheTests`; mutation checks (breaker disabled; old Lettuce queueing + 2 s timeout) both fail the new suite. Full backend `mvn -B -ntp verify` (JDK 17, shared test infrastructure): 450/450 tests, BUILD SUCCESS (spotless, ArchUnit included). Frontend unchanged.

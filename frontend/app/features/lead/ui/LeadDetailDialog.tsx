@@ -49,7 +49,12 @@ interface Props {
  * Owner-side lead workspace (UI-09): status with note, qualification with reason, assignment, appointments and history.
  * Every write sends the version the page showed; a 409 conflict reloads the lead and says so, nothing is overwritten.
  */
-export function LeadDetailDialog({ leadId, onClose, onChanged, team, currentUserId }: Props) {
+export function LeadDetailDialog(props: Props) {
+  // Keep private contact/form state isolated when the user switches between leads.
+  return <LeadDetailContent key={props.leadId ?? 'closed'} {...props} />;
+}
+
+function LeadDetailContent({ leadId, onClose, onChanged, team, currentUserId }: Props) {
   const [lead, setLead] = useState<LeadItem | null>(null);
   const [history, setHistory] = useState<LeadHistoryEntry[] | null>(null);
   const [phone, setPhone] = useState('');

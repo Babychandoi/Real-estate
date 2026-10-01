@@ -46,7 +46,7 @@ test('filters live in the URL and back/forward restores them', async ({ page }) 
 
 test('"Xem thêm" loads the next page with the cursor, without duplicates', async ({ page, request }) => {
   const first = await searchPage(request, 'purpose=SALE&size=24');
-  test.skip(first.items.length < 24, 'needs more than one page of seeded SALE listings');
+  expect(first.items.length, 'the UAT seed must provide a full first SALE page').toBe(24);
   await gotoReady(page, '/search?purpose=SALE');
   const cards = page.getByRole('link', { name: /^Xem chi tiết: / });
   await expect(cards).toHaveCount(24);
@@ -91,4 +91,20 @@ test('a seller page pages through the whole inventory', async ({ page, request }
     await expect.poll(() => cards.count()).toBeGreaterThan(before);
   }
   await expect(page.getByRole('status').filter({ hasText: /tin/ }).first()).toBeVisible();
+});
+
+test('opening a detail and going back preserves rent filters and results', async ({ page }) => {
+  await gotoReady(page, '/search?purpose=RENT&sort=PRICE_ASC');
+  const cards = page.getByRole('link', { name: /^Xem chi tiết: / });
+  await expect(cards.first()).toBeVisible();
+  const hrefs = await cards.evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  await cards.first().click();
+  await waitUntilReady(page);
+  await expect(page).toHaveURL(/\/listings\//);
+  await page.goBack();
+  await waitUntilReady(page);
+  await expect(page).toHaveURL(/purpose=RENT.*sort=PRICE_ASC/);
+  await expect(page.getByRole('combobox', { name: 'Sắp xếp kết quả' })).toHaveValue('PRICE_ASC');
+  await expect.poll(() => cards.evaluateAll((links) => links.map((link) => link.getAttribute('href')))).toEqual(hrefs);
+  await expect(page.locator('article [class*="tabular-nums"]').first()).toContainText('/tháng');
 });

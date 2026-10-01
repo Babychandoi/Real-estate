@@ -22,8 +22,6 @@ public class RateLimitProperties {
     private int localMaxEntries = 100_000;
     /** Capacity of the in-process fallback table shared by the FAIL_CLOSED (credential) policies. */
     private int localStrictMaxEntries = 50_000;
-    /** After a Redis failure, how long to count locally before trying Redis again. */
-    private Duration redisRetryInterval = Duration.ofSeconds(5);
     /** Optional secret mixed into key hashes so Redis keys cannot be brute-forced back to IPs or e-mails. */
     private String keyPepper = "";
     private Map<String, Map<String, RuleOverride>> policies = new LinkedHashMap<>();
@@ -36,8 +34,6 @@ public class RateLimitProperties {
     public void setLocalMaxEntries(int localMaxEntries) { this.localMaxEntries = localMaxEntries; }
     public int getLocalStrictMaxEntries() { return localStrictMaxEntries; }
     public void setLocalStrictMaxEntries(int localStrictMaxEntries) { this.localStrictMaxEntries = localStrictMaxEntries; }
-    public Duration getRedisRetryInterval() { return redisRetryInterval; }
-    public void setRedisRetryInterval(Duration redisRetryInterval) { this.redisRetryInterval = redisRetryInterval; }
     public String getKeyPepper() { return keyPepper; }
     public void setKeyPepper(String keyPepper) { this.keyPepper = keyPepper == null ? "" : keyPepper; }
     public Map<String, Map<String, RuleOverride>> getPolicies() { return policies; }

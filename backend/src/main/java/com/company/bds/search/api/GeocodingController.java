@@ -1,6 +1,7 @@
 package com.company.bds.search.api;
 
 import com.company.bds.iam.application.AuthService;
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -30,8 +31,10 @@ import java.util.concurrent.atomic.AtomicLong;
 @RequestMapping("/api/v1/public/geocoding")
 public class GeocodingController {
     private static final String RATE_KEY = "rate:geocoding:nominatim";
+    private static final String REDIS_CALLER = "geocoding";
     private final JdbcTemplate jdbc;
     private final StringRedisTemplate redis;
+    private final RedisCircuitBreaker redisBreaker;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     private final AtomicLong localNextAllowedAt = new AtomicLong();
     private final String providerUrl;
@@ -42,13 +45,14 @@ public class GeocodingController {
     private final Duration negativeTtl;
 
     public GeocodingController(JdbcTemplate jdbc, ObjectProvider<StringRedisTemplate> redisProvider,
-            ObjectMapper objectMapper, java.time.Clock clock,
+            RedisCircuitBreaker redisBreaker, ObjectMapper objectMapper, java.time.Clock clock,
             @Value("${app.geocoding.provider-url:https://photon.komoot.io}") String providerUrl,
             @Value("${app.geocoding.contact:}") String contact,
             @Value("${app.geocoding.cache-ttl:P14D}") Duration positiveTtl,
             @Value("${app.geocoding.negative-cache-ttl:PT1H}") Duration negativeTtl) {
         this.jdbc = jdbc;
         this.redis = redisProvider.getIfAvailable();
+        this.redisBreaker = redisBreaker;
         this.providerUrl = providerUrl.replaceAll("/+$", "");
         this.contact = contact;
         this.objectMapper = objectMapper;
@@ -147,9 +151,14 @@ public class GeocodingController {
     }
 
     private boolean claimProviderSlot() {
-        if (redis != null) {
-            try { return Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(RATE_KEY, "1", Duration.ofSeconds(1))); }
-            catch (RuntimeException ignored) { /* fallback vẫn giới hạn trong pod */ }
+        if (redis != null && redisBreaker.tryAcquire(REDIS_CALLER)) {
+            try {
+                boolean claimed = Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(RATE_KEY, "1", Duration.ofSeconds(1)));
+                redisBreaker.recordSuccess();
+                return claimed;
+            } catch (RuntimeException ex) {
+                redisBreaker.recordFailure(REDIS_CALLER, ex); // fallback vẫn giới hạn trong pod
+            }
         }
         long now = System.currentTimeMillis();
         while (true) {

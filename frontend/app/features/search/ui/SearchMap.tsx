@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { listingV2Api } from '@/entities/listing/api/listingV2Api';
 import type { MapCluster, MapPoint, MapResponseV2 } from '@/entities/listing/model/v2';
 import { propertyTypeLabel } from '@/entities/listing/model/v2';
+import { Button } from '@/shared/ui/Button';
 import { formatMoney } from '@/shared/format/money';
 import { canonicalBbox, MAX_BBOX_SPAN, toApiParams, type BBox, type SearchFilters } from '../filterSchema';
 
@@ -43,6 +44,7 @@ export default function SearchMap({ filters, selectedId, onViewportChange, onSel
   const [viewport, setViewport] = useState<{ bbox: BBox; zoom: number } | null>(null);
   const [data, setData] = useState<MapResponseV2 | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'too-wide'>('idle');
+  const [retryToken, setRetryToken] = useState(0);
   const programmatic = useRef(false);
   const onViewportChangeRef = useRef(onViewportChange);
   onViewportChangeRef.current = onViewportChange;
@@ -122,11 +124,13 @@ export default function SearchMap({ filters, selectedId, onViewportChange, onSel
     }
     const abort = new AbortController();
     setStatus('loading');
+    setData(null);
     const params = toApiParams({ ...filters, bbox: viewport.bbox });
     params.set('zoom', String(Math.max(3, Math.min(20, viewport.zoom))));
     listingV2Api
       .map(params, abort.signal)
       .then((response) => {
+        if (abort.signal.aborted) return;
         setData(response);
         setStatus('idle');
       })
@@ -136,7 +140,7 @@ export default function SearchMap({ filters, selectedId, onViewportChange, onSel
     return () => abort.abort();
     // filterKey captures the filters that matter (bbox comes from the viewport).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey, viewport]);
+  }, [filterKey, viewport, retryToken]);
 
   // Draw markers.
   useEffect(() => {
@@ -170,6 +174,11 @@ export default function SearchMap({ filters, selectedId, onViewportChange, onSel
                 ? `${data.total.relation === 'gte' ? 'Hơn ' : ''}${data.total.value.toLocaleString('vi-VN')} tin trong vùng này`
                 : ''}
       </p>
+      {status === 'error' && (
+        <Button className="absolute bottom-4 left-4" variant="outline" onClick={() => setRetryToken((n) => n + 1)}>
+          Thử tải lại bản đồ
+        </Button>
+      )}
     </div>
   );
 }
@@ -188,8 +197,8 @@ function pointMarker(
   button.setAttribute('aria-pressed', String(selected));
   button.dataset.listingId = point.id;
   button.className = selected
-    ? 'min-h-8 rounded-pill border-2 border-surface-container-lowest bg-primary px-2 text-label font-bold text-primary-on shadow-elevated'
-    : 'min-h-8 rounded-pill border border-primary bg-surface-container-lowest px-2 text-label font-bold text-primary shadow-card';
+    ? 'min-h-11 rounded-pill border-2 border-surface-container-lowest bg-primary px-2 text-label font-bold text-primary-on shadow-elevated'
+    : 'min-h-11 rounded-pill border border-primary bg-surface-container-lowest px-2 text-label font-bold text-primary shadow-card';
   button.addEventListener('click', (event) => {
     event.stopPropagation();
     onSelect.current(point);
@@ -202,7 +211,7 @@ function clusterMarker(map: maplibregl.Map, cluster: MapCluster, programmatic: R
   button.type = 'button';
   button.textContent = cluster.count.toLocaleString('vi-VN');
   button.setAttribute('aria-label', `${cluster.count} tin trong cụm; phóng to để xem`);
-  const size = Math.min(64, 32 + Math.round(Math.log10(cluster.count + 1) * 12));
+  const size = Math.max(44, Math.min(64, 32 + Math.round(Math.log10(cluster.count + 1) * 12)));
   button.style.width = `${size}px`;
   button.style.height = `${size}px`;
   button.className =

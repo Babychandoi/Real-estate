@@ -12,6 +12,8 @@ ENV VITE_PUBLIC_API_BASE_URL=$VITE_PUBLIC_API_BASE_URL
 # CI builds the E2E image with the UI kit catalog (/__ui) for the a11y suite; production images leave it out.
 ARG VITE_ENABLE_UI_CATALOG=false
 ENV VITE_ENABLE_UI_CATALOG=$VITE_ENABLE_UI_CATALOG
+ARG VITE_KYC_RETENTION_NOTICE
+ENV VITE_KYC_RETENTION_NOTICE=$VITE_KYC_RETENTION_NOTICE
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime

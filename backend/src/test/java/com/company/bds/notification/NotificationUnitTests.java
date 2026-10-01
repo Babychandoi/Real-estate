@@ -4,6 +4,7 @@ import com.company.bds.notification.domain.NotificationCategory;
 import com.company.bds.notification.domain.NotificationEvent;
 import com.company.bds.notification.infrastructure.NotificationSseHub;
 import com.company.bds.notification.infrastructure.RedisNotificationFanout;
+import com.company.bds.shared.redis.RedisCircuitBreaker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -13,6 +14,8 @@ import org.springframework.data.redis.connection.DefaultMessage;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -23,11 +26,16 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /** Pure rules of the notification module: request sanitising, category mapping, Redis failure fallback, wire format. */
 class NotificationUnitTests {
     private final ObjectMapper json = new ObjectMapper().registerModule(new JavaTimeModule());
+
+    private static RedisCircuitBreaker breaker() {
+        return new RedisCircuitBreaker(Clock.systemUTC(), new SimpleMeterRegistry(), Duration.ofMinutes(1));
+    }
 
     private NotificationEvent event() {
         return new NotificationEvent(UUID.randomUUID(), 42, UUID.randomUUID(), "LEAD_RECEIVED", "LEADS", "T", "M", "/my-leads",
@@ -66,16 +74,21 @@ class NotificationUnitTests {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         NotificationSseHub hub = mock(NotificationSseHub.class);
         doThrow(new RedisConnectionFailureException("down")).when(redis).convertAndSend(anyString(), anyString());
-        RedisNotificationFanout fanout = new RedisNotificationFanout(redis, hub, json, new SimpleMeterRegistry());
+        RedisNotificationFanout fanout = new RedisNotificationFanout(redis, breaker(), hub, json, new SimpleMeterRegistry());
         NotificationEvent event = event();
         fanout.publish(event);
         verify(hub).deliverLocal(event);
+
+        NotificationEvent next = event();
+        fanout.publish(next);
+        verify(hub).deliverLocal(next);
+        verify(redis, times(1).description("the open breaker skips Redis for the next notification")).convertAndSend(anyString(), anyString());
     }
 
     @Test
     void publishedMessagesAreDeliveredLocallyByEverySubscriberAndGarbageIsIgnored() throws Exception {
         NotificationSseHub hub = mock(NotificationSseHub.class);
-        RedisNotificationFanout fanout = new RedisNotificationFanout(mock(StringRedisTemplate.class), hub, json, new SimpleMeterRegistry());
+        RedisNotificationFanout fanout = new RedisNotificationFanout(mock(StringRedisTemplate.class), breaker(), hub, json, new SimpleMeterRegistry());
         NotificationEvent event = event();
         String wire = json.writeValueAsString(new RedisNotificationFanout.Envelope(1, "other-node", event));
         fanout.onMessage(new DefaultMessage(RedisNotificationFanout.CHANNEL.getBytes(StandardCharsets.UTF_8),
@@ -83,7 +96,7 @@ class NotificationUnitTests {
         verify(hub).deliverLocal(event);
 
         NotificationSseHub quiet = mock(NotificationSseHub.class);
-        RedisNotificationFanout other = new RedisNotificationFanout(mock(StringRedisTemplate.class), quiet, json, new SimpleMeterRegistry());
+        RedisNotificationFanout other = new RedisNotificationFanout(mock(StringRedisTemplate.class), breaker(), quiet, json, new SimpleMeterRegistry());
         other.onMessage(new DefaultMessage(new byte[0], "{not json".getBytes(StandardCharsets.UTF_8)), null);
         other.onMessage(new DefaultMessage(new byte[0], "{\"v\":2,\"origin\":\"x\",\"event\":null}".getBytes(StandardCharsets.UTF_8)), null);
         verify(quiet, never()).deliverLocal(any());

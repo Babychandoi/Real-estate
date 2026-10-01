@@ -358,7 +358,9 @@ export function SearchAndMapPage() {
         <Suspense fallback={null}>
           <MapPointSheet
             point={selectedPoint}
-            listing={pointListing}
+            listing={pointListing.listing}
+            error={pointListing.error}
+            onRetry={pointListing.retry}
             onClose={() => setSelectedPoint(null)}
             onOpen={(point) => navigate(`/listings/${point.slug}`)}
           />

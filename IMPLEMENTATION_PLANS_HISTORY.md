@@ -456,3 +456,38 @@ Tài liệu này tổng hợp toàn bộ các **Kế hoạch triển khai kỹ t
 
 ## 2026-09-30 — S10 fixture integer overflow repair
 - Promote generated price operands to bigint before multiplication/addition; the former outer cast happened after int4 overflow. Keep dataset sizes and price distribution unchanged. Verify the failing original expression and corrected range over both dataset sizes with PostgreSQL semantics.
+
+## 2026-09-30 — Product state completion (DS-08, R-3, UI-12)
+- Preserve existing map sheet/design tokens; add explicit request failure and retry instead of an endless skeleton. Preserve cancellation when selecting another marker.
+- Extract private KYC previews into a grant-scoped hook: abort requests, revoke blob URLs, hide images on expiry and recheck expiry on focus/visibility changes; offer reauthentication on load failure.
+- Add public build-time VITE_KYC_RETENTION_NOTICE configuration through Docker/Compose and env examples. Display only owner-approved wording; absent policy stays explicit. This disclosure does not implement retention/deletion rules.
+- Batch frontend lint/typecheck/build and focused regression tests locally. No backend API or migration changes; production measurements/manual acceptance remain separate.
+
+## 2026-09-30 — Consolidated remaining code audit and completion
+- R-2/DS-08: clear outdated map points during filter reload, reject late aborted responses, add map retry; prevent previous-query results entering a new history snapshot; enlarge map point targets to 44px.
+- R-3: apply expiry/cancellation/blob cleanup to staff private-document images as well as account KYC; add explicit reauthentication actions.
+- D-13: add guarded mixed read/draft-write k6 scenarios (100/10 steady, burst, soak), independent thresholds and read-only database effect verification. No production writes, no fabricated measurements.
+- Reconcile every remaining audit group with implementation evidence in streams/code-gap-reconciliation.md. Preserve unresolved acceptance statuses; previously shipped billing concurrency, analytics funnel and data-restore timing are credited rather than rewritten.
+
+## 2026-09-30 — Final stale-response follow-up (R-2, R-3, DS-08)
+- Clear old geocoding choices immediately on a new query; Escape followed by submit uses the typed keyword, not a hidden highlighted place.
+- Key lead-dialog state by lead ID so previous contact/phone/form requests cannot populate another lead's dialog.
+- Ignore aborted successes in public listing detail, price history, similar listings and article pagination.
+- Validate with the full frontend test suite, lint/typecheck/build and formatting before publishing this batch.
+
+## 2026-09-30 — Sequential core-flow acceptance
+- Wire existing search, supply, cross-role contact/KYC and admin moderation/billing E2E suites into CI in that order on Chromium desktop, one worker per suite.
+- Run mutation journeys after visual baselines to preserve deterministic screenshot fixtures. Keep per-suite reports and failure artifacts.
+- Add rent-filter/detail/back result preservation to Search acceptance; require the seeded pagination fixture instead of skipping it.
+
+## 2026-09-30 — Acceptance CORS configuration fix
+- Fix the disposable demo origin allowlist to include both localhost and 127.0.0.1. Add a preflight gate using the actual Playwright origin immediately after stack startup. Preserve production CORS policy and all acceptance assertions.
+
+## 2026-09-30 — Isolated mixed-load evidence runner
+- D-13/R-5: implement independent isolated mixed-load workflow, runner and metric report parser using the existing k6 draft harness/verification SQL. Keep application/API/schema untouched. PR baseline 1m; manual steady/burst/soak. Require private fixture tokens, unique Compose project/database, cleanup and durable-count verification. No UI prototype changes apply.
+
+## 2026-09-30 — Cache/fault/recovery workload acceptance
+- D-13/R-5: extend the isolated runner with warm, one-time search-cache eviction, ES fault/recovery and Redis fault/recovery phases. Retain unchanged 100/10 steady fault rates, per-phase durable-count checks and strict engine-state evidence; collect private Prometheus and aggregate PostgreSQL before/after snapshots. No API/schema/UI change. Verify syntax, parser regressions and integrated workflow; never interpret this as 1M/cold-DB/production capacity.
+
+## 2026-10-01 — Redis outage must not slow every request
+- D-13/R-5 follow-up, F13.3, F10.4, contract §11: mixed-load CI showed Redis stopped → reads p95 4041 ms, writes p95 2014 ms, 370 dropped starts, and the same stalls for ~13 s after Redis returned. Root causes: 2 s command timeout plus Lettuce buffering commands while disconnected (every Redis touch waited 2 s, searches touch it twice), separate limiter/cache back-offs that let all concurrent requests through when they expired, Lettuce reconnect back-off up to 30 s. Plan: Lettuce rejects commands while disconnected, 250 ms command / 500 ms connect timeout, reconnect back-off ≤ 2 s; one shared request-path `RedisCircuitBreaker` (rate limiter, search/SEO caches, geocoding throttle, notification publish) with a single probe per 5 s period; first-page single flight while the cache generation is unknown; one rate-limited log pair and `bds.redis.*` metrics. Rate-limit FAIL_CLOSED/EVICT policies unchanged. No API/schema/UI change; no production config or `.env*` change (new settings have defaults). Tests: breaker unit tests, outage/recovery integration test through a TCP fault proxy in front of the shared test Redis, existing limiter/cache/notification suites; lightweight local load reproduction before/after (not the CI harness).

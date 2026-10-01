@@ -100,6 +100,7 @@ export function useListingSearch(filters: SearchFilters, historyKey: string) {
       ? { ...snapshot.state, restored: true, loadingMore: false }
       : EMPTY;
   });
+  const fulfilledQuery = useRef<string | null>(state.restored ? apiKey : null);
   const stateRef = useRef(state);
   stateRef.current = state;
   /** The snapshot the initial state came from: that request is not repeated on mount. */
@@ -110,6 +111,7 @@ export function useListingSearch(filters: SearchFilters, historyKey: string) {
   const [reloadToken, setReloadToken] = useState(0);
 
   const applyFirstPage = useCallback((page: SearchResponseV2, restarted: boolean) => {
+    fulfilledQuery.current = toApiParams(filtersRef.current).toString();
     setState({
       ...EMPTY,
       status: 'ready',
@@ -169,12 +171,12 @@ export function useListingSearch(filters: SearchFilters, historyKey: string) {
   }, [apiKey, snapshotKey, reloadToken, loadFirstPage]);
 
   useEffect(() => {
-    if (state.status === 'ready') remember(snapshotKey, state);
-  }, [snapshotKey, state]);
+    if (state.status === 'ready' && fulfilledQuery.current === apiKey) remember(snapshotKey, state);
+  }, [apiKey, snapshotKey, state]);
 
   const loadMore = useCallback(async () => {
     const current = stateRef.current;
-    if (!current.nextCursor || current.loadingMore) return;
+    if (current.status !== 'ready' || !current.nextCursor || current.loadingMore) return;
     const cursor = current.nextCursor;
     const requestKey = toApiParams(filtersRef.current).toString();
     const abort = new AbortController();
@@ -231,9 +233,10 @@ export function useListingSearch(filters: SearchFilters, historyKey: string) {
   const saveScroll = useCallback(
     (scrollY: number) => {
       const current = stateRef.current;
-      if (current.status === 'ready') remember(snapshotKey, { ...current, scrollY });
+      if (current.status === 'ready' && fulfilledQuery.current === apiKey)
+        remember(snapshotKey, { ...current, scrollY });
     },
-    [snapshotKey],
+    [apiKey, snapshotKey],
   );
 
   return { state, loadMore, retry, saveScroll };

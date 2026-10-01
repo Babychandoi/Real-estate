@@ -50,7 +50,11 @@ spring:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
       password: ${SPRING_DATA_REDIS_PASSWORD:}
-      timeout: 2000ms
+      # Redis is optional on the request path (rate limiter, caches): a call must fail fast, never hold the request.
+      # Commands are rejected while the connection is down (RedisClientConfig) and the shared breaker
+      # (app.redis.breaker) skips Redis after a failure, so these bound a single call, not every request.
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:250ms}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:500ms}
   servlet:
     multipart:
       max-file-size: 10MB
@@ -148,6 +152,13 @@ app:
     publish-poll: ${APP_CMS_PUBLISH_POLL:PT1M}
   mail:
     from: ${APP_MAIL_FROM:no-reply@bds.local}
+  redis:
+    breaker:
+      # After a failed Redis call every request skips Redis for this long (rate limits counted per instance, caches
+      # bypassed); then one call probes and a success closes the breaker (RedisCircuitBreaker).
+      open-for: ${APP_REDIS_BREAKER_OPEN_FOR:PT5S}
+    # Upper bound of Lettuce's reconnect back-off (its default grows to 30 s).
+    reconnect-max-delay: ${APP_REDIS_RECONNECT_MAX_DELAY:PT2S}
   security:
     allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
     # Peers whose X-Real-IP / X-Forwarded-For are believed (CIDR list). Default: loopback + Docker bridge pools,
@@ -159,7 +170,6 @@ app:
       key-pepper: ${RATE_LIMIT_KEY_PEPPER:}
       local-max-entries: 100000
       local-strict-max-entries: 50000
-      redis-retry-interval: 5s
       # Per-policy overrides, e.g. policies.auth-login.email.limit: 5 (defaults: RateLimitPolicies.defaults()).
     # ADR 0001 phase B: staff sessions are shorter and end after 30 minutes without activity.
     session:

@@ -1,17 +1,16 @@
 package com.company.bds.search.infrastructure.cache;
 
+import com.company.bds.shared.redis.RedisCircuitBreaker;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -25,39 +24,38 @@ import java.util.function.Supplier;
  * search generation), so invalidation never needs a scan. Protection against stampedes: a short Redis lock lets one
  * request compute while the others wait briefly for its value; identical concurrent computations inside one JVM are
  * collapsed (single flight) — also while Redis is down, which bounds the database load in that case. TTLs get ±20 %
- * jitter. Any Redis error bypasses the cache for {@code app.search.cache.redis-retry} instead of failing the request.
+ * jitter. A Redis error never fails the request: it opens the shared {@link RedisCircuitBreaker} and the cache is
+ * bypassed (without calling Redis) until the breaker's probe succeeds. An unreadable cached value is a miss and is
+ * overwritten; it says nothing about Redis' health.
  */
 @Component
 public class ListingResponseCache implements com.company.bds.search.application.port.ResponseCachePort {
-    private static final Logger log = LoggerFactory.getLogger(ListingResponseCache.class);
+    static final String REDIS_CALLER = "search-cache";
+    private static final Duration LOCK_TTL = Duration.ofSeconds(3);
 
     private final StringRedisTemplate redis;
+    private final RedisCircuitBreaker breaker;
     private final ObjectMapper json;
-    private final Clock clock;
     private final boolean enabled;
     private final String prefix;
-    private final Duration retryAfterFailure;
     private final MeterRegistry meters;
     private final ConcurrentHashMap<String, CompletableFuture<Object>> inFlight = new ConcurrentHashMap<>();
-    private volatile long redisDownUntilMillis;
 
-    public ListingResponseCache(ObjectProvider<StringRedisTemplate> redis, ObjectMapper json, Clock clock,
+    public ListingResponseCache(ObjectProvider<StringRedisTemplate> redis, RedisCircuitBreaker breaker, ObjectMapper json,
                                 ObjectProvider<MeterRegistry> meters,
                                 @Value("${app.search.cache.enabled:true}") boolean enabled,
-                                @Value("${app.search.cache.prefix:bds:search:v1:}") String prefix,
-                                @Value("${app.search.cache.redis-retry:PT10S}") Duration retryAfterFailure) {
+                                @Value("${app.search.cache.prefix:bds:search:v1:}") String prefix) {
         this.redis = redis.getIfAvailable();
+        this.breaker = breaker;
         this.json = json;
-        this.clock = clock;
         this.enabled = enabled && this.redis != null;
         this.prefix = prefix;
-        this.retryAfterFailure = retryAfterFailure;
         this.meters = meters.getIfAvailable(SimpleMeterRegistry::new);
     }
 
-    /** Whether Redis is configured and not in its failure back-off window. */
+    /** Whether Redis is configured and the shared breaker is closed. */
     public boolean available() {
-        return enabled && clock.millis() >= redisDownUntilMillis;
+        return enabled && breaker.available();
     }
 
     /**
@@ -66,18 +64,20 @@ public class ListingResponseCache implements com.company.bds.search.application.
      */
     public <T> T getOrCompute(String cacheName, String key, Duration ttl, JavaType type, Supplier<T> compute) {
         String fullKey = prefix + key;
-        if (!available()) {
+        if (!enabled || !breaker.tryAcquire(REDIS_CALLER)) {
             count(cacheName, "bypass");
             return unwrapped(fullKey, compute);
         }
+        String lockKey = fullKey + ":lock";
+        boolean leader;
         try {
             Optional<T> cached = read(fullKey, type);
+            breaker.recordSuccess();
             if (cached.isPresent()) {
                 count(cacheName, "hit");
                 return cached.get();
             }
-            String lockKey = fullKey + ":lock";
-            boolean leader = Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(lockKey, "1", Duration.ofSeconds(3)));
+            leader = Boolean.TRUE.equals(redis.opsForValue().setIfAbsent(lockKey, "1", LOCK_TTL));
             if (!leader) {
                 for (int i = 0; i < 6; i++) {
                     Thread.sleep(50);
@@ -88,42 +88,47 @@ public class ListingResponseCache implements com.company.bds.search.application.
                     }
                 }
             }
-            count(cacheName, "miss");
-            T value = singleFlight(fullKey, compute);
-            if (value != null) redis.opsForValue().set(fullKey, json.writeValueAsString(value), jitter(ttl));
-            if (leader) redis.delete(lockKey);
-            return value;
-        } catch (ComputeFailure failure) {
-            throw failure.unwrap();
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+            count(cacheName, "bypass");
             return unwrapped(fullKey, compute);
-        } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException ex) {
-            markDown(ex);
+        } catch (RuntimeException ex) {
+            breaker.recordFailure(REDIS_CALLER, ex);
             count(cacheName, "bypass");
             return unwrapped(fullKey, compute);
         }
+        count(cacheName, "miss");
+        T value = unwrapped(fullKey, compute);
+        store(fullKey, value, ttl, leader ? lockKey : null);
+        return value;
     }
 
     /** Current search generation (bumped after every index batch that changed rows); -1 when unknown (do not cache). */
     @Override
     public long generation() {
-        if (!available()) return -1;
+        if (!enabled || !breaker.tryAcquire(REDIS_CALLER)) return -1;
+        String value;
         try {
-            String value = redis.opsForValue().get(prefix + "generation");
-            return value == null ? 0 : Long.parseLong(value);
+            value = redis.opsForValue().get(prefix + "generation");
+            breaker.recordSuccess();
         } catch (RuntimeException ex) {
-            markDown(ex);
+            breaker.recordFailure(REDIS_CALLER, ex);
+            return -1;
+        }
+        try {
+            return value == null ? 0 : Long.parseLong(value);
+        } catch (NumberFormatException ex) {
             return -1;
         }
     }
 
     public void bumpGeneration() {
-        if (!available()) return;
+        if (!enabled || !breaker.tryAcquire(REDIS_CALLER)) return;
         try {
             redis.opsForValue().increment(prefix + "generation");
+            breaker.recordSuccess();
         } catch (RuntimeException ex) {
-            markDown(ex);
+            breaker.recordFailure(REDIS_CALLER, ex);
         }
     }
 
@@ -132,15 +137,42 @@ public class ListingResponseCache implements com.company.bds.search.application.
         return getOrCompute(cacheName, key, ttl, json.getTypeFactory().constructType(type), compute);
     }
 
+    @Override
+    public <T> T collapse(String key, Supplier<T> compute) {
+        return unwrapped("collapse:" + key, compute);
+    }
+
     static Duration jitter(Duration ttl) {
         double factor = 0.8 + ThreadLocalRandom.current().nextDouble() * 0.4;
         return Duration.ofMillis(Math.max(1, (long) (ttl.toMillis() * factor)));
     }
 
-    private <T> Optional<T> read(String key, JavaType type) throws com.fasterxml.jackson.core.JsonProcessingException {
+    /** Redis errors propagate; a value that no longer deserialises (e.g. written by an older release) is a miss. */
+    private <T> Optional<T> read(String key, JavaType type) {
         String value = redis.opsForValue().get(key);
         if (value == null) return Optional.empty();
-        return Optional.of(json.readValue(value, type));
+        try {
+            return Optional.of(json.readValue(value, type));
+        } catch (JsonProcessingException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private void store(String key, Object value, Duration ttl, String lockKey) {
+        String payload = null;
+        if (value != null) {
+            try {
+                payload = json.writeValueAsString(value);
+            } catch (JsonProcessingException ex) {
+                // not cacheable; the value is still returned
+            }
+        }
+        try {
+            if (payload != null) redis.opsForValue().set(key, payload, jitter(ttl));
+            if (lockKey != null) redis.delete(lockKey);
+        } catch (RuntimeException ex) {
+            breaker.recordFailure(REDIS_CALLER, ex);
+        }
     }
 
     private <T> T unwrapped(String key, Supplier<T> compute) {
@@ -175,11 +207,6 @@ public class ListingResponseCache implements com.company.bds.search.application.
         } finally {
             inFlight.remove(key, mine);
         }
-    }
-
-    private void markDown(Exception ex) {
-        redisDownUntilMillis = clock.millis() + retryAfterFailure.toMillis();
-        log.warn("Listing cache bypassed for {} after a Redis error: {}", retryAfterFailure, ex.getClass().getSimpleName());
     }
 
     private void count(String cacheName, String result) {

@@ -10,6 +10,7 @@ const DECISION: Record<string, string> = {
 
 /** UI-12: what identity verification proves (and does not), why documents are needed, who sees them, the timeline. */
 export function KycScopePanel({ status }: { status: MyKycStatus | null }) {
+  const retentionNotice = import.meta.env.VITE_KYC_RETENTION_NOTICE?.trim();
   return (
     <div className="mt-6 space-y-4 text-sm">
       <section
@@ -33,8 +34,10 @@ export function KycScopePanel({ status }: { status: MyKycStatus | null }) {
           đều được ghi lại. Số CCCD được mã hóa và chỉ hiển thị dạng che.
         </p>
         <p className="mt-1 text-on-surface-variant">
-          Thời hạn lưu trữ ảnh giấy tờ: theo chính sách quyền riêng tư của nền tảng (chưa có dữ liệu cấu hình tại trang
-          này).
+          {retentionNotice || 'Thời hạn lưu trữ ảnh giấy tờ: chưa có dữ liệu chính sách được công bố.'}{' '}
+          <a href="/privacy" className="font-semibold text-primary underline">
+            Xem chính sách quyền riêng tư
+          </a>
         </p>
       </section>
       {status && status.status !== 'NOT_SUBMITTED' && (
