@@ -140,3 +140,27 @@ Before/after snapshots include private-container Prometheus search/cache/index-l
 rate-limit fallback, Hikari/JVM/process metrics and pg_stat_database aggregate activity. Database activity is
 not a per-endpoint SQL query count. Draft-related index jobs do not prove public publication throughput.
 Artifacts contain no fixture token files. Integrated six-phase acceptance is pending; D-13/R-5 remain PARTIAL.
+
+## Fault-phase findings (CI 36692698150, 2026-10-01)
+
+**Redis phases — fixed in code.** Redis unavailable measured reads p95 4041 ms, writes p95 2014 ms, 370 dropped
+starts; the recovery phase still stalled for its first ~13 s. Cause: 2 s command timeout with Lettuce buffering
+commands while disconnected (each Redis touch waited the full timeout, a search touches Redis twice), back-offs that
+released every concurrent request at once, and Lettuce's reconnect back-off of up to 30 s. Now commands fail at once
+while disconnected, the timeout is 250 ms, one shared request-path breaker skips Redis between 5 s probes and the
+reconnect back-off is ≤ 2 s (`shared/redis/*`). A local reproduction (not this harness) went from p95 4484/2395 ms
+(reads/writes) to 33/94 ms with Redis stopped and from 3007/2572 ms to 69/155 ms while it restarted, with no dropped
+starts. The harness's `bds_ratelimit_redis_available` checks keep their meaning (0 during the outage, 1 after recovery).
+
+**ES phase — the measured outage includes the breaker transition.** The section above states that failover transition
+latency is not measured; the evidence says otherwise: `bds_search_breaker_state` was 0 (closed) in the phase's
+before-snapshot because `wait_search_state 1` makes a single request (one failure, below `min-calls`). All reads of
+the phase's first ~1.5 s therefore waited on the stopped engine while the breaker was still closed: p99 1178 ms,
+max 1842 ms, 32 dropped starts, while the phase p95 stayed 5.75 ms. The max is about twice the 800 ms budget because a request that waited for an identical
+in-flight first page gets nothing reusable (a degraded page is deliberately not cached) and then makes its own engine
+call. Collapsing those waiters onto the first answer removes the second wait but starves the count-based breaker (one
+failure per 800 ms instead of a burst), stretching the transition to several seconds; no change was made because both
+options trade one cost for another. If the phase is meant to measure the steady outage, its readiness step should wait
+for `bds_search_breaker_state == 1`; if it is meant to include the transition, `p(99)<1000` with `dropped_iterations==0`
+cannot hold at 100 reads/s with an 800 ms budget (≥ ~80 requests are already in flight when the first failure is
+known). The thresholds were left unchanged; the decision belongs to the owner.

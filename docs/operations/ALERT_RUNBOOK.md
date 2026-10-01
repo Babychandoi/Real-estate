@@ -53,8 +53,8 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 
 ## BdsRateLimitRedisFallback
 - **Ý nghĩa:** rate limiter không dùng được Redis trong 5 phút và đang đếm trong bảng cục bộ của từng instance.
-- **Chẩn đoán:** cảnh báo BdsRedisDown; `docker compose -p bds-production logs --since 15m redis`; log backend `rate_limit_redis_unavailable`.
-- **Giảm thiểu:** khôi phục Redis (`docker compose -p bds-production up -d redis`); limiter tự quay lại Redis sau tối đa 5 giây.
+- **Chẩn đoán:** cảnh báo BdsRedisDown; `docker compose -p bds-production logs --since 15m redis`; log backend `redis_unavailable` (một dòng khi circuit breaker Redis mở, kèm `caller` và loại lỗi) và `redis_recovered`; metric `bds_redis_breaker_state` (0 đóng, 1 mở, 2 đang thử lại) và `bds_redis_unavailable_total{caller,outcome}` (`failed` = lệnh Redis lỗi, `skipped` = bỏ qua Redis vì breaker mở).
+- **Giảm thiểu:** khôi phục Redis (`docker compose -p bds-production up -d redis`); không cần khởi động lại backend: cứ mỗi `APP_REDIS_BREAKER_OPEN_FOR` (mặc định 5 giây) một request thử lại Redis và breaker đóng khi Redis trả lời (Lettuce tự kết nối lại trong tối đa `APP_REDIS_RECONNECT_MAX_DELAY`, mặc định 2 giây). Trong lúc Redis lỗi, request không chờ Redis: rate limit đếm cục bộ theo đúng policy, cache tìm kiếm bị bỏ qua.
 - **Rollback:** không áp dụng.
 
 ## BdsRateLimitFailClosed
@@ -142,7 +142,7 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 
 ## BdsNotificationFanoutFallback
 - **Ý nghĩa:** không phát được thông báo qua Redis Pub/Sub; mỗi instance chỉ đẩy SSE cho người dùng đang kết nối vào chính nó. Thông báo vẫn lưu trong DB và hiện khi tải lại/kết nối lại.
-- **Chẩn đoán:** BdsRedisDown; log backend `notification_fanout_failed fallback=local`.
+- **Chẩn đoán:** BdsRedisDown; log backend `notification_fanout_failed fallback=local` hoặc `redis_unavailable caller=notifications` (khi breaker Redis đang mở, thông báo được giao cục bộ mà không gọi Redis và không ghi log từng lần).
 - **Giảm thiểu:** khôi phục Redis. Với một instance duy nhất cảnh báo này không làm mất thông báo.
 - **Rollback:** không áp dụng.
 
