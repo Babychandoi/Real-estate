@@ -9,6 +9,7 @@
 # Environment:
 #   VERIFY_BEARER_TOKEN  optional session token; the SSE check then expects 200 text/event-stream.
 #   VERIFY_API_PATH      public JSON endpoint to probe (default /api/v1/listings/search?page=0&size=1).
+#   VERIFY_PACE_SECONDS  pause before every request (default 0); use 0.6 against production to stay under 2 req/s.
 # Exit status: 0 all required headers present, 1 at least one check failed, 2 usage or connection error.
 # Compatible with the bash 3.2 shipped by macOS.
 set -uo pipefail
@@ -47,9 +48,11 @@ lower() { tr '[:upper:]' '[:lower:]'; }
 # fetch <target> <path> <max-time> [extra curl args...]
 # Writes $WORK/<target>.headers and .body and sets STATUS. Runs in the main shell so a connection error ends the script.
 STATUS=""
+pace() { [ "${VERIFY_PACE_SECONDS:-0}" = 0 ] || sleep "$VERIFY_PACE_SECONDS"; }
 fetch() {
   local target="$1" path="$2" max_time="$3"
   shift 3
+  pace
   local extra=()
   if [ "$SIMULATE_HTTPS" -eq 1 ]; then
     extra+=(-H 'X-Forwarded-Proto: https' -H 'CF-Visitor: {"scheme":"https"}')
