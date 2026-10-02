@@ -32,7 +32,7 @@ public class ListingReadService {
     private static final Duration DETAIL_TTL = Duration.ofSeconds(60);
     public static final int MAP_POINT_LIMIT = 400;
     public static final int MAP_POINTS_MIN_ZOOM = 12;
-    private static final int MAP_CLUSTER_LIMIT = 2_000;
+    static final int MAP_CLUSTER_LIMIT = 2_000;
     /** Response statistics are published only with at least this many answered leads (audit §8.3 seller). */
     public static final int MIN_RESPONSE_SAMPLES = 5;
 
@@ -134,8 +134,14 @@ public class ListingReadService {
                     SearchResults.ENGINE_DATABASE, now);
         }
         double cell = 360.0 / Math.pow(2, zoom) / 4.0;
-        return new MapResult("clusters", List.of(), readModel.mapClusters(filter, cell, MAP_CLUSTER_LIMIT), total,
-                SearchResults.ENGINE_DATABASE, now);
+        // R-2 (W6): never drop the smallest cells to stay under the limit — that made the clusters add up to less than the
+        // list total. When there are more cells than the limit, use coarser cells (twice the size) until they all fit.
+        List<MapCluster> clusters = readModel.mapClusters(filter, cell, MAP_CLUSTER_LIMIT + 1);
+        while (clusters.size() > MAP_CLUSTER_LIMIT && cell < 360.0) {
+            cell *= 2;
+            clusters = readModel.mapClusters(filter, cell, MAP_CLUSTER_LIMIT + 1);
+        }
+        return new MapResult("clusters", List.of(), clusters, total, SearchResults.ENGINE_DATABASE, now);
     }
 
     /** Thumbnails of a page resolved with one resolver call (at most one query). */
