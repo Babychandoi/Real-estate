@@ -4,16 +4,16 @@
   "routes": {
     "/": {
       "module": "app/routes/_public.home.tsx",
-      "budgetKb": 138,
+      "budgetKb": 139,
       "measuredKb": 122.2,
-      "note": "S7-SEO: the shell grew ~1.8 kB (seven lazy route entries for /du-an, /khu-vuc, /tin-tuc and the prerendered-head reset); areas/projects/articles on the home page load in their own chunk (features/places/HomeExtras). Budget = measured + ~3 kB."
+      "note": "S7-SEO: the shell grew ~1.8 kB (seven lazy route entries for /du-an, /khu-vuc, /tin-tuc and the prerendered-head reset); areas/projects/articles on the home page load in their own chunk (features/places/HomeExtras). Budget = measured + ~3 kB. W6-UX (2026-10-03): shell +~0.5 kB (137.7 -> 138.2 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     },
     "/search": {
       "module": "app/routes/_public.search.tsx",
-      "budgetKb": 150,
+      "budgetKb": 151,
       "measuredKb": 148.3,
       "target": "S2 Review 2: <=130 kB is not reachable at the gzip-1 metric. The shell alone is 120.0 kB, leaving 10 kB for the route, while the code a list page cannot render without (ListingCard + TrustBadge 5.0, filterSchema URL parsing 3.5, listingPath/labels 1.4, LoadMore 0.6, API 0.3) already weighs 10.8 kB before the route's own 8.3 kB (search box, chips, sort, paging hook). MapLibre, the filter form/sheet, the zero-result/error states and the map point sheet all load on demand. Measured at the gzip-9 metric the target was set with, /search is 125.6 kB (under 130). Budget = best achieved (140.6) + 1.4 kB; lowering the shell (not S2) is the remaining lever.",
-      "note": "S8: shell +~1 kB (consent gate, RUM starter; banner and web-vitals are lazy chunks). W3 merge (UI redesign + S1 + S3b + S6): S6 adds ~2.5 kB (favourite button on every card, 'Lưu tìm kiếm'; dialog lazy). Highest justified value kept; reduction owned by S10-PERF. S11-UX: shell +~1 kB (AdminAlias, eager since it decides routing before render)."
+      "note": "S8: shell +~1 kB (consent gate, RUM starter; banner and web-vitals are lazy chunks). W3 merge (UI redesign + S1 + S3b + S6): S6 adds ~2.5 kB (favourite button on every card, 'Lưu tìm kiếm'; dialog lazy). Highest justified value kept; reduction owned by S10-PERF. S11-UX: shell +~1 kB (AdminAlias, eager since it decides routing before render). W6-UX (2026-10-03): shell +~0.5 kB (149.7 -> 150.3 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     },
     "/listings/:slug": {
       "module": "app/routes/_public.listings.$listingId.tsx",
@@ -22,15 +22,15 @@
     },
     "/compare": {
       "module": "app/routes/_public.compare.tsx",
-      "budgetKb": 139,
+      "budgetKb": 140,
       "measuredKb": 137.6,
-      "note": "S8: shell +~1 kB (consent gate, RUM starter; banner and web-vitals are lazy chunks). S11-UX: shell +~1 kB (AdminAlias)."
+      "note": "S8: shell +~1 kB (consent gate, RUM starter; banner and web-vitals are lazy chunks). S11-UX: shell +~1 kB (AdminAlias). W6-UX (2026-10-03): shell +~0.5 kB (138.7 -> 139.1 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     },
     "/nguoi-dang/:sellerId": {
       "module": "app/routes/_public.seller.tsx",
-      "budgetKb": 140,
+      "budgetKb": 141,
       "measuredKb": 136.7,
-      "note": "W3 merge: S6 favourite button on the seller's cards (~1.5 kB) on top of the redesign. S11-UX: shell +~1 kB (AdminAlias)."
+      "note": "W3 merge: S6 favourite button on the seller's cards (~1.5 kB) on top of the redesign. S11-UX: shell +~1 kB (AdminAlias). W6-UX (2026-10-03): shell +~0.5 kB (139.8 -> 140.3 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     },
     "/about (information pages)": {
       "module": "app/routes/_public.information.tsx",
@@ -72,9 +72,9 @@
     },
     "/my-inquiries": {
       "module": "app/routes/_account.inquiries.tsx",
-      "budgetKb": 138,
+      "budgetKb": 139,
       "measuredKb": 135.0,
-      "note": "S3b-LEADS (W3): real response state, withdraw dialog; appointments/history lazy on expand. Budget = measured + ~3 kB."
+      "note": "S3b-LEADS (W3): real response state, withdraw dialog; appointments/history lazy on expand. Budget = measured + ~3 kB. W6-UX (2026-10-03): shell +~0.5 kB (137.9 -> 138.4 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     },
     "/broker/workspace": {
       "module": "app/routes/_account.broker-workspace.tsx",
@@ -155,9 +155,9 @@
     },
     "admin/projects": {
       "module": "app/routes/_admin.projects.tsx",
-      "budgetKb": 132,
+      "budgetKb": 133,
       "measuredKb": 118.3,
-      "note": "S11-UX: shell +~1 kB (AdminAlias)."
+      "note": "S11-UX: shell +~1 kB (AdminAlias). W6-UX (2026-10-03): shell +~0.5 kB (131.7 -> 132.1 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     },
     "admin/cms": {
       "module": "app/routes/_admin.cms.tsx",
@@ -197,9 +197,9 @@
     },
     "/du-an (projects)": {
       "module": "app/routes/_public.projects.tsx",
-      "budgetKb": 141,
+      "budgetKb": 142,
       "measuredKb": 138.0,
-      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB."
+      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB. W6-UX (2026-10-03): shell +~0.5 kB (140.7 -> 141.2 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     },
     "/khu-vuc (areas)": {
       "module": "app/routes/_public.areas.tsx",
@@ -209,9 +209,9 @@
     },
     "/tin-tuc (articles)": {
       "module": "app/routes/_public.articles.tsx",
-      "budgetKb": 142,
+      "budgetKb": 143,
       "measuredKb": 139.0,
-      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB."
+      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB. W6-UX (2026-10-03): shell +~0.5 kB (141.7 -> 142.1 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
     }
   },
   "gzipLevel": 1
