@@ -1,6 +1,5 @@
 package com.company.bds.shared.security;
 
-import com.company.bds.iam.application.AuthService;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -146,7 +145,7 @@ public class AuditTrail {
             List<Object[]> updates = new java.util.ArrayList<>(pending.size());
             for (Map<String, Object> row : pending) {
                 sequence++;
-                String hash = AuthService.sha256(material(previous, sequence, ((Timestamp) row.get("occurred_at")).toInstant(), entry(row)));
+                String hash = sha256(material(previous, sequence, ((Timestamp) row.get("occurred_at")).toInstant(), entry(row)));
                 updates.add(new Object[]{sequence, previous, hash, row.get("id")});
                 previous = hash;
             }
@@ -189,7 +188,7 @@ public class AuditTrail {
             String previous = ((String) row.get("previous_hash")).strip();
             String hash = ((String) row.get("event_hash")).strip();
             boolean valid = sequence == expectedSeq && previous.equals(expectedPrevious)
-                    && AuthService.sha256(material(previous, sequence, ((Timestamp) row.get("occurred_at")).toInstant(), entry(row))).equals(hash);
+                    && sha256(material(previous, sequence, ((Timestamp) row.get("occurred_at")).toInstant(), entry(row))).equals(hash);
             if (!valid) return new Verification(expectedSeq - 1, sequence);
             expectedPrevious = hash;
             expectedSeq++;
@@ -199,6 +198,16 @@ public class AuditTrail {
             return new Verification(expectedSeq - 1, expectedSeq);
         }
         return new Verification(expectedSeq - 1, null);
+    }
+
+    /** Lower-case hex SHA-256 of the UTF-8 bytes (the format of the pre-V103 hashes). */
+    static String sha256(String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 unavailable", ex);
+        }
     }
 
     private static void pause(int attempt) {

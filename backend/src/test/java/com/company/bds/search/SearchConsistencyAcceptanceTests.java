@@ -45,7 +45,8 @@ class SearchConsistencyAcceptanceTests {
     private static final int LISTINGS = 300;
     private static final String[][] DISTRICTS = {{"005", "Dịch Vọng, Cầu Giấy, Hà Nội"}, {"007", "Bạch Mai, Hai Bà Trưng, Hà Nội"},
             {"019", "Mễ Trì, Nam Từ Liêm, Hà Nội"}, {"006", "Láng Hạ, Đống Đa, Hà Nội"}};
-    private static final String BBOX = "105.70,20.90,106.00,21.20";
+    // Far from the Hà Nội / HCMC boxes other tests assert on (the database is shared by the whole run).
+    private static final String BBOX = "109.05,12.15,109.35,12.45";
 
     @Autowired MockMvc mvc;
     @Autowired TestData data;
@@ -85,8 +86,8 @@ class SearchConsistencyAcceptanceTests {
             String[] place = DISTRICTS[i % DISTRICTS.length];
             boolean rent = i % 3 == 0;
             boolean located = i % 10 != 7;
-            Double lat = located ? 20.95 + (i % 17) * 0.012 : null;
-            Double lng = located ? 105.75 + (i % 19) * 0.011 : null;
+            Double lat = located ? 12.20 + (i % 17) * 0.012 : null;
+            Double lng = located ? 109.10 + (i % 19) * 0.011 : null;
             long price = rent ? 5_000_000L + (i % 11) * 1_000_000L : 1_500_000_000L + (i % 13) * 100_000_000L;
             TestData.ListingBuilder builder = data.listing(seller.id()).purpose(rent ? "RENT" : "SALE")
                     .title((rent ? "Cho thuê căn hộ " : "Bán nhà ") + token + " số " + i).district(place[0], place[1])
@@ -141,7 +142,7 @@ class SearchConsistencyAcceptanceTests {
             for (JsonNode cluster : clusters.path("clusters")) clustered += cluster.path("count").asLong();
             assertThat(clustered).as("clusters add up to the located matches, " + purpose).isEqualTo(located);
         }
-        String smallBox = "105.74,20.94,105.80,21.00";
+        String smallBox = "109.09,12.19,109.15,12.25";
         Map<String, String> zoomed = query("q", token, "purpose", "RENT", "bbox", smallBox);
         JsonNode points = json(get("/api/v2/listings/map").param("q", token).param("purpose", "RENT").param("bbox", smallBox).param("zoom", "15"));
         assertThat(points.path("mode").asText()).isEqualTo("points");
