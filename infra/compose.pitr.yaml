@@ -30,7 +30,7 @@ services:
     # base-backup interval (daily in compose.pitr-backup.yaml), otherwise the newest base backup cannot be replayed.
     image: alpine:3.22
     user: "999:999"
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     command: ["sh", "-c", "while true; do find /archive -type f -mmin +$${KEEP_MINUTES} -delete; sleep 3600; done"]
     environment:
       KEEP_MINUTES: ${WAL_ARCHIVE_KEEP_MINUTES:-4320}

@@ -10,6 +10,10 @@ if ($modeLine -and $modeLine.Split('=', 2)[1].Trim() -eq 'production') {
     throw 'Từ chối reset khi APP_MODE=production.'
 }
 
+# Production uses restart: always (comes back after a reboot). The demo keeps its previous policy so a stopped demo
+# never returns after a reboot and races production for 127.0.0.1:3000 (docker-compose.yml header).
+if (-not $env:BDS_RESTART_POLICY) { $env:BDS_RESTART_POLICY = 'unless-stopped' }
+
 docker compose down --volumes --remove-orphans
 if ($LASTEXITCODE -ne 0) { throw 'Không thể dừng cụm demo.' }
 docker compose up --build -d

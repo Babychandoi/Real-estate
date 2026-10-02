@@ -27,7 +27,7 @@ services:
     profiles: ["ops"]
     build: { context: ./infra/backup }
     image: bds-backup:1
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     user: "${BACKUP_UID:-999}:${BACKUP_GID:-999}"
     network_mode: "service:postgres"
     command: ["schedule"]

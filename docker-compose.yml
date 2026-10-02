@@ -1,8 +1,17 @@
+# Restart policy (incident 2026-10: production stayed down after the Mac rebooted three times): every long-running
+# service uses `always`, which Docker re-applies when the daemon starts, also for containers the daemon itself stopped
+# at shutdown (exit 0/143) or that died with the VM (137); `unless-stopped` treats those as stopped and leaves them
+# down. depends_on only orders `docker compose up`; after a daemon restart Docker starts everything at once, and a
+# backend or Nginx that starts before its dependencies exits and is restarted until they are up. Consequence of
+# `always`: a container left *stopped* (not removed) also comes back after a reboot. Deploy with
+# `docker compose stop <svc>` + `up -d` as usual; to keep a service down across reboots remove it (`rm -sf <svc>`).
+# A demo/dev stack started from this file can opt out with BDS_RESTART_POLICY=no (it shares 127.0.0.1:3000 with
+# production). Runbook: docs/ops/PRODUCTION_TOPOLOGY.md §8.
 name: bds-enterprise-stack
 services:
   postgres:
     image: postgis/postgis:16-3.4
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bds}
       POSTGRES_USER: ${POSTGRES_USER:-bds}
@@ -16,7 +25,7 @@ services:
     networks: [bds-network]
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"]
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
@@ -29,7 +38,7 @@ services:
     networks: [bds-network]
   mailpit:
     image: axllent/mailpit:v1.21
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     ports: ["127.0.0.1:8025:8025"]
     networks: [bds-network]
   minio:
@@ -37,7 +46,7 @@ services:
       context: ./infra/minio
       args: { MINIO_VERSION: RELEASE.2025-10-15T17-29-55Z }
     image: bds-minio:RELEASE.2025-10-15T17-29-55Z
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
@@ -52,7 +61,7 @@ services:
     networks: [bds-network]
   clamav:
     image: clamav/clamav:1.4_base
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     volumes: [clamav-data:/var/lib/clamav]
     healthcheck:
       test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
@@ -63,7 +72,7 @@ services:
     networks: [bds-network]
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.5
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
@@ -77,7 +86,7 @@ services:
     networks: [bds-network]
   backend:
     build: { context: ./backend, dockerfile: Dockerfile }
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     environment:
       APP_MODE: ${APP_MODE:-demo}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
@@ -197,7 +206,7 @@ services:
       args:
         VITE_PUBLIC_API_BASE_URL: /api/v1
         VITE_KYC_RETENTION_NOTICE: ${VITE_KYC_RETENTION_NOTICE:-}
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     # Loopback only: Nginx trusts forwarded client addresses from the Docker/loopback ranges, so nothing on the LAN
     # may reach it directly. Public traffic arrives through cloudflared inside the Compose network.
     ports: ["127.0.0.1:3000:3000"]
@@ -207,7 +216,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2026.9.1
     profiles: ["edge"]
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-always}
     command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
     volumes:
       - ./infra/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
