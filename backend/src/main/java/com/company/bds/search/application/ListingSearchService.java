@@ -86,8 +86,11 @@ public class ListingSearchService {
                 CachedPage cached = cache.getOrCompute("search-first-page", key, FIRST_PAGE_TTL, CachedPage.class, () -> {
                     Page page = compute(request, null, current);
                     fresh[0] = page;
-                    // a fallback page carries a database cursor: never serve it under the search engine's key
-                    return page.degraded() ? null : toCached(page);
+                    // A fallback computed under the search engine's key carries a database cursor: never serve it under
+                    // that key. While the breaker is open the key already is the database key, so the degraded page is
+                    // cached like any other: an Elasticsearch outage must not turn every repeated first page (and its
+                    // capped count) into database work (W6-PERF). Closing the breaker switches back to the engine's key.
+                    return page.degraded() && !SearchResults.ENGINE_DATABASE.equals(current) ? null : toCached(page);
                 });
                 if (fresh[0] != null) return fresh[0];
                 if (cached != null) return fromCached(cached, request, filter);
