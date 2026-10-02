@@ -46,7 +46,16 @@ async function dialogNamed(page: Page, name: string | RegExp, opener: Locator): 
 /** Listing detail with 20 photos: the UAT seed runs without media storage, so the API answer is given photos. */
 async function withPhotos(page: Page) {
   await page.route(/\/api\/v2\/listings\/[^/?]+(\?.*)?$/, async (route) => {
-    const response = await route.fetch();
+    // A busy shared stack may rate-limit (429) the burst of requests; retry, and never rewrite a failed answer.
+    let response = await route.fetch();
+    for (let attempt = 0; attempt < 4 && response.status() === 429; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      response = await route.fetch();
+    }
+    if (!response.ok()) {
+      await route.fulfill({ response });
+      return;
+    }
     const body = await response.json();
     const svg = (n: number) =>
       `data:image/svg+xml,${encodeURIComponent(
@@ -324,7 +333,10 @@ for (const scenario of SCENARIOS) {
           path: `${SHOTS}/${scenario.name.replace(/[^a-z0-9]+/gi, '_')}-${label.replace(' ', '_')}.png`,
         });
       }
-      expect.soft(await axeViolations(page), `axe @${label}`).toEqual([]);
+      // A modal is scanned on its own: the page behind it is covered on purpose (axe would report its controls as
+      // obscured targets) and is audited without the overlay by ux-audit.spec.ts. A non-modal menu is scanned with
+      // the page it sits on.
+      expect.soft(await axeViolations(page, opened.modal ? '[data-ux-scope]' : undefined), `axe @${label}`).toEqual([]);
       expect
         .soft(
           await auditUi(page, { touch: label.startsWith('390'), allow: ALLOW, scope: '[data-ux-scope]' }),

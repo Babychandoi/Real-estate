@@ -88,7 +88,7 @@ function MetricValue({ metric, className = '' }: { metric: Metric; className?: s
         {formatMetric(metric)}
       </span>
       {missing && metric.reason && (
-        <span className="mt-1 block text-label text-on-surface-variant">{metric.reason}</span>
+        <span className="mt-1 block max-w-[18rem] text-label text-on-surface-variant">{metric.reason}</span>
       )}
     </span>
   );
@@ -137,7 +137,7 @@ function FunnelCard({ funnel }: { funnel: Funnel }) {
           return (
             <li
               key={step.key}
-              className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,auto)] sm:items-center"
+              className="grid gap-1 sm:grid-cols-[minmax(min(10rem,30%),1fr)_minmax(0,2fr)_minmax(min(7rem,30%),auto)] sm:items-center"
             >
               <span className="text-body-sm font-medium text-on-surface">{step.label}</span>
               <span className="h-6 overflow-hidden rounded bg-surface-container" aria-hidden="true">

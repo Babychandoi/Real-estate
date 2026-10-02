@@ -174,7 +174,7 @@ export const LoginModal: React.FC = () => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-dialog-title"
-        className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto"
+        className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] overflow-y-auto"
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container/50">
