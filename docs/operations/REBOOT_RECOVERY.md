@@ -70,6 +70,9 @@ VERIFY_PACE_SECONDS=0.6 scripts/verify-headers.sh https://nhadatchuan.online
 Nếu backend healthy nhưng API qua Nginx vẫn trả 503 (`SERVICE_UNAVAILABLE`): `docker compose -p bds-production
 restart frontend` và ghi lại vào sổ sự cố.
 
-Số đo trên runner CI (Linux Docker Engine, khởi động lại daemon nhẹ nhàng và kiểu mất điện): xem
-`docs/audit-2026-09-27/streams/w6-ops.md` mục "Restart policy". Docker Desktop trên macOS chạy daemon trong VM; thời
+Số đo trên runner CI (Linux Docker Engine, 2 lần chạy, `docs/audit-2026-09-27/streams/w6-ops.md` mục "Restart
+policy"): sau `systemctl restart docker`, trang đầu tiên sau 11,7–11,9 s và app phục vụ đầy đủ (tìm kiếm qua ES) sau
+63–67 s; kiểu mất điện (daemon và mọi container bị SIGKILL) 34–58 s; mọi container `always` chạy lại, không vòng lặp
+crash. Container `unless-stopped` bị `docker stop` trước đó vẫn nằm im (exit 137); container `always` cùng tình huống
+chạy lại. Docker Desktop trên macOS chạy daemon trong VM; thời
 gian thật trên máy Mac cần đo lại ở lần khởi động lại kế tiếp.
