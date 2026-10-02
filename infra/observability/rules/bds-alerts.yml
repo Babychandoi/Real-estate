@@ -146,6 +146,18 @@ groups:
           description: Hơn 20 lần sai mã xác thực hai lớp ở cổng quản trị trong 15 phút.
           runbook: docs/operations/ALERT_RUNBOOK.md#bdsmfafailuresspike
 
+  - name: bds-audit
+    rules:
+      # W6: a request audit record that could not be stored after its retries, or a linker that keeps failing.
+      - alert: BdsAuditWriteFailures
+        expr: sum(increase(bds_audit_write_failures_total[10m])) > 0 or sum(increase(bds_audit_chain_link_failures_total[10m])) > 5
+        labels:
+          severity: critical
+        annotations:
+          summary: Nhật ký kiểm toán không ghi được
+          description: Có bản ghi kiểm toán yêu cầu không lưu được sau 3 lần thử, hoặc tiến trình nối chuỗi băm liên tục lỗi.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsauditwritefailures
+
   - name: bds-rate-limit
     rules:
       - alert: BdsRateLimitRedisFallback

@@ -160,8 +160,15 @@ public class ListingApplicationService implements
                 .replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
         if (base.isBlank()) base = "bat-dong-san";
         base = base.substring(0, Math.min(160, base.length())).replaceAll("-+$", "");
+        // Check-then-insert raced: two drafts with the same title read the same free slug and the second failed with a 500
+        // on uq_listings_slug. Serialise allocation per base slug until this transaction (which inserts it) ends.
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtext('listing-slug'), hashtext(?))", Object.class, base);
         String candidate = base;
-        for (int suffix = 2; persistencePort.existsBySlug(candidate); suffix++) candidate = base + "-" + suffix;
+        for (int suffix = 2; persistencePort.existsBySlug(candidate); suffix++) {
+            // A popular title must not cost one query per earlier copy: after a few tries take a random suffix.
+            candidate = suffix <= 5 ? base + "-" + suffix
+                    : base + "-" + UUID.randomUUID().toString().substring(0, 8);
+        }
         return candidate;
     }
 

@@ -365,3 +365,24 @@ tests:
               summary: Nhiều lần nhập sai mã MFA quản trị trong 15 phút
               description: Hơn 20 lần sai mã xác thực hai lớp ở cổng quản trị trong 15 phút.
               runbook: docs/operations/ALERT_RUNBOOK.md#bdsmfafailuresspike
+
+  - name: one lost audit record is critical, a few linker hiccups are not
+    interval: 1m
+    input_series:
+      - series: 'bds_audit_write_failures_total{job="bds-backend"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1'
+      - series: 'bds_audit_chain_link_failures_total{job="bds-backend"}'
+        values: '0 1 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: BdsAuditWriteFailures
+        exp_alerts: []
+      - eval_time: 22m
+        alertname: BdsAuditWriteFailures
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: Nhật ký kiểm toán không ghi được
+              description: Có bản ghi kiểm toán yêu cầu không lưu được sau 3 lần thử, hoặc tiến trình nối chuỗi băm liên tục lỗi.
+              runbook: docs/operations/ALERT_RUNBOOK.md#bdsauditwritefailures

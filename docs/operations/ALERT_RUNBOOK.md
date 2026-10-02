@@ -157,3 +157,9 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 - **Chẩn đoán:** như BdsMfaChallengeLocked; xem thêm `bds_ratelimit_rejected_total{policy=~"auth-admin-login|auth-mfa-verify"}` trên dashboard "BDS — Rate limit".
 - **Giảm thiểu:** như trên cho từng tài khoản bị ảnh hưởng; cân nhắc hạ `app.security.rate-limit.policies.auth-mfa-verify.ip.limit` và `auth-admin-login` tạm thời, chặn dải IP ở Cloudflare.
 - **Rollback:** trả lại giới hạn cũ sau sự cố.
+
+## BdsAuditWriteFailures
+- **Ý nghĩa:** một bản ghi kiểm toán của yêu cầu ghi (POST/PUT/PATCH/DELETE `/api/**`) không lưu được sau 3 lần thử (`bds_audit_write_failures_total`), hoặc tiến trình nối chuỗi băm (`AuditTrail.linkAll`, mỗi giây) lỗi nhiều lần (`bds_audit_chain_link_failures_total`). Thao tác nghiệp vụ đã commit trước khi ghi kiểm toán nên không bị hoàn tác; chỉ bằng chứng kiểm toán bị thiếu.
+- **Chẩn đoán:** log backend `audit_write_failed method=… path=… status=… attempts=3 cause=<Exception>: <thông điệp>` (thường là hết kết nối pool — xem BdsDbPoolSaturated — hoặc PostgreSQL không truy cập được) và `audit_chain_link_failed`. Số sự kiện chưa nối chuỗi: gauge `bds_audit_chain_backlog` hoặc `SELECT count(*) FROM audit_events WHERE event_hash IS NULL;`.
+- **Giảm thiểu:** xử lý nguyên nhân (pool/DB). Sự kiện đã lưu nhưng chưa nối chuỗi được nối ở lần chạy kế tiếp; sự kiện không lưu được chỉ còn trong log (đối chiếu theo `requestId`).
+- **Rollback:** không áp dụng. Kiểm tra toàn vẹn chuỗi: `AuditTrail.verify()` cho sự kiện từ V103 trở đi; sự kiện trước V103 nối qua `audit_chain_head.genesis_hash`. Lịch sử trước V103 có thể đã rẽ nhánh (lỗi cũ) và không được sửa lại.

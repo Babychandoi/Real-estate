@@ -7,24 +7,21 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 
 @Component
 public class AuditTrailFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(AuditTrailFilter.class);
-    private final JdbcTemplate jdbc;
+    private final AuditTrail trail;
     private final ClientIpResolver clientIp;
-    public AuditTrailFilter(JdbcTemplate jdbc, ClientIpResolver clientIp) { this.jdbc = jdbc; this.clientIp = clientIp; }
+    public AuditTrailFilter(AuditTrail trail, ClientIpResolver clientIp) { this.trail = trail; this.clientIp = clientIp; }
 
     @Override protected boolean shouldNotFilter(HttpServletRequest request) {
         boolean sensitiveRead = request.getMethod().equals("GET")
@@ -38,21 +35,22 @@ public class AuditTrailFilter extends OncePerRequestFilter {
     @Override protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         chain.doFilter(request, response);
+        AuditTrail.Entry entry;
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             UUID actor = authentication != null && authentication.getPrincipal() instanceof AuthService.UserAccount user ? user.id() : null;
-            String previous = jdbc.query("SELECT event_hash FROM audit_events ORDER BY occurred_at DESC LIMIT 1",
-                    rs -> rs.next() ? rs.getString(1) : "GENESIS");
             // Behind Nginx the socket address is the proxy for everyone; fingerprint the resolved client instead.
             String fingerprint = AuthService.sha256(clientIp.resolve(request) + ':' +
                     String.valueOf(request.getHeader("User-Agent")));
-            Instant now = Instant.now();
-            String material = previous + '|' + now + '|' + actor + '|' + request.getMethod() + '|' + request.getRequestURI() + '|' + response.getStatus();
-            jdbc.update("INSERT INTO audit_events(id,occurred_at,actor_id,action,resource,result_status,client_fingerprint,previous_hash,event_hash) VALUES (?,?,?,?,?,?,?,?,?)",
-                    UUID.randomUUID(), Timestamp.from(now), actor, request.getMethod(), request.getRequestURI(), response.getStatus(), fingerprint, previous,
-                    AuthService.sha256(material));
-        } catch (Exception ex) {
-            log.error("audit_write_failed method={} path={} status={}", request.getMethod(), request.getRequestURI(), response.getStatus());
+            String resource = request.getRequestURI();
+            entry = new AuditTrail.Entry(actor, request.getMethod(), resource.length() > 500 ? resource.substring(0, 500) : resource,
+                    response.getStatus(), fingerprint);
+        } catch (RuntimeException ex) {
+            log.error("audit_write_failed method={} path={} status={} cause={}: {}", request.getMethod(), request.getRequestURI(),
+                    response.getStatus(), ex.getClass().getSimpleName(), ex.getMessage());
+            return;
         }
+        // A plain insert (linked into the hash chain shortly after); retried, counted and logged with its cause when it fails.
+        trail.record(entry);
     }
 }

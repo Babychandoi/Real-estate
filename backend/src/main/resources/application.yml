@@ -215,6 +215,11 @@ app:
     scheduler-enabled: ${APP_ENGAGEMENT_SCHEDULER_ENABLED:true}
     digest-ms: ${APP_ENGAGEMENT_DIGEST_MS:60000}
     retention-cron: ${APP_ENGAGEMENT_RETENTION_CRON:0 23 4 * * *}
+  audit:
+    chain:
+      # Links stored request audit events into the hash chain (AuditTrail); one linker at a time across instances.
+      scheduler-enabled: ${APP_AUDIT_CHAIN_SCHEDULER_ENABLED:true}
+      delay-ms: ${APP_AUDIT_CHAIN_DELAY_MS:1000}
   outbox:
     enabled: ${OUTBOX_ENABLED:false}
     webhook-url: ${OUTBOX_WEBHOOK_URL:}
