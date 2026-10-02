@@ -13,14 +13,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Deprecated v1 search (contract §8): a thin wrapper over v2 that returns the first page only, in the old array shape.
+ * Deprecated v1 search (contract §8): a thin wrapper over v2 in the old array shape; page {@code n} is reached by walking
+ * the v2 cursors (W6, R-2: before, every page after the first was empty).
  * Answers carry {@code Deprecation: true} and a {@code Link} to the successor. Invalid values are no longer swallowed
- * (400 {@code INVALID_FILTER}); {@code purpose} defaults to SALE like v2; {@code page > 0} returns an empty array.
+ * (400 {@code INVALID_FILTER}); {@code purpose} defaults to SALE like v2; a page past the last one is an empty array.
  */
 @RestController
 public class LegacySearchV1Controller {
@@ -64,11 +66,17 @@ public class LegacySearchV1Controller {
             throw new InvalidFilterException(InvalidFilterException.INVALID_FILTER,
                     List.of(new InvalidFilterException.FilterError("page", "Số trang không được âm.")));
         }
-        List<ListingSummaryResponse> items = List.of();
-        if (page == 0) {
-            SearchResults.Page result = search.search(SearchFilterParser.parse(params));
-            items = result.items().stream().map(LegacySearchV1Controller::legacy).toList();
+        // R-2: v1 pages are numbers, v2 pages are cursors. Walk the cursors to the requested page instead of answering an
+        // empty list after the first page (which silently capped v1 clients at one page).
+        SearchResults.Page result = search.search(SearchFilterParser.parse(params));
+        int current = 0;
+        while (current < page && result.hasNext() && result.nextCursor() != null) {
+            put(params, "cursor", result.nextCursor());
+            result = search.search(SearchFilterParser.parse(params));
+            current++;
         }
+        List<ListingSummaryResponse> items = current == page
+                ? result.items().stream().map(LegacySearchV1Controller::legacy).toList() : List.of();
         return ResponseEntity.ok()
                 .header("Deprecation", "true")
                 .header("Link", "</api/v2/listings/search>; rel=\"successor-version\"")
@@ -77,8 +85,9 @@ public class LegacySearchV1Controller {
 
     private static ListingSummaryResponse legacy(PublicListing row) {
         return new ListingSummaryResponse(row.listingId(), row.slug(), ContactInfoGuard.redact(row.title()), row.purpose(),
-                row.propertyType(), row.priceVnd(), row.areaM2(), ContactInfoGuard.redact(row.addressSummary()), row.lat(),
-                row.lng(), "VERIFIED".equals(row.ownershipStatus()), false, row.thumbnailUrl() == null ? "" : row.thumbnailUrl(),
+                row.propertyType(), row.priceVnd(), row.pricePeriod(), row.areaM2(), ContactInfoGuard.redact(row.addressSummary()), row.lat(),
+                // Validity now (contract §6), not the stored status: an expired check is not a badge even before the row refresh.
+                row.lng(), "VERIFIED".equals(row.ownershipStatusAt(Instant.now())), false, row.thumbnailUrl() == null ? "" : row.thumbnailUrl(),
                 row.publishedAt(), row.ownerId(), ContactInfoGuard.redact(row.sellerName()), row.sellerAvatarUrl());
     }
 
