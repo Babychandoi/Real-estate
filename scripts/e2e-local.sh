@@ -22,6 +22,7 @@
 # E2E_SQL_AFTER_SEED: SQL run on the seeded database before the suites (stream-specific fixtures).
 # E2E_SQL_AFTER_SEED_FILES: space-separated SQL files run the same way, e.g. the R-2 search volume fixture
 # (frontend/tests/e2e/fixtures/search-volume.sql, needed by search-consistency.spec.ts).
+# E2E_WORKERS: Playwright worker count (default: the config's).
 # E2E_MFA_REQUIRED=true: staff sign-in needs TOTP (only for the mfa suite; the other staff suites expect false).
 # Environment overrides: E2E_BACKEND_PORT (18111), E2E_FRONTEND_PORT (5311), E2E_REDIS_DB (2), E2E_DB_PREFIX
 # (s0fe_e2e), E2E_SEED_CLOCK (2026-09-01T03:00:00Z), E2E_JAVA_HOME (else $HOME/.local/opt/jdk17, else JAVA_HOME),
@@ -230,6 +231,8 @@ fi
 # --- Playwright ----------------------------------------------------------------------------------------------------
 PROJECT_ARGS=()
 for project in $PROJECTS; do PROJECT_ARGS+=("--project=$project"); done
+# E2E_WORKERS caps Playwright workers on a loaded machine (the config uses all cores outside CI).
+if [ -n "${E2E_WORKERS:-}" ]; then PROJECT_ARGS+=("--workers=$E2E_WORKERS"); fi
 export PLAYWRIGHT_BASE_URL="http://127.0.0.1:$FRONTEND_PORT" E2E_REQUIRE_UI_CATALOG=1
 
 FAILED=()
