@@ -1,0 +1,74 @@
+name: Operations drills
+
+# Disposable-runner evidence for audit F21.5 / R-6 / F11.2 and the 2026-10 reboot incident: recovery (RPO/RTO),
+# migration rollback compatibility, client-IP chain, session headers and Docker restart policy. Advisory, not a
+# required check: it only runs when the files it exercises change, or by hand.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/operations-drills.yml"
+      - "scripts/ci-ops-drill.sh"
+      - "scripts/ops_drill_report.py"
+      - "scripts/restore-drill.sh"
+      - "docker-compose.yml"
+      - "infra/compose.backup.yaml"
+      - "infra/compose.pitr.yaml"
+      - "infra/compose.pitr-backup.yaml"
+      - "infra/backup/**"
+      - "infra/drill/**"
+      - "infra/postgres/**"
+      - "frontend/nginx.conf"
+      - "frontend/nginx/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ops-drills-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  recovery-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BDS_DRILL_ISOLATED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts
+        run: |
+          bash -n scripts/ci-ops-drill.sh
+          python3 -m py_compile scripts/ops_drill_report.py
+      - name: Backup, write, lose, restore (PITR and full host) and measure
+        run: bash scripts/ci-ops-drill.sh recovery
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-drill-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/ops-drill/recovery/
+          if-no-files-found: error
+          retention-days: 30
+
+  rollback-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BDS_DRILL_ISOLATED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # previous releases are built from history
+      - name: Validate scripts
+        run: bash -n scripts/ci-ops-drill.sh
+      - name: Roll back to previous images, IP chain, daemon restarts
+        run: bash scripts/ci-ops-drill.sh rollback
+      - name: Upload evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rollback-drill-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/ops-drill/rollback/
+          if-no-files-found: error
+          retention-days: 30
