@@ -12,6 +12,11 @@
 4. Triển khai canary, kiểm tra `/actuator/health/readiness`, `/health`, đăng nhập, tìm kiếm và gửi lead.
 5. Theo dõi tỷ lệ lỗi, p95 và backlog; rollback image nếu vượt SLO.
 
+## Khởi động lại máy production
+
+Mọi service production dùng `restart: always` và Docker Desktop phải tự chạy khi đăng nhập; deploy bằng `build` →
+`stop` → `up -d`. Nguyên nhân sự cố 10/2026, việc của chủ máy và cách kiểm tra: `docs/operations/REBOOT_RECOVERY.md`.
+
 ## Hàng đợi công việc
 
 Mọi email (xác minh, đặt lại mật khẩu, thông báo đối soát) đi qua hàng đợi bền vững `background_jobs` (queue `email`).

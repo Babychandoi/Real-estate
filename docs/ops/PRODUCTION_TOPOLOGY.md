@@ -37,7 +37,7 @@ flowchart LR
 
 | Rủi ro | Hệ quả | Ghi chú |
 |---|---|---|
-| Một máy, một đĩa, là máy làm việc cá nhân | Máy ngủ, khởi động lại, cập nhật macOS/Docker Desktop, mất điện/mạng = sập toàn bộ; hỏng đĩa = mất dữ liệu tới bản sao lưu gần nhất | Không phải HA theo bất kỳ nghĩa nào |
+| Một máy, một đĩa, là máy làm việc cá nhân | Máy ngủ, khởi động lại, cập nhật macOS/Docker Desktop, mất điện/mạng = sập toàn bộ; hỏng đĩa = mất dữ liệu tới bản sao lưu gần nhất | Không phải HA theo bất kỳ nghĩa nào. Đã xảy ra 3 lần (10/2026): container không tự chạy lại sau reboot — sửa bằng `restart: always` + AutoStart Docker Desktop, `docs/operations/REBOOT_RECOVERY.md` |
 | Tranh chấp tài nguyên với dev/test | Build, test, agent làm backend production chậm hoặc bị OOM killer của VM chọn | Quan sát trực tiếp: VM gần hết RAM và swap trong lúc làm đợt audit này |
 | Mất hoặc bị trộm máy | Toàn bộ dữ liệu, `.env`, khóa PII, credential tunnel | Phụ thuộc mã hóa đĩa của máy |
 | Không có PITR, sao lưu cùng máy | RPO không xác định; sao lưu mất cùng máy | Công cụ mới: `infra/compose.backup.yaml`, `infra/compose.pitr*.yaml` |
@@ -98,8 +98,10 @@ phát từ instance B. Khi chạy 2 instance, bộ đếm rate limit dùng chung
 2. Chọn và tạo PostgreSQL managed có PostGIS; khôi phục bản sao lưu mới nhất (`infra/backup/restore.sh db`) vào đó;
    chạy Flyway validate; đối soát bằng `restore.sh verify-db`.
 3. Chọn object storage; nạp ảnh bằng `restore.sh media`; tách bucket KYC khi S1-MEDIA sẵn sàng.
-4. Chuyển tunnel: tạo connector trên VM mới, kiểm tra bằng `scripts/verify-headers.sh https://<domain>`, rồi tắt
-   connector trên laptop.
+4. Chuyển tunnel: **không** chạy connector của tunnel đang phục vụ trên VM mới song song với laptop (Cloudflare chia
+   traffic cho cả hai connector, tức là hai database khác nhau). Tạo tunnel mới cho VM, kiểm tra qua hostname tạm bằng
+   `scripts/verify-headers.sh` và `scripts/verify-prerender.sh`; dừng ghi trên laptop, sao lưu và khôi phục lần cuối, rồi
+   mới chuyển DNS sang tunnel mới. Chi tiết: `docs/operations/PRODUCTION_SEPARATION_PLAN.md`.
 5. Bật sao lưu (`infra/compose.backup.yaml` nếu còn tự vận hành phần nào), giám sát, receiver cảnh báo; chạy
    `scripts/restore-drill.sh` và lưu biên bản vào `docs/ops/drills/`.
 6. Gỡ stack production khỏi máy dev; xoay vòng các secret đã từng nằm trên máy dev.
@@ -152,6 +154,17 @@ docker compose -p bds-production -f docker-compose.yml -f infra/compose.pitr.yam
 | PostgreSQL managed có PITR | Theo nhà cung cấp (thường vài phút) | Theo nhà cung cấp + đổi chuỗi kết nối |
 
 Gợi ý mục tiêu ban đầu (audit §7.5): RPO ≤ 15 phút, RTO ≤ 60 phút; chủ dự án chốt và đo bằng diễn tập.
+
+**Số đo (W6-OPS, 2026-10-02, CI run 37059275022, runner GitHub-hosted `ubuntu-latest`, Docker 28.0.4, dữ liệu UAT tổng hợp
+85 tin/831 dòng/6 object, image đã build sẵn; `scripts/ci-ops-drill.sh recovery`):**
+
+| Kịch bản đo | RTO tới khi app phục vụ (trang tin + tìm kiếm qua ES) | Dữ liệu mất (RPO) |
+|---|---:|---|
+| Mất volume PostgreSQL, PITR (base backup + WAL đã gửi, lịch production 300 s/300 s) | 30,8 s (khôi phục dữ liệu 13,7 s) | 93 dòng / 93,2 s commit cuối; giới hạn theo cấu hình ≈ 600 s |
+| Mất cả máy, chỉ còn `BACKUP_DIR`: pg_dump + bộ media | 57,4 s (DB 10,0 s, media 2,0 s) | 688 dòng / 694,2 s = toàn bộ thời gian từ bản pg_dump; giới hạn theo lịch 1 giờ (ảnh 24 giờ) |
+
+RTO trên chưa gồm dựng máy mới, kéo/build image (build trên runner 134 s), đổi tunnel/DNS; trên máy Mac đang tải
+cao thời gian khởi động sẽ dài hơn. Diễn tập với bản sao lưu production thật vẫn là việc của chủ hệ thống.
 
 ### Khôi phục
 ```bash
@@ -210,12 +223,35 @@ docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.y
 ```
 
 ### Deploy và kiểm tra
+Mọi service production dùng `restart: always` (sự cố khởi động lại máy tháng 10/2026,
+`docs/operations/REBOOT_RECOVERY.md`). Trình tự deploy: build trong lúc bản cũ còn phục vụ, `stop` có chủ đích, rồi
+`up -d`. Nếu máy khởi động lại giữa `stop` và `up -d`, Docker chạy lại container cũ — chỉ cần chạy lại `up -d`. Service
+cần tắt hẳn qua reboot thì gỡ (`rm -sf <service>`), không chỉ `stop`.
 ```bash
-docker compose -p bds-production up -d --build backend frontend
+docker compose -p bds-production build backend frontend
+docker compose -p bds-production stop backend frontend
+docker compose -p bds-production up -d --no-build backend frontend
 curl -fsS http://127.0.0.1:3000/healthz && curl -fsS http://127.0.0.1:3000/backend-health
 scripts/verify-headers.sh https://nhadatchuan.online
 # thủ công: đăng nhập, tìm kiếm, mở chi tiết tin, gửi lead thử bằng tài khoản nội bộ
 ```
+
+**Đã đo (W6-OPS, CI run 37059275022, `scripts/ci-ops-drill.sh rollback`):** trên database đã migrate tới V095 có dữ
+liệu UAT, chạy đúng lệnh rollback dưới đây với image backend cũ rồi roll forward lại:
+
+| Image cũ | Migration mới nhất của image | Khởi động | Health / tìm kiếm v1 / đăng nhập + `/auth/me` | Roll forward |
+|---|---|---|---|---|
+| `5a5632a` (main trước #21) | V095 (không có migration mới ở #21) | healthy sau 26,8 s | 200 / 200 / 200 | healthy 17,2 s, 200 |
+| `831a010` (bản trước đợt V027–V095) | V026 | healthy sau 17,6 s; Flyway: "Successfully validated 57 migrations", "schema (095) newer than the latest available migration (026)", không migrate | 200 / 200 (trả tin đã seed) / 200 | healthy 17,0 s, 200 |
+
+Không migration nào trong V027–V095 làm app cũ không khởi động được (Hibernate `validate` vẫn qua). Giới hạn: với
+`831a010`, trang tin trả 200 là shell SPA (app cũ chưa có `/render`, Nginx dùng `@spa_shell`) — prerender/SEO quay về
+trạng thái cũ trong lúc rollback; các tính năng dùng bảng mới (V027+) không có ở app cũ. Drill chỉ đo khởi động,
+đọc và ghi phiên đăng nhập. Rà tĩnh V027–V095: không có `DROP/RENAME COLUMN`, đổi kiểu duy nhất là nới
+`listing_reports.reporter_phone` sang `TEXT`; các CHECK được thay (`chk_lead_status`, `chk_package_orders_status`, ...)
+đều là tập cha của giá trị cũ; `SET NOT NULL` mới đều có default hoặc thuộc bảng app cũ không ghi. Rủi ro còn lại theo
+chiều ngược: dòng do app mới ghi với giá trị app cũ không biết (lead `WITHDRAWN`, đơn `EXCEPTION`/`REFUNDED`) có thể
+làm màn hình tương ứng của app cũ lỗi khi đọc.
 
 ### Rollback ứng dụng (migration expand hoặc không có migration)
 ```bash
