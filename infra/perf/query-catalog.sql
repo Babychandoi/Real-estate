@@ -17,12 +17,14 @@ SELECT 'page_ids', (SELECT string_agg(quote_literal(listing_id::text), ',') FROM
     SELECT listing_id FROM listing_public_read WHERE purpose = 'SALE'
     ORDER BY published_at DESC, listing_id DESC OFFSET 200 LIMIT 24) p)
 UNION ALL
-SELECT k, v FROM (
-    SELECT unnest(ARRAY['base_purpose', 'base_type', 'base_id', 'base_low', 'base_high', 'base_district', 'base_price']) AS k,
-           unnest(ARRAY[purpose, property_type, listing_id::text, round(price_vnd * 0.7)::text, round(price_vnd * 1.3)::text,
-                        district_code, price_vnd::text]) AS v
-    FROM listing_public_read WHERE purpose = 'SALE' AND property_type = 'APARTMENT'
-    ORDER BY listing_id LIMIT 1) b
+SELECT unnest(ARRAY['base_purpose', 'base_type', 'base_id', 'base_low', 'base_high', 'base_district', 'base_price']),
+       unnest(ARRAY[purpose, property_type, listing_id::text, round(price_vnd * 0.7)::text, round(price_vnd * 1.3)::text,
+                    district_code, price_vnd::text])
+FROM (SELECT * FROM listing_public_read WHERE purpose = 'SALE' AND property_type = 'APARTMENT'
+      ORDER BY listing_id LIMIT 1) b
+UNION ALL
+SELECT 'mid_id', md5('perf-listing:' || (max(substring(slug FROM 6)::bigint) / 2))
+FROM listing_public_read WHERE slug ~ '^perf-[0-9]+$'
 UNION ALL
 SELECT 'cursor_published', (SELECT quote_literal(published_at::text) FROM (
     SELECT published_at FROM listing_public_read WHERE purpose = 'SALE'
@@ -181,11 +183,11 @@ FROM listing_public_read WHERE  slug = '@mid_slug@'@OWNER_ACTIVE@;
 SELECT listing_id, row_version,
        (CASE WHEN identity_status = 'VERIFIED' AND identity_expires_at <= now() THEN 'i' ELSE '' END)
     || (CASE WHEN ownership_status = 'VERIFIED' AND ownership_expires_at <= now() THEN 'o' ELSE '' END)
-FROM listing_public_read WHERE  listing_id = (SELECT listing_id FROM listing_public_read WHERE slug = '@mid_slug@')@OWNER_ACTIVE@;
+FROM listing_public_read WHERE  listing_id = '@mid_id@'@OWNER_ACTIVE@;
 
 -- name: detail.row
 -- why: detail cache miss (findDetail)
-SELECT @DETAIL@ FROM listing_public_read WHERE listing_id = md5('perf-listing:' || substring('@mid_slug@' FROM 6))::uuid@OWNER_ACTIVE@;
+SELECT @DETAIL@ FROM listing_public_read WHERE listing_id = '@mid_id@'@OWNER_ACTIVE@;
 
 -- name: detail.gone.slug
 -- why: 404/410 path for a listing that is no longer public (findGone)
@@ -202,7 +204,7 @@ SELECT r.revision_number, r.price_vnd, r.price_period, r.moderated_at
 FROM listing_public_read p
 JOIN listing_revisions r ON r.listing_id = p.listing_id AND r.status = 'APPROVED'
      AND r.revision_number <= p.revision_number AND r.purpose = p.purpose
-WHERE p.listing_id = md5('perf-listing:' || substring('@mid_slug@' FROM 6))::uuid
+WHERE p.listing_id = '@mid_id@'
 ORDER BY r.revision_number
 LIMIT 200;
 
@@ -280,5 +282,5 @@ LIMIT 20 OFFSET 0;
 
 -- name: index.backfill.batch
 -- why: search index rebuild/backfill keyset batch (batchAfter, 500 rows)
-SELECT @SUMMARY@ FROM listing_public_read WHERE listing_id > md5('perf-listing:' || substring('@mid_slug@' FROM 6))::uuid
+SELECT @SUMMARY@ FROM listing_public_read WHERE listing_id > '@mid_id@'
 ORDER BY listing_id LIMIT 500;

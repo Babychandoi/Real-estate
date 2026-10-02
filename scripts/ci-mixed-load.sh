@@ -237,6 +237,21 @@ stop_sampler() {
   sampler_pid=
 }
 
+top_statements() {
+  echo '| calls | total ms | mean ms | max ms | rows | blocks read | statement |'
+  echo '|---:|---:|---:|---:|---:|---:|---|'
+  psql_db -At -F ' | ' -c "
+    SELECT calls, round(total_exec_time::numeric), round(mean_exec_time::numeric, 2), round(max_exec_time::numeric, 1),
+           rows, shared_blks_read, replace(left(regexp_replace(query, '\s+', ' ', 'g'), 220), '|', '¦')
+    FROM pg_stat_statements WHERE dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
+      AND query NOT LIKE '%pg_stat_statements%'
+    ORDER BY total_exec_time DESC LIMIT 25;" | sed 's/^/| /; s/$/ |/'
+}
+
+timeline_bucket() {
+  case "$1" in soak) echo 30 ;; transition) echo 2 ;; *) echo 10 ;; esac
+}
+
 image=grafana/k6:1.7.0
 docker pull "$image" > /dev/null
 docker image inspect --format '{{json .RepoDigests}}' "$image" >> "$output_dir/environment.txt"
@@ -251,6 +266,8 @@ run_phase() {
   marker="$(python3 -c 'import secrets; print("".join(secrets.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(20)))')"
   sed "s/^PERF_RUN_ID=.*/PERF_RUN_ID=$marker/" "$work_dir/k6.env" > "$work_dir/phase.env"
   chmod 600 "$work_dir/phase.env"
+  # Statement statistics per phase: the top statements by database time are reported for this phase only.
+  psql_db -q -c 'SELECT pg_stat_statements_reset();' > /dev/null
   snapshot_metrics "$phase_dir/before"
   start_sampler "$phase_dir/backlog.csv"
   started="$(date -u +%H:%M:%S)"
@@ -260,9 +277,10 @@ run_phase() {
     -e READ_MIX=realistic -e LISTINGS="$listings" -e OWNERS="$owners" -e PUBLISH_EVERY_S="$publish" \
     -e PERF_SUMMARY_PATH=/results/summary.json \
     -v "$repo_dir/infra/k6:/scripts:ro" -v "$phase_dir:/results" \
-    "$image" run /scripts/mixed-search-drafts.js > "$phase_dir/k6.txt" 2>&1 || k6_status=$?
+    "$image" run --out csv=/results/samples.csv.gz /scripts/mixed-search-drafts.js > "$phase_dir/k6.txt" 2>&1 || k6_status=$?
   stop_sampler
   snapshot_metrics "$phase_dir/after"
+  top_statements > "$phase_dir/statements.md" || true
   printf '\n## Phase: %s\n\n- Started %s UTC; profile/duration: %s/%s; expected degraded: %s; gate: %s\n- k6 exit status: %s\n' \
     "$phase" "$started" "$phase_profile" "$phase_duration" "$expected" \
     "$([[ "$blocking" == 1 ]] && echo 'blocking (k6 thresholds)' || echo 'NON-BLOCKING (reported only)')" "$k6_status" \
@@ -282,6 +300,14 @@ run_phase() {
     evidence_status=2; effect_status=2
   fi
   python3 scripts/perf-metrics.py "$phase_dir" >> "$output_dir/report.md" || true
+  {
+    printf '### Top statements by database time (pg_stat_statements, this phase)\n\n'
+    head -n 10 "$phase_dir/statements.md"
+    printf '\n### Timeline (k6, %s s buckets, latency in ms)\n\n' "$(timeline_bucket "$phase_profile")"
+    python3 scripts/k6-timeline.py "$phase_dir/samples.csv.gz" --bucket "$(timeline_bucket "$phase_profile")" \
+      || echo '- k6 samples unavailable'
+  } >> "$output_dir/report.md"
+  rm -f "$phase_dir/samples.csv.gz"
   printf -- '- Evidence parser status: %s\n- Persisted-effect status: %s\n' "$evidence_status" "$effect_status" \
     >> "$output_dir/report.md"
   if [[ "$blocking" == 1 && ( "$k6_status" != 0 || "$effect_status" != 0 || "$evidence_status" != 0 ) ]]; then
@@ -300,6 +326,9 @@ query_counts() {
     echo '- **Query-count measurement failed**' >> "$output_dir/report.md"; overall_status=1; }
 }
 
+# Warm-up after the rebuild and restarts (JIT, connection pools, caches): reported, never gating. The gated phases
+# that follow measure a warm system; the cold-restart phase measures the cold one explicitly.
+run_phase warmup 0 steady 1m 0
 if [[ "$suite" == steady ]]; then
   # Soak: >= 10 minutes of constant arrival with the publication-lag flow running alongside.
   run_phase soak 0 soak "$soak" 1 "$publish_every"

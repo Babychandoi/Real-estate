@@ -31,7 +31,8 @@ def verify_engine_state(summary, expected):
     reads = metric(summary, name, 'count')
     degraded = metric(summary, 'degraded_reads', 'count')
     if reads <= 0 or reads != int(reads) or degraded != int(degraded) or degraded != (reads if expected else 0):
-        raise ValueError('Search engine state mismatch across measured read attempts')
+        raise ValueError(f'Search engine state mismatch across measured read attempts: {degraded:.0f} of {reads:.0f} '
+                         f'search reads degraded, expected {"all" if expected else "none"}')
 
 
 def verify_redis_state(text, expected):
@@ -87,13 +88,21 @@ def main():
     args = parser.parse_args()
     try:
         summary = json.loads(args.summary.read_text())
-        if args.expected_degraded is not None:
-            verify_engine_state(summary, args.expected_degraded)
-        if args.redis_state is not None:
-            if not args.metrics:
-                raise ValueError('--redis-state requires --metrics')
-            verify_redis_state(args.metrics.read_text(), args.redis_state)
-        print(draft_count(summary) if args.count else report(summary))
+        if args.count:
+            print(draft_count(summary))
+            return
+        # The measured numbers are printed even when a state check below fails, so a failed phase stays diagnosable.
+        print(report(summary))
+        try:
+            if args.expected_degraded is not None:
+                verify_engine_state(summary, args.expected_degraded)
+            if args.redis_state is not None:
+                if not args.metrics:
+                    raise ValueError('--redis-state requires --metrics')
+                verify_redis_state(args.metrics.read_text(), args.redis_state)
+        except ValueError as error:
+            print(f'- **Evidence check failed: {error}**\n')
+            raise
     except (ValueError, OSError, TypeError, AttributeError) as error:
         parser.exit(2, f'Invalid k6 evidence: {error}\n')
 
