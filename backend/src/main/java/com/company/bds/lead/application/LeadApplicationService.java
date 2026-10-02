@@ -221,6 +221,18 @@ public class LeadApplicationService {
         return result;
     }
 
+    /**
+     * F17.4: the requester hit the KYC wall of the lead API. Called by the controller after {@link #submit} was refused
+     * (its transaction is already rolled back), in a transaction of its own; one event per requester, listing and day
+     * (Vietnam time), so retries do not inflate the funnel.
+     */
+    @Transactional
+    public void recordKycBlocked(UUID requesterId, UUID listingId) {
+        String day = java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toString();
+        analytics.recordServer("lead_kyc_blocked", 1, requesterId + ":" + listingId + ":" + day, requesterId, listingId,
+                Map.of("context", "lead_form"));
+    }
+
     private void requireVerifiedKyc(UUID userId, String code, String message) {
         if (!isKycVerified(userId)) throw ApiException.conflict(code, message);
     }

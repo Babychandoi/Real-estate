@@ -149,6 +149,7 @@ Event catalog v1 (properties are the only allowed keys):
 | `saved_search_created` | server | `filterHash`, `frequency` |
 | `lead_form_opened` | web | `requestType` |
 | `kyc_required_shown` | web | `context` |
+| `lead_kyc_blocked` | server | `context` — the lead API refused the request with `KYC_REQUIRED`; once per requester, listing and day (W6, F17.4) |
 | `lead_submitted` | server | `leadId`, `requestType` |
 | `lead_first_response` | server | `leadId`, `minutes` |
 | `lead_qualified` | server | `leadId`, `qualification` |

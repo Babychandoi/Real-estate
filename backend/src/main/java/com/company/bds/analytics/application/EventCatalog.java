@@ -64,6 +64,10 @@ public final class EventCatalog {
                 optional("requestType", "VIEWING or CONSULTATION", oneOf("VIEWING", "CONSULTATION")));
         web("kyc_required_shown", false,
                 required("context", "a lower-case context code", text(CONTEXT)));
+        // F17.4 (W6): the lead API refused the request because the requester's identity is not verified. Recorded by the
+        // server (no consent needed, no session), once per requester, listing and day.
+        server("lead_kyc_blocked", true,
+                required("context", "a lower-case context code", text(CONTEXT)));
         server("lead_submitted", true,
                 required("leadId", "a UUID", uuid()),
                 required("requestType", "VIEWING or CONSULTATION", oneOf("VIEWING", "CONSULTATION")));

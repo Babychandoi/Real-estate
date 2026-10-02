@@ -25,6 +25,9 @@ public interface AnalyticsDashboardQueries {
 
     record KycFunnel(long formSessions, long kycShownSessions, long submittedAfterKyc, long submittedSessions) {}
 
+    /** Server side of F17.4: requesters refused by the lead API for missing KYC, and those of them who later sent a lead. */
+    record KycServerFunnel(long blockedUsers, long submittedAfterBlock) {}
+
     record ZeroResults(long searchesWithCount, long zeroResultSearches) {}
 
     record PostingFunnel(long created, long submitted, long approved, long activeNow, Double medianHoursToApproval) {}
@@ -56,6 +59,8 @@ public interface AnalyticsDashboardQueries {
     SearchFunnel searchFunnel(Window window, Filters filters);
 
     KycFunnel kycFunnel(Window window, Filters filters);
+
+    KycServerFunnel kycServerFunnel(Window window);
 
     ZeroResults zeroResults(Window window, Filters filters);
 
