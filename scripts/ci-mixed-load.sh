@@ -71,7 +71,7 @@ password="$(sed -n 's/^DEMO_ACCOUNT_PASSWORD=//p' .env.demo.example)"
 # Fixture: production-shaped listings written straight into the migrated schema, then the real index rebuild.
 t0=$(date +%s)
 psql_db -q -v start=1 -v finish="$listings" -v owners="$owners" < infra/perf/seed-listings.sql > "$output_dir/fixture.txt"
-psql_db -q -c 'VACUUM (ANALYZE) users, user_roles, listings, listing_revisions, listing_public_read, leads;'
+psql_db -q -c 'VACUUM (ANALYZE, PARALLEL 0) users, user_roles, listings, listing_revisions, listing_public_read, leads;'
 psql_db -q -c 'CREATE EXTENSION IF NOT EXISTS pg_stat_statements;'
 # Quota for the publication-lag flow (one listing every few seconds); the fixture broker only.
 psql_db -q -c "UPDATE users SET listing_quota_remaining = 100000, plan_expires_at = now() + interval '30 days'

@@ -44,7 +44,7 @@ seed() {
   local start="$1" finish="$2" t0
   t0=$(date +%s)
   sql -q -v start="$start" -v finish="$finish" -v owners="$owners" < infra/perf/seed-listings.sql
-  sql -q -c 'VACUUM (ANALYZE) users, user_roles, listings, listing_revisions, listing_public_read, leads;'
+  sql -q -c 'VACUUM (ANALYZE, PARALLEL 0) users, user_roles, listings, listing_revisions, listing_public_read, leads;'
   echo "- Seeded public listings $start..$finish (+1 non-public per 5) in $(( $(date +%s) - t0 )) s incl. VACUUM ANALYZE" >> "$out/report.md"
 }
 dataset() {
