@@ -328,6 +328,12 @@ function ListingDetailView({
     <Button className="w-full" onClick={() => setLeadOpen(true)} leftIcon={<MessageSquare className="h-4 w-4" />}>
       Hẹn xem & nhận tư vấn
     </Button>
+  ) : kycStatus === 'LOADING' ? (
+    // DS-08 ContactPanel "loading": while the verification status is unknown, never offer the eKYC detour to a
+    // seeker who may already be verified; a busy, disabled CTA keeps the panel's layout.
+    <Button className="w-full" isLoading>
+      Đang kiểm tra xác minh…
+    </Button>
   ) : (
     <ButtonLink
       to={`/kyc?returnTo=${encodeURIComponent(`${pathname}?contact=1`)}`}
@@ -507,7 +513,7 @@ function ListingDetailView({
                 size="md"
               />
               <div className="min-w-0">
-                <h2 id="contact-heading" className="text-sm font-bold text-on-surface">
+                <h2 id="contact-heading" className="text-sm font-bold text-on-surface [overflow-wrap:anywhere]">
                   {isOwn ? 'Đây là tin của bạn' : `Liên hệ ${listing.seller.name ?? 'người đăng'}`}
                 </h2>
                 {isOwn ? (
@@ -515,7 +521,7 @@ function ListingDetailView({
                 ) : (
                   <Link
                     to={`/nguoi-dang/${listing.seller.id}`}
-                    className="text-xs font-semibold text-primary hover:underline"
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline"
                   >
                     Xem trang người đăng
                   </Link>

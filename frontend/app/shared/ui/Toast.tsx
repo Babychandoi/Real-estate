@@ -127,7 +127,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
       onBlur={() => setPaused(false)}
     >
       <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <p className="font-semibold">{toast.title}</p>
         {toast.description && <p className="mt-0.5">{toast.description}</p>}
         {toast.action && (

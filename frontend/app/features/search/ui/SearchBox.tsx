@@ -27,17 +27,21 @@ interface SearchBoxProps {
   onKeyword: (keyword: string) => void;
   onPlace: (place: { label: string; bbox: BBox }) => void;
   onClearPlace: () => void;
+  /** Read-only while the page cannot search (e.g. while a filter change is being applied). */
+  disabled?: boolean;
 }
 
 /**
  * Keyword or place (audit §8.4 SearchBox): typing suggests places (geocoding, cancelled when the text changes) and
  * always offers the plain keyword first. A place becomes `bbox` + `place` in the URL; a keyword becomes `q`.
  */
-export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: SearchBoxProps) {
+export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace, disabled = false }: SearchBoxProps) {
   const [text, setText] = useState(keyword);
-  const [open, setOpen] = useState(false);
+  const [openState, setOpen] = useState(false);
+  const open = openState && !disabled;
   const [places, setPlaces] = useState<GeocodePlace[]>([]);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  // idle → loading → (suggestions | empty: no place matched | error: provider failed)
+  const [status, setStatus] = useState<'idle' | 'loading' | 'empty' | 'error'>('idle');
   const [active, setActive] = useState(0);
   const listId = `places${useId().replace(/:/g, '')}`;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +63,7 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
         .then((found) => {
           if (abort.signal.aborted) return;
           setPlaces(found.slice(0, 5));
-          setStatus('idle');
+          setStatus(found.length === 0 ? 'empty' : 'idle');
         })
         .catch(() => {
           if (!abort.signal.aborted) setStatus('error');
@@ -112,6 +116,7 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
           aria-autocomplete="list"
           aria-activedescendant={open && options[active] ? `${listId}-${active}` : undefined}
           maxLength={MAX_KEYWORD_LENGTH}
+          disabled={disabled}
           value={text}
           placeholder="Từ khóa, dự án hoặc địa điểm (ví dụ: Cầu Giấy)"
           onChange={(event) => {
@@ -133,7 +138,7 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
               setOpen(false);
             }
           }}
-          className="min-h-control-md w-full rounded-input border border-outline bg-surface-container-lowest pl-10 pr-12 text-body text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="min-h-control-md w-full rounded-input border border-outline bg-surface-container-lowest pl-10 pr-12 text-body text-on-surface placeholder:text-on-surface-variant focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:bg-surface-container disabled:text-on-surface-variant"
         />
         <span className="absolute right-1 top-1/2 -translate-y-1/2">
           {status === 'loading' ? (
@@ -141,7 +146,8 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
               <Loader2 className="h-4 w-4 motion-safe:animate-spin text-on-surface-variant" aria-hidden="true" />
             </span>
           ) : (
-            text && (
+            text &&
+            !disabled && (
               <IconButton
                 aria-label="Xóa ô tìm kiếm"
                 icon={X}
@@ -155,7 +161,7 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
             )
           )}
         </span>
-        {open && (options.length > 0 || status === 'error') && (
+        {open && (options.length > 0 || status === 'error' || status === 'empty') && (
           <ul
             id={listId}
             role="listbox"
@@ -180,7 +186,7 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
                 {option.kind === 'keyword' ? (
                   <>
                     <Search className="h-4 w-4 shrink-0 text-on-surface-variant" aria-hidden="true" />
-                    <span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
                       Tìm tin có từ khóa “<strong>{option.text}</strong>”
                     </span>
                   </>
@@ -197,9 +203,19 @@ export function SearchBox({ keyword, place, onKeyword, onPlace, onClearPlace }: 
                 role="option"
                 aria-selected={false}
                 aria-disabled="true"
-                className="px-3 py-2 text-label text-on-surface-variant"
+                className="px-3 py-2 text-body-sm text-on-surface-variant"
               >
                 Chưa tìm được địa điểm lúc này; bạn vẫn có thể tìm theo từ khóa.
+              </li>
+            )}
+            {status === 'empty' && (
+              <li
+                role="option"
+                aria-selected={false}
+                aria-disabled="true"
+                className="px-3 py-2 text-body-sm text-on-surface-variant [overflow-wrap:anywhere]"
+              >
+                Không có địa điểm nào khớp “{text.trim()}”; bạn vẫn có thể tìm theo từ khóa.
               </li>
             )}
           </ul>
