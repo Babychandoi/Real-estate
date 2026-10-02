@@ -134,9 +134,9 @@ SELECT count(*) FROM (SELECT 1 FROM listing_public_read WHERE  purpose = 'SALE'@
 SELECT @SUMMARY@ FROM listing_public_read WHERE listing_id = ANY(ARRAY[@page_ids@]::uuid[])@OWNER_ACTIVE@;
 
 -- name: map.points.zoom15
--- why: map at street zoom (bbox ~1 km): count then points
+-- why: map points (the app asks for points only when the zoom >= 12 count is <= 400: a ~180 x 120 m box in the densest district)
 SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type FROM listing_public_read WHERE  purpose = 'SALE'@OWNER_ACTIVE@
- AND public_location && ST_MakeEnvelope(105.7850, 21.0280, 105.7950, 21.0340, 4326)
+ AND public_location && ST_MakeEnvelope(105.7892, 21.0302, 105.7909, 21.0313, 4326)
  AND public_location IS NOT NULL ORDER BY published_at DESC, listing_id DESC LIMIT 400;
 
 -- name: map.count.zoom15
