@@ -1,4 +1,4 @@
-import React, { useId, useRef } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from './cn';
@@ -56,6 +56,20 @@ export function Dialog({
   // a screen reader user hears the title read out and a sighted user's focus ring appears somewhere they can
   // actually orient from, rather than on a control whose only job is to leave.
   useModal({ open, onClose, panelRef, initialFocusRef: initialFocusRef ?? titleRef });
+  // WCAG 2.1.1 (axe scrollable-region-focusable): when the body scrolls, a keyboard user can focus it and scroll with
+  // the arrow keys even if it holds no control (a history list, a long text). It is a tab stop only while it scrolls.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [bodyScrolls, setBodyScrolls] = useState(false);
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!open || !body) return undefined;
+    const measure = () => setBodyScrolls(body.scrollHeight > body.clientHeight + 1);
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(body);
+    if (body.firstElementChild) observer?.observe(body.firstElementChild);
+    return () => observer?.disconnect();
+  }, [open, children]);
 
   if (!open) return null;
   return createPortal(
@@ -98,7 +112,15 @@ export function Dialog({
           </div>
           <IconButton icon={X} aria-label={closeLabel} onClick={onClose} className="-mr-2 -mt-1" />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 text-body-sm text-on-surface sm:px-5">{children}</div>
+        <div
+          ref={bodyRef}
+          tabIndex={bodyScrolls ? 0 : undefined}
+          role={bodyScrolls ? 'region' : undefined}
+          aria-labelledby={bodyScrolls ? titleId : undefined}
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-4 text-body-sm text-on-surface focus-visible:outline-offset-[-3px] sm:px-5"
+        >
+          {children}
+        </div>
         {footer && (
           <div className="flex flex-wrap justify-end gap-3 border-t border-outline-variant px-4 py-3 sm:px-5">
             {footer}

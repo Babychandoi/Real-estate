@@ -314,6 +314,27 @@ describe('DataTable', () => {
 });
 
 describe('Dialog', () => {
+  it('long content: a body that scrolls is a focusable, named region (WCAG 2.1.1); a short one is not a tab stop', () => {
+    const scrollHeight = vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(2000);
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(400);
+    const { unmount } = render(
+      <Dialog open onClose={vi.fn()} title="Lịch sử">
+        <p>{LONG_WORD}</p>
+      </Dialog>,
+    );
+    const region = screen.getByRole('region', { name: 'Lịch sử' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    unmount();
+    scrollHeight.mockReturnValue(100);
+    clientHeight.mockReturnValue(400);
+    render(
+      <Dialog open onClose={vi.fn()} title="Ngắn">
+        <p>nội dung</p>
+      </Dialog>,
+    );
+    expect(screen.queryByRole('region', { name: 'Ngắn' })).toBeNull();
+  });
+
   it('long content: a 240-character title stays inside the dialog', () => {
     render(
       <Dialog open onClose={vi.fn()} title={LONG_WORD}>

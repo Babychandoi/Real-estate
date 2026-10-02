@@ -95,3 +95,45 @@ for (const spec of ROUTES) {
     }
   });
 }
+
+// User content is not under our control: a listing whose title, address, description and seller name are single
+// 240-character words (and a huge rent) must still reflow. The seeded data has no such listing, so the detail API
+// answer is rewritten for this test only; the page code under test is the real one.
+const LONG = 'Khônggiannhàởcaocấpkhuvựctrungtâmthànhphố'.repeat(6);
+
+async function longListing(page: Page) {
+  await page.route(/\/api\/v2\/listings\/[^/?]+(\?.*)?$/, async (route) => {
+    const response = await route.fetch();
+    if (!response.ok()) return route.fulfill({ response });
+    const body = await response.json();
+    body.title = LONG;
+    body.description = `${LONG}\n${LONG}`;
+    body.location = { ...body.location, addressSummary: LONG, districtName: LONG };
+    body.seller = { ...body.seller, name: LONG };
+    body.price = { amount: 98_765_430_000_000, currency: 'VND', period: 'MONTH' };
+    await route.fulfill({ response, json: body });
+  });
+}
+
+async function longListingWithLargeText(page: Page) {
+  await longListing(page);
+  await doubleRootFontSize(page);
+}
+
+test('listing detail with 240-character unbroken user text reflows at 390 px, 200 % zoom and 200 % text', async ({
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const spec = { name: 'listing-long-text', as: 'guest' as const, path: (s: Session) => `/listings/${s.ids.listing}` };
+  const cases = [
+    ['390 px', PHONE, longListing],
+    ['200 % zoom', ZOOM_200, longListing],
+    ['200 % text', TEXT_200, longListingWithLargeText],
+  ] as const;
+  for (const [label, context, before] of cases) {
+    const { page, close } = await openRoute(browser, session, spec, context, before);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(LONG.slice(0, 40));
+    expect.soft(await auditReflow(page, REFLOW_ALLOW), `reflow at ${label}`).toEqual([]);
+    await close();
+  }
+});
