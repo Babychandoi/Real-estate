@@ -149,7 +149,7 @@ seed_fixture() {
   wait_healthy backend 300
 }
 
-first_listing() { curl -fsS --max-time 20 "$BASE/sitemaps/listings-0.xml" | grep -o '<loc>[^<]*</loc>' | head -n 1 | sed 's#<[^>]*>##g; s#^https\{0,1\}://[^/]*##'; }
+first_listing() { curl -fsS --max-time 20 "$BASE/sitemaps/listings-0.xml" | grep -o '<loc>[^<]*</loc>' | awk 'NR == 1' | sed 's#<[^>]*>##g; s#^https\{0,1\}://[^/]*##'; }
 
 counts() { # one line: listings users media_objects markers
   psql_app "SELECT (SELECT count(*) FROM listings) || ' ' || (SELECT count(*) FROM users) || ' ' || (SELECT count(*) FROM media_objects) || ' ' || (SELECT coalesce(max(seq), 0) FROM ops_drill_marker)"
@@ -181,7 +181,7 @@ recovery() {
   record build_seconds "$(secs "$t" "$(ms)")"
   docker run --rm --entrypoint age-keygen bds-backup:1 > "$TMP/age-identity.txt" 2>/dev/null
   chmod 644 "$TMP/age-identity.txt" # throwaway CI key; uid 999 in the tool container must read it
-  BACKUP_AGE_RECIPIENTS="$(grep -o 'age1[0-9a-z]*' "$TMP/age-identity.txt" | head -n 1)"
+  BACKUP_AGE_RECIPIENTS="$(grep -o 'age1[0-9a-z]*' "$TMP/age-identity.txt" | awk 'NR == 1')"
   export BACKUP_AGE_RECIPIENTS
 
   log "starting the stack with WAL archiving (compose.pitr.yaml)"
@@ -338,7 +338,7 @@ swap_backend() { # swap_backend <image> <label>: the runbook's rollback (tag + u
     record "${label}_start" FAIL
   fi
   compose logs --no-color backend > "$ART/$label-backend.log" 2>&1 || true
-  grep -E 'Schema-validation|FlywayException|Migration|Caused by|APPLICATION FAILED|ERROR' "$ART/$label-backend.log" | head -n 40 > "$ART/$label-errors.txt" || true
+  grep -E 'Schema-validation|FlywayException|Migration|Caused by|APPLICATION FAILED|ERROR' "$ART/$label-backend.log" | awk 'NR <= 40' > "$ART/$label-errors.txt" || true
 }
 
 ip_chain() {
@@ -364,10 +364,10 @@ ip_chain() {
   curl -sS -D "$ART/session-login-headers.txt" -o /dev/null -X POST "$BASE/api/v1/auth/login" -H 'Content-Type: application/json' \
     -H 'X-Forwarded-Proto: https' -d "{\"email\":\"demo.user@bds.local\",\"password\":\"$DEMO_PASSWORD\"}"
   record session_login_set_cookie "$(grep -ci '^set-cookie:' "$ART/session-login-headers.txt" || true)"
-  record session_login_cache_control "$(grep -i '^cache-control:' "$ART/session-login-headers.txt" | head -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//')"
+  record session_login_cache_control "$(grep -i '^cache-control:' "$ART/session-login-headers.txt" | awk 'NR == 1' | cut -d: -f2- | tr -d '\r' | sed 's/^ *//')"
   curl -sS -D "$ART/session-me-headers.txt" -o /dev/null -H "Authorization: Bearer $token" "$BASE/api/v1/auth/me"
   record session_me_set_cookie "$(grep -ci '^set-cookie:' "$ART/session-me-headers.txt" || true)"
-  record session_me_cache_control "$(grep -i '^cache-control:' "$ART/session-me-headers.txt" | head -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//')"
+  record session_me_cache_control "$(grep -i '^cache-control:' "$ART/session-me-headers.txt" | awk 'NR == 1' | cut -d: -f2- | tr -d '\r' | sed 's/^ *//')"
   VERIFY_BEARER_TOKEN="$token" "$REPO/scripts/verify-headers.sh" "$BASE" --simulate-https > "$ART/verify-headers-local.txt" 2>&1 \
     && record verify_headers_local PASS || record verify_headers_local FAIL
   record verify_headers_local_summary "$(tail -n 1 "$ART/verify-headers-local.txt")"
@@ -378,7 +378,7 @@ ip_chain() {
     tunnel --no-autoupdate --url http://frontend:3000 > /dev/null 2>&1 || true
   local url="" i edge_ip
   for i in $(seq 1 60); do
-    url="$(docker logs bds-ops-quick-tunnel 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | head -n 1 || true)"
+    url="$(docker logs bds-ops-quick-tunnel 2>&1 | grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' | awk 'NR == 1' || true)"
     [ -n "$url" ] && break
     sleep 2
   done
