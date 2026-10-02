@@ -44,8 +44,9 @@ psql_db() {
 }
 {
   printf '# Isolated load evidence: suite %s\n\n- Commit: %s\n- Run: %s/%s\n' "$suite" "${GITHUB_SHA:?}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
-  printf -- '- Runner: %s (%s), %s vCPU, %s MB RAM; the load generator (k6) shares the runner with the whole stack\n' \
-    "${RUNNER_NAME:-?}" "${ImageOS:-?}" "$(nproc)" "$(free -m | awk '/^Mem:/ {print $2}')"
+  printf -- '- Runner: %s (%s), %s vCPU %s, %s MB RAM; the load generator (k6) shares the runner with the whole stack\n' \
+    "${RUNNER_NAME:-?}" "${ImageOS:-?}" "$(nproc)" "$(lscpu | sed -n 's/^Model name: *//p' | head -1)" \
+    "$(free -m | awk '/^Mem:/ {print $2}')"
   printf -- '- Project/database: %s / %s (fresh, Flyway-migrated by the backend)\n' "$project" "$database"
   printf -- '- Dataset: %s public listings + %s non-public, %s sellers (infra/perf/seed-listings.sql) + UAT demo data\n' \
     "$listings" "$(( listings / 5 ))" "$owners"

@@ -23,6 +23,8 @@ SET LOCAL statement_timeout = '60min';
 SET LOCAL work_mem = '256MB';
 SET LOCAL maintenance_work_mem = '512MB';
 SET LOCAL synchronous_commit = off;
+-- Docker's default 64 MB /dev/shm (kept, as in docker-compose.yml) is too small for parallel hash joins at this work_mem.
+SET LOCAL max_parallel_workers_per_gather = 0;
 
 -- Deterministic uniform [0, 1) from (n, k).
 CREATE FUNCTION pg_temp.u(n bigint, k int) RETURNS float8 LANGUAGE sql IMMUTABLE PARALLEL SAFE

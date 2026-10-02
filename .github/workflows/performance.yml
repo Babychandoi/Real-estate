@@ -10,6 +10,8 @@ on:
       - "scripts/plan-compare.py"
       - "scripts/query-counts.py"
       - "scripts/perf-metrics.py"
+      - "scripts/k6-timeline.py"
+      - "backend/src/main/java/com/company/bds/search/**"
       - "scripts/perf-summary.py"
       - "scripts/perf_summary_test.py"
       - "infra/k6/mixed-search-drafts.js"
