@@ -54,11 +54,17 @@ def main():
     before = parse((phase / 'before.prometheus').read_text()) if (phase / 'before.prometheus').exists() else []
     after = parse((phase / 'after.prometheus').read_text()) if (phase / 'after.prometheus').exists() else []
     lines = ['### Server-side metrics (deltas over the phase)', '']
-    requests = delta(before, after, 'http_server_requests_seconds_count')
-    errors5 = delta(before, after, 'http_server_requests_seconds_count', status='5*')
-    limited = delta(before, after, 'http_server_requests_seconds_count', status='429')
-    lines.append(f'- HTTP requests handled by the backend: {requests:.0f}; 5xx: {errors5:.0f}; 429: {limited:.0f}'
-                 + (f' (server error rate {errors5 / requests:.4%})' if requests else ''))
+    def api(samples, **want):
+        return sum(v for n, labels, v in samples if n == 'http_server_requests_seconds_count'
+                   and labels.get('uri', '').startswith('/api') and all(
+                       labels.get(k, '').startswith(w[:-1]) if w.endswith('*') else labels.get(k) == w for k, w in want.items()))
+    requests = api(after) - api(before)
+    errors5 = api(after, status='5*') - api(before, status='5*')
+    limited = api(after, status='429') - api(before, status='429')
+    actuator5 = (delta(before, after, 'http_server_requests_seconds_count', status='5*') - errors5)
+    lines.append(f'- API requests handled by the backend: {requests:.0f}; 5xx: {errors5:.0f}; 429: {limited:.0f}'
+                 + (f' (server error rate {errors5 / requests:.4%})' if requests else '')
+                 + (f'; non-API 5xx (container health check): {actuator5:.0f}' if actuator5 else ''))
     lag_count = delta(before, after, 'bds_search_index_lag_seconds_count')
     if lag_count:
         lag_sum = delta(before, after, 'bds_search_index_lag_seconds_sum')
