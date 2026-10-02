@@ -1,12 +1,13 @@
 # Restart policy (incident 2026-10: production stayed down after the Mac rebooted three times): every long-running
-# service uses `always`, which Docker re-applies when the daemon starts, also for containers the daemon itself stopped
-# at shutdown (exit 0/143) or that died with the VM (137); `unless-stopped` treats those as stopped and leaves them
-# down. depends_on only orders `docker compose up`; after a daemon restart Docker starts everything at once, and a
-# backend or Nginx that starts before its dependencies exits and is restarted until they are up. Consequence of
-# `always`: a container left *stopped* (not removed) also comes back after a reboot. Deploy with
-# `docker compose stop <svc>` + `up -d` as usual; to keep a service down across reboots remove it (`rm -sf <svc>`).
-# A demo/dev stack started from this file can opt out with BDS_RESTART_POLICY=no (it shares 127.0.0.1:3000 with
-# production). Runbook: docs/ops/PRODUCTION_TOPOLOGY.md §8.
+# service uses `always`, which Docker re-applies whenever the daemon starts, also for a container that was stopped
+# through the API before the daemon went away (docker stop, a desktop app or update stopping containers); with
+# `unless-stopped` such a container stays down. Measured on a CI runner: docs/audit-2026-09-27/streams/w6-ops.md.
+# depends_on only orders `docker compose up`; after a daemon restart Docker starts everything at once, and a backend
+# or Nginx that starts before its dependencies exits and is restarted until they are up. Consequence of `always`: a
+# container left *stopped* (not removed) also comes back after a reboot. Deploy: build, `docker compose stop <svc>`,
+# `up -d`; to keep a service down across reboots remove it (`rm -sf <svc>`). A demo/dev stack started from this file
+# sets BDS_RESTART_POLICY=no or unless-stopped (it shares 127.0.0.1:3000 with production).
+# Runbook: docs/operations/REBOOT_RECOVERY.md.
 name: bds-enterprise-stack
 services:
   postgres:

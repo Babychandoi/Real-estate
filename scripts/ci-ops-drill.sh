@@ -358,7 +358,7 @@ ip_chain() {
       -d "{\"email\":\"demo.user@bds.local\",\"password\":\"$DEMO_PASSWORD\"}" | json 'd["accessToken"]')"
   record ipchain_v6_ip_hint "$(curl -fsS -H "Authorization: Bearer $token" "$BASE/api/v1/me/sessions" | json '[s["ipHint"] for s in d if s["current"]][0]')"
   compose logs --no-color frontend 2>/dev/null | grep 'POST /api/v1/auth/login' | tail -n 3 > "$ART/ipchain-nginx-log.txt" || true
-  record ipchain_nginx_log_client "$(awk '{print $1}' "$ART/ipchain-nginx-log.txt" | sort -u | tr '\n' ' ')"
+  record ipchain_nginx_log_client "$(awk '{print $3}' "$ART/ipchain-nginx-log.txt" | sort -u | tr '\n' ' ')"
 
   log "session token transport: login and /auth/me responses set no cookie and are no-store"
   curl -sS -D "$ART/session-login-headers.txt" -o /dev/null -X POST "$BASE/api/v1/auth/login" -H 'Content-Type: application/json' \
@@ -490,7 +490,13 @@ rollback() {
 
   log "restart policy: control containers + Docker daemon restarts"
   record live_restore "$(docker info --format '{{.LiveRestoreEnabled}}')"
-  for p in always unless-stopped; do docker run -d --name "ctl-$p" --restart "$p" alpine:3.22 sleep 1d > /dev/null; done
+  # ctl-<policy>: running at the restart; ctl-stopped-<policy>: stopped through the API first (docker stop, which is
+  # also how a desktop app or an update can take containers down before the daemon goes away).
+  for p in always unless-stopped; do
+    docker run -d --name "ctl-$p" --restart "$p" alpine:3.22 sleep 1d > /dev/null
+    docker run -d --name "ctl-stopped-$p" --restart "$p" alpine:3.22 sleep 1d > /dev/null
+    docker stop -t 1 "ctl-stopped-$p" > /dev/null
+  done
   compose stop mailpit > /dev/null # a service stopped on purpose (e.g. mid-deploy) before the reboot
   daemon_restart daemon_graceful "$listing" graceful
   record ctl_after_graceful "$(docker ps -a --filter name=ctl- --format '{{.Names}}={{.State}}' | sort | tr '\n' ' ')"
