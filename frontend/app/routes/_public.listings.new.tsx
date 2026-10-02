@@ -1003,7 +1003,9 @@ export const CreateListingPage: React.FC = () => {
                         )}
                         {preview.legal?.label && <p className="mt-1 text-body-sm">Pháp lý: {preview.legal.label}</p>}
                         {preview.description && (
-                          <p className="mt-3 whitespace-pre-line text-body-sm [overflow-wrap:anywhere]">{preview.description}</p>
+                          <p className="mt-3 whitespace-pre-line text-body-sm [overflow-wrap:anywhere]">
+                            {preview.description}
+                          </p>
                         )}
                       </div>
                     </article>

@@ -371,7 +371,9 @@ function ListingDetailView({
               {purposeLabel(listing.purpose)} · {propertyTypeLabel(listing.propertyType)}
               {listing.project && <> · Dự án {listing.project.name}</>}
             </p>
-            <h1 className="mt-1 text-xl font-bold leading-snug text-on-surface [overflow-wrap:anywhere] md:text-2xl">{listing.title}</h1>
+            <h1 className="mt-1 text-xl font-bold leading-snug text-on-surface [overflow-wrap:anywhere] md:text-2xl">
+              {listing.title}
+            </h1>
             <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <Money price={listing.price} className="text-3xl font-extrabold tracking-tight text-primary" />
               <UnitPriceText
