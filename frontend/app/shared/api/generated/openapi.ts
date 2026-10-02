@@ -2618,6 +2618,7 @@ export type paths = {
       path?: never;
       cookie?: never;
     };
+    /** @deprecated */
     get: operations['listings_1'];
     put?: never;
     post?: never;
@@ -4768,6 +4769,7 @@ export type components = {
       legalStatus?: string;
       /** Format: uuid */
       ownerId?: string;
+      pricePeriod?: string;
       /** Format: int64 */
       priceVnd?: number;
       propertyType?: string;
@@ -4960,6 +4962,7 @@ export type components = {
       id?: string;
       isShowcase?: boolean;
       isVerified?: boolean;
+      pricePeriod?: string;
       /** Format: int64 */
       priceVnd?: number;
       primaryImageUrl?: string;
@@ -5599,6 +5602,7 @@ export type components = {
       /** Format: uuid */
       id?: string;
       isVerified?: boolean;
+      pricePeriod?: string;
       /** Format: int64 */
       priceVnd?: number;
       primaryImageUrl?: string;
@@ -7460,7 +7464,9 @@ export interface operations {
   approve_2: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -7486,7 +7492,9 @@ export interface operations {
   receipt: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -7512,7 +7520,9 @@ export interface operations {
   reject_2: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -7538,7 +7548,9 @@ export interface operations {
   resolve: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -10835,7 +10847,10 @@ export interface operations {
   };
   listings_1: {
     parameters: {
-      query?: never;
+      query?: {
+        page?: number;
+        size?: number;
+      };
       header?: never;
       path: {
         ownerId: string;

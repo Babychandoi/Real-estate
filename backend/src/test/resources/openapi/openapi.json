@@ -2984,6 +2984,9 @@
             "format" : "uuid",
             "type" : "string"
           },
+          "pricePeriod" : {
+            "type" : "string"
+          },
           "priceVnd" : {
             "format" : "int64",
             "type" : "integer"
@@ -3461,6 +3464,9 @@
           },
           "isVerified" : {
             "type" : "boolean"
+          },
+          "pricePeriod" : {
+            "type" : "string"
           },
           "priceVnd" : {
             "format" : "int64",
@@ -5092,6 +5098,9 @@
           },
           "isVerified" : {
             "type" : "boolean"
+          },
+          "pricePeriod" : {
+            "type" : "string"
           },
           "priceVnd" : {
             "format" : "int64",
@@ -8738,6 +8747,13 @@
             "format" : "uuid",
             "type" : "string"
           }
+        }, {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -8772,6 +8788,13 @@
           "required" : true,
           "schema" : {
             "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : false,
+          "schema" : {
             "type" : "string"
           }
         } ],
@@ -8811,6 +8834,13 @@
             "format" : "uuid",
             "type" : "string"
           }
+        }, {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
         } ],
         "requestBody" : {
           "content" : {
@@ -8846,6 +8876,13 @@
           "required" : true,
           "schema" : {
             "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : false,
+          "schema" : {
             "type" : "string"
           }
         } ],
@@ -13340,6 +13377,7 @@
     },
     "/api/v1/public/profiles/{ownerId}/listings" : {
       "get" : {
+        "deprecated" : true,
         "operationId" : "listings_1",
         "parameters" : [ {
           "in" : "path",
@@ -13348,6 +13386,24 @@
           "schema" : {
             "format" : "uuid",
             "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 60,
+            "format" : "int32",
+            "type" : "integer"
           }
         } ],
         "responses" : {
