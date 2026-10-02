@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, ImageOff, Images, X } from 'lucide-react';
 import { IconButton } from '@/shared/ui/IconButton';
@@ -113,6 +113,19 @@ function Lightbox({
   // other photos stay reachable with the arrows and thumbnails.
   const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
   const broken = failed.has(image.url);
+  // Audit §8.3 (detail, mobile): swipe left/right on the photo; the arrow buttons and keys stay the alternative.
+  const swipeStart = useRef<number | null>(null);
+  const onPointerDown = (event: ReactPointerEvent) => {
+    swipeStart.current = event.pointerType === 'mouse' ? null : event.clientX;
+  };
+  const onPointerUp = (event: ReactPointerEvent) => {
+    if (swipeStart.current == null || count < 2) return;
+    const dx = event.clientX - swipeStart.current;
+    swipeStart.current = null;
+    if (Math.abs(dx) < 48) return;
+    if (dx < 0) next();
+    else previous();
+  };
   return createPortal(
     <div
       ref={panelRef}
@@ -137,7 +150,12 @@ function Lightbox({
           className="text-inverse-on-surface hover:bg-inverse-on-surface/10 hover:text-inverse-on-surface"
         />
       </div>
-      <div className="relative flex min-h-0 flex-1 items-center justify-center px-2 pb-2">
+      <div
+        className="relative flex min-h-0 flex-1 touch-pan-y items-center justify-center px-2 pb-2"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={() => (swipeStart.current = null)}
+      >
         {broken ? (
           <p role="alert" className="flex flex-col items-center gap-2 text-center text-body-sm">
             <ImageOff className="h-8 w-8" aria-hidden="true" />

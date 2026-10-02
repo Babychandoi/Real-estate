@@ -378,14 +378,6 @@
   .ndc-admin-page select {
     @apply text-on-surface;
   }
-  @media (min-width: 1024px) {
-    .ndc-search-layout[data-view='map'] {
-      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-    }
-    .ndc-search-layout[data-view='map'] .ndc-listing-grid {
-      @apply grid-cols-2;
-    }
-  }
   /* CMS article bodies (HTML sanitised by the backend). */
   .ndc-prose {
     @apply text-base leading-8 text-on-surface;

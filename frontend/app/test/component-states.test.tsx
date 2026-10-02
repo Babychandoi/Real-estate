@@ -205,6 +205,33 @@ describe('Gallery', () => {
     expect(within(viewer).getByRole('img', { name: 'Ảnh 2/3 của Nhà' })).toBeInTheDocument();
   });
 
+  it('touch: a swipe moves between photos (audit §8.3), a mouse drag does not', () => {
+    // jsdom has no PointerEvent: a MouseEvent with pointerType carries clientX the same way.
+    if (typeof window.PointerEvent === 'undefined') {
+      class PointerEventShim extends MouseEvent {
+        pointerType: string;
+        constructor(type: string, init: PointerEventInit = {}) {
+          super(type, init);
+          this.pointerType = init.pointerType ?? 'mouse';
+        }
+      }
+      vi.stubGlobal('PointerEvent', PointerEventShim);
+    }
+    render(<Gallery images={many} title="Nhà" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mở ảnh 1/3 cỡ lớn' }));
+    const viewer = screen.getByRole('dialog');
+    const stage = within(viewer).getByRole('img', { name: 'Ảnh 1/3 của Nhà' }).parentElement!;
+    fireEvent.pointerDown(stage, { pointerType: 'touch', clientX: 300 });
+    fireEvent.pointerUp(stage, { pointerType: 'touch', clientX: 120 });
+    expect(viewer).toHaveTextContent('Ảnh 2/3');
+    fireEvent.pointerDown(stage, { pointerType: 'touch', clientX: 100 });
+    fireEvent.pointerUp(stage, { pointerType: 'touch', clientX: 300 });
+    expect(viewer).toHaveTextContent('Ảnh 1/3');
+    fireEvent.pointerDown(stage, { pointerType: 'mouse', clientX: 300 });
+    fireEvent.pointerUp(stage, { pointerType: 'mouse', clientX: 100 });
+    expect(viewer).toHaveTextContent('Ảnh 1/3');
+  });
+
   it('long content: the viewer title is truncated on one line', () => {
     render(<Gallery images={many} title={LONG_WORD} />);
     fireEvent.click(screen.getByRole('button', { name: 'Mở ảnh 1/3 cỡ lớn' }));
