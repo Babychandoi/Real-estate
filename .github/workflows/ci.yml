@@ -277,6 +277,47 @@ jobs:
         env:
           PLAYWRIGHT_SUITE: visual
         run: npx playwright test tests/e2e/visual.spec.ts --project=ios-safari --project=webkit-desktop --project=firefox-desktop
+      # W6-UX: read-only audits of every route and overlay (DS-03/DS-04/DS-06), on the same seeded data.
+      - name: 'E2E: UX audit of every route (sizes, targets, axe, reflow)'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: ux-audit
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/ux-audit.spec.ts --project=chromium-1440 --workers=2
+      - name: 'E2E: UX audit of every dialog, sheet and menu'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: ux-dialogs
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/ux-dialogs.spec.ts --project=chromium-1440 --workers=2
+      # R-2: more than 100 public listings (the UAT seed has 46 SALE), added after the visual baselines so they keep
+      # their seeded pages; Elasticsearch is re-synced before the search-consistency suite.
+      - name: Seed search volume fixture (R-2)
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        run: |
+          docker compose $COMPOSE_FILE_ARGS exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -q' \
+            < frontend/tests/e2e/fixtures/search-volume.sql
+          docker compose $COMPOSE_FILE_ARGS restart backend
+          docker compose $COMPOSE_FILE_ARGS up -d --wait
+          for i in $(seq 1 60); do
+            body=$(curl -fsS "http://127.0.0.1:3000/api/v2/listings/search?purpose=SALE&size=1" || true)
+            if echo "$body" | grep -q '"degraded":false' && echo "$body" | grep -Eq '"total":\{"value":(1[0-9]{2}|[2-9][0-9]{2})'; then
+              echo "search index has the volume fixture after $((i * 3)) s"; exit 0
+            fi
+            sleep 3
+          done
+          echo "search index did not pick up the volume fixture: $body"
+          exit 1
+      - name: 'E2E: search, filters, map and paging consistency (R-2)'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: search-consistency
+        run: npx playwright test tests/e2e/search-consistency.spec.ts --project=chromium-1440 --workers=1
       # Mutation journeys run after visual baselines, in the agreed acceptance order.
       - name: 'Acceptance 1: Search and navigation'
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
@@ -310,6 +351,14 @@ jobs:
         run: |
           export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
           npx playwright test tests/e2e/admin.spec.ts --project=chromium-1440 --workers=1
+      - name: 'E2E: core journeys with the keyboard only (R-7)'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: keyboard
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/keyboard.spec.ts --project=chromium-1440 --workers=1
       - name: S10 query plans (isolated 100k and 1M)
         timeout-minutes: 15
         env:
