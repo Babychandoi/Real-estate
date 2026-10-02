@@ -197,6 +197,29 @@ expect_status sitemap "$STATUS" 200
 expect_contains sitemap Content-Type xml "sitemap index is XML"
 security_headers sitemap app
 
+# 9. Plain HTTP at the edge is redirected to HTTPS, never answered with content. Against the public domain: the http://
+#    URL itself; against a local origin with --simulate-https: the CF-Visitor header Cloudflare sends for an HTTP visitor.
+plain_url=""
+plain_args=()
+case "$BASE_URL" in
+  https://*) plain_url="http://${BASE_URL#https://}/" ;;
+  *) if [ "$SIMULATE_HTTPS" -eq 1 ]; then plain_url="$BASE_URL/"; plain_args=(-H 'CF-Visitor: {"scheme":"http"}' -H 'X-Forwarded-Proto: http'); fi ;;
+esac
+if [ -n "$plain_url" ]; then
+  pace
+  plain_status="$(curl -sS -o /dev/null -D "$WORK/plainhttp.headers" -w '%{http_code}' --max-time 20 ${plain_args[@]+"${plain_args[@]}"} "$plain_url" 2>"$WORK/plainhttp.err")" \
+    || plain_status="error: $(cat "$WORK/plainhttp.err")"
+  plain_location="$(value plainhttp Location)"
+  case "$plain_status" in
+    301|302|307|308)
+      case "$plain_location" in
+        https://*) pass plainhttp "plain HTTP answered $plain_status -> $plain_location" ;;
+        *) fail plainhttp "plain HTTP redirected to a non-HTTPS location '$plain_location'" ;;
+      esac ;;
+    *) fail plainhttp "plain HTTP answered $plain_status instead of a redirect to HTTPS" ;;
+  esac
+fi
+
 echo "----"
 echo "$CHECKS checks, $FAILURES failed, $WARNINGS warnings"
 [ "$FAILURES" -eq 0 ]
