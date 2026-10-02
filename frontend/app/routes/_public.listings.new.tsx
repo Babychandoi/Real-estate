@@ -548,8 +548,8 @@ export const CreateListingPage: React.FC = () => {
                       )}
                     </span>
                     <span className="overflow-hidden">
-                      <span className="block truncate text-xs font-bold">{s.label}</span>
-                      <span className="block text-xs text-slate-500">Bước {s.id} / 4</span>
+                      <span className="block truncate text-sm font-bold">{s.label}</span>
+                      <span className="block text-sm text-slate-500">Bước {s.id} / 4</span>
                     </span>
                   </button>
                 </li>

@@ -183,17 +183,20 @@ export function DataTable<Row>({
             <tr>
               {selection && (
                 <th scope="col" className="w-12 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 cursor-pointer accent-primary"
-                    aria-label="Chọn tất cả các dòng trên trang này"
-                    checked={allSelected}
-                    ref={(element) => {
-                      if (element) element.indeterminate = someSelected;
-                    }}
-                    onChange={toggleAll}
-                    disabled={visibleRows.length === 0}
-                  />
+                  {/* The wrapping label is a 44 × 44 touch target; its negative margin keeps the cell's layout. */}
+                  <label className="-m-3 grid h-11 w-11 cursor-pointer place-items-center">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 cursor-pointer accent-primary"
+                      aria-label="Chọn tất cả các dòng trên trang này"
+                      checked={allSelected}
+                      ref={(element) => {
+                        if (element) element.indeterminate = someSelected;
+                      }}
+                      onChange={toggleAll}
+                      disabled={visibleRows.length === 0}
+                    />
+                  </label>
                 </th>
               )}
               {columns.map((column) => {
@@ -259,13 +262,15 @@ export function DataTable<Row>({
                     >
                       {selection && (
                         <td className="px-4 py-3">
-                          <input
-                            type="checkbox"
-                            className="h-5 w-5 cursor-pointer accent-primary"
-                            aria-label={`Chọn ${selection.rowLabel(row)}`}
-                            checked={checked}
-                            onChange={() => toggleRow(id)}
-                          />
+                          <label className="-m-3 grid h-11 w-11 cursor-pointer place-items-center">
+                            <input
+                              type="checkbox"
+                              className="h-5 w-5 cursor-pointer accent-primary"
+                              aria-label={`Chọn ${selection.rowLabel(row)}`}
+                              checked={checked}
+                              onChange={() => toggleRow(id)}
+                            />
+                          </label>
                         </td>
                       )}
                       {columns.map((column) => (

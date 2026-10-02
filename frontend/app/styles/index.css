@@ -16,6 +16,19 @@
     }
   }
 
+  /*
+   * WCAG 2.4.11 (focus not obscured): when the browser scrolls a focused control or a skip-link target into view,
+   * it stops below the 80 px sticky header instead of under it, and above the listing's fixed contact bar on phones.
+   */
+  html {
+    scroll-padding-top: 6rem;
+  }
+  @media (max-width: 1023px) {
+    html {
+      scroll-padding-bottom: 6rem;
+    }
+  }
+
   body {
     background-color: rgb(var(--color-surface));
     color: rgb(var(--color-on-surface));
@@ -126,8 +139,22 @@
     @apply sticky top-0 z-40 border-b bg-white;
     border-color: var(--ndc-border);
   }
+  /*
+   * DS-06: on a short screen (a phone in landscape, or 200 % zoom) a sticky header plus the listing's sticky contact
+   * bar would cover a third of the page; the header scrolls away instead (CSS first, so it holds before scripts run).
+   */
+  @media (max-height: 480px) {
+    .ndc-header {
+      position: static;
+    }
+  }
+  /* The same when enlarged text makes the header wrap past a quarter of the window (useTallHeader). */
+  .ndc-header[data-tall='true'] {
+    position: static;
+  }
+  /* Wraps instead of pushing the page sideways when the text is enlarged (200 % text size, DS-06). */
   .ndc-header-inner {
-    @apply mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8;
+    @apply mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8;
   }
   .ndc-brand {
     @apply flex min-w-0 shrink items-center gap-2.5 text-primary;
@@ -145,13 +172,13 @@
     @apply mt-1 hidden text-xs font-normal text-on-surface-variant sm:block;
   }
   .ndc-nav-link {
-    @apply inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary;
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg px-3 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary;
   }
   .ndc-nav-link.is-active {
     @apply bg-surface-container-low text-primary;
   }
   .ndc-primary-link {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-container;
+    @apply inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-container;
   }
   .ndc-text-link {
     @apply inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline;
@@ -166,8 +193,10 @@
     @apply mt-12 border-t bg-white;
     border-color: var(--ndc-border);
   }
-  .ndc-footer nav a {
-    @apply inline-flex min-h-8 items-center text-on-surface-variant hover:text-primary;
+  /* 44 px rows with no gap keep the old 32 px link + 12 px gap rhythm, and every link is a full touch target. */
+  .ndc-footer nav a,
+  .ndc-footer nav button {
+    @apply inline-flex min-h-11 items-center text-on-surface-variant hover:text-primary;
   }
   .ndc-account-nav {
     @apply mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8;

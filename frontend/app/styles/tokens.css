@@ -133,6 +133,16 @@
   --z-toast: 70;
 }
 
+/*
+ * DS-03: on a touch screen (coarse pointer) every control is at least 44 × 44 CSS px. The 36 px "sm" size exists for
+ * dense desktop toolbars only; with a finger it becomes the 44 px default, so no component has to know the device.
+ */
+@media (pointer: coarse) {
+  :root {
+    --control-sm: 2.75rem; /* 44 */
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-fast: 0ms;

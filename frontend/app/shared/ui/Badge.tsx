@@ -32,6 +32,7 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 /** Short status label, 12 px minimum. Never colour alone: the text says what the status is. */
 export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', icon, className, ...props }) => (
   <span
+    data-badge=""
     className={cn(
       'inline-flex max-w-full items-center gap-1 break-words rounded-pill px-2.5 py-0.5 text-xs font-semibold',
       variants[variant],

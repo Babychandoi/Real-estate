@@ -4,7 +4,10 @@ import { Loader2 } from 'lucide-react';
 import { cn } from './cn';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
-/** sm = 36 px (dense desktop toolbars), md = 44 px (default touch target), lg = 48 px (primary touch actions). */
+/**
+ * sm = 36 px on desktop (dense toolbars) and 44 px on a touch screen (tokens.css), md = 44 px (default touch target),
+ * lg = 48 px (primary touch actions). Action text is 14 px or more at every size (DS-03).
+ */
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const base =
@@ -21,7 +24,7 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'min-h-control-sm text-xs px-3 gap-1.5',
+  sm: 'min-h-control-sm text-sm px-3 gap-1.5',
   md: 'min-h-control-md text-sm px-4 gap-2',
   lg: 'min-h-control-lg text-base px-5 gap-2.5',
 };
@@ -102,6 +105,7 @@ export const ButtonLink: React.FC<ButtonLinkProps> = ({
   ...props
 }) => (
   <Link
+    data-action=""
     className={buttonClasses({ variant, size, className: typeof className === 'string' ? className : undefined })}
     {...props}
   >

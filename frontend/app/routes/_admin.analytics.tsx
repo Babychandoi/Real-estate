@@ -106,7 +106,9 @@ function MetricTile({ item }: { item: NamedMetric }) {
         </p>
       )}
       <details className="mt-2 text-label text-on-surface-variant">
-        <summary className="cursor-pointer">Định nghĩa · {SOURCE_LABEL[item.source] ?? item.source}</summary>
+        <summary className="flex min-h-11 cursor-pointer items-center">
+          Định nghĩa · {SOURCE_LABEL[item.source] ?? item.source}
+        </summary>
         <p className="mt-1">{item.definition}</p>
       </details>
     </article>
@@ -135,7 +137,7 @@ function FunnelCard({ funnel }: { funnel: Funnel }) {
           return (
             <li
               key={step.key}
-              className="grid gap-1 sm:grid-cols-[minmax(10rem,1fr)_2fr_minmax(7rem,auto)] sm:items-center"
+              className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,auto)] sm:items-center"
             >
               <span className="text-body-sm font-medium text-on-surface">{step.label}</span>
               <span className="h-6 overflow-hidden rounded bg-surface-container" aria-hidden="true">
@@ -147,7 +149,7 @@ function FunnelCard({ funnel }: { funnel: Funnel }) {
                   />
                 )}
               </span>
-              <span className="text-body-sm sm:text-right">
+              <span className="min-w-0 text-body-sm [overflow-wrap:anywhere] sm:text-right">
                 <MetricValue metric={step.count} className="font-semibold" />
                 {step.fromPrevious && step.fromPrevious.status === 'MEASURED' && (
                   <span className="ml-2 text-label text-on-surface-variant">({formatMetric(step.fromPrevious)})</span>
@@ -418,7 +420,7 @@ export function ProductAnalyticsPage({ load = fetchAnalyticsDashboard }: { load?
                 .
               </p>
               <details className="mt-1">
-                <summary className="cursor-pointer">Độ trễ số liệu</summary>
+                <summary className="flex min-h-11 cursor-pointer items-center">Độ trễ số liệu</summary>
                 <p className="mt-1">{data.freshness.rawLatency}</p>
                 <p>{data.freshness.aggregateLatency}</p>
               </details>

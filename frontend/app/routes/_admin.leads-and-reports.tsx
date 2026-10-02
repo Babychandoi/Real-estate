@@ -67,7 +67,7 @@ function Pagination({
           aria-label="Trang trước"
           disabled={page === 0}
           onClick={() => onPage(page - 1)}
-          className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white disabled:opacity-40"
+          className="grid h-11 w-11 place-items-center rounded-lg border border-slate-300 bg-white disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" />
         </button>
@@ -76,7 +76,7 @@ function Pagination({
           aria-label="Trang sau"
           disabled={page + 1 >= totalPages}
           onClick={() => onPage(page + 1)}
-          className="grid h-10 w-10 place-items-center rounded-lg border border-slate-300 bg-white disabled:opacity-40"
+          className="grid h-11 w-11 place-items-center rounded-lg border border-slate-300 bg-white disabled:opacity-40"
         >
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -230,7 +230,7 @@ export default function LeadsAndReportsPage() {
             <span className="block font-bold">
               Khách quan tâm <span className="tabular-nums">({listingPage.totalElements} tin)</span>
             </span>
-            <span className="mt-0.5 block text-sm opacity-75">Quản lý yêu cầu liên hệ theo từng bài đăng</span>
+            <span className="mt-0.5 block text-sm">Quản lý yêu cầu liên hệ theo từng bài đăng</span>
           </span>
         </button>
         <Link
@@ -242,7 +242,7 @@ export default function LeadsAndReportsPage() {
           </span>
           <span className="min-w-0">
             <span className="block font-bold">Báo cáo vi phạm (hàng đợi riêng)</span>
-            <span className="mt-0.5 block text-sm opacity-75">
+            <span className="mt-0.5 block text-sm">
               Xử lý theo SLA, nhận xử lý và lịch sử tại trang Báo cáo vi phạm
             </span>
           </span>
@@ -328,7 +328,7 @@ export default function LeadsAndReportsPage() {
                             {listing.address}
                           </span>
                         )}
-                        <span className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-center text-xs">
+                        <span className="mt-auto grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-center text-sm">
                           <span>
                             <strong className="block text-lg text-amber-700">{listing.newLeads}</strong>
                             Mới
@@ -342,7 +342,7 @@ export default function LeadsAndReportsPage() {
                             Hoàn tất
                           </span>
                         </span>
-                        <span className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                        <span className="mt-3 flex flex-wrap items-center justify-between gap-x-2 text-sm text-slate-600">
                           <span>{listing.totalLeads} yêu cầu</span>
                           <span>{formatDate(listing.lastLeadAt)}</span>
                         </span>

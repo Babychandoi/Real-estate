@@ -19,6 +19,7 @@ import { AuthProvider, useAuth } from '@/shared/auth/AuthContext';
 import { LoginModal } from '@/shared/auth/LoginModal';
 import { Avatar } from '@/shared/ui/Avatar';
 import { Dialog } from '@/shared/ui/Dialog';
+import { useTallHeader } from '@/shared/ui/useTallHeader';
 import { AccountNavigation } from '@/shared/ui/AccountNavigation';
 import { ui } from '@/i18n/vi/ui';
 import { canOpen } from '@/shared/auth/routeAccess';
@@ -76,7 +77,10 @@ function AccountMenu() {
       if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      // Escape returns focus to the button that opened the menu (WCAG 2.4.3), not to the top of the page.
+      ref.current?.querySelector<HTMLButtonElement>('button[aria-haspopup]')?.focus();
     };
     document.addEventListener('mousedown', onPointer);
     document.addEventListener('keydown', onKey);
@@ -164,6 +168,7 @@ function AccountMenu() {
 }
 function RootLayoutContent() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const header = useTallHeader<HTMLElement>();
   const { user, isAuthenticated, isPoster, isAdminOrModerator, setIsLoginModalOpen, logout } = useAuth();
   const role = user?.role;
   // Role gating mirrors the route guards (routeAccess.ts): a menu never offers a page the guard then refuses.
@@ -202,7 +207,7 @@ function RootLayoutContent() {
           Bản xem thử giao diện · Dữ liệu mô phỏng · Không có giao dịch thật
         </div>
       )}
-      <header className="ndc-header">
+      <header ref={header.ref} className="ndc-header" data-tall={header.tall ? 'true' : undefined}>
         <div className="ndc-header-inner">
           <Link to="/" className="ndc-brand" aria-label="Nhà Đất Chuẩn — trang chủ">
             <span className="ndc-brand-symbol">
@@ -237,7 +242,7 @@ function RootLayoutContent() {
               </Link>
             )}
           </nav>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             {!isAuthenticated ? (
               <button
                 className="ndc-nav-link max-sm:px-2"
@@ -384,7 +389,7 @@ function RootLayoutContent() {
       <footer className="ndc-footer">
         <div className="ndc-page grid gap-8 py-10 md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
-            <Link to="/" className="text-xl font-bold text-primary">
+            <Link to="/" className="inline-flex min-h-11 items-center text-xl font-bold text-primary">
               nhà đất chuẩn.
             </Link>
             <p className="mt-3 max-w-md text-sm leading-7 text-on-surface-variant">
@@ -392,14 +397,14 @@ function RootLayoutContent() {
               giao dịch.
             </p>
           </div>
-          <nav className="grid content-start gap-3 text-sm" aria-label="Khám phá">
-            <strong>Khám phá</strong>
+          <nav className="grid content-start text-sm" aria-label="Khám phá">
+            <strong className="mb-1">Khám phá</strong>
             <Link to="/khu-vuc">Khu vực</Link>
             <Link to="/du-an">Dự án</Link>
             <Link to="/tin-tuc">Tin tức và cẩm nang</Link>
           </nav>
-          <nav className="grid content-start gap-3 text-sm" aria-label="Về nền tảng">
-            <strong>Về Nhà Đất Chuẩn</strong>
+          <nav className="grid content-start text-sm" aria-label="Về nền tảng">
+            <strong className="mb-1">Về Nhà Đất Chuẩn</strong>
             <Link to="/about">Giới thiệu</Link>
             <Link to="/terms">Điều khoản sử dụng</Link>
             <Link to="/privacy">Quyền riêng tư</Link>
@@ -407,8 +412,8 @@ function RootLayoutContent() {
               Tùy chọn quyền riêng tư
             </button>
           </nav>
-          <nav className="grid content-start gap-3 text-sm" aria-label="Hỗ trợ">
-            <strong>Đồng hành cùng bạn</strong>
+          <nav className="grid content-start text-sm" aria-label="Hỗ trợ">
+            <strong className="mb-1">Đồng hành cùng bạn</strong>
             <Link to="/contact">Trung tâm hỗ trợ</Link>
             <Link to="/contact#report">Báo cáo tin vi phạm</Link>
             <Link to="/search">Tìm bất động sản</Link>

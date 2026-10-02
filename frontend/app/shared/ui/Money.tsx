@@ -32,7 +32,12 @@ export function Money({
   const isNonPositive = Boolean(price) && Number.isFinite(price!.amount) && price!.amount <= 0;
   const text = isNonPositive ? '' : formatMoney(price, { compact });
   const shown = text || (isNonPositive ? zeroFallback : fallback);
-  return <span className={cn('tabular-nums', !text && 'text-on-surface-variant', className)}>{shown}</span>;
+  // data-price: the design-system audit (DS-03) holds price text to 14 px or more.
+  return (
+    <span data-price="" className={cn('tabular-nums', !text && 'text-on-surface-variant', className)}>
+      {shown}
+    </span>
+  );
 }
 
 /** "~48,2 triệu/m²" for SALE listings; renders nothing when there is no unit price (RENT). */
