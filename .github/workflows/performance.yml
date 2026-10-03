@@ -46,7 +46,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: performance-${{ github.ref }}-${{ github.event_name }}
+  # Independent datasets can collect evidence concurrently; only superseded runs of the same dataset cancel.
+  group: performance-${{ github.ref }}-${{ github.event_name }}-${{ inputs.listings || '100000' }}
   cancel-in-progress: true
 
 jobs:
