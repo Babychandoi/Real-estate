@@ -3,7 +3,7 @@
 # the repository root. Every UI is bound to loopback only (reach it through an SSH tunnel from another machine).
 #
 #   GRAFANA_ADMIN_PASSWORD=... [BACKUP_METRICS_DIR=$BACKUP_DIR/metrics] \
-#   docker compose -p bds-production -f docker-compose.yml -f infra/compose.observability.yaml --profile observability up -d
+#   docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.observability.yaml --profile observability up -d
 #
 #   Grafana      http://127.0.0.1:3001  (dashboards in folder "BDS")
 #   Prometheus   http://127.0.0.1:9090  (alerts: /alerts)
@@ -39,7 +39,7 @@ services:
   prometheus:
     profiles: ["observability"]
     image: prom/prometheus:v3.5.0
-    restart: ${BDS_RESTART_POLICY:-always}
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
@@ -56,7 +56,7 @@ services:
   alertmanager:
     profiles: ["observability"]
     image: prom/alertmanager:v0.28.1
-    restart: ${BDS_RESTART_POLICY:-always}
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
     volumes:
       - ./infra/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
@@ -68,7 +68,7 @@ services:
   grafana:
     profiles: ["observability"]
     image: grafana/grafana-oss:12.1.1
-    restart: ${BDS_RESTART_POLICY:-always}
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD}
@@ -90,7 +90,7 @@ services:
   postgres-exporter:
     profiles: ["observability"]
     image: prometheuscommunity/postgres-exporter:v0.17.1
-    restart: ${BDS_RESTART_POLICY:-always}
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command: ["--collector.stat_statements", "--collector.long_running_transactions"]
     environment:
       DATA_SOURCE_URI: postgres:5432/${POSTGRES_DB:-bds}?sslmode=disable
@@ -104,7 +104,7 @@ services:
   redis-exporter:
     profiles: ["observability"]
     image: oliver006/redis_exporter:v1.74.0
-    restart: ${BDS_RESTART_POLICY:-always}
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     environment:
       REDIS_ADDR: redis://redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
@@ -114,7 +114,7 @@ services:
   elasticsearch-exporter:
     profiles: ["observability"]
     image: prometheuscommunity/elasticsearch-exporter:v1.9.0
-    restart: ${BDS_RESTART_POLICY:-always}
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command: ["--es.uri=http://elasticsearch:9200", "--es.indices", "--es.timeout=10s"]
     mem_limit: 64m
     networks: [bds-network]
@@ -122,7 +122,7 @@ services:
   node-exporter:
     profiles: ["observability"]
     image: prom/node-exporter:v1.9.1
-    restart: ${BDS_RESTART_POLICY:-always}
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command: ["--path.rootfs=/host", "--collector.textfile.directory=/textfile"]
     volumes:
       - /:/host:ro
