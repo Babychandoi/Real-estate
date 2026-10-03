@@ -1,6 +1,6 @@
 # W6-BACKEND — audit trail race, R-2, R-3, R-4, F17.4
 
-Branch `audit/w6-backend` (from `13e41a2`). Flyway: `V103__audit_chain_head.sql` (V104–V105 unused).
+Branch `audit/w6-backend` (from `13e41a2`). Flyway: `V103__audit_chain_head.sql` (edited in the review round — not deployed anywhere), `V104__audit_chain_check_validate.sql`, `V105__idempotency_response_snapshot.sql`. See [Review round](#review-round-pr-24) for the fixes after the independent review.
 
 **Test environment.** The shared `bds-test` PostgreSQL, Redis and MinIO containers were up, but they could not publish
 their host ports: `127.0.0.1:55432`, `:56379` and `:59000` were already held by another Compose project on this machine.
@@ -64,7 +64,7 @@ Redis: the same failures happen with Redis up or down.
 Request threads therefore never wait on the chain while holding a connection.
 
 Failure handling:
-- A failed insert is retried twice.
+- A failed insert is retried twice with the same event id (`ON CONFLICT (id) DO NOTHING`), except when no pooled connection could be obtained: no retry then (review round).
 - If it still fails, it is counted in `bds.audit.write.failures` and logged with its exception class and message.
 - Alert `BdsAuditWriteFailures` fires on any such failure; its promtool test and runbook entry are included.
 - Link failures are counted too, and `bds.audit.chain.backlog` reports the number of unlinked events.
@@ -195,13 +195,13 @@ location) and checks:
   located matches. Zoomed-in points equal the list.
 - **Seller pages.** The v2 cursor pages and the v1 pages (`page`/`size`, `X-Total-Count: 300`) both return all 300
   listings.
-- **v1 search.** It reaches every page; it used to return `[]` after page 0.
+- **v1 search.** It reaches every page up to 2 400 results deep (400 beyond, review round); it used to return `[]` after page 0.
 - **Rent unit.** Every rent price carries `MONTH` on the v2 cards, map points, v1 cards, v1 detail and v2 detail; every
   sale price carries none.
 
 **Code changes:**
 - The map kept only the 2,000 largest grid cells, so the clusters could add up to less than the list total. It now
-  doubles the cell size until all cells fit (`MapClusterLimitTests`).
+  uses a cell size computed up front from the bbox and zoom so that at most 2 000 cells exist, with one query (`MapClusterLimitTests`; review round).
 - `pricePeriod` was added to the v1 detail, v1 search and v1 profile card DTOs.
 - The v1 profile listings are paged, and marked deprecated with a link to the v2 seller endpoint.
 
@@ -219,3 +219,57 @@ location) and checks:
 | `promtool test rules` / `check rules` (prom/prometheus v3.5.0) | SUCCESS / 34 rules |
 
 The only frontend change is the regenerated `app/shared/api/generated/openapi.ts`, which follows the OpenAPI snapshot.
+
+## Review round (PR #24)
+
+The reviewer's tests (`0bcf613`, 4 classes, 10 tests) were cherry-picked unchanged as `dd1e222`. To confirm them, I swapped
+`fdd9fe9`'s production code back in on a private PostGIS container (`:55452`, 4 GiB): **8 of 10 failed**, as reported.
+On the current branch all 10 pass. No reviewer test was weakened or adjusted.
+
+| Finding | Fix | Evidence (fails on fdd9fe9 → passes now) |
+|---|---|---|
+| **MAJOR 1** — v1 `?page=N` ran N+1 unbounded searches | A v1 page is served from v2 pages of 48. One request runs at most 50 searches. Results deeper than 2 400 (`page × size`) get 400 `INVALID_FILTER`, pointing to the v2 cursor API. New rate-limit policy `search-v1` = v2's 300/min per IP. `CURSOR_ENGINE_CHANGED` restarts the walk once on the new engine instead of returning 409. | `LegacySearchV1PagingReviewTests` (fail → pass). `LegacySearchV1BoundsTests` (3): depth 400 without any search, deepest page = exactly 50 searches, engine switch → 200, policy equal to v2. |
+| **MAJOR 2** — per-title slug lock deadlocked CSV imports | Each slug candidate is claimed with `pg_try_advisory_xact_lock`, which never waits: a candidate held by another open transaction is skipped. As a result, no insert ever meets an uncommitted slug on the unique index. Any remaining `PessimisticLockingFailureException` (deadlock, lock timeout, serialization) → 503 `TRY_AGAIN` with `Retry-After: 1`, never 500. | `SlugAllocationLockReviewTests`: on fdd9fe9, "deadlock detected" → pass now. `W6ReviewFollowUpTests.aLockFailureIsA503ProblemNotA500`. `AuditTrailConcurrencyTests` same-title test still passes (12 parallel drafts → 12 slugs). |
+| **MAJOR 3** — audit retries tripled the wait under pool exhaustion | No retry on `CannotGetJdbcConnectionException`. Other failures are still retried, counted and logged with their cause. | `AuditTrailReviewTests.underAnExhaustedPool…` (fail → pass, < 1 s with a 500 ms timeout). |
+| **MINOR 4** — previous-image rows after V103 never chained; `verify()` said intact | The head row gets `cutover_at`. The linker also takes rows after it that have a hash but no position (rolling deploy) and re-hashes them into the chain, using two partial indexes in a `UNION ALL`. `verify()` reports `unchained`; `intact` = valid chain AND none unchained. | `AuditTrailReviewTests.anEventStoredByThePreviousImage…` (fail → pass). `W6ReviewFollowUpTests.verifyReportsEventsLeftOutsideTheChain…` |
+| **MINOR 5** — a retry stored the event twice | One UUID per record, `INSERT … ON CONFLICT (id) DO NOTHING`. | `AuditTrailReviewTests.aRetryAfterACommittedButUnacknowledged…` (fail: 2 rows → pass: 1). |
+| **MINOR 6** — a replay returned the current order state | The response body is stored with the key (`api_idempotency_keys.response_snapshot`, V105), and the replay returns it. | `BillingReviewIdempotencyReviewTests.aReplayReturns…` (fail: APPROVED → pass: EXCEPTION). |
+| **MINOR 7** — billing keys never purged; an expired key blocked forever | Billing keys (`billing-order:`, `billing-review:`) live 24 h (legacy rows count from `created_at`). The lookup ignores expired keys. Binding takes over an expired key (`ON CONFLICT … DO UPDATE … WHERE expired`). `IdempotencyKeyPurgeTask` purges both scopes. | `…anExpiredAdminReviewKeyIsPurged`, `…aKeyThatExpiredCanBeUsedForANewAction` (fail → pass). `LeadSubmissionConcurrencyTests.expiredKeysCanBeReusedAndArePurged` still passes (the unrelated `billing:` scope is kept). |
+| **MINOR 8** — stalled linker unnoticed | New `bds.audit.chain.last.link.success` gauge. The backlog gauge is now also updated when a run throws. `spring.task.scheduling.pool.size` = 4. A missing head row is recreated from the chain, logged as `audit_chain_head_missing` and counted as a link failure. New alert `BdsAuditChainStalled`: no completed run for 5 min, or the backlog is never drained over 10 min and growing. | promtool: 3 new test groups (healthy / stopped / growing), `test rules` SUCCESS, 35 rules. `W6ReviewFollowUpTests.aDeletedHeadRowIsRecreated…`, `…theBacklogGaugeIsUpdatedEvenWhenTheLinkerFails`. |
+| **MINOR 9** — V103 lock duration | **V103 edited** (not deployed). All metadata-only changes, plus `CHECK … NOT VALID`; the CHECK is validated in **V104** under SHARE UPDATE EXCLUSIVE. Indexes stay plain `CREATE INDEX` (Flyway runs each migration in a transaction; `CONCURRENTLY` would need non-transactional migrations and `postgresql.transactional.lock=false`). The runbook documents pre-creating them `CONCURRENTLY IF NOT EXISTS` for large tables. | Measured on a 1 M-row, 289 MB `audit_events` (PostGIS 16, amd64 emulation, fsync off): see the timing table below. |
+| **MINOR 10** — map re-aggregated per doubling | The cell is computed up front from bbox and zoom, so the grid has at most 2 000 cells; then one query. | `MapClusterLimitTests` (rewritten: grid ≤ 2 000 at zooms 3–20, finest grid that fits, exactly one `mapClusters` call). `SearchConsistencyAcceptanceTests` still adds up exactly. |
+| **MINOR 11** — account billing after a 409 | Reloads the orders. Shows "Yêu cầu vừa được xử lý nên thao tác chưa được thực hiện. Trạng thái hiện tại: <label>." with no raw status code. | `frontend/app/routes/_account.billing.test.tsx` (new). |
+| NIT — `verify()` loads everything; no operator path | `verify()` pages through 5 000 rows at a time. New ADMIN endpoint `GET /api/v1/admin/audit-chain/verification`. Runbook section `BdsAuditChainStalled` explains how to run it. | `W6ReviewFollowUpTests` (admin 200 / moderator 403, intact after linking). |
+| NIT — matrix body assertions | Every state now carries real private text: description, internal moderator note, owner e-mail, never-approved title, pending-edit title and description. PAUSED, EXPIRED and LOCKED now use real tokens. Private image keys are asserted absent from every non-insider body (v1/v2 detail, both searches, both seller pages). | `ListingAccessMatrixTests` 4/4. See the `ownerId` note below. |
+| NIT — CORS | CORS now exposes `X-Total-Count`, `Idempotent-Replayed` and `X-Order-Reused`. | `W6ReviewFollowUpTests.theSpaCanReadTheTotalAndReplayHeadersCrossOrigin`. |
+| NIT — v1 profile `size>100` | Clamped to 1..100 (and `page` to ≥ 0) instead of answering 400. | `SearchConsistencyAcceptanceTests` (`size=500&page=-1` → 100 cards). |
+
+**MINOR 9 timings** (1 M rows, setup as above):
+
+| Step | Time | Lock held |
+|---|---|---|
+| V103 metadata changes | < 5 ms | ACCESS EXCLUSIVE |
+| `uq_audit_events_chain_seq` | 1.18 s | SHARE (reads continue, audit inserts wait) |
+| `idx_audit_events_unlinked` | 0.33 s | SHARE |
+| `idx_audit_events_unchained` | 0.88 s | SHARE |
+| V104 `VALIDATE CONSTRAINT` | 0.33 s | SHARE UPDATE EXCLUSIVE |
+
+The linker query, after 900 k linked rows, takes about 30 ms.
+
+**Notes for the owner:**
+- **`ownerId` in v1 detail.** It is the seller's public id, the same id v2 exposes through the seller page link. It is not treated as private. The private owner data asserted absent is e-mail and phone.
+- **`lead_kyc_blocked.user_id`.** Left as is, as instructed. It stores the requester's user id (the same as `lead_submitted`), so the server metric can count users. Whether that identifier should be kept, pseudonymised or shortened for retention is an owner decision.
+
+**Checks after the review round:**
+
+| Check | Result |
+|---|---|
+| `sh mvnw -B -ntp verify` | BUILD SUCCESS — 488 tests in 99 classes, 0 failures, 0 errors, 0 skipped (4 min 2 s) |
+| `npm run lint` | 0 |
+| `npx tsc -b` | 0 |
+| `npx vitest run --testTimeout=30000` | 42 files, 258 tests passed |
+| `npm run build` | OK |
+| `npm run check:bundle` | OK |
+| `npm run check:api` | match |
+| prettier on touched files | clean |
+| promtool | `test rules` SUCCESS, `check rules` 35 rules |
