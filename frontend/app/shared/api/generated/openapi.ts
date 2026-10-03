@@ -3,6 +3,22 @@
  * Use the aliases in app/shared/api/schema.ts rather than importing this file directly.
  */
 export type paths = {
+  '/api/v1/admin/audit-chain/verification': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: operations['verify'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/listings': {
     parameters: {
       query?: never;
@@ -6438,6 +6454,15 @@ export type components = {
       returnTo?: string;
       status?: string;
     };
+    VerificationView: {
+      /** Format: int64 */
+      firstBrokenSeq?: number;
+      intact?: boolean;
+      /** Format: int64 */
+      unchainedEvents?: number;
+      /** Format: int64 */
+      verifiedEvents?: number;
+    };
     VersionSummary: {
       areaM2?: number;
       /** Format: date-time */
@@ -6493,6 +6518,26 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+  verify: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          '*/*': components['schemas']['VerificationView'];
+        };
+      };
+    };
+  };
   search_3: {
     parameters: {
       query?: {

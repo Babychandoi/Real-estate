@@ -7310,6 +7310,26 @@
         },
         "type" : "object"
       },
+      "VerificationView" : {
+        "properties" : {
+          "firstBrokenSeq" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "intact" : {
+            "type" : "boolean"
+          },
+          "unchainedEvents" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "verifiedEvents" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "VersionSummary" : {
         "properties" : {
           "areaM2" : {
@@ -7439,6 +7459,24 @@
   },
   "openapi" : "3.1.0",
   "paths" : {
+    "/api/v1/admin/audit-chain/verification" : {
+      "get" : {
+        "operationId" : "verify",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/VerificationView"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-audit-chain-controller" ]
+      }
+    },
     "/api/v1/admin/listings" : {
       "get" : {
         "operationId" : "search_3",
