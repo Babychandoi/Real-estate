@@ -16,6 +16,8 @@ public record ListingSummaryResponse(
         String purpose,
         String propertyType,
         long priceVnd,
+        /** {@code MONTH} for a rent listing (the price is per month), {@code null} for a sale (contract §2.2). */
+        String pricePeriod,
         BigDecimal areaM2,
         String addressSummary,
         Double publicLatitude,

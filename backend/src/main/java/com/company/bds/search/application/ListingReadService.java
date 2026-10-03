@@ -35,7 +35,7 @@ public class ListingReadService {
     private static final Duration DETAIL_TTL = Duration.ofSeconds(60);
     public static final int MAP_POINT_LIMIT = 400;
     public static final int MAP_POINTS_MIN_ZOOM = 12;
-    private static final int MAP_CLUSTER_LIMIT = 2_000;
+    static final int MAP_CLUSTER_LIMIT = 2_000;
     /** Response statistics are published only with at least this many answered leads (audit §8.3 seller). */
     public static final int MIN_RESPONSE_SAMPLES = 5;
 
@@ -157,7 +157,7 @@ public class ListingReadService {
                         SearchResults.ENGINE_DATABASE, now);
             }
         }
-        double cell = 360.0 / Math.pow(2, zoom) / 4.0;
+        double cell = clusterCell(filter.bbox(), zoom);
         if (settings.enabled() && engine.ready() && breaker.callable() && breaker.tryAcquire()) {
             try {
                 ListingSearchEnginePort.MapClusters result = engine.mapClusters(filter, Math.min(29, zoom + 2),
@@ -197,6 +197,24 @@ public class ListingReadService {
         Total total = clusters.size() >= MAP_CLUSTER_LIMIT ? new Total(Math.min(sum, SearchResults.TOTAL_CAP), "gte")
                 : Total.capped(sum, SearchResults.TOTAL_CAP);
         return new CachedClusters(clusters, total, dataAsOf);
+    }
+
+    /**
+     * Grid cell (degrees) for the zoom — a quarter of a 256 px tile — doubled until the cells the bbox touches (aligned
+     * like the SQL: {@code floor(coordinate / cell)}) are at most {@value #MAP_CLUSTER_LIMIT}.
+     */
+    static double clusterCell(com.company.bds.search.domain.BoundingBox bbox, int zoom) {
+        double cell = 360.0 / Math.pow(2, zoom) / 4.0;
+        com.company.bds.search.domain.BoundingBox box = bbox != null ? bbox
+                : new com.company.bds.search.domain.BoundingBox(-180, -90, 180, 90);
+        while (cells(box, cell) > MAP_CLUSTER_LIMIT && cell < 360.0) cell *= 2;
+        return cell;
+    }
+
+    static long cells(com.company.bds.search.domain.BoundingBox box, double cell) {
+        long columns = (long) (Math.floor(box.maxLng() / cell) - Math.floor(box.minLng() / cell)) + 1;
+        long rows = (long) (Math.floor(box.maxLat() / cell) - Math.floor(box.minLat() / cell)) + 1;
+        return columns * rows;
     }
 
     /** Thumbnails of a page resolved with one resolver call (at most one query). */

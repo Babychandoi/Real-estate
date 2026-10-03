@@ -65,9 +65,15 @@ public class LeadController {
             @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CreateLeadRequest request,
             Authentication authentication) {
-        LeadApplicationService.SubmitResult result = leadApplicationService.submit(
-                CurrentUser.id(authentication), request.listingId(), request.fullName(), request.phone(),
-                request.requestType(), request.note(), request.consentPolicy(), idempotencyKey);
+        LeadApplicationService.SubmitResult result;
+        try {
+            result = leadApplicationService.submit(
+                    CurrentUser.id(authentication), request.listingId(), request.fullName(), request.phone(),
+                    request.requestType(), request.note(), request.consentPolicy(), idempotencyKey);
+        } catch (com.company.bds.shared.error.ApiException refused) {
+            if ("KYC_REQUIRED".equals(refused.code())) recordKycBlocked(CurrentUser.id(authentication), request.listingId());
+            throw refused;
+        }
         Lead lead = result.lead();
         String msg = messageSource.getMessage("lead.received", null, "Đã tiếp nhận yêu cầu tư vấn thành công.", LocaleContextHolder.getLocale());
         Map<String, Object> body = new LinkedHashMap<>();
@@ -81,6 +87,15 @@ public class LeadController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .header("Idempotent-Replayed", String.valueOf(result.replayed()))
                 .body(body);
+    }
+
+    private void recordKycBlocked(java.util.UUID requesterId, java.util.UUID listingId) {
+        try {
+            leadApplicationService.recordKycBlocked(requesterId, listingId);
+        } catch (RuntimeException ex) {
+            // Analytics must never change the answer the user gets.
+            org.slf4j.LoggerFactory.getLogger(LeadController.class).warn("lead_kyc_blocked_not_recorded cause={}", ex.getClass().getSimpleName());
+        }
     }
 
     /** Legacy list (owner side: own + assigned leads; staff: all, or one owner's with brokerId). Newest first, size ≤ 50. */

@@ -188,7 +188,8 @@ SELECT l.id, l.slug,
 FROM listings l
 JOIN listing_revisions r ON r.id = l.public_revision_id AND r.status = 'APPROVED'
 LEFT JOIN users u ON u.id = l.owner_id
-WHERE l.slug = '@gone_slug@' AND NOT EXISTS (SELECT 1 FROM listing_public_read p WHERE p.listing_id = l.id AND u.status = 'ACTIVE');
+WHERE l.slug = '@gone_slug@' AND NOT EXISTS (SELECT 1 FROM listing_public_read p WHERE p.listing_id = l.id AND u.status = 'ACTIVE'
+    AND (l.expires_at IS NULL OR l.expires_at > now()));
 
 -- name: detail.price_history
 -- why: detail price history
@@ -223,9 +224,13 @@ SELECT count(*) FROM (SELECT 1 FROM listing_public_read WHERE owner_id = '@top_o
 SELECT u.id, u.full_name, u.avatar_media_url,
        COALESCE((SELECT ur.role FROM user_roles ur WHERE ur.user_id=u.id ORDER BY CASE ur.role WHEN 'ADMIN' THEN 1 WHEN 'MODERATOR' THEN 2 WHEN 'BROKER' THEN 3 WHEN 'OWNER' THEN 4 ELSE 5 END LIMIT 1), 'USER') AS role,
        u.created_at, k.status AS kyc_status, k.verified_at, k.expires_at,
-       (SELECT count(*) FROM listing_public_read p WHERE p.owner_id = u.id) AS active_listings,
+       (SELECT count(*) FROM listing_public_read p WHERE p.owner_id = u.id
+           AND NOT EXISTS (SELECT 1 FROM listings expired WHERE expired.id = p.listing_id
+                           AND expired.status = 'ACTIVE' AND expired.expires_at <= now())) AS active_listings,
        (SELECT count(*) FROM listing_public_read p WHERE p.owner_id = u.id AND p.ownership_status = 'VERIFIED'
-           AND (p.ownership_expires_at IS NULL OR p.ownership_expires_at > now())) AS ownership_verified,
+           AND (p.ownership_expires_at IS NULL OR p.ownership_expires_at > now())
+           AND NOT EXISTS (SELECT 1 FROM listings expired WHERE expired.id = p.listing_id
+                           AND expired.status = 'ACTIVE' AND expired.expires_at <= now())) AS ownership_verified,
        stats.samples, stats.median_minutes
 FROM users u
 LEFT JOIN user_kyc_profiles k ON k.user_id = u.id
