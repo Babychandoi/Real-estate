@@ -31,8 +31,8 @@ export async function focusProblem(page: Page): Promise<string | null> {
     };
     const shadowVisible = (shadow: string) =>
       shadow !== 'none' && (shadow.match(/rgba?\([^)]+\)/g) ?? []).some((color) => alpha(color) >= 0.5);
-    const look = () =>
-      parts.map((part) => {
+    const look = (targets = parts) =>
+      targets.map((part) => {
         const cs = getComputedStyle(part);
         const after = getComputedStyle(part, '::after');
         const outline =
@@ -48,9 +48,31 @@ export async function focusProblem(page: Page): Promise<string | null> {
         };
       });
     const focused = look();
-    el.blur();
-    const resting = look();
-    el.focus({ preventScroll: true });
+    // Date/time inputs have native subfields. Blur/focus resets their selected segment, making the next real Tab
+    // revisit the same subfield forever. Compare a focus-free clone in the same CSS context instead; the original
+    // input and its native keyboard state stay untouched. Ordinary controls retain the independent blur probe.
+    const segmented = el instanceof HTMLInputElement && /^(date|datetime-local|time|month|week)$/.test(el.type);
+    let resting: ReturnType<typeof look>;
+    if (segmented) {
+      resting = parts.map((part) => {
+        const clone = part.cloneNode(true) as HTMLElement;
+        clone.setAttribute('inert', '');
+        clone.setAttribute('aria-hidden', 'true');
+        clone.style.position = 'fixed';
+        clone.style.top = '-10000px';
+        clone.style.pointerEvents = 'none';
+        part.parentElement?.append(clone);
+        try {
+          return look([clone])[0];
+        } finally {
+          clone.remove();
+        }
+      });
+    } else {
+      el.blur();
+      resting = look();
+      el.focus({ preventScroll: true });
+    }
     const changed = focused.some((now, i) => {
       const before = resting[i];
       return (

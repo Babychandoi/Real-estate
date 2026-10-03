@@ -189,8 +189,8 @@ Those advisory baselines were not changed in this follow-up.
 - `focusableWithin` excludes native controls with negative tabindex, disabled fieldset descendants and descendants
   of CSS `display:none` ancestors. They cannot become an unreachable first/last stop in a modal focus trap.
 - The invalid rent-range scenario leaves the field with native Tab, triggering validation while focus stays inside
-  the sheet; its focus/axe/size/wrap assertions remain unchanged. `focusProblem` blur/refocus was verified to preserve
-  the current stop, so that helper needed no change.
+  the sheet; its focus/axe/size/wrap assertions remain unchanged. The ordinary-control harness preserved the
+  current stop during `focusProblem` blur/refocus; it did not include native date/time subfields (corrected in §12).
 - The new regression fails against the previous helper: it includes all three excluded controls. With the fix,
   forward and reverse trap boundaries select the reachable controls. Focused overlay suites: **15/15**, three files.
 - A temporary Vite harness using the production Dialog/Tabs/Button components passed native Chromium Tab/Shift+Tab
@@ -216,3 +216,36 @@ Three added unit regressions exercise the real components with controlled API pr
 
 Focused tests **3/3**, TypeScript (`tsc -b`), lint and touched-file Prettier pass. These tests close the dedicated
 coverage gaps formerly listed in §5; they introduce no production-code change or new backend acceptance claim.
+
+
+## 12. Native date/time keyboard audit correction — 2026-10-04
+
+[Run 37120781979](https://github.com/Babychandoi/Real-estate/actions/runs/37120781979) at `a63b339` passed the
+required Chromium visual comparisons and route target/axe/reflow audit. Rent initial focus and both 44 px admin
+buttons passed. Two required dialog failures remained: CMS article and project public profile, at 390 and 1440 px.
+The nine advisory Firefox/WebKit/iOS visual mismatches remain open; their baselines have not been changed.
+
+The downloaded CMS trace identifies close → scrolling region → public link → datetime-local input → the same
+input. Native date/time subfields share `document.activeElement`; treating every repeated DOM control as a modal
+wrap was incorrect. In addition, the focus probe's blur/refocus resets the native selected subfield, preventing real
+Tab from progressing. The ordinary-control harness in §10 did not exercise this case.
+
+- `focusProblem` compares native date/time controls with a temporary inert, aria-hidden clone in the same CSS
+  context. It preserves the original focus/subfield state and still compares changing outline/shadow/border/background;
+  no “has an outline” shortcut was introduced. Clones are removed in `finally`. Other controls retain the blur probe.
+- `modalTabCycle` extracts the shared full-cycle measurement. Consecutive date/time subfields may share a DOM ID;
+  every native Tab still counts toward the 150-step limit. Repeated ordinary controls, leakage, missing visible focus,
+  failure to reach the first stop, and reverse-wrap failure still fail the same assertions. No scenario is skipped.
+- A11 uses native date and datetime-local inputs in a bounded modal fixture: all four external controls, forward
+  wrap, reverse wrap, visible focus, and exactly one natural blur on leaving the date control pass at 390/1440 px.
+  It fails with the old blur helper and independently with the old repeated-DOM rule (both restored after mutation).
+- A12 proves a date field lacking a changing visible focus style still fails. All synthetic probes: **12/12**.
+- A temporary Vite harness using the production Dialog/TextInput/Button and CSS passes the full native cycle at both
+  widths: close → scrolling region → date subfields → datetime subfields → cancel → save → close, then reverse to
+  save; all six external stops show focus. The temporary files and Vite server were removed.
+- TypeScript (`tsc -b`), lint, touched-file Prettier and `git diff --check` pass. No production code, visual baseline,
+  backend JVM, full stack or production service changed in this correction. Fresh seeded CI remains required.
+
+The same CI run's backend failure came from a random UUID listing title containing a phone-like digit/hyphen run.
+Local commit `37e413d` imports the coordinator's tested alphabet-only nonce fixture from `ebf403e`; it changes no
+contact-info guard behavior. This fixture correction will accompany the next PR25 CI run.

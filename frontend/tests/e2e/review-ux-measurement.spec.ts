@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { KeyboardWalker } from './support/keyboard';
+import { focusProblem } from './support/focusCheck';
+import { modalTabCycle } from './support/modalFocus';
 import { loadSession, openRoute, type Session } from './support/routeCatalog';
 import { auditReflow, auditUi } from './support/targetAudit';
 
@@ -118,6 +120,67 @@ test.describe('A. the audit functions on synthetic pages', () => {
     const keys = new KeyboardWalker(page, 'A10');
     await keys.tabTo(page.locator('#f'));
     expect(keys.problems.join('\n')).toContain('no visible focus indicator');
+  });
+
+  test('A11 regression: native date/time segments keep their keyboard state during the full modal cycle', async ({
+    page,
+  }) => {
+    for (const width of [390, 1440]) {
+      await synthetic(
+        page,
+        '<dialog data-ux-scope="1" aria-labelledby="heading"><h2 id="heading" tabindex="-1">Hồ sơ dự án</h2>' +
+          '<button id="close">Đóng</button><label>Ngày <input id="date" type="date" value="2026-10-03"></label>' +
+          '<label>Hẹn giờ <input id="datetime" type="datetime-local" value="2026-10-03T14:30"></label>' +
+          '<button id="save">Lưu</button></dialog>',
+        'dialog{width:340px} label{display:block;margin:12px 0} input{height:44px}',
+      );
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(() => {
+        const dialog = document.querySelector('dialog')!;
+        dialog.showModal();
+        // Fixed external endpoints make this an audit fixture: native input subfields remain browser-managed;
+        // the collector and focus measurement must reach both endpoints and wrap in both directions.
+        dialog.addEventListener('keydown', (event) => {
+          if (event.key !== 'Tab') return;
+          if (!event.shiftKey && document.activeElement?.id === 'save') {
+            event.preventDefault();
+            document.querySelector<HTMLElement>('#close')!.focus();
+          } else if (event.shiftKey && document.activeElement?.id === 'close') {
+            event.preventDefault();
+            document.querySelector<HTMLElement>('#save')!.focus();
+          }
+        });
+        document.querySelector<HTMLElement>('#heading')!.focus();
+        (window as Window & { dateBlurs?: number }).dateBlurs = 0;
+        document.querySelector('#date')!.addEventListener('blur', () => {
+          (window as Window & { dateBlurs?: number }).dateBlurs! += 1;
+        });
+      });
+      const result = await modalTabCycle(page, true);
+      const ids = await page
+        .locator('#close,#date,#datetime,#save')
+        .evaluateAll((elements) => elements.map((el) => (el as HTMLElement).dataset.uxStop));
+      expect(result.order, `all external controls reached @${width}`).toEqual(ids);
+      expect(result.repeated).toBe(ids[0]);
+      expect(result.back).toBe(ids[3]);
+      expect(result.leaks).toEqual([]);
+      expect(result.invisible).toEqual([]);
+      expect(await page.evaluate(() => (window as Window & { dateBlurs?: number }).dateBlurs)).toBe(1);
+      expect(await page.locator('[inert]').count()).toBe(0);
+    }
+  });
+
+  test('A12 regression: native date fields still fail without a changing visible focus style', async ({ page }) => {
+    await synthetic(
+      page,
+      '<a href="#x">trước</a><label>Ngày <input id="date" type="date"></label>',
+      'input:focus-visible{outline:none}',
+    );
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#date')).toBeFocused();
+    expect(await focusProblem(page)).toContain('no visible focus indicator');
+    await expect(page.locator('#date')).toBeFocused();
   });
 
   test('A9 regression: a small nested button is measured', async ({ page }) => {
