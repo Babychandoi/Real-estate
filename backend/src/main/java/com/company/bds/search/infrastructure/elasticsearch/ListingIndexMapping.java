@@ -9,7 +9,8 @@ import java.time.Instant;
 
 /**
  * Explicit index mapping (version {@value #VERSION}, audit D-08) and the document built from a read-model row. The index
- * holds only what filtering, sorting and matching need; responses are always built from PostgreSQL rows.
+ * holds only what filtering, sorting and matching need. Listing content responses come from PostgreSQL rows;
+ * map bucket counts/bounds can come directly from Elasticsearch and apply the same expiry filter.
  * {@code vi_fold} = standard tokenizer + lowercase + asciifolding, which folds Vietnamese diacritics and {@code đ} the
  * same way {@code bds_search_normalize} does. {@code published_at} is {@code date_nanos} so the sort keeps the
  * microsecond precision of PostgreSQL (identical order on both engines). {@code gc_deletes} is raised so a delete

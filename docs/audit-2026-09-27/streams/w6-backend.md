@@ -365,3 +365,26 @@ Safety-guard focused validation: `bash mvnw -B spotless:apply test -Dtest=Search
 **BUILD SUCCESS, 11 tests, 0 failures/errors/skips, 23.016 s.** Also proves the live finite expiry is copied exactly
 and a NULL expiry remains visible. Compose config with both OPS and audit env settings passed using example env
 and a dummy signing value.
+
+
+**Final integrated follow-up — lead expiry and replay:** `LeadApplicationService` now reads the live deadline under
+the existing FOR SHARE listing lock. New submissions reject elapsed ACTIVE listings with
+`LISTING_NOT_ACCEPTING_LEADS`; eligibility uses the same rule. The actor-scoped committed replay resolves before
+current eligibility, so an exact retry still returns its original lead after expiry, including after the sweep sets
+EXPIRED. Failed new submissions leave no lead or idempotency row and consume no daily quota. The regression checks
+valid KYC actors, fresh acceptance, both elapsed states, one CREATED event and one quota-counted lead.
+Legacy pipe-joined request hashes remain valid across deployment, while replay also compares every canonical stored
+lead field (actor, listing, name, phone blind index, request type, note, consent). A crafted fullName/note collision with
+the exact same legacy hash returns 409 for changed input; the old exact payload still replays. No migration needed.
+
+Integrated final perf `841971e` (bounded full-response HTTP warmup, exact bbox and cache data timestamp) via `c8ecede`.
+The map merge retains bounded cluster cell selection, the requested bbox and cached snapshot `dataAsOf`; cache key
+version 2 avoids prior-shaped cached values. SQL catalog `seller.profile.top` / `detail.gone.slug` now copies the live
+expiry guards; `query-plans.py` correctly extracts the concatenated OWNER_ACTIVE anti-join: 3 Python tests passed,
+38 catalog shapes. The previous nominal cache TTL caveat applies to aggregate counts/bounds; snapshot time is exposed.
+
+Final integrated focused Maven command:
+`bash mvnw -B spotless:apply test -Dtest=LeadSubmissionConcurrencyTests,LeadInboxAndCommandTests,SearchWarmupTests,LoopbackHttpWarmupTests,SearchElasticsearchEngineTests,MapEngineSelectionTests,MapClusterLimitTests,LocalPageCacheTests`
+**BUILD SUCCESS, 45 tests / 8 classes, 0 failures/errors/skips.** Includes the new lead expiry/legacy-key collision
+regressions, bounded loopback HTTP body timeout, map cache bounds/time, current ES expiry/schema and cell completeness.
+Full CI and the remote final EXPLAIN/load evidence must be evaluated on the pushed integrated head before merge.
