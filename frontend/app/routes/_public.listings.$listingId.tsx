@@ -243,7 +243,15 @@ function ListingDetailView({
   ready: boolean;
 }) {
   const { user, isAuthenticated, isPoster, setIsLoginModalOpen } = useAuth();
-  const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE' | 'LOADING'>('NONE');
+  // The verification status is known only for the user it was fetched for. Until then (first render after sign-in,
+  // or a session whose profile is still loading) it is LOADING, so a verified seeker never sees the eKYC detour and
+  // `kyc_required_shown` is tracked only once the status is known to require it (review of PR #25, minor 5).
+  const [kyc, setKyc] = useState<{ userId: string; status: UserKycProfile['status'] | 'NONE' } | null>(null);
+  const kycStatus: UserKycProfile['status'] | 'NONE' | 'LOADING' = !isAuthenticated
+    ? 'NONE'
+    : !user || kyc?.userId !== user.id
+      ? 'LOADING'
+      : kyc.status;
   const [leadOpen, setLeadOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const isOwn = Boolean(user && user.id === listing.seller.id);
@@ -266,14 +274,15 @@ function ListingDetailView({
   }, [kycGate]);
 
   useEffect(() => {
-    if (!user) {
-      setKycStatus('NONE');
-      return;
-    }
-    setKycStatus('LOADING');
-    apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
-      .then((profile) => setKycStatus(profile.status))
-      .catch(() => setKycStatus('NONE'));
+    if (!user) return undefined;
+    let current = true;
+    const userId = user.id;
+    apiClient<UserKycProfile>(`/kyc/user/${userId}`)
+      .then((profile) => current && setKyc({ userId, status: profile.status }))
+      .catch(() => current && setKyc({ userId, status: 'NONE' }));
+    return () => {
+      current = false;
+    };
   }, [user]);
 
   const facts: Array<{ label: string; value: string | null; icon: typeof Maximize2 }> = [
@@ -328,6 +337,12 @@ function ListingDetailView({
     <Button className="w-full" onClick={() => setLeadOpen(true)} leftIcon={<MessageSquare className="h-4 w-4" />}>
       Hẹn xem & nhận tư vấn
     </Button>
+  ) : kycStatus === 'LOADING' ? (
+    // DS-08 ContactPanel "loading": while the verification status is unknown, never offer the eKYC detour to a
+    // seeker who may already be verified; a busy, disabled CTA keeps the panel's layout.
+    <Button className="w-full" isLoading>
+      Đang kiểm tra xác minh…
+    </Button>
   ) : (
     <ButtonLink
       to={`/kyc?returnTo=${encodeURIComponent(`${pathname}?contact=1`)}`}
@@ -365,7 +380,9 @@ function ListingDetailView({
               {purposeLabel(listing.purpose)} · {propertyTypeLabel(listing.propertyType)}
               {listing.project && <> · Dự án {listing.project.name}</>}
             </p>
-            <h1 className="mt-1 text-xl font-bold leading-snug text-on-surface md:text-2xl">{listing.title}</h1>
+            <h1 className="mt-1 text-xl font-bold leading-snug text-on-surface [overflow-wrap:anywhere] md:text-2xl">
+              {listing.title}
+            </h1>
             <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <Money price={listing.price} className="text-3xl font-extrabold tracking-tight text-primary" />
               <UnitPriceText
@@ -402,9 +419,12 @@ function ListingDetailView({
               </dl>
             )}
             {place && (
-              <p className="flex items-center gap-1.5 text-body-sm text-on-surface-variant">
-                <MapPin className="h-4 w-4 shrink-0 text-outline" aria-hidden="true" /> {place}
-                <span className="text-label">(vị trí gần đúng)</span>
+              <p className="flex min-w-0 items-start gap-1.5 text-body-sm text-on-surface-variant">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-outline" aria-hidden="true" />
+                {/* A long unbroken address wraps instead of pushing the page sideways (DS-06, found by ux-audit). */}
+                <span className="min-w-0 [overflow-wrap:anywhere]">
+                  {place} <span className="text-label">(vị trí gần đúng)</span>
+                </span>
               </p>
             )}
             <p className="text-label font-normal text-on-surface-variant">
@@ -454,7 +474,7 @@ function ListingDetailView({
             <h2 id="description-heading" className="text-lg font-bold text-on-surface">
               Mô tả bất động sản
             </h2>
-            <div className="whitespace-pre-line rounded-xl border border-outline-variant/40 bg-surface-container-lowest p-5 text-sm leading-relaxed text-on-surface">
+            <div className="whitespace-pre-line rounded-xl [overflow-wrap:anywhere] border border-outline-variant/40 bg-surface-container-lowest p-5 text-sm leading-relaxed text-on-surface">
               {listing.description?.trim() || 'Người đăng chưa cung cấp mô tả chi tiết.'}
             </div>
           </section>
@@ -476,7 +496,7 @@ function ListingDetailView({
                 <Avatar name={listing.seller.name} src={listing.seller.avatarUrl} size="lg" />
               </Link>
               <div className="flex min-w-0 flex-col gap-2">
-                <p className="font-semibold text-on-surface">
+                <p className="font-semibold text-on-surface [overflow-wrap:anywhere]">
                   <Link to={`/nguoi-dang/${listing.seller.id}`} className="hover:text-primary hover:underline">
                     {listing.seller.name || 'Người đăng'}
                   </Link>{' '}
@@ -507,7 +527,7 @@ function ListingDetailView({
                 size="md"
               />
               <div className="min-w-0">
-                <h2 id="contact-heading" className="text-sm font-bold text-on-surface">
+                <h2 id="contact-heading" className="text-sm font-bold text-on-surface [overflow-wrap:anywhere]">
                   {isOwn ? 'Đây là tin của bạn' : `Liên hệ ${listing.seller.name ?? 'người đăng'}`}
                 </h2>
                 {isOwn ? (
@@ -515,7 +535,7 @@ function ListingDetailView({
                 ) : (
                   <Link
                     to={`/nguoi-dang/${listing.seller.id}`}
-                    className="text-xs font-semibold text-primary hover:underline"
+                    className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline"
                   >
                     Xem trang người đăng
                   </Link>

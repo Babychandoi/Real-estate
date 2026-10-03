@@ -548,8 +548,8 @@ export const CreateListingPage: React.FC = () => {
                       )}
                     </span>
                     <span className="overflow-hidden">
-                      <span className="block truncate text-xs font-bold">{s.label}</span>
-                      <span className="block text-xs text-slate-500">Bước {s.id} / 4</span>
+                      <span className="block truncate text-sm font-bold">{s.label}</span>
+                      <span className="block text-sm text-slate-500">Bước {s.id} / 4</span>
                     </span>
                   </button>
                 </li>
@@ -1003,7 +1003,9 @@ export const CreateListingPage: React.FC = () => {
                         )}
                         {preview.legal?.label && <p className="mt-1 text-body-sm">Pháp lý: {preview.legal.label}</p>}
                         {preview.description && (
-                          <p className="mt-3 whitespace-pre-line text-body-sm">{preview.description}</p>
+                          <p className="mt-3 whitespace-pre-line text-body-sm [overflow-wrap:anywhere]">
+                            {preview.description}
+                          </p>
                         )}
                       </div>
                     </article>

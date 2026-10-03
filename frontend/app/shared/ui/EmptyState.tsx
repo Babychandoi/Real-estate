@@ -32,8 +32,10 @@ export function EmptyState({
       <span className="grid h-12 w-12 place-items-center rounded-pill bg-surface-container text-primary">
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
-      <Heading className="text-headline-sm text-on-surface">{title}</Heading>
-      {description && <p className="max-w-prose text-body-sm text-on-surface-variant">{description}</p>}
+      <Heading className="max-w-full text-headline-sm text-on-surface [overflow-wrap:anywhere]">{title}</Heading>
+      {description && (
+        <p className="max-w-prose text-body-sm text-on-surface-variant [overflow-wrap:anywhere]">{description}</p>
+      )}
       {actions && <div className="mt-1 flex flex-wrap justify-center gap-3">{actions}</div>}
     </div>
   );

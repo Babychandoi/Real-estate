@@ -8,6 +8,13 @@ const DECISION: Record<string, string> = {
   EXPIRED: 'Hết hiệu lực',
 };
 
+/**
+ * Shown while VITE_KYC_RETENTION_NOTICE is unset: says plainly that the period has not been published yet, without
+ * inventing one. The configured wording itself is the product owner's decision (UI-12).
+ */
+export const KYC_RETENTION_UNSET =
+  'Thời hạn lưu trữ ảnh giấy tờ chưa được công bố. Nội dung này sẽ được cập nhật khi chính sách lưu trữ được phê duyệt.';
+
 /** UI-12: what identity verification proves (and does not), why documents are needed, who sees them, the timeline. */
 export function KycScopePanel({ status }: { status: MyKycStatus | null }) {
   const retentionNotice = import.meta.env.VITE_KYC_RETENTION_NOTICE?.trim();
@@ -33,8 +40,8 @@ export function KycScopePanel({ status }: { status: MyKycStatus | null }) {
           hiển thị công khai; chỉ nhân sự kiểm duyệt xem được sau khi xác nhận lại mật khẩu và nêu lý do, và mỗi lần xem
           đều được ghi lại. Số CCCD được mã hóa và chỉ hiển thị dạng che.
         </p>
-        <p className="mt-1 text-on-surface-variant">
-          {retentionNotice || 'Thời hạn lưu trữ ảnh giấy tờ: chưa có dữ liệu chính sách được công bố.'}{' '}
+        <p className="mt-1 text-on-surface-variant" data-testid="kyc-retention-notice">
+          {retentionNotice || KYC_RETENTION_UNSET}{' '}
           <a href="/privacy" className="font-semibold text-primary underline">
             Xem chính sách quyền riêng tư
           </a>

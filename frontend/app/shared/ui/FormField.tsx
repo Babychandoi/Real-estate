@@ -49,7 +49,10 @@ export function FormField({ label, hint, error, required, disabled, status, id, 
     <div className={cn('flex flex-col gap-1.5', className)}>
       <label
         htmlFor={controlId}
-        className={cn('text-body-sm font-semibold text-on-surface', disabled && 'text-on-surface-variant')}
+        className={cn(
+          'text-body-sm font-semibold text-on-surface [overflow-wrap:anywhere]',
+          disabled && 'text-on-surface-variant',
+        )}
       >
         {label}
         {required && (
@@ -67,13 +70,14 @@ export function FormField({ label, hint, error, required, disabled, status, id, 
         disabled,
       })}
       {error && (
-        <p id={errorId} className="flex items-start gap-1.5 text-label font-normal text-error">
-          <AlertCircle className="mt-px h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>{error}</span>
+        // Error text is 14 px (DS-03: errors are never caption-sized) and wraps inside the field.
+        <p id={errorId} data-error="" className="flex items-start gap-1.5 text-body-sm font-normal text-error">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 [overflow-wrap:anywhere]">{error}</span>
         </p>
       )}
       {hint && (
-        <p id={hintId} className="text-label font-normal text-on-surface-variant">
+        <p id={hintId} className="text-label font-normal text-on-surface-variant [overflow-wrap:anywhere]">
           {hint}
         </p>
       )}

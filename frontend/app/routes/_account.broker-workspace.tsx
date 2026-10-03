@@ -318,7 +318,10 @@ function Overview({ data, onChange }: { data: BrokerWorkspace; onChange: (next: 
                   {entry.toStatus && entry.type === 'STATUS_CHANGED'
                     ? `: ${LEAD_STATUS_LABELS[entry.toStatus]}`
                     : ''} ·{' '}
-                  <Link className="text-primary hover:underline" to={`/my-leads?lead=${entry.leadId}`}>
+                  <Link
+                    className="font-semibold text-primary underline underline-offset-2"
+                    to={`/my-leads?lead=${entry.leadId}`}
+                  >
                     {entry.leadName}
                   </Link>{' '}
                   · {entry.listingTitle}

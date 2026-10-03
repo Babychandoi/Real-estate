@@ -240,10 +240,16 @@ export const AdminLoginPage: React.FC = () => {
               {loading ? 'Đang xác thực…' : 'Tiếp tục'}
             </Button>
             <div className="flex items-center justify-between text-sm">
-              <Link to="/forgot-password" className="font-semibold text-primary hover:underline">
+              <Link
+                to="/forgot-password"
+                className="inline-flex min-h-11 items-center font-semibold text-primary hover:underline"
+              >
                 Quên mật khẩu?
               </Link>
-              <Link to="/" className="text-on-surface-variant hover:text-on-surface hover:underline">
+              <Link
+                to="/"
+                className="inline-flex min-h-11 items-center text-on-surface-variant hover:text-on-surface hover:underline"
+              >
                 Về trang chính
               </Link>
             </div>

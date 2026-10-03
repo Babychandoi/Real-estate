@@ -174,7 +174,7 @@ export const LoginModal: React.FC = () => {
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-dialog-title"
-        className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[92dvh] overflow-y-auto"
+        className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] overflow-y-auto"
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-outline-variant/30 flex items-center justify-between bg-surface-container/50">
@@ -204,7 +204,7 @@ export const LoginModal: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabSwitch('login')}
-            className={`flex-1 py-2.5 text-sm font-semibold transition-all border-b-2 ${
+            className={`min-h-11 flex-1 py-2.5 text-sm font-semibold transition-colors border-b-2 ${
               activeTab === 'login'
                 ? 'border-primary text-primary bg-surface'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -215,7 +215,7 @@ export const LoginModal: React.FC = () => {
           <button
             type="button"
             onClick={() => handleTabSwitch('register')}
-            className={`flex-1 py-2.5 text-sm font-semibold transition-all border-b-2 ${
+            className={`min-h-11 flex-1 py-2.5 text-sm font-semibold transition-colors border-b-2 ${
               activeTab === 'register'
                 ? 'border-primary text-primary bg-surface'
                 : 'border-transparent text-on-surface-variant hover:text-on-surface'
@@ -230,7 +230,7 @@ export const LoginModal: React.FC = () => {
           <form onSubmit={handleLogin} autoComplete="off" className="p-6 flex flex-col gap-4">
             {/* Error alert */}
             {loginError && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700" role="alert">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{loginError}</span>
@@ -252,7 +252,7 @@ export const LoginModal: React.FC = () => {
               </div>
             )}
             {resendMessage && (
-              <p className="rounded-xl bg-emerald-50 p-3 text-xs text-emerald-800" role="status">
+              <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800" role="status">
                 {resendMessage}
               </p>
             )}
@@ -302,7 +302,7 @@ export const LoginModal: React.FC = () => {
                   type="button"
                   onClick={() => setShowLoginPw(!showLoginPw)}
                   aria-label={showLoginPw ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  className="absolute right-1 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-lg text-on-surface-variant hover:text-on-surface transition-colors"
+                  className="absolute right-0 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg text-on-surface-variant hover:text-on-surface transition-colors"
                 >
                   {showLoginPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -313,7 +313,7 @@ export const LoginModal: React.FC = () => {
               <Link
                 to="/forgot-password"
                 onClick={handleClose}
-                className="text-xs font-semibold text-primary hover:underline"
+                className="inline-flex min-h-11 items-center text-sm font-semibold text-primary hover:underline"
               >
                 Quên mật khẩu?
               </Link>
@@ -332,12 +332,12 @@ export const LoginModal: React.FC = () => {
             </Button>
 
             {/* Hint chuyển tab */}
-            <p className="text-center text-xs text-on-surface-variant mt-1">
+            <p className="text-center text-sm text-on-surface-variant mt-1">
               Chưa có tài khoản?{' '}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('register')}
-                className="text-primary font-semibold hover:underline"
+                className="inline-flex min-h-11 items-center text-primary font-semibold hover:underline"
               >
                 Đăng ký ngay
               </button>
@@ -362,7 +362,10 @@ export const LoginModal: React.FC = () => {
           <form onSubmit={handleRegister} className="p-6 flex flex-col gap-4">
             {/* Error alert */}
             {regError && (
-              <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
+              <div
+                className="flex items-center gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm"
+                role="alert"
+              >
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{regError}</span>
               </div>
@@ -492,12 +495,12 @@ export const LoginModal: React.FC = () => {
             </div>
 
             {/* Toggle show password */}
-            <label className="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer select-none">
+            <label className="flex min-h-11 items-center gap-2 text-sm text-on-surface-variant cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={showRegPw}
                 onChange={() => setShowRegPw(!showRegPw)}
-                className="w-3.5 h-3.5 rounded accent-primary"
+                className="h-4 w-4 rounded accent-primary"
               />
               Hiển thị mật khẩu
             </label>
@@ -515,12 +518,12 @@ export const LoginModal: React.FC = () => {
             </Button>
 
             {/* Hint chuyển tab */}
-            <p className="text-center text-xs text-on-surface-variant">
+            <p className="text-center text-sm text-on-surface-variant">
               Đã có tài khoản?{' '}
               <button
                 type="button"
                 onClick={() => handleTabSwitch('login')}
-                className="text-primary font-semibold hover:underline"
+                className="inline-flex min-h-11 items-center text-primary font-semibold hover:underline"
               >
                 Đăng nhập
               </button>
