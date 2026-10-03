@@ -188,6 +188,14 @@ class OutcomeTests(unittest.TestCase):
         self.assertIn("invalid rows", result.stdout)
         self.assertIn("pitr_restored_last_marker", result.stderr)
 
+    def test_restored_markers_cannot_report_negative_data_loss(self):
+        for key in ("pitr_restored_last_marker", "hostloss_restored_last_marker"):
+            for value in ("13 2026-10-03T12:00:11.000Z", "11 2026-10-03T12:00:13.000Z"):
+                with self.subTest(key=key, value=value):
+                    values = recovery_fixture()
+                    values[key] = value
+                    self.assert_invalid("recovery", values, key)
+
 
 if __name__ == "__main__":
     unittest.main()

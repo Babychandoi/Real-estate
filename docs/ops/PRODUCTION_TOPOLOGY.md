@@ -231,7 +231,9 @@ cần tắt hẳn qua reboot thì gỡ (`rm -sf <service>`), không chỉ `stop`
 ```bash
 docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml build backend frontend
 docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml stop backend frontend
-docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps backend frontend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps --wait --wait-timeout 180 backend
+# Chỉ mở frontend khi backend đã healthy, bao gồm bước làm ấm trước readiness.
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps --wait --wait-timeout 180 frontend
 curl -fsS http://127.0.0.1:3000/healthz && curl -fsS http://127.0.0.1:3000/backend-health
 scripts/verify-headers.sh https://nhadatchuan.online
 # thủ công: đăng nhập, tìm kiếm, mở chi tiết tin, gửi lead thử bằng tài khoản nội bộ
@@ -258,7 +260,9 @@ làm màn hình tương ứng của app cũ lỗi khi đọc.
 ```bash
 docker tag bds-production-backend:rollback-$STAMP  bds-production-backend:latest
 docker tag bds-production-frontend:rollback-$STAMP bds-production-frontend:latest
-docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps --force-recreate backend frontend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml stop frontend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps --force-recreate --wait --wait-timeout 180 backend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps --force-recreate --wait --wait-timeout 180 frontend
 ```
 
 ### Rollback khi migration không tương thích

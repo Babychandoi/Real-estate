@@ -110,13 +110,21 @@ def validate(kind, values):
             seconds(key)
         for label in ("pitr", "hostloss"):
             serving(label, "rto_first_page_seconds", "rto_seconds")
+        markers = {}
         for key in ("last_marker_at_loss", "pitr_restored_last_marker", "hostloss_restored_last_marker"):
             try:
                 seq, stamp = marker(values.get(key))
                 if seq is None or stamp is None or seq < 0:
                     raise ValueError
+                markers[key] = (seq, stamp)
             except ValueError:
                 errors.append(f"{key}: missing or invalid RPO marker")
+        lost = markers.get("last_marker_at_loss")
+        if lost is not None:
+            for key in ("pitr_restored_last_marker", "hostloss_restored_last_marker"):
+                restored = markers.get(key)
+                if restored is not None and (restored[0] > lost[0] or restored[1] > lost[1]):
+                    errors.append(f"{key}: restored marker exceeds the marker at loss")
     elif kind == "rollback":
         # The drill records resolved SHAs, even when PREVIOUS_REFS contains symbolic refs.
         refs = values.get("previous_refs", "").split()

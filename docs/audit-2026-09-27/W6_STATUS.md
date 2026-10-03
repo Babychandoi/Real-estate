@@ -10,17 +10,17 @@ Production vẫn là `13e41a2`; chưa deploy W6.
   Redis lỗi thì bỏ qua ngay thay vì chờ 2 s).
 - Ma trận tại `13e41a2`: 143 DONE · 16 PARTIAL · 6 TODO · 7 EXTERNAL (ma trận chưa cập nhật theo #16–#21 và W6).
 
-## 2. W6 — code đã viết, CHƯA merge (4 PR nháp + 1 PR CI)
+## 2. W6 — tiến độ tích hợp
 
 | PR | Nhánh | Trạng thái review | Còn phải làm trước khi merge |
 |---|---|---|---|
 | #26 | `fix/npm-audit-braces` | Đã merge; CI backend/frontend/security/e2e đều xanh | Hoàn tất, merge đầu tiên tại `16677a0` |
 | #22 | `audit/w6-ops` | **Đã merge**, review vòng 3 không còn BLOCKER/MAJOR; toàn bộ CI và artifact khôi phục/rollback PASS | Hoàn tất `--no-deps`, hàm shell bash/zsh, env mẫu, xác thực hostname trước envsubst; CI `37103278682` và drills `37103278738` xanh, RTO PITR 25,2 s / mất máy 47,5 s (CI) |
-| #24 | `audit/w6-backend` | Review vòng 2: **chưa merge được** | Vòng 3 đang làm dở (worktree `agent-a978170b66845c17b`): `verify()` báo nhầm "bị sửa" khi bộ ghép chạy (MAJOR); endpoint kiểm tra báo `intact=false` vì backlog 1 s; V103 vẫn khóa bảng suốt lúc tạo index (tách index ra migration riêng); giới hạn 50 lượt tìm/request phải tính chung cả lần khởi động lại; vài NIT. Test tái hiện của reviewer: nhánh local `review2/w6-backend` commit `8535980` |
-| #25 | `audit/w6-ux` | Review vòng 1 xong: 1 BLOCKER, 2 MAJOR | Vòng 2 đang làm dở (worktree `agent-a3d5d7ca89c67e347`): tạo lại 8 ảnh mẫu visual từ ảnh CI; đặt `inert` cho nền khi mở hộp thoại (trình đọc màn hình vẫn đọc được nền); kiểm tra focus đủ chặt + sửa ô tìm trong trang So sánh không có focus; mũi tên mở rộng ở trang Phân tích; nút eKYC hiện nhầm lúc đầu. Test của reviewer: nhánh local `review/w6-ux` commit `e1fc2c7` |
-| #23 | `audit/w6-perf` | Review vòng 1 xong: 0 BLOCKER, 3 MAJOR | Vòng 2 đang làm dở (worktree `agent-a5a713c90ea2fb7df`): sửa nhãn CPU sai ở 3 chỗ; sửa chẩn đoán khởi động nguội; workflow đo tải chỉ chạy bản rút gọn trên PR; làm bản đồ nhanh hơn (O1 → nếu chưa đạt thì O2: gom cụm bằng Elasticsearch) + làm ấm DB trước khi nhận traffic. Test của reviewer: nhánh local `review/w6-perf` commit `5f1ca20` |
+| #24 | `audit/w6-backend` | Đã sửa vòng 3; full verify và review tích hợp đang chạy | `801f897`: sửa kiểm tra audit đồng thời/backlog, tách index V106 khỏi V103, checkpoint kiểm tra tăng dần, giới hạn 50 lần tìm chung, idempotency lưu response và chống hash nhập nhằng. Rà quyền phát hiện thêm tin ACTIVE đã quá hạn: sửa SQL/cache/media và mapping ES v2, tự rebuild mapping cũ. 33 test tập trung xanh; chưa kết luận CI cuối |
+| #25 | `audit/w6-ux` | Đã sửa baseline/inert/focus; CI `37103393159` còn lỗi E2E | `cf74476`: frontend/backend/security xanh. Đang sửa vùng bấm nhỏ ở CMS/reports, focus ban đầu của filter thuê và thứ tự Tab trong CMS/projects; kiểm tra riêng visual theo browser, không giảm assertion |
+| #23 | `audit/w6-perf` | CI + PR smoke xanh tại `3128409`; phép đo đầy đủ còn lỗi | Đã gom cụm bản đồ bằng ES, giới hạn truy vấn DB, cache fallback và warmup/readiness. Burst/soak 100k đã có lượt xanh; fault/cold và 1M chưa đạt. Đang bổ sung làm ấm HTTP trước readiness, `shm_size: 256mb` cho PostgreSQL và ràng buộc dung lượng cache; phải đo lại |
 
-**Thứ tự merge bắt buộc** (Flyway không cho chạy lệch thứ tự): #26 → #23 (V100–V102) → #24 (V103+) ; #22, #25 lúc nào cũng được.
+**Thứ tự merge bắt buộc** (Flyway không cho chạy lệch thứ tự): #26 → #23 (V100–V101; V102 không dùng) → #24 (V103–V106); #22, #25 lúc nào cũng được.
 **Deploy:** dùng đúng lệnh trong runbook mới của #22: `-p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml`, app dùng `--no-deps`.
 
 ## 3. Kết quả W6 đã có bằng chứng (chờ merge mới tính DONE)
@@ -32,7 +32,7 @@ Production vẫn là `13e41a2`; chưa deploy W6.
 - DS-03 (681→0 vùng bấm nhỏ), DS-04/axe 0 lỗi, DS-06 (zoom 200%), DS-08, R-7 phần tự động.
 
 ## 4. Chưa đạt / còn mở
-- D-13, R-5: tải đột biến 3× thất bại (p95 ≈ 3,3 s, ~4000 rớt; bản đồ chiếm 86 % thời gian DB); khởi động nguội ~25 s chậm.
+- D-13, R-5: lượt đo burst cũ thất bại đã có sửa và lượt 100k xanh, nhưng cold/fault 100k và 1M vẫn chưa đạt; không dùng kết quả PR smoke để thay phép đo đầy đủ.
 - DS-05: 8 chỗ lệch bảng 8.3 cần chủ sản phẩm chọn sửa code hay sửa tài liệu.
 - UI-12: câu chữ thời hạn lưu giấy tờ KYC (biến `VITE_KYC_RETENTION_NOTICE`).
 - Cập nhật `01_REQUIREMENTS.md`, `IMPLEMENTATION_PLANS_HISTORY.md`, `WALKTHROUGHS_HISTORY.md` sau khi merge.
@@ -49,5 +49,6 @@ Production vẫn là `13e41a2`; chưa deploy W6.
 - Cổng 55432/56379/59000 bị project `ai-marketing` chiếm khi nó chạy → đổi cổng một bên.
 
 ## 6. Tiếp tục thế nào
-Mỗi worktree trong `.claude/worktrees/` giữ nguyên phần sửa dở (có thể có thay đổi chưa commit). Để làm tiếp: mở lại từng
-luồng theo bảng mục 2, chạy hết vòng sửa, review lại, rồi merge theo đúng thứ tự.
+Các worktree trong `.claude/worktrees/` đang tiếp tục theo bảng mục 2. Nhánh `audit/w6-consolidation` giữ cập nhật trạng thái,
+gate npm audit không chấp nhận báo cáo lỗi/thiếu dữ liệu, gate diễn tập thất bại khi outcome sai, và runbook chờ backend
+healthy trước khi mở frontend. Chưa merge/deploy nhánh tổng hợp này; vẫn cần CI tích hợp và diễn tập với schema mới.
