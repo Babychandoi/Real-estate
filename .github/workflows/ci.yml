@@ -110,7 +110,12 @@ jobs:
       # Each check runs even when an earlier one failed, so one run shows every problem.
       - name: Audit dependencies (high and critical)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm audit --audit-level=high
+        # Blocks every high/critical advisory except those accepted in audit-exceptions.json (reason + expiry,
+        # dev-only exceptions void as soon as the advisory reaches the production dependency tree).
+        run: node scripts/npm-audit-gate.mjs
+      - name: Audit production dependencies (high and critical, no exceptions)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint (ESLint)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run lint
