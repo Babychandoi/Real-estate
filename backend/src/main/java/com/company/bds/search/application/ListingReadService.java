@@ -13,7 +13,6 @@ import com.company.bds.search.application.port.ListingReadModelPort.SellerProfil
 import com.company.bds.search.application.port.ListingReadModelPort.VersionRef;
 import com.company.bds.search.application.port.ListingSearchEnginePort;
 import com.company.bds.search.application.port.ResponseCachePort;
-import com.company.bds.search.domain.BoundingBox;
 import com.company.bds.search.domain.PublicListing;
 import com.company.bds.search.domain.SearchFilter;
 import com.company.bds.search.domain.SearchSort;
@@ -51,10 +50,10 @@ public class ListingReadService {
     public record MapResult(String mode, List<MapPoint> points, List<MapCluster> clusters, Total total, String engine,
                             Instant dataAsOf) {}
 
-    /** What the map fallback cache stores (database clusters of a snapped viewport). */
-    public record CachedClusters(List<MapCluster> clusters, Total total) {}
+    /** Database clusters of the exact viewport and the start of their computation. */
+    public record CachedClusters(List<MapCluster> clusters, Total total, Instant dataAsOf) {}
 
-    /** Database clusters computed during an Elasticsearch outage are shared for this long (snapped viewport key). */
+    /** Database clusters computed during an Elasticsearch outage are shared for this long (exact viewport key). */
     static final Duration FALLBACK_CLUSTERS_TTL = Duration.ofSeconds(60);
 
     private static final Logger log = LoggerFactory.getLogger(ListingReadService.class);
@@ -146,8 +145,8 @@ public class ListingReadService {
      * list. W6-PERF: no separate capped count any more. The points probe reads at most {@value #MAP_POINT_LIMIT} + 1 rows
      * and the cluster total is the engine's hit count or the sum of the cells. Clusters come from Elasticsearch
      * ({@code geotile_grid}, so they follow the ~1 s index lag) and from PostgreSQL only when the engine is disabled or
-     * unavailable. During an outage the database clusters are computed for the viewport snapped outward to whole tiles
-     * and shared for {@code FALLBACK_CLUSTERS_TTL}, so map traffic cannot overload the database fallback.
+     * unavailable. During an outage identical filters and exact viewports share database clusters for
+     * {@code FALLBACK_CLUSTERS_TTL}; cached responses retain the original computation timestamp.
      */
     public MapResult map(SearchFilter filter, int zoom) {
         Instant now = clock.instant();
@@ -178,33 +177,26 @@ public class ListingReadService {
         }
         if (!settings.enabled()) {
             CachedClusters exact = databaseClusters(filter, cell);
-            return new MapResult("clusters", List.of(), exact.clusters(), exact.total(), SearchResults.ENGINE_DATABASE, now);
+            return new MapResult("clusters", List.of(), exact.clusters(), exact.total(), SearchResults.ENGINE_DATABASE, exact.dataAsOf());
         }
-        // Outage policy: whole tiles around the viewport, shared across requests (and instances) for a minute.
-        SearchFilter snapped = filter.withBbox(snap(filter.bbox(), cell * 4));
-        String hash = snapped.filterHash() + ":" + zoom;
+        // Only identical filters and viewports share a snapshot; panning must preserve the requested bbox.
+        String hash = filter.filterHash() + ":" + zoom;
         long generation = cache.generation();
         CachedClusters shared = generation >= 0
-                ? cache.getOrCompute("map-clusters", "map:" + generation + ":" + hash, FALLBACK_CLUSTERS_TTL,
-                        CachedClusters.class, () -> databaseClusters(snapped, cell))
-                : cache.collapse("map:" + hash, () -> databaseClusters(snapped, cell));
-        return new MapResult("clusters", List.of(), shared.clusters(), shared.total(), SearchResults.ENGINE_DATABASE, now);
+                ? cache.getOrCompute("map-clusters", "map:v2:" + generation + ":" + hash, FALLBACK_CLUSTERS_TTL,
+                        CachedClusters.class, () -> databaseClusters(filter, cell))
+                : cache.collapse("map:" + hash, () -> databaseClusters(filter, cell));
+        return new MapResult("clusters", List.of(), shared.clusters(), shared.total(), SearchResults.ENGINE_DATABASE, shared.dataAsOf());
     }
 
     private CachedClusters databaseClusters(SearchFilter filter, double cell) {
+        Instant dataAsOf = clock.instant();
         List<MapCluster> clusters = readModel.mapClusters(filter, cell, MAP_CLUSTER_LIMIT);
         long sum = clusters.stream().mapToLong(MapCluster::count).sum();
         // more cells than the bound: the sum is a lower bound
         Total total = clusters.size() >= MAP_CLUSTER_LIMIT ? new Total(Math.min(sum, SearchResults.TOTAL_CAP), "gte")
                 : Total.capped(sum, SearchResults.TOTAL_CAP);
-        return new CachedClusters(clusters, total);
-    }
-
-    static BoundingBox snap(BoundingBox box, double step) {
-        return new BoundingBox(Math.max(-180, Math.floor(box.minLng() / step) * step),
-                Math.max(-90, Math.floor(box.minLat() / step) * step),
-                Math.min(180, Math.ceil(box.maxLng() / step) * step),
-                Math.min(90, Math.ceil(box.maxLat() / step) * step));
+        return new CachedClusters(clusters, total, dataAsOf);
     }
 
     /** Thumbnails of a page resolved with one resolver call (at most one query). */

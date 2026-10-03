@@ -12,8 +12,8 @@ F05.5.
 | F09.3 | **DONE** | EXPLAIN (ANALYZE, BUFFERS, SETTINGS) of 40 application query shapes at **100k and 1M** public listings, **warm and cold**, before/after V100: runs [37067923955](https://github.com/Babychandoi/Real-estate/actions/runs/37067923955) and [37069904979](https://github.com/Babychandoi/Real-estate/actions/runs/37069904979), artifacts `query-plans-<run>-1` (§3). | Repeat on an anonymised production snapshot before tuning further (synthetic skew, §3.1). |
 | D-05 | **DONE** | The EXPLAINs show the intended indexes on their shapes (owner/status `idx_listings_owner_status_created`, `idx_listings_owner_created`; feed `idx_lpr_newest`; price/area `idx_lpr_price`/`idx_lpr_area`; GiST `idx_lpr_location`; GIN `idx_lpr_search_tsv`; seller `idx_lpr_owner_newest`). One missing index found by EXPLAIN — the public detail slug lookup was a sequential scan — added in **V100** with before/after: 1M warm 223 ms → 0.099 ms, cold 3858 ms → 1.0 ms (run 37069904979: 201 ms → 0.102 ms, 4964 ms → 1.1 ms) (§3.2). No other index added: the remaining slow shapes are not index problems (§3.3). | Map clusters / similar listings / capped counts need query or design changes (§3.3, §6). |
 | F09.2 | **DONE** | GiST `idx_lpr_location` used for bbox (`map.count.zoom15`, `map.points.zoom15` 2.9 ms at 1M, `map.clusters.zoom13` BitmapAnd), GIN `idx_lpr_search_tsv` for selective keywords (`search.keyword.rare.newest`: 4.9 ms at 1M). Keyword search is FTS (`plainto_tsquery('simple')`); trigram is used only by duplicate detection, not by public search. Common keywords correctly walk `idx_lpr_newest` (0.75 ms at 1M). | — |
-| D-13 | **PARTIAL** | Constant arrival 100 reads/s + 10 writes/s on **100k** listings: 10-min soak green four times (runs 37063450468, 37065843904, 37067923955, 37069904979), cold cache, burst, ES and Redis outage/recovery, index rebuild (14.7–16.9 s for 100,060 documents) all measured (§4). | **Burst 3× now passes** after O2 (§9); latest cold gate still fails on 2 dropped iterations, despite latency/error gates passing. Load at **1M** listings and the restore/rollback drill were not run (§6). |
-| R-5 | **PARTIAL** | Measured per phase: p50/p95/p99 per request type, API error rate (0 % in every phase), index lag (bds.search.index.lag deltas), job backlog (5-s samples), outbox backlog (0 — outbox disabled in this stack), SQL statements per request type (pg_stat_statements), top statements by database time (§4, §5). **Controlled fallback**: the degraded phase now passes (p95 137 / 119 / 119 ms in three runs) after a fix in `ListingSearchService` (§4.4). | O2 burst and steady ES stop/hang fallback pass (§9). Cold restart still has 2 dropped arrivals; 1M load remains unmeasured. |
+| D-13 | **PARTIAL** | Constant arrival 100 reads/s + 10 writes/s on **100k** listings: 10-min soak green four times (runs 37063450468, 37065843904, 37067923955, 37069904979), cold cache, burst, ES and Redis outage/recovery, index rebuild (14.7–16.9 s for 100,060 documents) all measured (§4). | **Burst 3× now passes** after O2 (§9); latest strict repeat has zero drops but fails cold latency; **1M** load was attempted and fails from shared-memory exhaustion (§10). Restore/rollback drill remains outside this stream. |
+| R-5 | **PARTIAL** | Measured per phase: p50/p95/p99 per request type, API error rate (0 % in every phase), index lag (bds.search.index.lag deltas), job backlog (5-s samples), outbox backlog (0 — outbox disabled in this stack), SQL statements per request type (pg_stat_statements), top statements by database time (§4, §5). **Controlled fallback**: the degraded phase now passes (p95 137 / 119 / 119 ms in three runs) after a fix in `ListingSearchService` (§4.4). | O2 burst and steady ES stop/hang fallback pass (§9). Latest cold restart has zero drops but fails latency; 1M mixed-load attempts fail before a complete soak/burst (§10). |
 | F05.5 | **DONE** | Approval → visible in Elasticsearch search under the 100/10 soak: **p95 1.68–1.85 s** (301 approvals per run, 100 % visible), four runs (37063450468 p95 1676 ms, 37065843904 1678 ms, 37067923955 1846 ms, 37069904979 1685 ms); server-side `bds.search.index.lag` 98.2–98.6 % ≤ 1 s, 100 % ≤ 5 s, max 1.03 s; job backlog ≤ 12 (§4.2). | Under the 3× burst the index lag is 22–23 s mean (only 30 % ≤ 10 s) — a burst gap, not the F05.5 load. |
 
 ## 2. Harness (what runs where)
@@ -266,14 +266,14 @@ recorded and excluded) → 30 sequential requests of one type → calls / 30. Ru
 - **Burst 3×** (D-13/R-5): original DB-only version fails (§4); O2 Elasticsearch aggregation now passes on 100k (§9).
   The remaining validation is a repeat on the final PR head and representative production skew.
 - **Cold restart gate**: original version fails for ~25 s (§4.4); warm-up/O2 brings read p95 to 72 ms, but 2 dropped
-  iterations still fail the gate (§9). No gate has been weakened.
-- **1M listings under load**: only the EXPLAIN evidence exists at 1M; DB fallback maps (1 s warm), similar
-  listings (363 ms warm) and fallback counts (150–330 ms warm) remain scaling risks. O2 ES at 1M has not been load tested.
+  iterations still fail the first gate (§9); the strict repeat has zero drops but fails latency (§10). No gate has been weakened.
+- **1M listings under load**: run 37103504199 attempted the full mix, but shared-memory exhaustion prevents a
+  complete passing soak/burst/fault result (§10). Distinct uncached DB fallback viewports remain a scaling risk.
 - **Restore / migration rollback drill** (D-13 "khôi phục") and **concurrent writes to the same listing**: not run here.
 - **Production configuration observations** (not changed, production stack is out of scope): default shared_buffers
   128 MB is ~6 % of a 1M-listing read model; Docker's default 64 MB `/dev/shm` makes a manual `VACUUM` with parallel
   index workers and large parallel hash joins fail with "could not resize shared memory segment" (hit by the fixture;
-  `shm_size` in `docker-compose.yml` would avoid it).
+  Compose now allows 256 MB tmpfs (§10); production is unchanged until PostgreSQL is recreated).
 
 ## 7. Checks
 
@@ -306,11 +306,11 @@ answer, centroid and bounds. Zoomed-in points use one SQL probe limited to 401 r
 There is no capped map count. `MapEngineSelectionTests` covers points, dense viewports, engine clusters, exact DB mode
 and shared outage fallback; `SearchElasticsearchEngineTests` exercises the aggregation against the real engine.
 
-Elasticsearch clusters follow the index refresh lag (roughly 1 s), unlike SQL points. **Contract deviation / outage
-policy:** during an ES outage, the DB cluster viewport is snapped outward to whole tiles and cached for 60 s to share
-nearly identical pans. Counts and cluster bounds can therefore include points just outside the requested viewport.
-When ES is disabled, SQL uses the exact viewport. Redis unavailable uses request collapsing without shared caching.
-This policy bounds repeated identical work, not the cost of arbitrary distinct viewports; 1M fallback load is unproven.
+Elasticsearch clusters follow the index refresh lag (roughly 1 s), unlike SQL points. During an ES outage, identical
+filters and **exact bbox** share database clusters for 60 s. Cached answers retain their actual computation
+`dataAsOf`, rather than claiming the hit time. Panning changes the cache key; clusters/counts exclude points outside
+the requested bbox. Redis unavailable uses request collapsing without shared caching. This bounds repeated identical
+work, not arbitrary distinct viewports; 1M fallback capacity requires the final integrated run.
 
 Startup warm-up (`SearchWarmup`, off by default, enabled by Compose) prewarms DB indexes/heap when `pg_prewarm` exists
 (V101), calls representative engine searches/aggregations directly without tripping the breaker and hydrates hits.
@@ -353,3 +353,46 @@ Local focused check (2026-10-03): `sh mvnw -B -ntp
 test` — **19 tests, 0 failures/errors** before adding the DB variant of the readiness test; the final variant is verified
 in CI. `python3 -B scripts/perf_summary_test.py` — **7 pass**; `bash -n scripts/ci-mixed-load.sh scripts/ci-query-plans.sh`
 and `git diff --check` pass. No local load, full stack, production command or production data was used.
+
+
+## 10. Strict repeat, 1M attempt and fixes awaiting integrated measurement (2026-10-03)
+
+[100k run 37103471806](https://github.com/Babychandoi/Real-estate/actions/runs/37103471806), measured commit `d6344ae`:
+steady job on Xeon 8573C passes the 10-minute soak (read p95/p99 **8.89/17.26 ms**, write **9.12/13.48 ms**) and
+3× burst (read **13.01/31.33 ms**, write **14.23/22.72 ms**), with zero dropped arrivals. Publication **301/301**,
+lag p50/p95/p99/max **1034/1654/1681/1850 ms**. Faults on EPYC 7763 still **FAIL cold restart**:
+read p50/p95/p99 **7.58/583.93/1159.64 ms**, write **12.45/679.71/2312.05 ms**, with zero drops, degraded searches,
+5xx or 429. The first ten seconds dominate (read p95 1308 ms, write p95 2664 ms); subsequent read p95 falls to 68 ms,
+then 21/14/13 ms. SQL/hydration are short (hydrate mean 0.58 ms, map-points mean 4.72 ms), without Hikari timeouts.
+Direct engine/DB warm-up therefore does not establish readiness of the actual HTTP stack. All other gated fault
+phases pass; the non-gated ES-hang transition has p99 about 1488 ms and is retained in the report.
+
+[1M run 37103504199](https://github.com/Babychandoi/Real-estate/actions/runs/37103504199), commit `3128409`:
+steady and faults jobs both **FAIL**. Rebuild reaches **1,000,060 documents** in 93.8 s on Xeon 8573C and 111.1 s
+on EPYC 7763. During warm-up/fallback, PostgreSQL reports `could not resize shared memory segment: No space left
+on device`; Docker's default `/dev/shm` is 64 MB. Steady never completes the soak/burst; faults cannot produce a
+passing full fault result. These are attempted capacity measurements, not passing evidence.
+
+The next code adds read-only loopback HTTP requests against the actual application web-server port before readiness,
+covering search, maps and sampled existing public detail/seller routes. It skips non-web/MockMvc contexts, never follows
+redirects, never sends writes/credentials, and uses per-request timeouts within the shared `APP_WARMUP_MAX_DURATION`
+(default `PT60S`). Warm-up remains best effort; the unchanged cold thresholds determine whether this works.
+Compose and standalone query-plan PostgreSQL now allow **256 MB `/dev/shm`**: an on-demand tmpfs allowance, not 256 MB
+preallocated RSS. Apply production Compose configuration by recreating **only PostgreSQL**, preserving its named volume
+and waiting for health before app startup; application deployment with `--no-deps` does not apply it. No production
+container was changed by this stream. Environment examples expose warm-up enablement and its deadline.
+
+The outage first-page cache admission is synchronized so concurrent unique requests cannot exceed its bound.
+A concurrency regression passes and fails after temporarily removing the mutex (source restored). Map regressions
+assert exact bbox edge exclusion, reuse only for identical viewports, and preservation of cached `dataAsOf`.
+The query catalog follows the bounded 401-row points probe and removes the two obsolete map count shapes; historical
+40-shape results above describe their original commits, while the current catalog has 38 shapes.
+
+Focused local check before the final bbox change: **26 tests, 0 failures/errors** (`LoopbackHttpWarmupTests`,
+`SearchWarmupTests`, `LocalPageCacheTests`, `MapEngineSelectionTests`, degraded cache and circuit-breaker tests),
+19.542 s. Disposable HTTP tests exercise real GETs, a stalled handler/shared deadline, redirects and no-web skip.
+After the exact-bbox change, a second focused check passes **16 tests, 0 failures/errors** in 20.021 s
+(warm-up, local cache, map). `perf_summary_test.py` passes 7 checks; Compose configuration, shell syntax and
+`git diff --check` pass. Latest full core CI on `3128409` (run 37103506976) passes backend/frontend/security/e2e. New-head CI and strict
+100k/1M benchmarks must run after integration of backend expiry guards/schema 2; **D-13/R-5 remain PARTIAL** until
+those artifacts pass. No thresholds or request mix have been relaxed.

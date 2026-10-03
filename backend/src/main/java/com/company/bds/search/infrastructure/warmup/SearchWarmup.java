@@ -15,6 +15,7 @@ import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.ReadinessState;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.web.context.WebServerInitializedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -23,6 +24,9 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,6 +39,8 @@ import java.util.UUID;
  *   <li>Elasticsearch: representative searches and map aggregations sent straight to the engine port (not through the
  *       circuit breaker, so slow first answers cannot open it before traffic arrives), with the hits hydrated from
  *       PostgreSQL, repeated until they answer within the normal budget — this also warms the JVM's hot paths.</li>
+ *   <li>Read-only HTTP requests to this instance's actual loopback port warm MVC, security filters, Jackson and public
+ *       detail/map/seller handlers too. No guessed port in MockMvc/non-web contexts, redirects or writes.</li>
  * </ol>
  * Until it finishes (or {@code app.warmup.max-duration} passes) readiness is REFUSING_TRAFFIC and the health contributor
  * {@code searchWarmup} is OUT_OF_SERVICE, so {@code docker compose up --wait}, the frontend's {@code service_healthy}
@@ -56,6 +62,9 @@ public class SearchWarmup implements HealthIndicator {
     private final Clock clock;
     private volatile boolean done;
     private volatile String summary = "pending";
+    private volatile int serverPort;
+    private final LoopbackHttpWarmup httpWarmup;
+    private final List<String> publicReads = new ArrayList<>();
 
     public SearchWarmup(@Value("${app.warmup.enabled:false}") boolean enabled,
                         @Value("${app.warmup.max-duration:PT60S}") Duration maxDuration,
@@ -72,6 +81,12 @@ public class SearchWarmup implements HealthIndicator {
         this.events = events;
         this.clock = clock;
         this.done = !enabled;
+        this.httpWarmup = new LoopbackHttpWarmup(clock);
+    }
+
+    @EventListener(WebServerInitializedEvent.class)
+    public void onWebServer(WebServerInitializedEvent event) {
+        if (event.getApplicationContext().getServerNamespace() == null) serverPort = event.getWebServer().getPort();
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -98,13 +113,15 @@ public class SearchWarmup implements HealthIndicator {
         Instant deadline = start.plus(maxDuration);
         String database = "skipped";
         String search = "skipped";
+        String http = "skipped";
         try {
             database = prewarmDatabase(deadline);
             search = warmEngine(deadline);
+            http = httpWarmup.run(serverPort, publicReads, deadline, rounds);
         } catch (RuntimeException ex) {
             log.warn("search_warmup_failed error={}", ex.toString());
         } finally {
-            summary = "database=" + database + ", search=" + search + ", seconds="
+            summary = "database=" + database + ", search=" + search + ", http=" + http + ", seconds="
                     + Duration.between(start, clock.instant()).toMillis() / 1000.0;
             done = true;
             AvailabilityChangeEvent.publish(events, this, ReadinessState.ACCEPTING_TRAFFIC);
@@ -180,7 +197,12 @@ public class SearchWarmup implements HealthIndicator {
 
     private void hydrate(ListingSearchEnginePort.Hits hits) {
         List<UUID> ids = hits.hits().stream().map(ListingSearchEnginePort.Hit::id).toList();
-        readModel.findByIds(ids);
+        var rows = readModel.findByIds(ids);
+        if (publicReads.isEmpty() && !rows.isEmpty()) {
+            var first = rows.get(0);
+            publicReads.add("/api/v2/listings/" + URLEncoder.encode(first.slug(), StandardCharsets.UTF_8));
+            publicReads.add("/api/v2/public/sellers/" + first.ownerId() + "/listings?size=24");
+        }
     }
 
     private static void sleep(long millis) {

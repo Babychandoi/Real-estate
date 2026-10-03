@@ -134,37 +134,29 @@ SELECT count(*) FROM (SELECT 1 FROM listing_public_read WHERE  purpose = 'SALE'@
 SELECT @SUMMARY@ FROM listing_public_read WHERE listing_id = ANY(ARRAY[@page_ids@]::uuid[])@OWNER_ACTIVE@;
 
 -- name: map.points.zoom15
--- why: map points (the app asks for points only when the zoom >= 12 count is <= 400: a ~180 x 120 m box in the densest district)
-SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type FROM listing_public_read WHERE  purpose = 'SALE'@OWNER_ACTIVE@
+-- why: bounded 401-row probe; points are returned only at <=400 matches, then ordered newest first
+SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type FROM (
+ SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type, published_at
+ FROM listing_public_read WHERE purpose = 'SALE'@OWNER_ACTIVE@
  AND public_location && ST_MakeEnvelope(105.7892, 21.0302, 105.7909, 21.0313, 4326)
- AND public_location IS NOT NULL ORDER BY published_at DESC, listing_id DESC LIMIT 400;
-
--- name: map.count.zoom15
--- why: map total at street zoom (decides points vs clusters)
-SELECT count(*) FROM (SELECT 1 FROM listing_public_read WHERE  purpose = 'SALE'@OWNER_ACTIVE@
- AND public_location && ST_MakeEnvelope(105.7850, 21.0280, 105.7950, 21.0340, 4326) LIMIT 10001) capped;
-
--- name: map.count.zoom11
--- why: map total at city zoom
-SELECT count(*) FROM (SELECT 1 FROM listing_public_read WHERE  purpose = 'SALE'@OWNER_ACTIVE@
- AND public_location && ST_MakeEnvelope(105.70, 20.95, 105.90, 21.10, 4326) LIMIT 10001) capped;
+ AND public_location IS NOT NULL LIMIT 401) probe ORDER BY published_at DESC, listing_id DESC;
 
 -- name: map.clusters.zoom11
--- why: map clusters at city zoom (cell = 360/2^11/4 degrees), every match is grouped
+-- why: database fallback map clusters at city zoom (cell = 360/2^11/4 degrees), every match is grouped
 SELECT avg(lat), avg(lng), count(*), min(lng), min(lat), max(lng), max(lat)
 FROM listing_public_read WHERE  purpose = 'SALE'@OWNER_ACTIVE@
  AND public_location && ST_MakeEnvelope(105.70, 20.95, 105.90, 21.10, 4326)
  AND public_location IS NOT NULL GROUP BY floor(lng / 0.0439453125), floor(lat / 0.0439453125) ORDER BY count(*) DESC LIMIT 2000;
 
 -- name: map.clusters.zoom13
--- why: map clusters at district zoom
+-- why: database fallback map clusters at district zoom
 SELECT avg(lat), avg(lng), count(*), min(lng), min(lat), max(lng), max(lat)
 FROM listing_public_read WHERE  purpose = 'SALE'@OWNER_ACTIVE@
  AND public_location && ST_MakeEnvelope(105.77, 21.02, 105.81, 21.045, 4326)
  AND public_location IS NOT NULL GROUP BY floor(lng / 0.010986328125), floor(lat / 0.010986328125) ORDER BY count(*) DESC LIMIT 2000;
 
 -- name: map.clusters.zoom11.filtered
--- why: city clusters with type + price filter
+-- why: database fallback city clusters with type + price filter
 SELECT avg(lat), avg(lng), count(*), min(lng), min(lat), max(lng), max(lat)
 FROM listing_public_read WHERE  purpose = 'SALE'@OWNER_ACTIVE@
  AND property_type = ANY('{APARTMENT}'::text[]) AND price_vnd >= 2000000000 AND price_vnd <= 5000000000
