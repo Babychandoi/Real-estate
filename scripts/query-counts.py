@@ -77,6 +77,10 @@ def main():
         counter['n'] += 1
         return counter['n']
 
+    def mode_status(answer, expected):
+        status, body = answer
+        return status if body and body.get('mode') == expected else 0  # 0 = wrong mode, reported as a failure
+
     def publish():
         marker = 'qc' + ''.join(rng.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(12))
         status, draft = call(base, 'POST', '/api/v1/listings', broker, {
@@ -106,8 +110,10 @@ def main():
         'detail-cached': lambda: call(base, 'GET', '/api/v2/listings/perf-1')[0],
         'map-clusters-zoom11': lambda: call(
             base, 'GET', f'/api/v2/listings/map?zoom=11&bbox=105.70,20.95,105.90,21.10&priceMin={unique()}')[0],
-        'map-points-zoom15': lambda: call(
-            base, 'GET', f'/api/v2/listings/map?zoom=15&bbox=105.7850,21.0280,105.7950,21.0340&priceMin={unique()}')[0],
+        # A ~180 x 120 m box: few enough matches that the answer really is points (asserted below).
+        'map-points-zoom15': lambda: mode_status(call(
+            base, 'GET', f'/api/v2/listings/map?zoom=15&bbox=105.7892,21.0302,105.7909,21.0313&priceMin={unique()}'),
+            'points'),
         'seller-listings': lambda: call(base, 'GET', '/api/v2/public/sellers/'
                                         '00000000-0000-0000-0000-000000000000/listings')[0],
         'create-draft': lambda: call(base, 'POST', '/api/v1/listings', broker, {

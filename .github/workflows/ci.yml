@@ -310,21 +310,6 @@ jobs:
         run: |
           export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
           npx playwright test tests/e2e/admin.spec.ts --project=chromium-1440 --workers=1
-      - name: S10 query plans (isolated 100k and 1M)
-        timeout-minutes: 15
-        env:
-          BDS_PERF_ISOLATED: '1'
-        run: bash scripts/ci-search-explain.sh
-      - name: Upload S10 query-plan evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: s10-query-plans-${{ github.run_attempt }}
-          path: |
-            .artifacts/perf/environment.txt
-            .artifacts/perf/explain-search-*.txt
-          if-no-files-found: warn
-          retention-days: 30
       - name: Collect stack logs
         if: ${{ failure() || steps.visual-other-engines.outcome == 'failure' }}
         run: |

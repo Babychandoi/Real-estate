@@ -10,7 +10,12 @@ set -euo pipefail
 # faults: warm baseline, search-cache eviction, full cold restart, ES outage (transition, then steady degraded) and
 #         recovery, Redis outage and recovery.
 suite="${SUITE:-steady}"
-[[ "$suite" == steady || "$suite" == faults ]] || exit 2
+# smoke: pull requests only (warm-up + one gated minute on a small dataset).
+[[ "$suite" == steady || "$suite" == faults || "$suite" == smoke ]] || exit 2
+# Phases measured with the normal thresholds but reported as KNOWN FAILING instead of gating (owner decision, listed in
+# docs/audit-2026-09-27/streams/w6-perf.md until fixed). Empty by default: every gated phase gates.
+known_failing=",${PERF_KNOWN_FAILING:-},"
+[[ "$known_failing" =~ ^[a-z,-]*$ ]] || exit 2
 listings="${PERF_LISTINGS:-100000}"
 [[ "$listings" =~ ^[0-9]+$ && "$listings" -ge 1000 ]] || exit 2
 owners=$(( listings / 20 ))
@@ -43,7 +48,8 @@ psql_db() {
   "${compose[@]}" exec -T postgres sh -ec 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" "$@"' sh "$@"
 }
 {
-  printf '# Isolated load evidence: suite %s\n\n- Commit: %s\n- Run: %s/%s\n' "$suite" "${GITHUB_SHA:?}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+  printf '# Isolated load evidence: suite %s\n\n- Commit: %s (checked-out ref %s)\n- Run: %s/%s\n' "$suite" \
+    "${PERF_HEAD_SHA:-${GITHUB_SHA:?}}" "${GITHUB_SHA:?}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
   printf -- '- Runner: %s (%s), %s vCPU %s, %s MB RAM; the load generator (k6) shares the runner with the whole stack\n' \
     "${RUNNER_NAME:-?}" "${ImageOS:-?}" "$(nproc)" "$(lscpu | sed -n 's/^Model name: *//p' | head -1)" \
     "$(free -m | awk '/^Mem:/ {print $2}')"
@@ -261,7 +267,12 @@ overall_status=0
 # run_phase NAME EXPECTED_DEGRADED(0|1|any) PROFILE DURATION BLOCKING(1|0) [PUBLISH_EVERY_S]
 run_phase() {
   local phase="$1" expected="$2" phase_profile="$3" phase_duration="$4" blocking="$5" publish="${6:-0}"
-  local phase_dir="$output_dir/$phase" k6_status=0 effect_status=0 evidence_status=0 count marker started
+  local phase_dir="$output_dir/$phase" k6_status=0 effect_status=0 evidence_status=0 count marker started gate
+  gate="$([[ "$blocking" == 1 ]] && echo 'blocking (k6 thresholds)' || echo 'NON-BLOCKING (reported only)')"
+  if [[ "$blocking" == 1 && "$known_failing" == *",$phase,"* ]]; then
+    blocking=0
+    gate='KNOWN FAILING: measured with the normal thresholds, reported, not gating until fixed'
+  fi
   mkdir -p "$phase_dir"
   # Every phase has its own marker, so matching counts cannot be satisfied by an earlier phase's writes.
   marker="$(python3 -c 'import secrets; print("".join(secrets.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(20)))')"
@@ -284,7 +295,7 @@ run_phase() {
   top_statements > "$phase_dir/statements.md" || true
   printf '\n## Phase: %s\n\n- Started %s UTC; profile/duration: %s/%s; expected degraded: %s; gate: %s\n- k6 exit status: %s\n' \
     "$phase" "$started" "$phase_profile" "$phase_duration" "$expected" \
-    "$([[ "$blocking" == 1 ]] && echo 'blocking (k6 thresholds)' || echo 'NON-BLOCKING (reported only)')" "$k6_status" \
+    "$gate" "$k6_status" \
     >> "$output_dir/report.md"
   # Still verify durable effects when latency thresholds fail; never relabel a failed phase as PASS.
   if count="$(python3 scripts/perf-summary.py "$phase_dir/summary.json" --count)"; then
@@ -311,6 +322,11 @@ run_phase() {
   rm -f "$phase_dir/samples.csv.gz"
   printf -- '- Evidence parser status: %s\n- Persisted-effect status: %s\n' "$evidence_status" "$effect_status" \
     >> "$output_dir/report.md"
+  if [[ "$k6_status" != 0 || "$effect_status" != 0 || "$evidence_status" != 0 ]]; then
+    echo "- Thresholds/evidence: **not met** ($gate)" >> "$output_dir/report.md"
+  else
+    echo "- Thresholds/evidence: met" >> "$output_dir/report.md"
+  fi
   if [[ "$blocking" == 1 && ( "$k6_status" != 0 || "$effect_status" != 0 || "$evidence_status" != 0 ) ]]; then
     overall_status=1
     echo "- **Phase $phase FAILED its gate**" >> "$output_dir/report.md"
@@ -330,7 +346,9 @@ query_counts() {
 # Warm-up after the rebuild and restarts (JIT, connection pools, caches): reported, never gating. The gated phases
 # that follow measure a warm system; the cold-restart phase measures the cold one explicitly.
 run_phase warmup 0 steady 1m 0
-if [[ "$suite" == steady ]]; then
+if [[ "$suite" == smoke ]]; then
+  run_phase warm 0 steady 1m 1
+elif [[ "$suite" == steady ]]; then
   # Soak: >= 10 minutes of constant arrival with the publication-lag flow running alongside.
   run_phase soak 0 soak "$soak" 1 "$publish_every"
   run_phase burst 0 burst 100s 1
@@ -362,6 +380,17 @@ else
   "${compose[@]}" up -d --wait --no-deps elasticsearch > /dev/null
   wait_search_state 0
   run_phase es-recovered 0 steady 1m 1
+
+  # Hanging Elasticsearch (container paused: connections are accepted by Docker's proxy but never answered), the worst
+  # failure for the 800 ms budget. Same split: transition reported, degraded phase gated once the breaker is open.
+  "${compose[@]}" pause elasticsearch > /dev/null
+  evict_search_cache
+  run_phase es-hang-transition any transition 20s 0
+  wait_breaker_open
+  echo "- Breaker state before the hanging-engine phase: $(breaker_state) (1 = open)" >> "$output_dir/report.md"
+  run_phase es-hanging 1 steady 1m 1
+  "${compose[@]}" unpause elasticsearch > /dev/null
+  wait_search_state 0
 
   # Obtain the session before stopping Redis: auth credential endpoints deliberately fail closed in an outage.
   "${compose[@]}" stop redis > /dev/null

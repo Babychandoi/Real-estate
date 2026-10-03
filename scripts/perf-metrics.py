@@ -61,10 +61,12 @@ def main():
     requests = api(after) - api(before)
     errors5 = api(after, status='5*') - api(before, status='5*')
     limited = api(after, status='429') - api(before, status='429')
-    actuator5 = (delta(before, after, 'http_server_requests_seconds_count', status='5*') - errors5)
+    health5 = (delta(before, after, 'http_server_requests_seconds_count', status='5*', uri='/actuator/health*'))
+    other5 = delta(before, after, 'http_server_requests_seconds_count', status='5*') - errors5 - health5
     lines.append(f'- API requests handled by the backend: {requests:.0f}; 5xx: {errors5:.0f}; 429: {limited:.0f}'
                  + (f' (server error rate {errors5 / requests:.4%})' if requests else '')
-                 + (f'; non-API 5xx (container health check): {actuator5:.0f}' if actuator5 else ''))
+                 + (f'; /actuator/health 5xx (container health check): {health5:.0f}' if health5 else '')
+                 + (f'; other non-API 5xx: {other5:.0f}' if other5 else ''))
     lag_count = delta(before, after, 'bds_search_index_lag_seconds_count')
     if lag_count:
         lag_sum = delta(before, after, 'bds_search_index_lag_seconds_sum')

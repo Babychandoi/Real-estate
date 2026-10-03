@@ -63,8 +63,10 @@ const publications = new Counter('publications');
 const publicationLag = new Trend('publication_lag_ms', true);
 const publicationVisible = new Rate('publication_visible');
 const publishStep = new Trend('publish_step_ms', true);
+const publicationDegradedPolls = new Counter('publication_degraded_polls');
 
-const ENDPOINTS = ['search-first', 'search-filtered', 'search-keyword', 'map', 'detail', 'seller', 'create-draft'];
+const ENDPOINTS = ['search-first', 'search-filtered', 'search-page2-first', 'search-page2', 'search-keyword', 'map', 'detail',
+  'seller', 'create-draft'];
 const scenarios = {
   reads: { ...rates(true), exec: 'readMixed' },
   writes: { ...rates(false), exec: 'writeDraft' },
@@ -97,6 +99,7 @@ if (publishEvery > 0) {
   thresholds.publication_visible = ['rate==1'];
   thresholds['http_req_failed{scenario:publish}'] = ['rate<0.01'];
   thresholds.publications = ['count>0'];
+  thresholds.publication_degraded_polls = ['count==0'];
   for (const step of ['create', 'submit', 'approve', 'poll']) thresholds[`publish_step_ms{step:${step}}`] = ['max>=0'];
 }
 export const options = { scenarios, summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'], thresholds };
@@ -114,6 +117,8 @@ const DISTRICTS = [
 ];
 const KEYWORDS = ['can ho', 'nha pho', 'biet thu', 'dat nen', 'can ho cau giay', 'nha rieng ha dong', 'chung cu tran duy hung',
   'nha pho ngo o to', 'dat nen dong anh', 'can ho full noi that', 'cho thue can ho', 'so hong chinh chu', 'landmarkrare'];
+const PLACES = ['cau giay', 'nam tu liem', 'ha dong', 'dong da', 'thanh xuan', 'hoang mai', 'long bien', 'bac tu liem',
+  'ba dinh', 'hai ba trung', 'tay ho', 'hoan kiem', 'dong anh', 'gia lam', 'thanh tri', 'tran duy hung', 'nguyen trai'];
 const TYPES = ['APARTMENT', 'HOUSE', 'TOWNHOUSE', 'LAND', 'VILLA'];
 const SORTS = ['NEWEST', 'PRICE_ASC', 'PRICE_DESC', 'AREA_DESC'];
 const pick = (items) => items[Math.floor(Math.random() * items.length)];
@@ -125,34 +130,41 @@ const ownerId = (index) => {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 };
 
-function request(endpoint) {
+// Wide key cardinality on purpose: continuous price/area ranges, district pairs, keyword + place combinations and
+// viewports panned anywhere around a district centre, so caches only help where real traffic would repeat itself.
+function filtered() {
+  const p = { purpose: purpose(), size: 24 };
+  if (Math.random() < 0.7) p.district = Math.random() < 0.2 ? `${district()[0]},${district()[0]}` : district()[0];
+  if (Math.random() < 0.5) p.type = pick(TYPES);
+  if (Math.random() < 0.4) {
+    const low = p.purpose === 'SALE' ? 100000000 * (8 + Math.floor(Math.random() * 72)) : 500000 * (6 + Math.floor(Math.random() * 60));
+    p.priceMin = low;
+    p.priceMax = Math.round(low * (1.5 + Math.random() * 1.5));
+  }
+  if (Math.random() < 0.2) { p.areaMin = 30 + 5 * Math.floor(Math.random() * 19); p.areaMax = p.areaMin + 20 + 5 * Math.floor(Math.random() * 17); }
+  if (Math.random() < 0.2) p.bedsMin = 1 + Math.floor(Math.random() * 4);
+  if (Math.random() < 0.6) p.sort = pick(SORTS);
+  return p;
+}
+
+function request() {
   if (readMix === 'first-page') return { endpoint: 'search-first', url: '/api/v2/listings/search?purpose=SALE&size=24' };
   const r = Math.random();
   if (r < 0.25) return { endpoint: 'search-first', url: `/api/v2/listings/search?${query({ purpose: purpose(), size: 24 })}` };
-  if (r < 0.50) {
-    const p = { purpose: purpose(), size: 24 };
-    if (Math.random() < 0.7) p.district = district()[0];
-    if (Math.random() < 0.5) p.type = pick(TYPES);
-    if (Math.random() < 0.4) {
-      const low = p.purpose === 'SALE' ? 1000000000 * (1 + Math.floor(Math.random() * 6)) : 5000000 * (1 + Math.floor(Math.random() * 4));
-      p.priceMin = low;
-      p.priceMax = low * 2;
-    }
-    if (Math.random() < 0.2) { p.areaMin = 40 + 10 * Math.floor(Math.random() * 5); p.areaMax = p.areaMin + 60; }
-    if (Math.random() < 0.2) p.bedsMin = 1 + Math.floor(Math.random() * 3);
-    if (Math.random() < 0.6) p.sort = pick(SORTS);
-    return { endpoint: 'search-filtered', url: `/api/v2/listings/search?${query(p)}` };
-  }
+  if (r < 0.45) return { endpoint: 'search-filtered', url: `/api/v2/listings/search?${query(filtered())}` };
+  if (r < 0.50) return { endpoint: 'search-page2-first', url: `/api/v2/listings/search?${query(filtered())}`, next: true };
   if (r < 0.60) {
-    const p = { q: pick(KEYWORDS), size: 24 };
+    const p = { q: Math.random() < 0.6 ? `${pick(KEYWORDS)} ${pick(PLACES)}` : pick(KEYWORDS), size: 24 };
     if (Math.random() < 0.5) p.purpose = purpose();
     return { endpoint: 'search-keyword', url: `/api/v2/listings/search?${query(p)}` };
   }
   if (r < 0.70) {
     const [, lng, lat] = district();
-    const zoom = pick([11, 13, 15]);
-    const half = { 11: [0.10, 0.075], 13: [0.02, 0.0125], 15: [0.005, 0.003] }[zoom];
-    const bbox = [lng - half[0], lat - half[1], lng + half[0], lat + half[1]].map((v) => v.toFixed(5)).join(',');
+    const zoom = pick([11, 12, 13, 14, 15]);
+    const half = { 11: [0.10, 0.075], 12: [0.05, 0.035], 13: [0.02, 0.0125], 14: [0.01, 0.0065], 15: [0.005, 0.003] }[zoom];
+    const cx = lng + (Math.random() - 0.5) * 4 * half[0];
+    const cy = lat + (Math.random() - 0.5) * 4 * half[1];
+    const bbox = [cx - half[0], cy - half[1], cx + half[0], cy + half[1]].map((v) => v.toFixed(5)).join(',');
     return { endpoint: 'map', url: `/api/v2/listings/map?${query({ purpose: purpose(), zoom, bbox })}` };
   }
   if (r < 0.95) return { endpoint: 'detail', url: `/api/v2/listings/perf-${1 + Math.floor(Math.random() * listings)}` };
@@ -160,25 +172,42 @@ function request(endpoint) {
   return { endpoint: 'seller', url: `/api/v2/public/sellers/${ownerId(owner)}/listings?size=24` };
 }
 
+function searchChecks(response, body, endpoint) {
+  searchReads.add(1);
+  degradedReads.add(body?.degraded === true ? 1 : 0);
+  check(response, {
+    'read answers 200 with the expected shape': (r) => r.status === 200 && Array.isArray(body?.items) && !!body?.pageInfo,
+    'expected search engine state': () => expectDegraded === 'any'
+      || (expectDegraded === '1' ? body?.degraded === true : body?.degraded === false),
+  }, { endpoint });
+}
+
 export function readMixed() {
   readAttempts.add(1);
-  const { endpoint, url } = request();
+  const { endpoint, url, next } = request();
   const response = http.get(`${baseUrl}${url}`, { tags: { endpoint }, timeout: '10s' });
   let body;
   try { body = response.json(); } catch { body = null; }
   const isSearch = endpoint.startsWith('search');
   if (isSearch) {
-    searchReads.add(1);
-    degradedReads.add(body?.degraded === true ? 1 : 0);
+    searchChecks(response, body, endpoint);
+    // Second page through the cursor of the first (keyset paging on the engine that issued the cursor).
+    const cursor = body?.pageInfo?.nextCursor;
+    if (next && cursor) {
+      readAttempts.add(1);
+      const second = http.get(`${baseUrl}${url}&cursor=${encodeURIComponent(cursor)}`,
+        { tags: { endpoint: 'search-page2' }, timeout: '10s' });
+      let secondBody;
+      try { secondBody = second.json(); } catch { secondBody = null; }
+      searchChecks(second, secondBody, 'search-page2');
+    }
+    return;
   }
   check(response, {
     'read answers 200 with the expected shape': (r) => r.status === 200 && (
-      isSearch ? Array.isArray(body?.items) && !!body?.pageInfo
-        : endpoint === 'map' ? typeof body?.mode === 'string'
-          : endpoint === 'detail' ? !!body?.id
-            : Array.isArray(body?.items)),
-    'expected search engine state': () => !isSearch || expectDegraded === 'any'
-      || (expectDegraded === '1' ? body?.degraded === true : body?.degraded === false),
+      endpoint === 'map' ? typeof body?.mode === 'string'
+        : endpoint === 'detail' ? !!body?.id
+          : Array.isArray(body?.items)),
   });
 }
 
@@ -251,7 +280,11 @@ export function publishListing() {
     publishStep.add(poll.timings.duration, { step: 'poll' });
     let body;
     try { body = poll.json(); } catch { body = null; }
-    visible = poll.status === 200 && Array.isArray(body?.items) && body.items.some((item) => item.id === draft.listingId);
+    // Only an Elasticsearch answer counts: a degraded (database) answer would show the listing at once and hide the
+    // index lag that F05.5 is about.
+    if (body?.degraded === true) publicationDegradedPolls.add(1);
+    visible = poll.status === 200 && body?.degraded === false && Array.isArray(body?.items)
+      && body.items.some((item) => item.id === draft.listingId);
     if (!visible) sleep(0.2);
   }
   publicationLag.add(Date.now() - approvedAt);

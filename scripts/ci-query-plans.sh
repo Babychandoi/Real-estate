@@ -81,7 +81,8 @@ plans() {
 }
 
 {
-  printf '# W6-PERF query plans\n\n- Commit: %s\n- Run: %s/%s\n' "${GITHUB_SHA:?}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+  printf '# W6-PERF query plans\n\n- Commit: %s (checked-out ref %s)\n- Run: %s/%s\n' "${PERF_HEAD_SHA:-${GITHUB_SHA:?}}" \
+    "${GITHUB_SHA:?}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
   printf -- '- Image: %s, default settings (as docker-compose.yml); Flyway %s\n' "$image" "$flyway_image"
   printf -- '- Before = migrations through V%s, after = all migrations in this commit\n' "$base_version"
   printf -- '- Sizes: %s and %s public listings, %s owners (infra/perf/seed-listings.sql)\n' "$small" "$large" "$owners"
