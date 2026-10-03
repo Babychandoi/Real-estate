@@ -67,7 +67,7 @@ jobs:
       BDS_TEST_MINIO_PASSWORD: bds-test-media-only
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
