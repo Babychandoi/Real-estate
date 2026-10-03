@@ -14,6 +14,9 @@ spec.loader.exec_module(report)
 
 def recovery_fixture():
     return {
+        "register_after_backup_status": "201",
+        "pitr_user_after_backup": "1",
+        "hostloss_user_after_backup": "0",
         "restore_drill": "PASS",
         "hostloss_media_references": "PASS",
         "last_marker_at_loss": "12 2026-10-03T12:00:12.000Z",
@@ -76,7 +79,7 @@ class OutcomeTests(unittest.TestCase):
                 self.assertIn("## Outcome\n\nPASS", result.stdout)
 
     def test_recovery_checks_cannot_fail_disappear_or_be_skipped(self):
-        for key in ("restore_drill", "hostloss_media_references"):
+        for key in ("register_after_backup_status", "restore_drill", "hostloss_media_references"):
             for value in (None, "FAIL", "GAP", "SKIPPED"):
                 with self.subTest(key=key, value=value):
                     values = recovery_fixture()
@@ -194,6 +197,17 @@ class OutcomeTests(unittest.TestCase):
                 with self.subTest(key=key, value=value):
                     values = recovery_fixture()
                     values[key] = value
+                    self.assert_invalid("recovery", values, key)
+
+    def test_new_user_probe_must_survive_pitr_and_be_absent_from_the_earlier_dump(self):
+        for key, wrong in (("pitr_user_after_backup", "0"), ("hostloss_user_after_backup", "1")):
+            for value in (None, wrong):
+                with self.subTest(key=key, value=value):
+                    values = recovery_fixture()
+                    if value is None:
+                        del values[key]
+                    else:
+                        values[key] = value
                     self.assert_invalid("recovery", values, key)
 
 

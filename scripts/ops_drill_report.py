@@ -104,6 +104,9 @@ def validate(kind, values):
             errors.append(f"{key}: {value}")
 
     if kind == "recovery":
+        require("register_after_backup_status", "201")
+        require("pitr_user_after_backup", "1")
+        require("hostloss_user_after_backup", "0")
         require("restore_drill", "PASS")
         require("hostloss_media_references", "PASS")
         for key in ("pitr_data_restore_seconds", "hostloss_db_restore_seconds", "hostloss_media_restore_seconds"):

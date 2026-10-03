@@ -5,7 +5,7 @@ const report = (entries) => ({
   vulnerabilities: Object.fromEntries(
     entries.map(([name, severity, id]) => [
       name,
-      { via: [{ severity, title: `${id} title`, url: `https://github.com/advisories/${id}` }] },
+      { severity, via: [{ severity, title: `${id} title`, url: `https://github.com/advisories/${id}` }] },
     ]),
   ),
 });
@@ -37,6 +37,28 @@ describe('npm audit gate', () => {
         ]),
       ).size,
     ).toBe(0);
+  });
+
+  it('refuses incomplete nested package evidence, dangling references and advisory-free cycles', () => {
+    for (const vulnerabilities of [
+      { pkg: {} },
+      { pkg: null },
+      { pkg: { severity: 'critical', via: 'registry unavailable' } },
+      { pkg: { severity: 'high', via: ['missing-package'] } },
+      { pkg: { severity: 'high', via: [] } },
+      { pkg: { severity: 'high', via: [null] } },
+      { pkg: { severity: 'critical', via: [{ severity: 'critical' }] } },
+      { a: { severity: 'high', via: ['b'] }, b: { severity: 'high', via: ['a'] } },
+    ]) {
+      expect(() => blockingAdvisories({ vulnerabilities })).toThrow('complete vulnerability report');
+    }
+  });
+
+  it('accepts valid transitive references while retaining the reachable blocking advisory', () => {
+    const result = report([['braces', 'high', 'GHSA-aaaa']]);
+    result.vulnerabilities.micromatch = { severity: 'high', via: ['braces'] };
+    result.vulnerabilities.chokidar = { severity: 'high', via: ['micromatch'] };
+    expect([...blockingAdvisories(result).keys()]).toEqual(['GHSA-aaaa']);
   });
 
   it('blocks a high advisory without an exception', () => {
