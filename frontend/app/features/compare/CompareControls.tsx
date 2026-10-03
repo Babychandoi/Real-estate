@@ -34,7 +34,7 @@ export function CompareToggleButton({
 
   const base =
     variant === 'overlay'
-      ? 'min-h-11 rounded-lg px-3 text-xs shadow-md backdrop-blur-sm'
+      ? 'min-h-11 rounded-lg px-3 text-sm shadow-md backdrop-blur-sm'
       : 'min-h-11 w-full justify-center rounded-lg px-4 text-sm';
   const tone = selected
     ? 'bg-primary text-white border-primary'
@@ -103,7 +103,9 @@ export function CompareTray() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-bold text-slate-900">{item.title}</p>
-                  <p className="text-xs font-semibold text-emerald-800">{formatMoney(item.price) || 'Chưa có giá'}</p>
+                  <p data-price="" className="text-sm font-semibold text-emerald-800">
+                    {formatMoney(item.price) || 'Chưa có giá'}
+                  </p>
                 </div>
                 <button
                   type="button"

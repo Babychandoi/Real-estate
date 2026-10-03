@@ -96,7 +96,7 @@ export function ShortlistsPanel({ shortlists, selectedId, onSelect, onChanged }:
                   )}
                 >
                   <span className="text-sm font-semibold text-on-surface">{list.name}</span>
-                  <span className="text-xs text-on-surface-variant">
+                  <span className="text-sm text-on-surface-variant">
                     {list.itemCount} tin · {ROLE_LABELS[list.role]}
                     {list.shared ? ' · Đang chia sẻ' : ''}
                     {list.muted ? ' · Đã tắt thông báo' : ''}

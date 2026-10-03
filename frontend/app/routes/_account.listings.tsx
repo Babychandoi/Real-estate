@@ -98,7 +98,10 @@ function ListingRow({
           </div>
           <h3 className="mt-1 truncate text-body font-semibold text-on-surface">
             {item.publicVersion && item.status === 'ACTIVE' ? (
-              <Link to={listingPath({ slug: item.slug, title })}>{title}</Link>
+              // 26 px line + 2 × 9 px padding = a 44 px touch target without moving the card's layout (DS-03).
+              <Link to={listingPath({ slug: item.slug, title })} className="-my-[9px] block truncate py-[9px]">
+                {title}
+              </Link>
             ) : (
               title
             )}

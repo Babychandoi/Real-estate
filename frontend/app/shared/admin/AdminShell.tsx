@@ -60,7 +60,7 @@ const AdminShellContent: React.FC = () => {
       <Link
         to="/2026/nhadatchuan/admin/moderation"
         onClick={close}
-        className="mb-6 flex items-center gap-3 px-2 text-primary"
+        className="mb-6 flex min-h-11 items-center gap-3 px-2 text-primary"
       >
         <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-white">
           <ShieldCheck className="h-5 w-5" />
@@ -124,7 +124,7 @@ const AdminShellContent: React.FC = () => {
               type="button"
               onClick={close}
               aria-label="Đóng menu quản trị"
-              className="absolute left-60 top-3 grid h-9 w-9 place-items-center rounded-lg bg-slate-800 text-white"
+              className="absolute left-60 top-3 grid h-11 w-11 place-items-center rounded-lg bg-slate-800 text-white"
             >
               <X className="h-5 w-5" />
             </button>
@@ -138,7 +138,7 @@ const AdminShellContent: React.FC = () => {
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-label="Mở menu quản trị"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-slate-700 hover:bg-surface lg:hidden"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-slate-700 hover:bg-surface lg:hidden"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -163,7 +163,7 @@ const AdminShellContent: React.FC = () => {
                 logout();
                 navigate('/');
               }}
-              className="grid h-10 w-10 place-items-center rounded-lg text-primary hover:bg-rose-50 hover:text-rose-700"
+              className="grid h-11 w-11 place-items-center rounded-lg text-primary hover:bg-rose-50 hover:text-rose-700"
               aria-label="Đăng xuất"
             >
               <LogOut className="h-5 w-5" />

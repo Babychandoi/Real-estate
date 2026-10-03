@@ -38,8 +38,10 @@ export function ErrorState({
       <span className="grid h-12 w-12 place-items-center rounded-pill bg-error-container text-error">
         <Icon className="h-6 w-6" aria-hidden="true" />
       </span>
-      <Heading className="text-headline-sm text-on-surface">{title}</Heading>
-      {description && <p className="max-w-prose text-body-sm text-on-surface-variant">{description}</p>}
+      <Heading className="max-w-full text-headline-sm text-on-surface [overflow-wrap:anywhere]">{title}</Heading>
+      {description && (
+        <p className="max-w-prose text-body-sm text-on-surface-variant [overflow-wrap:anywhere]">{description}</p>
+      )}
       {onRetry && (
         <Button variant="outline" onClick={onRetry} isLoading={retrying} leftIcon={<RotateCw className="h-4 w-4" />}>
           {retryLabel}

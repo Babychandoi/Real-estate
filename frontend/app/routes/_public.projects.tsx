@@ -191,7 +191,9 @@ export function ProjectDetailPage() {
             </Link>
           )}
           {project.description ? (
-            <p className="mt-4 whitespace-pre-line leading-7 text-on-surface">{project.description}</p>
+            <p className="mt-4 whitespace-pre-line leading-7 [overflow-wrap:anywhere] text-on-surface">
+              {project.description}
+            </p>
           ) : (
             <p className="mt-4 text-on-surface-variant">Chưa có mô tả dự án.</p>
           )}

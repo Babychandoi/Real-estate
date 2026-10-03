@@ -64,7 +64,7 @@ export function InlineFeedback({ kind = 'info', title, children, action, classNa
       )}
     >
       <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <p className="font-semibold">{title}</p>
         {children && <div className="mt-0.5">{children}</div>}
       </div>
