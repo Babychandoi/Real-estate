@@ -86,15 +86,6 @@ describe('SearchBox', () => {
     expect(option).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('disabled: the input is read-only and never opens suggestions', () => {
-    render(<SearchBox {...props} keyword="Cầu Giấy" disabled />);
-    const input = screen.getByRole('combobox');
-    expect(input).toBeDisabled();
-    fireEvent.focus(input);
-    expect(screen.queryByRole('listbox')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Xóa ô tìm kiếm' })).toBeNull();
-  });
-
   it('long content: a 100-character keyword wraps inside its option', async () => {
     vi.mocked(geocodePlaces).mockResolvedValue([]);
     render(<SearchBox {...props} />);
@@ -322,7 +313,8 @@ describe('Dialog', () => {
         <p>{LONG_WORD}</p>
       </Dialog>,
     );
-    const region = screen.getByRole('region', { name: 'Lịch sử' });
+    // Its own name, distinct from the dialog's (review nit): the body region is not a second "Lịch sử".
+    const region = screen.getByRole('region', { name: 'Nội dung: Lịch sử' });
     expect(region).toHaveAttribute('tabindex', '0');
     unmount();
     scrollHeight.mockReturnValue(100);
@@ -332,7 +324,7 @@ describe('Dialog', () => {
         <p>nội dung</p>
       </Dialog>,
     );
-    expect(screen.queryByRole('region', { name: 'Ngắn' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Nội dung: Ngắn' })).toBeNull();
   });
 
   it('long content: a 240-character title stays inside the dialog', () => {

@@ -106,7 +106,7 @@ function MetricTile({ item }: { item: NamedMetric }) {
         </p>
       )}
       <details className="mt-2 text-label text-on-surface-variant">
-        <summary className="flex min-h-11 cursor-pointer items-center">
+        <summary className="min-h-11 cursor-pointer py-2.5">
           Định nghĩa · {SOURCE_LABEL[item.source] ?? item.source}
         </summary>
         <p className="mt-1">{item.definition}</p>
@@ -420,7 +420,7 @@ export function ProductAnalyticsPage({ load = fetchAnalyticsDashboard }: { load?
                 .
               </p>
               <details className="mt-1">
-                <summary className="flex min-h-11 cursor-pointer items-center">Độ trễ số liệu</summary>
+                <summary className="min-h-11 cursor-pointer py-2.5">Độ trễ số liệu</summary>
                 <p className="mt-1">{data.freshness.rawLatency}</p>
                 <p>{data.freshness.aggregateLatency}</p>
               </details>

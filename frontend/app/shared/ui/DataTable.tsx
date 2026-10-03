@@ -277,7 +277,7 @@ export function DataTable<Row>({
                         <td
                           key={column.key}
                           className={cn(
-                            'px-4 py-3 align-top text-on-surface',
+                            'px-3 py-2 align-top text-on-surface lg:px-4 lg:py-3',
                             column.align === 'end' && 'text-right',
                             column.className,
                           )}

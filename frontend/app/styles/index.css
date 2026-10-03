@@ -361,6 +361,19 @@
   .ndc-cell-end {
     @apply ml-auto;
   }
+  /*
+   * Dense data tables (review of PR #25, minor 10). Row actions keep their height — 36 px with a mouse, 44 px on a
+   * touch screen: the product rule (audit §8.2) is 44 px on touch, so the WCAG 2.2 spacing exception that would allow
+   * 24 px is not used — but their labels and gaps are tighter, so 14 px labels do not wrap a row onto more lines than
+   * the 12 px ones did, and cells below 1024 px use 8 px vertical padding.
+   */
+  .ndc-cell :is(button, a)[class*='min-h-control-sm'] {
+    padding-inline: 0.5rem;
+    column-gap: 0.25rem;
+  }
+  .ndc-cell .flex-wrap {
+    gap: 0.25rem;
+  }
   .ndc-admin-page table {
     @apply w-full text-left text-sm;
   }

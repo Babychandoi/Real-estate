@@ -116,7 +116,9 @@ export function Dialog({
           ref={bodyRef}
           tabIndex={bodyScrolls ? 0 : undefined}
           role={bodyScrolls ? 'region' : undefined}
-          aria-labelledby={bodyScrolls ? titleId : undefined}
+          aria-label={
+            bodyScrolls ? (typeof title === 'string' ? `Nội dung: ${title}` : 'Nội dung hộp thoại') : undefined
+          }
           className="min-h-0 flex-1 overflow-y-auto px-4 py-4 text-body-sm text-on-surface focus-visible:outline-offset-[-3px] sm:px-5"
         >
           {children}

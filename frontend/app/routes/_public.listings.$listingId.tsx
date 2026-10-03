@@ -243,7 +243,15 @@ function ListingDetailView({
   ready: boolean;
 }) {
   const { user, isAuthenticated, isPoster, setIsLoginModalOpen } = useAuth();
-  const [kycStatus, setKycStatus] = useState<UserKycProfile['status'] | 'NONE' | 'LOADING'>('NONE');
+  // The verification status is known only for the user it was fetched for. Until then (first render after sign-in,
+  // or a session whose profile is still loading) it is LOADING, so a verified seeker never sees the eKYC detour and
+  // `kyc_required_shown` is tracked only once the status is known to require it (review of PR #25, minor 5).
+  const [kyc, setKyc] = useState<{ userId: string; status: UserKycProfile['status'] | 'NONE' } | null>(null);
+  const kycStatus: UserKycProfile['status'] | 'NONE' | 'LOADING' = !isAuthenticated
+    ? 'NONE'
+    : !user || kyc?.userId !== user.id
+      ? 'LOADING'
+      : kyc.status;
   const [leadOpen, setLeadOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const isOwn = Boolean(user && user.id === listing.seller.id);
@@ -266,14 +274,15 @@ function ListingDetailView({
   }, [kycGate]);
 
   useEffect(() => {
-    if (!user) {
-      setKycStatus('NONE');
-      return;
-    }
-    setKycStatus('LOADING');
-    apiClient<UserKycProfile>(`/kyc/user/${user.id}`)
-      .then((profile) => setKycStatus(profile.status))
-      .catch(() => setKycStatus('NONE'));
+    if (!user) return undefined;
+    let current = true;
+    const userId = user.id;
+    apiClient<UserKycProfile>(`/kyc/user/${userId}`)
+      .then((profile) => current && setKyc({ userId, status: profile.status }))
+      .catch(() => current && setKyc({ userId, status: 'NONE' }));
+    return () => {
+      current = false;
+    };
   }, [user]);
 
   const facts: Array<{ label: string; value: string | null; icon: typeof Maximize2 }> = [
