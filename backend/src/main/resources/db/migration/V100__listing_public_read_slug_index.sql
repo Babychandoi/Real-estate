@@ -5,8 +5,15 @@
 -- the EXPLAIN before/after at 100k and 1M listings).
 -- Not UNIQUE: slugs are unique in listings (uq_listings_slug); the read-model copy is refreshed row by row, so a
 -- uniqueness check here could only add a failure mode to the refresh without protecting anything.
--- Plain CREATE INDEX (Flyway runs this file in a transaction). On a large production table build it beforehand with
--- CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_lpr_slug ON listing_public_read (slug); this statement then does nothing.
+--
+-- Locking: plain CREATE INDEX (Flyway runs this file in a transaction) holds a SHARE lock on listing_public_read for the
+-- whole build, which blocks read-model refreshes (every listing write that touches the read model waits). Measured on
+-- the CI runner: about 5.5-8 s for 1M rows. On a large production table build the index beforehand, outside Flyway:
+--     CREATE INDEX CONCURRENTLY idx_lpr_slug ON listing_public_read (slug);
+-- and check that it is valid before deploying (a failed CONCURRENTLY build leaves an INVALID index behind, which the
+-- IF NOT EXISTS below would then silently keep):
+--     SELECT indisvalid FROM pg_index WHERE indexrelid = 'idx_lpr_slug'::regclass;   -- must be true
+-- If it is false, DROP INDEX CONCURRENTLY idx_lpr_slug and build it again. This statement then does nothing.
 SET LOCAL lock_timeout = '5s';
 
 CREATE INDEX IF NOT EXISTS idx_lpr_slug ON listing_public_read (slug);
