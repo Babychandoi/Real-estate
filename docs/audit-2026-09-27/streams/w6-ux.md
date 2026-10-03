@@ -42,7 +42,7 @@ average 60–137 during the first runs (production + 3 other agents on the machi
 | R-7 (automatable part) | DONE | `keyboard.spec.ts` (`support/keyboard.ts`): Tab/Shift+Tab/Enter/Space/arrows/typing only — (1) seeker: skip link → search box → result card → detail → contact form → sent, at 1440 **and** 390; (2) owner: 4-step wizard → submitted; (3) moderator: that submission → review → approve with reason; (4) admin: report case → conclusion with note. At each stop: focus ring visible (a visually hidden radio must show it on its label), focused control not covered by a sticky bar/overlay (WCAG 2.4.11, element under the centre point), focus stays in an open dialog. Base build: journey 1 failed (focus under the sticky header ×3, invisible focus on the lead form's request-type radios) → fixed with `scroll-padding-top/bottom` and a label focus ring; final **5/5**. Native `<select>`: on macOS the OS popup opens on ArrowDown, so the value is set with `selectOption` on the focused element and annotated (on Linux CI the arrow keys change it). | Screen readers EXTERNAL |
 | DS-06 | DONE | `ux-audit` on every route: reflow at 390 px; at 200 % browser zoom (1280 window ⇒ 640 CSS px, deviceScaleFactor 2); at 200 % text (root font-size 200 % at 1280). Checks: no page-level sideways scroll (tables/tab lists/navs may scroll in their frame), no clipped text, sticky/fixed bars ≤ 1/3 of the viewport. Base build: page-scroll on 18 routes (signed-in header at 200 % text: 1606/1768 px wide; analytics funnel), sticky overlap on 3 listing routes at 200 % zoom → 0. Plus a deterministic long-content test (240-character unbroken title/address/description/seller, huge rent): 3017 px wide at 390 px before, fits after. 360/1024 stay covered by `responsive-auth-a11y.spec.ts`, 320–1920 gutters by `ui-consistency.spec.ts` (both green). | — |
 | DS-05 | PARTIAL | Table 8.3 + PAGE_MATRIX compared clause by clause (§4). Fixed: gallery swipe (touch/pen, 48 px, unit test), dead split-map CSS removed, contact CTA no longer flips to "Xác minh eKYC" while the status loads. Remaining deviations are product decisions or larger work (§4). | Owner decisions in §4 |
-| DS-08 | DONE for the listed components, with the gaps in §5 | `app/test/component-states.test.tsx` (34 tests) renders loading/empty/error/disabled/long states of SearchBox, FilterSheet, ListingCard, TrustBadge, Gallery, FormField, DataTable, Dialog, Toast, EmptyState, ErrorState, InlineFeedback, Pagination/LoadMore. Implemented the missing ones: SearchBox "no place matched" + long keyword; Gallery viewer image error + swipe; ContactPanel loading CTA; FormField 14 px errors + wrapping; wrap rules on Toast/InlineFeedback/Empty/ErrorState/compare cells; Dialog focusable scrolling body. | ContactPanel initial loading/no eKYC detour now has regression B8 (§9); duplicate/unavailable and Compare refresh-error still lack dedicated tests (§5) |
+| DS-08 | DONE for the listed components; N/A states in §5 | `app/test/component-states.test.tsx` (34 tests) renders loading/empty/error/disabled/long states of SearchBox, FilterSheet, ListingCard, TrustBadge, Gallery, FormField, DataTable, Dialog, Toast, EmptyState, ErrorState, InlineFeedback, Pagination/LoadMore. Implemented the missing ones: SearchBox "no place matched" + long keyword; Gallery viewer image error + swipe; ContactPanel loading CTA; FormField 14 px errors + wrapping; wrap rules on Toast/InlineFeedback/Empty/ErrorState/compare cells; Dialog focusable scrolling body. | Initial loading/no eKYC detour has regression B8 (§9); lead duplicate replay/unavailable and Compare refresh-error transitions have dedicated tests (§11) |
 | R-2 (frontend) | DONE | `search-consistency.spec.ts` 4/4 on a stack with `fixtures/search-volume.sql` (143 public SALE): URL → controls (purpose, sort, type, price range, beds), sheet edit → canonical URL, reload, Back, and the API request's filter params equal the URL's every time; "Xem thêm" reaches **all 143** results, 0 duplicates, ends with "Đã hiển thị tất cả 143 tin"; map count = list total after a real map pan (and `/listings/map` total = `/listings/search` total for one bbox: 133 = 133); every rent card price and the rent detail price end in "/tháng", no sale price does. `search.spec.ts` 6/6 on the same data. These are acceptance tests of S2's implementation (no product change was needed). | — |
 | UI-12 | PARTIAL-EXTERNAL | `KycScopePanel.test.tsx` (3): unset/blank `VITE_KYC_RETENTION_NOTICE` shows a plain "chưa được công bố" sentence with no invented duration + privacy link; a configured notice renders verbatim without the fallback. The unset sentence was reworded to read correctly. | The retention wording and period are the owner's decision |
 
@@ -95,13 +95,12 @@ Deviations that need an owner decision or larger work (not changed here):
 8. Admin tables have no compact density; detail/seller/wizard containers are `max-w-6xl` (1152 px), not 1280.
 9. Wizard step 1 is long on phones; the preview is a custom card, not `ListingCard`.
 
-## 5. DS-08 — N/A states and what is not tested
+## 5. DS-08 — N/A states
 
 N/A (no such state): Skeleton error/empty/disabled; TrustBadge loading/disabled (data is passed in); Dialog/Toast
-loading/empty (the caller's body); Pagination long content (numbers). Implemented but without a dedicated test:
-"duplicate"/"unavailable" answers of the lead form;
-Compare "refresh error" (InlineFeedback with retry). DataTable has no row-level disabled state (select-all is disabled
-without rows).
+loading/empty (the caller's body); Pagination long content (numbers). DataTable has no row-level disabled state
+(select-all is disabled without rows). The previously missing dedicated lead duplicate/unavailable and Compare
+refresh-error tests are recorded in §11.
 
 ## 6. Real screen readers — manual script (EXTERNAL)
 
@@ -202,3 +201,18 @@ Those advisory baselines were not changed in this follow-up.
   and /my-inquiries just over their old ceilings; each ceiling increased 1 kB with the reason recorded in the budget.
 
 Fresh CI verification of these fixes remains required; no local backend/full stack or production command was run.
+
+## 11. DS-08 dedicated transition coverage — 2026-10-03
+
+Three added unit regressions exercise the real components with controlled API promises, without a backend:
+
+- `LeadConsultationModal.test.tsx`: lost response → announced error with name/phone/note/consent retained → retry
+  with the same Idempotency-Key and payload → successful replay's original request code, with the form replaced by
+  confirmation. This matches the server's `replayed: true` response, rather than inventing a duplicate error code.
+- The same file rejects submission with the real `LISTING_NOT_ACCEPTING_LEADS` problem code: its explanation is
+  announced, input remains available, success is absent and the unrelated KYC detour is absent.
+- `_public.compare.test.tsx`: one ready column plus one failed refresh → error and retry → loading only for the
+  failed column → ready. It asserts the ready listing stays visible and is not fetched again.
+
+Focused tests **3/3**, TypeScript (`tsc -b`), lint and touched-file Prettier pass. These tests close the dedicated
+coverage gaps formerly listed in §5; they introduce no production-code change or new backend acceptance claim.
