@@ -6,6 +6,12 @@ nào tự làm. Bối cảnh và phân loại dữ liệu: `docs/ops/BACKUP_CLAS
 
 ## 1. Hiện trạng
 
+> **Repository là CÔNG KHAI** (`visibility: public`, tạo 11/09/2026; 0 fork — kiểm tra 03/10/2026 bằng
+> `gh api repos/Babychandoi/Real-estate --jq '.visibility, .forks_count'`). `backups/20260926-005833/*.tar.gz` (ảnh
+> KYC/CCCD, email, băm bcrypt — `BACKUP_CLASSIFICATION.md`) nằm **trong cây hiện tại của `main`** và trong kho LFS, nên
+> **ai trên Internet cũng tải được từ 26/09/2026** (commit đầu tiên chứa dữ liệu: `2d226a4`), không cần tài khoản. Chủ dự
+> án quyết định tạm giữ repository công khai (03/10/2026); vì vậy bước 0 và quyết định pháp lý ở mục 5 là **khẩn cấp**.
+
 - Commit `2d226a4` (26/09/2026) thêm `backups/20260926-005833/` (5 archive qua Git LFS + README) và một dòng
   `.gitattributes`. Commit đã có trên `origin/main` và `origin/feat/macos-uat-compare-map-profiles`.
 - Các commit sau nó trên `main` (`2df362f`, `b98c6a6`, `409b654`, `b8ebb15`, `831a010`) và toàn bộ nhánh audit
@@ -36,12 +42,23 @@ token phiên/xác minh/quyền xem KYC chỉ lưu dạng băm.
 | Phương án | Làm gì | Loại bỏ được | Không loại bỏ được | Hệ quả |
 |---|---|---|---|---|
 | **A. Giữ nguyên** | Không làm gì; chỉ chặn backup mới (đã làm: `.gitignore`, công cụ backup mã hóa) | — | Mọi thứ | Chỉ chấp nhận được nếu chủ dự án xác nhận dữ liệu không phải người dùng thật; theo đợt audit thì không phải trường hợp này |
-| **B. Xóa khỏi HEAD** | `git rm -r backups/20260926-005833` + commit thường | Bản checkout mới không còn file | Lịch sử, đối tượng LFS, clone, fork | Không đổi SHA; gần như chỉ mang tính hình thức |
+| **B. Xóa khỏi HEAD** | `git rm -r backups/20260926-005833` + commit thường | Bản checkout/tải ZIP mới không còn file | Lịch sử, đối tượng LFS (vẫn tải công khai theo SHA cũ), clone | Không đổi SHA; với repository công khai đây là mức tối thiểu phải làm ngay (bước 0b), không phải giải pháp |
 | **C. Viết lại lịch sử** | `git filter-repo` bỏ `backups/`, force-push mọi nhánh/tag, mọi người clone lại | Commit trong repository trên GitHub | **Đối tượng LFS trên GitHub** (vẫn tải được theo OID), clone/fork cũ | Đổi SHA của mọi commit từ `2d226a4`; PR mở bị hỏng; link khóa SHA bị gãy |
-| **D. Viết lại + tạo lại repository** (khuyến nghị nếu dữ liệu là thật) | Như C, rồi xóa (hoặc cách ly rồi xóa) repository cũ và tạo repository mới từ lịch sử đã làm sạch | Commit **và** đối tượng LFS trên GitHub, fork của repository riêng tư cũ | Clone/bản sao đã nằm trên máy người khác (chỉ xử lý được bằng yêu cầu xóa và cam kết) | Mất issue, PR, lịch sử Actions, star, cấu hình (branch protection, secrets, webhooks, environments) — phải cấu hình lại |
+| **D. Viết lại + tạo lại repository** (khuyến nghị nếu dữ liệu là thật) | Như C, rồi xóa (hoặc cách ly rồi xóa) repository cũ và tạo repository mới từ lịch sử đã làm sạch | Commit **và** đối tượng LFS trên GitHub (fork của repository công khai **không** tự mất khi xóa repository gốc — hiện có 0 fork) | Clone/bản sao đã nằm trên máy người khác (chỉ xử lý được bằng yêu cầu xóa và cam kết) | Mất issue, PR, lịch sử Actions, star, cấu hình (branch protection, secrets, webhooks, environments) — phải cấu hình lại |
 
-Lưu ý khi chọn C/D: nên làm **sau khi** các nhánh `audit/*` đã gộp vào `audit-2026-09-27` và `main`, để chỉ phải
-chuyển một lịch sử duy nhất; trong lúc chờ, thu hẹp quyền đọc repository (BACKUP_CLASSIFICATION.md mục 3).
+Lưu ý khi chọn C/D: không chờ gộp các nhánh — với repository công khai, mỗi ngày chờ là thêm một ngày dữ liệu tải được
+công khai. Bước 0 làm trước, độc lập với C/D.
+
+### Bước 0 — KHẨN CẤP: chặn tải công khai (chủ repository chọn một trong hai)
+
+| Lựa chọn | Làm gì | Hiệu lực | Đánh đổi |
+|---|---|---|---|
+| **0a. Chuyển sang riêng tư** | Settings → General → Danger Zone → Change visibility → Private | Ngay: người ngoài không còn tải được commit lẫn đối tượng LFS | Gói Free cho repository riêng tư: phút GitHub Actions có giới hạn/tháng (CI hiện chạy e2e và các drill dài hàng chục phút mỗi PR, sẽ hết nhanh); **branch protection/rulesets không dùng được** (`docs/ops/BRANCH_PROTECTION.md`); bản đã bị tải trước đó không thu hồi được |
+| **0b. Giữ công khai, gỡ dữ liệu** | (1) phương án B: bỏ `backups/20260926-005833` và dòng LFS trong `.gitattributes` khỏi cây, merge vào `main` ngay; (2) phương án C (bước 1–4); (3) **yêu cầu GitHub Support xóa các đối tượng LFS** cùng cache/ref cũ (đối tượng LFS chỉ mất khi Support xóa hoặc khi xóa repository) | (1) chỉ chặn bản checkout mới; chỉ sau (2)+(3) dữ liệu mới thật sự hết trên GitHub | Đổi SHA mọi commit từ `2d226a4`; phụ thuộc thời gian xử lý của GitHub Support; giữ Actions không giới hạn và rulesets của repository công khai |
+
+Chủ dự án hiện chọn giữ công khai ⇒ 0b là đường mặc định: bước (1) càng sớm càng tốt (một PR thường), (2)+(3) theo quy
+trình dưới đây. Trong mọi trường hợp: xoay bí mật theo mục 4 **trước** khi viết lại lịch sử, và quyết định pháp lý ở mục 5
+**ngay**.
 
 ## 3. Quy trình cho phương án D (C là các bước 1–4 và 6–8)
 
@@ -54,7 +71,7 @@ chuyển một lịch sử duy nhất; trong lúc chờ, thu hẹp quyền đọ
 ### Thứ tự bắt buộc: xoay vòng trước, viết lại sau
 Viết lại lịch sử không thu hồi được bản đã bị sao chép, còn bí mật cũ vẫn dùng được cho tới khi bị xoay. Vì vậy:
 1. Xoay vòng các mục "Ngay" ở mục 4 và xác nhận giá trị cũ bị từ chối — **trước** khi đụng tới lịch sử.
-2. Thu hẹp quyền đọc repository (`BACKUP_CLASSIFICATION.md` §3), thu hồi deploy key/PAT/GitHub App không còn dùng.
+2. Bước 0 (repository công khai: quyền đọc là của mọi người); thu hồi deploy key/PAT/GitHub App không còn dùng.
 3. Quét bí mật (bước 1b); xoay thêm bất cứ thứ gì được phát hiện.
 4. Rồi mới làm bước 1–8 (nếu chọn C/D).
 
@@ -72,7 +89,7 @@ bí mật ngoài mục 4 không; lưu báo cáo (đã `--redact`) cùng hồ sơ
 ```bash
 git clone --mirror https://github.com/Babychandoi/Real-estate.git scan.git
 docker run --rm -v "$PWD/scan.git:/repo:ro" zricethezav/gitleaks:v8.28.0 git /repo --log-opts="--all" --redact --no-banner
-docker run --rm -v "$PWD/scan.git:/repo:ro" trufflesecurity/trufflehog:latest git file:///repo --no-verification --no-update
+docker run --rm -v "$PWD/scan.git:/repo:ro" trufflesecurity/trufflehog:3.97.9 git file:///repo --no-verification --no-update
 ```
 `--no-verification`: trufflehog không gọi API của nhà cung cấp để thử khóa (không gửi gì ra ngoài).
 
@@ -103,8 +120,8 @@ git grep -n 'filter=lfs' $(git rev-list --all -n 1) -- .gitattributes   # dòng 
 - **C — bắt buộc thêm:** gửi yêu cầu tới GitHub Support (https://support.github.com, chủ đề xóa dữ liệu nhạy cảm) với tên
   repository, SHA `2d226a4` và danh sách PR có commit cũ, đề nghị xóa cached views, ref `refs/pull/*` cũ và chạy garbage
   collection. Thiếu bước này, commit cũ vẫn mở được qua PR và URL theo SHA. Đối tượng LFS vẫn còn (chỉ mất ở phương án D).
-- **D:** đổi tên repository cũ thành `Real-estate-quarantine` và giới hạn quyền cho owner; tạo repository riêng tư mới
-  `Babychandoi/Real-estate`; `git remote add origin https://github.com/Babychandoi/Real-estate.git`;
+- **D:** đổi tên repository cũ thành `Real-estate-quarantine` và **chuyển nó sang riêng tư** ngay (đang công khai); tạo
+  repository mới `Babychandoi/Real-estate` (công khai hay riêng tư theo quyết định ở bước 0); `git remote add origin https://github.com/Babychandoi/Real-estate.git`;
   `git push --all origin && git push --tags origin`.
 
 ### Bước 4b — Kiểm chứng sau khi đẩy
@@ -118,7 +135,8 @@ Ghi kết quả (số phát hiện, ngày, người chạy) vào phụ lục tà
 
 ### Bước 5 — (D) Xóa repository cũ
 Sau khi repository mới chạy ổn và bản mirror mã hóa đã lưu: xóa `Real-estate-quarantine` (Settings → Danger Zone).
-Việc này xóa đối tượng LFS và fork của repository riêng tư cũ. Không thể hoàn tác ngoài việc khôi phục từ bản mirror.
+Việc này xóa đối tượng LFS của repository cũ; fork của một repository công khai **không** bị xóa theo (hiện 0 fork —
+kiểm tra lại ngay trước bước này). Không thể hoàn tác ngoài việc khôi phục từ bản mirror.
 
 ### Bước 6 — Cấu hình lại và chặn tái diễn
 - Làm lại cấu hình theo kiểm kê ở bước 0; branch protection theo `docs/ops/BRANCH_PROTECTION.md`.
@@ -129,8 +147,8 @@ Việc này xóa đối tượng LFS và fork của repository riêng tư cũ. K
 - Xóa mọi clone và worktree cũ (kể cả `/Users/connecty/Real-estate` và `.claude/worktrees/*` trên máy đang chạy
   production — stack đang chạy không phụ thuộc thư mục `.git`, nhưng lần deploy kế tiếp phải từ clone mới).
 - Clone lại; **không bao giờ push nhánh cũ** (sẽ đưa đối tượng trở lại). Xóa bản sao cũ trong Time Machine/iCloud nếu có.
-- Fork: với C, liệt kê bằng `gh api repos/Babychandoi/Real-estate/forks --jq '.[].full_name'` và yêu cầu chủ fork xóa
-  (fork của repository riêng tư chỉ tự mất khi repository gốc bị xóa — phương án D).
+- Fork: liệt kê bằng `gh api repos/Babychandoi/Real-estate/forks --jq '.[].full_name'` (0 ngày 03/10/2026) và yêu cầu
+  chủ fork xóa; với repository công khai, fork không tự mất ở cả C lẫn D.
 - PR đang mở: đóng, rồi mở lại từ nhánh đã rebase lên lịch sử mới (PR cũ trỏ vào commit cũ).
 
 ### Bước 8 — Cập nhật tài liệu
@@ -152,7 +170,7 @@ khi lịch sử mới hỏng nghiêm trọng và không sửa được.
 `docs/operations/PRODUCTION_ENV.md`, `docker-compose.yml` và các overlay `infra/compose.*.yaml`. Cột **Khi nào**:
 **Ngay** = có trong archive đã lộ; **Khi tách máy** = nằm trong `.env`/máy dev, xoay khi chuyển production khỏi máy dev
 (`docs/operations/PRODUCTION_SEPARATION_PLAN.md`) hoặc ngay khi bước 1b phát hiện; **Không cần** = chỉ lưu băm/hết hạn.
-Sau mỗi thay đổi secret runtime: `docker compose -p bds-production up -d --force-recreate <dịch vụ>`.
+Sau mỗi thay đổi secret runtime: `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-deps --force-recreate <dịch vụ>` (chỉ tạo lại đúng dịch vụ đó; đổi mật khẩu PostgreSQL/Redis/MinIO thì tạo lại cả dịch vụ đó lẫn backend, theo `docs/operations/PRODUCTION_ENV.md`).
 
 | # | Bí mật / dữ liệu | Khi nào | Vì sao liên quan | Việc cần làm | Kiểm tra |
 |---|---|---|---|---|---|
@@ -171,7 +189,7 @@ Sau mỗi thay đổi secret runtime: `docker compose -p bds-production up -d --
 | 13 | Credential Cloudflare Tunnel (`infra/cloudflared/credentials.json`, trước đây `~/.cloudflared`) | Khi tách máy | Ai có file chạy được connector thay origin | Tạo tunnel/connector mới trên máy production mới, chuyển route DNS, rồi `cloudflared tunnel delete <tunnel-cũ>` (thu hồi credential cũ) | `cloudflared tunnel list` chỉ còn tunnel mới; site vẫn trả 200 |
 | 14 | Private key age của bản sao lưu | Nếu từng nằm trên máy dev/production | Mở được mọi bản `.age` đã mã hóa cho nó | Tạo cặp khóa mới, đổi `BACKUP_AGE_RECIPIENTS`; giữ key cũ ngoại tuyến tới khi các set cũ hết hạn lưu (14 ngày), rồi hủy | Bản sao lưu mới giải mã bằng key mới (`scripts/restore-drill.sh`) |
 | 15 | `GRAFANA_ADMIN_PASSWORD` | Khi tách máy | Quyền admin Grafana | Biến môi trường chỉ áp dụng lần khởi tạo đầu: đổi bằng `docker compose … exec grafana grafana cli admin reset-admin-password '<mới>'` rồi cập nhật `.env` | Đăng nhập bằng mật khẩu cũ thất bại |
-| 16 | Quyền truy cập GitHub: collaborator, deploy key, PAT, GitHub App | Ngay | Ai đọc được repository thì tải được LFS | Rà soát theo `BACKUP_CLASSIFICATION.md` §3; thu hồi thứ không dùng. CI hiện không dùng Actions secrets | Danh sách sau rà soát lưu vào hồ sơ |
+| 16 | Quyền truy cập GitHub: collaborator, deploy key, PAT, GitHub App | Ngay | Repository công khai: ai cũng tải được LFS; quyền ghi vẫn phải rà soát | Rà soát theo `BACKUP_CLASSIFICATION.md` §3; thu hồi thứ không dùng. CI hiện không dùng Actions secrets | Danh sách sau rà soát lưu vào hồ sơ |
 | 17 | Token xác minh email, đặt lại mật khẩu, quyền xem KYC | Không cần | Chỉ lưu băm; hết hạn sau 24 giờ / 30 phút / 10 phút | — | — |
 
 Lệnh quét bí mật: bước 1b (trước khi viết lại) và bước 4b (sau khi đẩy).
@@ -182,7 +200,8 @@ Lệnh quét bí mật: bước 1b (trước khi viết lại) và bước 4b (s
 |---|---|---|
 | Dữ liệu trong archive là của người dùng thật? | Chủ dự án | Tài liệu này (phụ lục) |
 | Chọn A/B/C/D, thời điểm thực hiện | Chủ repository | Tài liệu này + thông báo cho cộng tác viên |
-| Có phải thông báo cho người dùng/cơ quan quản lý không | Người có chuyên môn pháp lý | Hồ sơ sự cố |
+| **KHẨN CẤP** — Có phải thông báo cho người dùng/cơ quan quản lý không, trong thời hạn nào (dữ liệu cá nhân nhạy cảm, gồm ảnh CCCD, tải công khai được từ 26/09/2026) | Người có chuyên môn pháp lý, ngay | Hồ sơ sự cố |
+| **KHẨN CẤP** — Bước 0: 0a (riêng tư) hay 0b (công khai, gỡ dữ liệu + GitHub Support) | Chủ repository, ngay | Tài liệu này |
 | Thời hạn giữ bản mirror mã hóa và ngày hủy | Chủ dự án | Tài liệu này |
 
 ## Kiểm tra độ đầy đủ (W6-OPS, 2026-10-03)
@@ -201,3 +220,4 @@ Lệnh quét bí mật: bước 1b (trước khi viết lại) và bước 4b (s
 | Đối tượng LFS | Có | — |
 | Kiểm chứng bằng gitleaks/trufflehog | Một phần (gitleaks một lần, không nói khi nào) | Bước 1b (trước khi viết lại, gitleaks + trufflehog không gửi dữ liệu ra ngoài) và bước 4b (clone mới sau khi đẩy, kiểm tra SHA cũ) |
 | Rollback | Có (push lại mirror) | Rollback rẻ hơn cho D trước bước 5; không bao giờ rollback secret; mốc dừng |
+| Trạng thái công khai của repository | Thiếu: kế hoạch giả định repository riêng tư | (Sau rà soát độc lập, 03/10/2026) mục 1: công khai từ 11/09, dữ liệu tải công khai từ 26/09; bước 0 (0a/0b) với đánh đổi; bỏ giả định "riêng tư"/"fork riêng tư"; quyết định pháp lý ở mục 5 đánh dấu khẩn cấp; image trufflehog ghim phiên bản |

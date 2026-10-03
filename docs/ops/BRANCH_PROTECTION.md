@@ -6,8 +6,16 @@ repository không có ruleset. **Các lệnh dưới đây chưa được chạy
 
 ## Điều kiện trước
 - Tài khoản chạy lệnh có quyền **admin** trên `Babychandoi/Real-estate` và `gh auth status` hợp lệ.
-- Repository riêng tư chỉ có branch protection/ruleset với gói GitHub Pro, Team hoặc Enterprise; với gói Free, API
-  trả `403 Upgrade to GitHub Pro or make this repository public to enable this feature`.
+- Repository hiện **công khai** (gói Free): ruleset và branch protection (cả hai cách dưới đây) dùng được, GitHub
+  Actions không giới hạn phút. Nếu chủ repo chuyển sang **riêng tư** khi vẫn ở gói Free
+  (`GIT_HISTORY_REMEDIATION_PLAN.md` bước 0a), tài liệu này **không áp dụng được**: API trả `403 Upgrade to GitHub Pro
+  or make this repository public to enable this feature`, và phút Actions bị giới hạn theo tháng.
+
+  | Tính năng | Công khai, Free | Riêng tư, Free | Riêng tư, Pro/Team |
+  |---|---|---|---|
+  | Ruleset / branch protection cho `main` | Có | **Không** | Có |
+  | Required status checks, required review | Có | **Không** | Có |
+  | Phút GitHub Actions (runner GitHub) | Không giới hạn | Giới hạn theo tháng | Giới hạn lớn hơn |
 - Phải có **ít nhất hai người** có quyền write: GitHub không cho tác giả PR tự duyệt PR của mình. Nếu hiện chỉ có một
   người, xem mục "Nếu chỉ có một maintainer" trước khi bật.
 
@@ -147,11 +155,11 @@ ghi lại lựa chọn:
    có nhãn Required (và không xuất hiện nếu PR không chạm các đường dẫn của chúng).
 3. Khi bốn check xanh nhưng chưa có review: vẫn bị chặn ("Review required"). Sau một approve của người khác: merge được
    bằng "Create a merge commit".
-4. (Tùy chọn, chỉ sau khi bước 2–3 đã đúng) push thẳng một commit rỗng lên `main`:
-   `git commit --allow-empty -m "test: branch protection" && git push origin HEAD:main` phải bị từ chối
-   (`GH013: Repository rule violations` với ruleset, hoặc `protected branch hook declined` với cách 2). Sau đó
-   `git reset --hard HEAD~1` cục bộ. Nếu push lọt: protection chưa có hiệu lực — dừng lại và kiểm tra cấu hình.
-5. Đóng PR thử, xóa nhánh. Ghi ngày, người thực hiện và ảnh chụp màn hình bước 2–4 vào hồ sơ F01.9.
+4. Đóng PR thử, xóa nhánh. Ghi ngày, người thực hiện và ảnh chụp màn hình bước 2–3 vào hồ sơ F01.9.
+
+Không thử bằng cách đẩy thẳng lên `main`. Sau khi bật, **mọi commit trực tiếp lên `main` bị chặn** (rule
+`pull_request`, kể cả admin trừ khi nằm trong `bypass_actors`): mọi thay đổi — gồm sửa tài liệu và hotfix production —
+phải đi qua PR với bốn check xanh. Agent và script không bao giờ push lên `main`.
 
 ## Sau khi bật
 - Dependabot vẫn mở PR bình thường; PR của nó cũng phải qua bốn check trên.

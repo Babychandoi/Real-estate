@@ -9,15 +9,15 @@ mục gốc repository.
 
 Lệnh chẩn đoán chung:
 ```bash
-docker compose -p bds-production ps
-docker compose -p bds-production logs --since 15m --tail 200 backend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml ps
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml logs --since 15m --tail 200 backend
 curl -fsS http://127.0.0.1:3000/backend-health; echo
 ```
 
 ## BdsBackendDown
 - **Ý nghĩa:** Prometheus không đọc được `/actuator/prometheus` trong 2 phút: backend chết, đang khởi động lại hoặc mạng Compose lỗi.
-- **Chẩn đoán:** `docker compose -p bds-production ps backend`; log backend (OOM, lỗi kết nối PostgreSQL, Flyway); `docker stats --no-stream`.
-- **Giảm thiểu:** `docker compose -p bds-production up -d backend`; nếu do bản deploy mới, rollback theo `docs/ops/PRODUCTION_TOPOLOGY.md` mục 8; nếu thiếu bộ nhớ, dừng các stack không phải production trên cùng máy.
+- **Chẩn đoán:** `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml ps backend`; log backend (OOM, lỗi kết nối PostgreSQL, Flyway); `docker stats --no-stream`.
+- **Giảm thiểu:** `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-deps backend`; nếu do bản deploy mới, rollback theo `docs/ops/PRODUCTION_TOPOLOGY.md` mục 8; nếu thiếu bộ nhớ, dừng các stack không phải production trên cùng máy.
 - **Rollback:** image `bds-production-backend:rollback-<STAMP>` gần nhất.
 
 ## BdsHigh5xxRate
@@ -53,8 +53,8 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 
 ## BdsRateLimitRedisFallback
 - **Ý nghĩa:** rate limiter không dùng được Redis trong 5 phút và đang đếm trong bảng cục bộ của từng instance.
-- **Chẩn đoán:** cảnh báo BdsRedisDown; `docker compose -p bds-production logs --since 15m redis`; log backend `redis_unavailable` (một dòng khi circuit breaker Redis mở, kèm `caller` và loại lỗi) và `redis_recovered`; metric `bds_redis_breaker_state` (0 đóng, 1 mở, 2 đang thử lại) và `bds_redis_unavailable_total{caller,outcome}` (`failed` = lệnh Redis lỗi, `skipped` = bỏ qua Redis vì breaker mở).
-- **Giảm thiểu:** khôi phục Redis (`docker compose -p bds-production up -d redis`); không cần khởi động lại backend: cứ mỗi `APP_REDIS_BREAKER_OPEN_FOR` (mặc định 5 giây) một request thử lại Redis và breaker đóng khi Redis trả lời (Lettuce tự kết nối lại trong tối đa `APP_REDIS_RECONNECT_MAX_DELAY`, mặc định 2 giây). Trong lúc Redis lỗi, request không chờ Redis: rate limit đếm cục bộ theo đúng policy, cache tìm kiếm bị bỏ qua.
+- **Chẩn đoán:** cảnh báo BdsRedisDown; `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml logs --since 15m redis`; log backend `redis_unavailable` (một dòng khi circuit breaker Redis mở, kèm `caller` và loại lỗi) và `redis_recovered`; metric `bds_redis_breaker_state` (0 đóng, 1 mở, 2 đang thử lại) và `bds_redis_unavailable_total{caller,outcome}` (`failed` = lệnh Redis lỗi, `skipped` = bỏ qua Redis vì breaker mở).
+- **Giảm thiểu:** khôi phục Redis (`docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d redis`); không cần khởi động lại backend: cứ mỗi `APP_REDIS_BREAKER_OPEN_FOR` (mặc định 5 giây) một request thử lại Redis và breaker đóng khi Redis trả lời (Lettuce tự kết nối lại trong tối đa `APP_REDIS_RECONNECT_MAX_DELAY`, mặc định 2 giây). Trong lúc Redis lỗi, request không chờ Redis: rate limit đếm cục bộ theo đúng policy, cache tìm kiếm bị bỏ qua.
 - **Rollback:** không áp dụng.
 
 ## BdsRateLimitFailClosed
@@ -71,7 +71,7 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 
 ## BdsPostgresDown
 - **Ý nghĩa:** postgres-exporter không kết nối được PostgreSQL trong 2 phút.
-- **Chẩn đoán:** `docker compose -p bds-production ps postgres`; `docker compose -p bds-production logs --since 15m postgres`; dung lượng đĩa (PostgreSQL dừng khi hết chỗ).
+- **Chẩn đoán:** `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml ps postgres`; `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml logs --since 15m postgres`; dung lượng đĩa (PostgreSQL dừng khi hết chỗ).
 - **Giảm thiểu:** khởi động lại container; nếu dữ liệu hỏng, khôi phục vào database mới theo `docs/ops/PRODUCTION_TOPOLOGY.md` mục 6 — không ghi đè volume đang có.
 - **Rollback:** khôi phục từ bản sao lưu/PITR.
 
@@ -91,7 +91,7 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 ## BdsRedisDown
 Áp dụng cho BdsRedisDown và BdsRedisEvictions.
 - **Ý nghĩa:** Redis không phản hồi, hoặc Redis đang xóa key vì hết bộ nhớ (counter rate limit mất sớm).
-- **Chẩn đoán:** `docker compose -p bds-production logs --since 15m redis`; "BDS — Redis" → bộ nhớ, eviction, số key.
+- **Chẩn đoán:** `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml logs --since 15m redis`; "BDS — Redis" → bộ nhớ, eviction, số key.
 - **Giảm thiểu:** khởi động lại Redis; tìm key lớn (`redis-cli --bigkeys`); tăng giới hạn bộ nhớ của container nếu cần. Ứng dụng vẫn chạy khi Redis lỗi.
 - **Rollback:** không áp dụng.
 
@@ -105,15 +105,15 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 ## BdsDiskSpaceLow
 Áp dụng cho BdsDiskSpaceLow và BdsDiskSpaceCritical.
 - **Ý nghĩa:** một filesystem còn dưới 20 % (warning) hoặc 10 % (critical).
-- **Chẩn đoán:** `docker system df`; `docker compose -p bds-production exec postgres du -sh /var/lib/postgresql/data /var/lib/postgresql/wal-archive 2>/dev/null`; dung lượng `BACKUP_DIR`.
+- **Chẩn đoán:** `docker system df`; `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml exec postgres du -sh /var/lib/postgresql/data /var/lib/postgresql/wal-archive 2>/dev/null`; dung lượng `BACKUP_DIR`.
 - **Giảm thiểu:** xóa image/build cache không dùng (`docker image prune`, `docker builder prune`), giảm thời gian giữ WAL/backup, chuyển `BACKUP_DIR` sang đĩa khác. Không xóa file trong thư mục dữ liệu PostgreSQL.
 - **Rollback:** không áp dụng.
 
 ## BdsBackupStale
 Áp dụng cho BdsDatabaseBackupStale, BdsMediaBackupStale, BdsBackupFailed và BdsBackupNeverReported.
 - **Ý nghĩa:** không có bản sao lưu DB thành công trong 2 giờ, object trong 2 ngày, lần chạy cuối thất bại, hoặc chưa từng có metric sao lưu.
-- **Chẩn đoán:** `docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops logs --since 3h backup` (tìm `backup_failed`); quyền ghi và dung lượng của `BACKUP_DIR`; `BACKUP_METRICS_DIR` của node-exporter có trỏ tới `$BACKUP_DIR/metrics` không.
-- **Giảm thiểu:** sửa nguyên nhân rồi chạy tay: `docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops run --rm backup db`.
+- **Chẩn đoán:** `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops logs --since 3h backup` (tìm `backup_failed`); quyền ghi và dung lượng của `BACKUP_DIR`; `BACKUP_METRICS_DIR` của node-exporter có trỏ tới `$BACKUP_DIR/metrics` không.
+- **Giảm thiểu:** sửa nguyên nhân rồi chạy tay: `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm backup db`.
 - **Rollback:** không áp dụng. Sau sự cố kéo dài, chạy `scripts/restore-drill.sh` để xác nhận bản sao lưu mới khôi phục được.
 
 ## BdsSearchIndexLagHigh

@@ -91,7 +91,7 @@ PRODUCTION_TOPOLOGY.md §6; các bước dưới chỉ ghi phần `<lệnh>`.
    chuyển hostname công khai sau khi laptop đã dừng ghi (bước 11–14).
 
 **B. Diễn tập (ít nhất một lần, đo thời gian từng bước)**
-4. Trên laptop: tạo bản sao lưu mới — `docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops run --rm backup db` (và `… run --rm backup media`).
+4. Trên laptop: tạo bản sao lưu mới — `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm backup db` (và `… run --rm backup media`).
 5. Kiểm tra chính bản sao lưu: `scripts/restore-drill.sh --env production`, lưu biên bản ở `docs/ops/drills/`.
 6. Khôi phục vào DB managed với tên database thử: `restore.sh db latest bds_rehearsal`, rồi `restore.sh verify-db latest bds_rehearsal` (phải in `RESULT: PASS`).
 7. Nạp ảnh vào bucket thử: `restore.sh media latest -rehearsal`, `restore.sh verify-media latest -rehearsal`,
@@ -104,7 +104,7 @@ PRODUCTION_TOPOLOGY.md §6; các bước dưới chỉ ghi phần `<lệnh>`.
 10. Cộng thời gian các bước 4–8 (dòng `DURATION_MS` của `restore.sh`) → độ dài cửa sổ bảo trì cần xin.
 
 **C. Cut-over (cửa sổ bảo trì đã thông báo, giờ thấp điểm)**
-11. Dừng ghi: `docker compose -p bds-production rm -sf backend` trên laptop (người dùng thấy lỗi tạm; volume giữ nguyên).
+11. Dừng ghi: `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml rm -sf backend` trên laptop (người dùng thấy lỗi tạm; volume giữ nguyên).
     Dùng `rm -sf` thay vì `stop`: service production có `restart: always`, laptop khởi động lại thì container đã `stop`
     sẽ chạy lại (`docs/ops/PRODUCTION_TOPOLOGY.md` §8).
 12. Sao lưu cuối (bước 4), khôi phục vào database production trên managed (`restore.sh db <set> bds`), `verify-db` PASS,
@@ -112,7 +112,7 @@ PRODUCTION_TOPOLOGY.md §6; các bước dưới chỉ ghi phần `<lệnh>`.
 13. Khởi động stack trên VM trỏ vào database/bucket production; rebuild ES; chạy lại bước 9 trên hostname thử.
 14. Chuyển hostname công khai sang tunnel mới:
     `cloudflared tunnel route dns --overwrite-dns <tunnel-mới> nhadatchuan.online` (và `www`); chạy 2 connector:
-    `docker compose -p bds-production --profile edge up -d --scale cloudflared=2`.
+    `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml --profile edge up -d --scale cloudflared=2`.
 15. `scripts/verify-headers.sh https://nhadatchuan.online` và `scripts/verify-prerender.sh https://nhadatchuan.online`;
     theo dõi `infra/compose.observability.yaml` (5xx, p95, outbox, backup) 60 phút.
 
@@ -120,13 +120,13 @@ PRODUCTION_TOPOLOGY.md §6; các bước dưới chỉ ghi phần `<lệnh>`.
 bất kỳ `verify-*` nào FAIL; `verify-headers.sh`/`verify-prerender.sh` lỗi; tỷ lệ 5xx hoặc p95 vượt ngưỡng chủ dự án đặt
 từ baseline trong 15 phút liên tục; đăng nhập/tìm kiếm/upload thất bại.
 **Cách rollback:** trỏ DNS về tunnel cũ (`cloudflared tunnel route dns --overwrite-dns <tunnel-cũ> nhadatchuan.online`),
-`docker compose -p bds-production up -d --no-build backend` trên laptop. Dữ liệu ghi trên hệ mới sau bước 14 không tự quay về laptop:
+`docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps backend` trên laptop. Dữ liệu ghi trên hệ mới sau bước 14 không tự quay về laptop:
 ghi rõ trong biên bản và nhập lại thủ công nếu cần.
 
 **D. Sau chuyển đổi**
 16. Bật sao lưu trên VM (logical dump độc lập với nhà cung cấp, đồng bộ `BACKUP_DIR` ra ngoài) + giám sát + receiver
     cảnh báo thật; lịch diễn tập theo PRODUCTION_TOPOLOGY.md §6.
-17. Sau 7–14 ngày ổn định: gỡ stack production khỏi laptop (`docker compose -p bds-production down`, giữ volume tới
+17. Sau 7–14 ngày ổn định: gỡ stack production khỏi laptop (`docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml down`, giữ volume tới
     khi hủy có biên bản), xóa tunnel cũ (`cloudflared tunnel delete <tunnel-cũ>`), xoay các secret còn lại.
 
 ## 6. Quyết định chủ dự án cần chốt

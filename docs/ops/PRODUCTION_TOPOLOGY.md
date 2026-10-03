@@ -37,7 +37,7 @@ flowchart LR
 
 | Rủi ro | Hệ quả | Ghi chú |
 |---|---|---|
-| Một máy, một đĩa, là máy làm việc cá nhân | Máy ngủ, khởi động lại, cập nhật macOS/Docker Desktop, mất điện/mạng = sập toàn bộ; hỏng đĩa = mất dữ liệu tới bản sao lưu gần nhất | Không phải HA theo bất kỳ nghĩa nào. Đã xảy ra 3 lần (10/2026): container không tự chạy lại sau reboot — sửa bằng `restart: always` + AutoStart Docker Desktop, `docs/operations/REBOOT_RECOVERY.md` |
+| Một máy, một đĩa, là máy làm việc cá nhân | Máy ngủ, khởi động lại, cập nhật macOS/Docker Desktop, mất điện/mạng = sập toàn bộ; hỏng đĩa = mất dữ liệu tới bản sao lưu gần nhất | Không phải HA theo bất kỳ nghĩa nào. Đã xảy ra 3 lần (10/2026): Docker Desktop không chạy sau reboot (AutoStart tắt, FileVault chờ đăng nhập); với FileVault bật, phục hồi sau mất điện cần người đăng nhập. `BDS_RESTART_POLICY=always` chỉ là biện pháp phụ, `docs/operations/REBOOT_RECOVERY.md` |
 | Tranh chấp tài nguyên với dev/test | Build, test, agent làm backend production chậm hoặc bị OOM killer của VM chọn | Quan sát trực tiếp: VM gần hết RAM và swap trong lúc làm đợt audit này |
 | Mất hoặc bị trộm máy | Toàn bộ dữ liệu, `.env`, khóa PII, credential tunnel | Phụ thuộc mã hóa đĩa của máy |
 | Không có PITR, sao lưu cùng máy | RPO không xác định; sao lưu mất cùng máy | Công cụ mới: `infra/compose.backup.yaml`, `infra/compose.pitr*.yaml` |
@@ -130,14 +130,14 @@ age-keygen -o bds-backup-identity.txt        # in ra "Public key: age1..."
 # trên máy production
 mkdir -p /srv/bds-backups && chmod 700 /srv/bds-backups   # Linux: chown 10001:10001 (999:999 nếu bật PITR shipping)
 BACKUP_DIR=/srv/bds-backups BACKUP_AGE_RECIPIENTS=age1... \
-  docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops up -d backup
+  docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops up -d backup
 ```
 `BACKUP_DIR` phải nằm ngoài repository và nên được đồng bộ ra ngoài máy (ví dụ `rclone sync` sang object storage khác
 vùng): các file đều đã mã hóa, đích đồng bộ không cần tin cậy nội dung.
 
 ### PITR (tùy chọn khi tự vận hành PostgreSQL)
 ```bash
-docker compose -p bds-production -f docker-compose.yml -f infra/compose.pitr.yaml \
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.pitr.yaml \
   -f infra/compose.backup.yaml -f infra/compose.pitr-backup.yaml --profile ops up -d postgres backup postgres-basebackup
 ```
 - `archive_mode` cần khởi động lại PostgreSQL một lần (vài giây lỗi API).
@@ -217,27 +217,28 @@ cd /path/to/Real-estate && git rev-parse HEAD > /srv/bds-deploys/$(date +%Y%m%d%
 STAMP=$(date +%Y%m%d%H%M)
 docker tag bds-production-backend:latest  bds-production-backend:rollback-$STAMP
 docker tag bds-production-frontend:latest bds-production-frontend:rollback-$STAMP
-docker compose -p bds-production exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
   "SELECT max(version) FROM flyway_schema_history WHERE success" > /srv/bds-deploys/$STAMP.flyway
-docker compose -p bds-production -f docker-compose.yml -f infra/compose.backup.yaml --profile ops run --rm backup db
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm backup db
 ```
 
 ### Deploy và kiểm tra
-Mọi service production dùng `restart: always` (sự cố khởi động lại máy tháng 10/2026,
-`docs/operations/REBOOT_RECOVERY.md`). Trình tự deploy: build trong lúc bản cũ còn phục vụ, `stop` có chủ đích, rồi
-`up -d`. Nếu máy khởi động lại giữa `stop` và `up -d`, Docker chạy lại container cũ — chỉ cần chạy lại `up -d`. Service
+Production đặt `BDS_RESTART_POLICY=always` (sự cố khởi động lại máy tháng 10/2026, `docs/operations/REBOOT_RECOVERY.md`).
+Mọi lệnh production dùng cùng cách gọi có `infra/compose.apple-silicon.yaml` (dependency được tạo với overlay đó; lý do ở
+REBOOT_RECOVERY.md §3), và deploy/rollback ứng dụng luôn có `--no-deps` để không bao giờ tạo lại PostgreSQL, Redis,
+MinIO, ClamAV, Elasticsearch. Trình tự deploy: build trong lúc bản cũ còn phục vụ, `stop` có chủ đích, rồi `up -d`. Nếu máy khởi động lại giữa `stop` và `up -d`, Docker chạy lại container cũ — chỉ cần chạy lại `up -d`. Service
 cần tắt hẳn qua reboot thì gỡ (`rm -sf <service>`), không chỉ `stop`.
 ```bash
-docker compose -p bds-production build backend frontend
-docker compose -p bds-production stop backend frontend
-docker compose -p bds-production up -d --no-build backend frontend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml build backend frontend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml stop backend frontend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps backend frontend
 curl -fsS http://127.0.0.1:3000/healthz && curl -fsS http://127.0.0.1:3000/backend-health
 scripts/verify-headers.sh https://nhadatchuan.online
 # thủ công: đăng nhập, tìm kiếm, mở chi tiết tin, gửi lead thử bằng tài khoản nội bộ
 ```
 
 **Đã đo (W6-OPS, CI run 37059275022, `scripts/ci-ops-drill.sh rollback`):** trên database đã migrate tới V095 có dữ
-liệu UAT, chạy đúng lệnh rollback dưới đây với image backend cũ rồi roll forward lại:
+liệu UAT, chạy lệnh rollback dưới đây (trên runner không có overlay Apple Silicon) với image backend cũ rồi roll forward lại:
 
 | Image cũ | Migration mới nhất của image | Khởi động | Health / tìm kiếm v1 / đăng nhập + `/auth/me` | Roll forward |
 |---|---|---|---|---|
@@ -257,7 +258,7 @@ làm màn hình tương ứng của app cũ lỗi khi đọc.
 ```bash
 docker tag bds-production-backend:rollback-$STAMP  bds-production-backend:latest
 docker tag bds-production-frontend:rollback-$STAMP bds-production-frontend:latest
-docker compose -p bds-production up -d --no-build --force-recreate backend frontend
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml up -d --no-build --no-deps --force-recreate backend frontend
 ```
 
 ### Rollback khi migration không tương thích

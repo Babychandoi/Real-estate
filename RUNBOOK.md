@@ -14,8 +14,9 @@
 
 ## Khởi động lại máy production
 
-Mọi service production dùng `restart: always` và Docker Desktop phải tự chạy khi đăng nhập; deploy bằng `build` →
-`stop` → `up -d`. Nguyên nhân sự cố 10/2026, việc của chủ máy và cách kiểm tra: `docs/operations/REBOOT_RECOVERY.md`.
+Nguyên nhân gốc của sự cố 10/2026 là Docker Desktop không chạy sau reboot (AutoStart tắt, FileVault chờ đăng nhập);
+production đặt `BDS_RESTART_POLICY=always` làm biện pháp phụ. Mọi lệnh production dùng `-p bds-production -f docker-compose.yml
+-f infra/compose.apple-silicon.yaml`; deploy bằng `build` → `stop` → `up -d --no-deps`. Nguyên nhân sự cố 10/2026, việc của chủ máy và cách kiểm tra: `docs/operations/REBOOT_RECOVERY.md`.
 
 ## Hàng đợi công việc
 
