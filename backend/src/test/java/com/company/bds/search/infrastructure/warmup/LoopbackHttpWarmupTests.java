@@ -71,6 +71,37 @@ class LoopbackHttpWarmupTests {
     }
 
     @Test
+    void aSuccessfulHeaderWithAStalledResponseBodyCannotHoldReadinessBeyondTheDeadline() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch bodyStarted = new CountDownLatch(1);
+        server.createContext("/", exchange -> {
+            try {
+                exchange.sendResponseHeaders(200, 0);
+                exchange.getResponseBody().write('{');
+                exchange.getResponseBody().flush();
+                bodyStarted.countDown();
+                release.await(3, TimeUnit.SECONDS);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+        Instant start = Instant.now();
+        try {
+            String result = warmup.run(server.getAddress().getPort(), List.of(), start.plusMillis(500), 30);
+            assertThat(bodyStarted.getCount()).isZero();
+            assertThat(result).contains("deadline").doesNotContain("warm");
+            assertThat(Duration.between(start, Instant.now())).isLessThan(Duration.ofSeconds(2));
+        } finally {
+            release.countDown();
+            server.stop(0);
+        }
+    }
+
+    @Test
     void redirectsAndFailedRoutesDoNotClaimAWarmServerOrVisitAnotherDestination() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         AtomicInteger redirected = new AtomicInteger();

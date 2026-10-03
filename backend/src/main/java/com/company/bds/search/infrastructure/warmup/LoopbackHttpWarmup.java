@@ -1,6 +1,5 @@
 package com.company.bds.search.infrastructure.warmup;
 
-import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -10,6 +9,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** Read-only loopback requests warm the real MVC/security/Jackson paths before readiness, within the shared deadline. */
 final class LoopbackHttpWarmup {
@@ -43,12 +45,17 @@ final class LoopbackHttpWarmup {
                 Duration timeout = remaining.compareTo(Duration.ofSeconds(2)) < 0 ? remaining : Duration.ofSeconds(2);
                 HttpRequest request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path))
                         .timeout(timeout).GET().build();
+                // JDK 17 request.timeout stops at response headers; bound the complete body subscription too.
+                var response = client.sendAsync(request, HttpResponse.BodyHandlers.discarding());
                 try {
-                    HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
-                    if (response.statusCode() != 200) success = false;
-                } catch (IOException ex) {
+                    if (response.get(timeout.toNanos(), TimeUnit.NANOSECONDS).statusCode() != 200) success = false;
+                } catch (ExecutionException ex) {
+                    success = false;
+                } catch (TimeoutException ex) {
+                    response.cancel(true);
                     success = false;
                 } catch (InterruptedException ex) {
+                    response.cancel(true);
                     Thread.currentThread().interrupt();
                     return result(completed, failed + 1, 0, "interrupted");
                 }

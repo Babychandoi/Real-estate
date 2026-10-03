@@ -394,5 +394,10 @@ Focused local check before the final bbox change: **26 tests, 0 failures/errors*
 After the exact-bbox change, a second focused check passes **16 tests, 0 failures/errors** in 20.021 s
 (warm-up, local cache, map). `perf_summary_test.py` passes 7 checks; Compose configuration, shell syntax and
 `git diff --check` pass. Latest full core CI on `3128409` (run 37103506976) passes backend/frontend/security/e2e. New-head CI and strict
-100k/1M benchmarks must run after integration of backend expiry guards/schema 2; **D-13/R-5 remain PARTIAL** until
+The independent review caught a JDK 17 gap: request timeout can stop at headers while the body stalls. The helper now
+uses cancellable `sendAsync` plus a deadline-bound wait for the **complete response body**; a 200-header/partial-body
+regression passes. Loopback/map recheck: **11 tests, 0 failures/errors**, 11.081 s. Query-plan constant extraction also
+joins concatenated Java string literals (the backend expiry guard), with 3 Python checks passing; it rejects unsupported
+expressions rather than emitting incomplete SQL. Backend integration must also update the catalog seller/gone blocks
+for their newly added expiry checks. Strict 100k/1M benchmarks must run after integration of backend expiry guards/schema 2; **D-13/R-5 remain PARTIAL** until
 those artifacts pass. No thresholds or request mix have been relaxed.
