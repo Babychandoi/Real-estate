@@ -11,7 +11,9 @@
 # overlays, builds every image itself and destroys volumes on purpose. It refuses to run without BDS_DRILL_ISOLATED=1
 # and is not meant for a workstation: `rollback` restarts the Docker daemon. Evidence: .artifacts/ops-drill/.
 # Environment: LOSS_AFTER_SECONDS (default 690; time between the backups and the loss),
-#              PREVIOUS_REFS (default "13e41a2^1 dcc63c3^1": main before #21, last release before V027..V095).
+#              PREVIOUS_REFS (default: derived at run time from origin/main, see previous_refs),
+#              DRILL_QUICK_TUNNEL=1 (also test through the real Cloudflare edge with a quick tunnel; opt-in).
+# Production runs with BDS_RESTART_POLICY=always in its .env; the drill sets the same (docker-compose.yml header).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -37,6 +39,7 @@ MINIO_USER="$(sed -n 's/^MINIO_ROOT_USER=//p' "$ENV_FILE")"
 MINIO_PASSWORD="$(sed -n 's/^MINIO_ROOT_PASSWORD=//p' "$ENV_FILE")"
 MINIO_IMAGE=bds-minio:RELEASE.2025-10-15T17-29-55Z
 export BACKUP_ENV=ci-drill
+export BDS_RESTART_POLICY=always # what the production .env sets
 
 COMPOSE_FILES=(-f "$REPO/docker-compose.yml")
 if [ "$MODE" = recovery ]; then
@@ -330,7 +333,7 @@ swap_backend() { # swap_backend <image> <label>: the runbook's rollback (tag + u
   local image="$1" label="$2" t
   docker tag "$image" "${PROJECT}-backend:latest"
   t="$(ms)"
-  compose up -d --no-build --force-recreate backend frontend > "$ART/$label-up.log" 2>&1 || true
+  compose up -d --no-build --no-deps --force-recreate backend frontend > "$ART/$label-up.log" 2>&1 || true
   if wait_healthy backend 300; then
     record "${label}_healthy_seconds" "$(secs "$t" "$(ms)")"
     record "${label}_start" PASS
@@ -372,7 +375,13 @@ ip_chain() {
     && record verify_headers_local PASS || record verify_headers_local FAIL
   record verify_headers_local_summary "$(tail -n 1 "$ART/verify-headers-local.txt")"
 
-  # Optional: the real Cloudflare edge through a quick tunnel run by the same cloudflared image as production.
+  if [ "${DRILL_QUICK_TUNNEL:-0}" = 1 ]; then quick_tunnel; else record edge_ip_hint "skipped (DRILL_QUICK_TUNNEL=1 runs it; manual dispatch only)"; fi
+}
+
+# The real Cloudflare edge through a quick tunnel (trycloudflare.com) run by the same cloudflared image as production.
+# Opt-in (manual workflow dispatch): it exposes the throwaway CI stack on a public URL for a few minutes.
+quick_tunnel() {
+  local token
   log "Cloudflare quick tunnel (best effort): real edge -> cloudflared -> Nginx -> backend"
   docker run -d --name bds-ops-quick-tunnel --network "$NETWORK" cloudflare/cloudflared:2026.9.1 \
     tunnel --no-autoupdate --url http://frontend:3000 > /dev/null 2>&1 || true
@@ -430,13 +439,32 @@ daemon_restart() { # daemon_restart <label> <listing> <graceful|hard>
   record "${label}_running" "$(grep -c 'status=running' "$ART/$label-after.txt" || true)/$(wc -l < "$ART/$label-after.txt" | tr -d ' ')"
 }
 
+# Previous images to roll back to, derived from history at run time (no SHA survives a history rewrite):
+# origin/main (what is deployed when this branch is a PR), main before its last merge, and the commit before the most
+# recent first-parent commit on main that added a Flyway migration (the last schema-changing release).
+previous_refs() {
+  local main=origin/main schema
+  git -C "$REPO" rev-parse --verify -q "$main" > /dev/null || main=HEAD
+  schema="$(git -C "$REPO" log --first-parent --diff-filter=A --format=%H -1 "$main" -- backend/src/main/resources/db/migration)"
+  {
+    git -C "$REPO" rev-parse --short "$main"
+    git -C "$REPO" rev-parse --short "$main^1"
+    [ -n "$schema" ] && git -C "$REPO" rev-parse --short "$schema^1"
+  } | awk '!seen[$0]++' | tr '\n' ' '
+}
+
 rollback() {
+  log "restart policy rendering: default unless-stopped, production (BDS_RESTART_POLICY=always) always"
+  record policy_default "$(BDS_RESTART_POLICY='' docker compose --env-file "$ENV_FILE" -f "$REPO/docker-compose.yml" --profile edge config --format json | python3 -c 'import json,sys; print(sorted({s.get("restart") for s in json.load(sys.stdin)["services"].values()}))')"
+  record policy_production "$(docker compose --env-file "$ENV_FILE" -f "$REPO/docker-compose.yml" --profile edge config --format json | python3 -c 'import json,sys; print(sorted({s.get("restart") for s in json.load(sys.stdin)["services"].values()}))')"
+
   log "building current images"
   local t; t="$(ms)"
   compose build backend frontend minio > "$ART/build.log" 2>&1
   record build_seconds "$(secs "$t" "$(ms)")"
   docker tag "${PROJECT}-backend:latest" bds-backend:current
-  local refs="${PREVIOUS_REFS:-13e41a2^1 dcc63c3^1}" ref sha label
+  local refs="${PREVIOUS_REFS:-$(previous_refs)}" ref sha label
+  record previous_refs "$refs"
   for ref in $refs; do
     sha="$(git -C "$REPO" rev-parse --short "$ref")"
     log "building backend image of $ref ($sha)"

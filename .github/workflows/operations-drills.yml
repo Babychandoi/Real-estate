@@ -19,7 +19,15 @@ on:
       - "infra/postgres/**"
       - "frontend/nginx.conf"
       - "frontend/nginx/**"
+      - "frontend/nginx-templates/**"
+      - "frontend/Dockerfile"
+      - "backend/src/main/resources/db/migration/**"
   workflow_dispatch:
+    inputs:
+      quick_tunnel:
+        description: Also prove the client-IP chain through the real Cloudflare edge (temporary trycloudflare.com URL)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,6 +64,7 @@ jobs:
     timeout-minutes: 90
     env:
       BDS_DRILL_ISOLATED: "1"
+      DRILL_QUICK_TUNNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.quick_tunnel && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
         with:
