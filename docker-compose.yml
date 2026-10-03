@@ -1,8 +1,15 @@
+# Restart policy: ${BDS_RESTART_POLICY:-unless-stopped}. Production sets BDS_RESTART_POLICY=always in its .env (incident
+# 2026-10, docs/operations/REBOOT_RECOVERY.md): Docker then also restarts containers that were stopped through the API
+# before the daemon went away; unless-stopped leaves those down (measured: docs/audit-2026-09-27/streams/w6-ops.md).
+# The root cause of the outages was Docker Desktop not starting (AutoStart off, FileVault login screen); the policy
+# only covers what happens once the daemon runs. Demo/dev stacks keep the default, so a stopped demo never returns
+# after a reboot and races production for 127.0.0.1:3000. depends_on only orders `docker compose up`; after a daemon
+# restart Docker starts everything at once and a service that starts too early exits and is restarted.
 name: bds-enterprise-stack
 services:
   postgres:
     image: postgis/postgis:16-3.4
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bds}
       POSTGRES_USER: ${POSTGRES_USER:-bds}
@@ -16,7 +23,7 @@ services:
     networks: [bds-network]
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"]
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep PONG"]
@@ -29,7 +36,7 @@ services:
     networks: [bds-network]
   mailpit:
     image: axllent/mailpit:v1.21
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     ports: ["127.0.0.1:8025:8025"]
     networks: [bds-network]
   minio:
@@ -37,7 +44,7 @@ services:
       context: ./infra/minio
       args: { MINIO_VERSION: RELEASE.2025-10-15T17-29-55Z }
     image: bds-minio:RELEASE.2025-10-15T17-29-55Z
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
@@ -52,7 +59,7 @@ services:
     networks: [bds-network]
   clamav:
     image: clamav/clamav:1.4_base
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     volumes: [clamav-data:/var/lib/clamav]
     healthcheck:
       test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
@@ -63,7 +70,7 @@ services:
     networks: [bds-network]
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.5
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
@@ -77,7 +84,7 @@ services:
     networks: [bds-network]
   backend:
     build: { context: ./backend, dockerfile: Dockerfile }
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     environment:
       APP_MODE: ${APP_MODE:-demo}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
@@ -197,7 +204,10 @@ services:
       args:
         VITE_PUBLIC_API_BASE_URL: /api/v1
         VITE_KYC_RETENTION_NOTICE: ${VITE_KYC_RETENTION_NOTICE:-}
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
+    environment:
+      # Canonical host for the HTTP->HTTPS redirect (bare host, e.g. nhadatchuan.online); empty = request Host.
+      BDS_PUBLIC_HOST: ${PUBLIC_HOST:-}
     # Loopback only: Nginx trusts forwarded client addresses from the Docker/loopback ranges, so nothing on the LAN
     # may reach it directly. Public traffic arrives through cloudflared inside the Compose network.
     ports: ["127.0.0.1:3000:3000"]
@@ -207,7 +217,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2026.9.1
     profiles: ["edge"]
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
     volumes:
       - ./infra/cloudflared/config.yml:/etc/cloudflared/config.yml:ro

@@ -12,6 +12,12 @@
 4. Triển khai canary, kiểm tra `/actuator/health/readiness`, `/health`, đăng nhập, tìm kiếm và gửi lead.
 5. Theo dõi tỷ lệ lỗi, p95 và backlog; rollback image nếu vượt SLO.
 
+## Khởi động lại máy production
+
+Nguyên nhân gốc của sự cố 10/2026 là Docker Desktop không chạy sau reboot (AutoStart tắt, FileVault chờ đăng nhập);
+production đặt `BDS_RESTART_POLICY=always` làm biện pháp phụ. Mọi lệnh production dùng `-p bds-production -f docker-compose.yml
+-f infra/compose.apple-silicon.yaml`; deploy bằng `build` → `stop` → `up -d --no-deps`. Nguyên nhân sự cố 10/2026, việc của chủ máy và cách kiểm tra: `docs/operations/REBOOT_RECOVERY.md`.
+
 ## Hàng đợi công việc
 
 Mọi email (xác minh, đặt lại mật khẩu, thông báo đối soát) đi qua hàng đợi bền vững `background_jobs` (queue `email`).

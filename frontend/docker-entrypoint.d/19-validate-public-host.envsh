@@ -1,0 +1,16 @@
+#!/bin/sh
+# Sourced before envsubst by the nginx entrypoint. Never interpolate unvalidated text into nginx configuration.
+# Empty means the local/demo request host; production sets PUBLIC_HOST through Compose.
+export BDS_PUBLIC_HOST="${BDS_PUBLIC_HOST-}"
+if ! LC_ALL=C awk 'BEGIN {
+    host = ENVIRON["BDS_PUBLIC_HOST"];
+    if (host == "") exit 0;
+    if (length(host) > 253) exit 1;
+    count = split(host, labels, ".");
+    for (i = 1; i <= count; i++) {
+        if (length(labels[i]) > 63 || labels[i] !~ /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?$/) exit 1;
+    }
+}' </dev/null; then
+    echo "BDS_PUBLIC_HOST must be a plain hostname without scheme, port, whitespace or nginx variables" >&2
+    exit 1
+fi
