@@ -70,12 +70,20 @@ export async function auditUi(page: Page, options: UiAuditOptions): Promise<UiFi
         return `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}${classes ? `.${classes}` : ''} "${text}"`;
       }
       const style = (el: Element) => getComputedStyle(el);
+      // Only a modal that is actually on screen covers the page (a display:none one does not, review minor 6).
+      const openModals = () =>
+        Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((modal) => {
+          const rect = modal.getBoundingClientRect();
+          const cs = getComputedStyle(modal);
+          return rect.width > 1 && rect.height > 1 && cs.visibility !== 'hidden';
+        });
+      const modals = openModals();
       const hiddenTree = (el: Element) =>
         Boolean(el.closest('[inert], [aria-hidden="true"], .sr-only, template, noscript')) ||
         // A modal is open and this element is behind it: not reachable, not measured.
-        (document.querySelector('[aria-modal="true"]') !== null &&
-          !el.closest('[aria-modal="true"]') &&
-          !el.closest('[role="alert"], [role="status"], .ndc-toast-region'));
+        (modals.length > 0 &&
+          !modals.some((modal) => modal.contains(el)) &&
+          !el.closest('[role="alert"], [role="status"], [data-modal-keep]'));
       const visible = (el: Element) => {
         const rect = el.getBoundingClientRect();
         if (rect.width < 2 || rect.height < 2) return false;
@@ -120,6 +128,16 @@ export async function auditUi(page: Page, options: UiAuditOptions): Promise<UiFi
             (parent.closest('[role="status"]') && 'status') ||
             (control && control.getBoundingClientRect().height <= 64 && 'action');
           if (important && size < 14 - 0.01) push('small-important-text', parent, `${important} text ${size}px`);
+        }
+        // Text inside form controls (a typed value, a placeholder, the chosen option) is not a text node: measure the
+        // control's own font size (review minor 6). Inputs are information as well as action: 12 px minimum.
+        const fields = root.querySelectorAll(
+          'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select, textarea',
+        );
+        for (const field of Array.from(fields)) {
+          if (!visible(field) || hiddenTree(field)) continue;
+          const size = parseFloat(style(field).fontSize);
+          if (size < 12 - 0.01) push('tiny-text', field, `form control text ${size}px`);
         }
       }
 
@@ -211,8 +229,8 @@ export async function auditUi(page: Page, options: UiAuditOptions): Promise<UiFi
         if (isInlineLink(el)) continue;
         targets.push({ el, box });
       }
-      // Nested targets (a button inside a link) count once, as the outer one.
-      const outer = targets.filter((t) => !targets.some((o) => o !== t && o.el.contains(t.el)));
+      // Every target is measured, a small button nested inside a large link or [role=button] too (review minor 6).
+      const outer = targets;
       const small = outer.filter((t) => t.box.width < min - 0.5 || t.box.height < min - 0.5);
       for (const t of small) {
         const size = `${Math.round(t.box.width)}×${Math.round(t.box.height)}`;

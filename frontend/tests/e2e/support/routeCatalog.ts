@@ -1,4 +1,4 @@
-import type { APIRequestContext, Browser, BrowserContextOptions, Page } from '@playwright/test';
+import { expect, type APIRequestContext, type Browser, type BrowserContextOptions, type Page } from '@playwright/test';
 import { staffToken } from './adminAdversarial';
 import { apiLogin, DEMO_ACCOUNTS, skipConsentBanner, useSession } from './helpers';
 
@@ -90,10 +90,14 @@ export const ROUTES: RouteSpec[] = [
 ];
 
 export async function loadSession(request: APIRequestContext): Promise<Session> {
+  // Every id must come from the seeded API: a missing one would make the audit check a 404 page instead of the real
+  // one and pass for the wrong reason (review of PR #25, minor 7).
   const first = async (path: string, pick: (body: unknown) => string | undefined, headers = {}) => {
     const response = await request.get(path, { headers });
-    if (!response.ok()) return 'khong-co';
-    return pick(await response.json()) ?? 'khong-co';
+    expect(response.ok(), `${path} answered ${response.status()} (the audit needs seeded data)`).toBe(true);
+    const value = pick(await response.json());
+    expect(value, `${path} returned no item (the audit needs seeded data)`).toBeTruthy();
+    return value as string;
   };
   type Items = { items?: Array<{ slug?: string; id?: string }> };
   const firstSlug = (body: unknown) => (body as Items).items?.[0]?.slug;
@@ -102,6 +106,7 @@ export async function loadSession(request: APIRequestContext): Promise<Session> 
     slug: string;
     sellerId: string;
   }>;
+  expect(listings[0]?.slug && listings[0]?.sellerId, 'a public SALE listing with its seller').toBeTruthy();
   return {
     tokens: {
       buyer: await apiLogin(request, DEMO_ACCOUNTS.buyer),
@@ -110,8 +115,8 @@ export async function loadSession(request: APIRequestContext): Promise<Session> 
       admin: await staffToken(request, 'demo.admin@bds.local'),
     },
     ids: {
-      listing: listings[0]?.slug ?? 'khong-co',
-      seller: listings[0]?.sellerId ?? 'khong-co',
+      listing: listings[0].slug,
+      seller: listings[0].sellerId,
       rentListing: await first(
         '/api/v1/listings/search?purpose=RENT&size=1',
         (b) => (b as Array<{ slug?: string }>)[0]?.slug,
@@ -126,13 +131,14 @@ export async function loadSession(request: APIRequestContext): Promise<Session> 
   };
 }
 
-/** Waits for the page's own readiness signal; static states without one get a short grace period. */
+/**
+ * Waits for the page's own readiness signal (`data-ready="true"`, set once data has loaded or failed visibly). A page
+ * that never signals readiness fails here instead of being audited half-loaded (review of PR #25, minor 7).
+ */
 export async function settle(page: Page) {
-  await page
-    .locator('[data-ready="true"]')
-    .first()
-    .waitFor({ state: 'attached', timeout: 15_000 })
-    .catch(() => undefined);
+  await expect(page.locator('[data-ready="true"]').first(), `${page.url()} never set data-ready="true"`).toBeAttached({
+    timeout: 20_000,
+  });
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
