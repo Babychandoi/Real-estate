@@ -91,6 +91,11 @@ management:
       show-details: when_authorized
       probes:
         enabled: true
+      group:
+        readiness:
+          # ApplicationReadyEvent is followed by Boot's ACCEPTING_TRAFFIC event; the contributor must also be in this
+          # group so an asynchronous warm-up keeps /actuator/health/readiness at 503 until it has finished.
+          include: readinessState,searchWarmup,db
   metrics:
     tags:
       application: ${spring.application.name}

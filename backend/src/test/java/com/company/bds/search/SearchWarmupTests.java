@@ -6,12 +6,19 @@ import com.company.bds.search.application.port.ListingSearchEnginePort;
 import com.company.bds.search.infrastructure.warmup.SearchWarmup;
 import com.company.bds.testsupport.BdsIntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.health.Status;
+import org.springframework.boot.actuate.health.Health;
+import org.springframework.boot.actuate.health.HealthContributor;
+import org.springframework.boot.actuate.health.HealthContributorRegistry;
+import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.ReadinessState;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -26,6 +33,8 @@ import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * W6-PERF O5: the start-up warm-up holds readiness and health until PostgreSQL (pg_prewarm, V101) and the engine are
@@ -35,6 +44,8 @@ import static org.mockito.Mockito.when;
 class SearchWarmupTests {
     @Autowired JdbcTemplate jdbc;
     @Autowired SearchWarmup configured;
+    @Autowired HealthContributorRegistry healthContributors;
+    @Autowired MockMvc mockMvc;
 
     private final List<Object> events = new ArrayList<>();
     private final ApplicationEventPublisher publisher = events::add;
@@ -43,6 +54,24 @@ class SearchWarmupTests {
     void disabledByDefaultAndThenAlwaysUp() {
         assertThat(configured.health().getStatus()).isEqualTo(Status.UP);
         assertThat(configured.done()).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"searchWarmup", "db"})
+    void readinessWaitsForWarmupAndDatabaseWhileLivenessStaysUp(String contributor) throws Exception {
+        HealthContributor original = healthContributors.getContributor(contributor);
+        try {
+            healthContributors.unregisterContributor(contributor);
+            healthContributors.registerContributor(contributor, (HealthIndicator) () -> Health.outOfService().build());
+            mockMvc.perform(get("/actuator/health/readiness")).andExpect(status().isServiceUnavailable());
+            mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+            healthContributors.unregisterContributor(contributor);
+            healthContributors.registerContributor(contributor, (HealthIndicator) () -> Health.up().build());
+            mockMvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
+        } finally {
+            healthContributors.unregisterContributor(contributor);
+            healthContributors.registerContributor(contributor, original);
+        }
     }
 
     @Test
