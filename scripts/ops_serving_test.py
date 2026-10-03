@@ -7,7 +7,7 @@ import unittest
 
 
 class ServingTests(unittest.TestCase):
-    def run_probe(self, healthy_after, timeout):
+    def run_probe(self, healthy_after, timeout, pending_status=503):
         state = {'health': 0, 'search': 0, 'search_before_ready': False}
 
         class Handler(BaseHTTPRequestHandler):
@@ -16,7 +16,7 @@ class ServingTests(unittest.TestCase):
                 body = b'ok'
                 if self.path == '/backend-health':
                     state['health'] += 1
-                    status = 200 if state['health'] > healthy_after else 503
+                    status = 200 if state['health'] > healthy_after else pending_status
                 elif self.path == '/api/v2/listings/search':
                     state['search'] += 1
                     state['search_before_ready'] |= state['health'] <= healthy_after
@@ -60,6 +60,13 @@ wait_serving {timeout} /listings/synthetic
 
     def test_backend_that_never_becomes_healthy_times_out_despite_successful_pages(self):
         result, state = self.run_probe(healthy_after=10000, timeout=1)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertGreater(state['health'], 0)
+        self.assertEqual(state['search'], 0)
+        self.assertEqual(result.stdout, '')
+
+    def test_backend_redirect_is_not_readiness(self):
+        result, state = self.run_probe(healthy_after=10000, timeout=1, pending_status=302)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertGreater(state['health'], 0)
         self.assertEqual(state['search'], 0)

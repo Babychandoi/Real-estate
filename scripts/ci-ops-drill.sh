@@ -95,12 +95,12 @@ wait_serving() { # wait_serving <timeout s> <listing path>
   local timeout="$1" listing="$2" deadline body first_ok=""
   deadline=$(( $(date +%s) + timeout ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    if curl -fsS -o /dev/null --max-time 5 "$BASE/healthz" 2>/dev/null \
+    if [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/healthz" 2>/dev/null)" = 200 ] \
        && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H 'Accept: text/html' "$BASE$listing")" = 200 ]; then
       [ -n "$first_ok" ] || first_ok="$(ms)"
       # Docker daemon restarts do not honour Compose's service_healthy ordering. A page/search can answer while the
       # warm-up contributor still returns 503; that is not full readiness and must not end the RTO timer early.
-      if ! curl -fsS -o /dev/null --max-time 5 "$BASE/backend-health" 2>/dev/null; then
+      if [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/backend-health" 2>/dev/null)" != 200 ]; then
         sleep 1
         continue
       fi
