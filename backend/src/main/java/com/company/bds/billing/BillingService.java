@@ -137,7 +137,8 @@ public class BillingService {
         String scope = "billing-order:" + userId;
         String requestHash = AuthService.sha256("plan:" + plan.code());
         if (key != null) {
-            List<Object[]> previous = jdbc.query("SELECT request_hash, resource_id FROM api_idempotency_keys WHERE scope=? AND idempotency_key=?",
+            List<Object[]> previous = jdbc.query("SELECT request_hash, resource_id FROM api_idempotency_keys WHERE scope=? AND idempotency_key=? "
+                            + "AND " + KEY_ALIVE,
                     (rs, n) -> new Object[]{rs.getString(1), rs.getObject(2, UUID.class)}, scope, key);
             if (!previous.isEmpty()) {
                 if (!requestHash.equals(previous.get(0)[0])) {
@@ -171,8 +172,8 @@ public class BillingService {
             created = true;
         }
         if (key != null) {
-            int bound = jdbc.update("INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id) VALUES(?,?,?,?) ON CONFLICT DO NOTHING",
-                    scope, key, requestHash, id);
+            int bound = jdbc.update("INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id,expires_at) "
+                            + "VALUES(?,?,?,?, now() + interval '24 hours') " + REUSE_EXPIRED_KEY, scope, key, requestHash, id);
             if (bound == 0) {
                 // Defence in depth behind the key lock: never leave an order the key does not point at.
                 throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này vừa được dùng cho một yêu cầu khác.");
@@ -413,18 +414,45 @@ public class BillingService {
         if (status.isEmpty()) throw ApiException.notFound("ORDER_NOT_FOUND", "Không tìm thấy yêu cầu thanh toán.");
         if (key != null) {
             List<Object[]> previous = jdbc.query("""
-                    SELECT request_hash, resource_id FROM api_idempotency_keys
-                    WHERE scope=? AND idempotency_key=? AND (expires_at IS NULL OR expires_at > now())
-                    """, (rs, n) -> new Object[]{rs.getString(1), rs.getObject(2, UUID.class)}, key.scope(), key.key());
+                    SELECT request_hash, resource_id, response_snapshot FROM api_idempotency_keys
+                    WHERE scope=? AND idempotency_key=? AND """ + KEY_ALIVE,
+                    (rs, n) -> new Object[]{rs.getString(1), rs.getObject(2, UUID.class), rs.getString(3)}, key.scope(), key.key());
             if (!previous.isEmpty()) {
                 if (!key.requestHash().equals(previous.get(0)[0]) || !id.equals(previous.get(0)[1])) {
                     throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này đã dùng cho một thao tác khác.");
                 }
-                return new Review(load(id, null, true), true);
+                // The answer the keyed request gave, not the order as it is now (another admin may have acted since).
+                String snapshot = (String) previous.get(0)[2];
+                return new Review(snapshot == null ? load(id, null, true) : readOrder(snapshot), true);
             }
         }
         if (!allowed.contains(status.get(0))) throw stateChanged(status.get(0));
         return new Review(load(id, null, true), false);
+    }
+
+    /** A key is alive for 24 h; legacy rows without {@code expires_at} count from {@code created_at} (like lead keys). */
+    private static final String KEY_ALIVE = " COALESCE(expires_at, created_at + interval '24 hours') > now()";
+    /** Binds the key, or takes over an expired one (the purge job may not have removed it yet); a live key is left alone. */
+    private static final String REUSE_EXPIRED_KEY = """
+            ON CONFLICT (scope, idempotency_key) DO UPDATE SET request_hash = EXCLUDED.request_hash, resource_id = EXCLUDED.resource_id,
+                created_at = now(), expires_at = EXCLUDED.expires_at, response_snapshot = EXCLUDED.response_snapshot
+            WHERE COALESCE(api_idempotency_keys.expires_at, api_idempotency_keys.created_at + interval '24 hours') <= now()
+            """;
+
+    private String writeOrder(Order order) {
+        try {
+            return json.writeValueAsString(order);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private Order readOrder(String snapshot) {
+        try {
+            return json.readValue(snapshot, Order.class);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     private static ApiException stateChanged(String status) {
@@ -446,9 +474,9 @@ public class BillingService {
     private Review bind(ReviewKey key, Order order) {
         if (key != null) {
             int bound = jdbc.update("""
-                    INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id,expires_at)
-                    VALUES(?,?,?,?, now() + interval '24 hours') ON CONFLICT DO NOTHING
-                    """, key.scope(), key.key(), key.requestHash(), order.id());
+                    INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id,expires_at,response_snapshot)
+                    VALUES(?,?,?,?, now() + interval '24 hours', ?)
+                    """ + REUSE_EXPIRED_KEY, key.scope(), key.key(), key.requestHash(), order.id(), writeOrder(order));
             // The same key raced on another order: roll this one back rather than leave an effect the key does not name.
             if (bound == 0) throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này vừa được dùng cho một thao tác khác.");
         }
