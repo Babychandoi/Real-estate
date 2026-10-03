@@ -6,6 +6,8 @@ import math
 import re
 from pathlib import Path
 
+ENDPOINT = re.compile(r'^http_req_duration\{endpoint:([a-z-]+)\}$')
+
 
 def metric(summary, name, statistic):
     entry = summary.get('metrics', {}).get(name, {})
@@ -24,10 +26,13 @@ def draft_count(summary):
 
 
 def verify_engine_state(summary, expected):
-    reads = metric(summary, 'read_attempts', 'count')
+    # Only search requests carry the engine state; older summaries (every read a search) have no search_reads.
+    name = 'search_reads' if 'search_reads' in summary.get('metrics', {}) else 'read_attempts'
+    reads = metric(summary, name, 'count')
     degraded = metric(summary, 'degraded_reads', 'count')
     if reads <= 0 or reads != int(reads) or degraded != int(degraded) or degraded != (reads if expected else 0):
-        raise ValueError('Search engine state mismatch across measured read attempts')
+        raise ValueError(f'Search engine state mismatch across measured read attempts: {degraded:.0f} of {reads:.0f} '
+                         f'search reads degraded, expected {"all" if expected else "none"}')
 
 
 def verify_redis_state(text, expected):
@@ -48,6 +53,28 @@ def report(summary):
     lines += ['', f'- Successful draft creates: {draft_count(summary)}',
               f'- Dropped iterations: {metric(summary, "dropped_iterations", "count"):.0f}',
               '- See summary.json and k6.txt for throughput, checks and threshold outcomes.', '']
+    endpoints = sorted({m.group(1) for m in (ENDPOINT.match(name) for name in summary.get('metrics', {})) if m})
+    if endpoints:
+        lines += ['| Request type | requests | p50 (ms) | p95 (ms) | p99 (ms) | max (ms) | HTTP error rate |',
+                  '|---|---:|---:|---:|---:|---:|---:|']
+        for endpoint in endpoints:
+            values = [metric(summary, f'http_req_duration{{endpoint:{endpoint}}}', key)
+                      for key in ['med', 'p(95)', 'p(99)', 'max']]
+            failed = summary['metrics'].get(f'http_req_failed{{endpoint:{endpoint}}}', {})
+            failed = failed.get('values', failed)
+            requests = failed.get('passes', 0) + failed.get('fails', 0)
+            error = metric(summary, f'http_req_failed{{endpoint:{endpoint}}}', 'rate')
+            lines.append(f'| {endpoint} | {requests:.0f} | {values[0]:.2f} | {values[1]:.2f} | {values[2]:.2f} | '
+                         f'{values[3]:.2f} | {error:.4%} |')
+        lines.append('')
+    if 'publication_lag_ms' in summary.get('metrics', {}):
+        lag = [metric(summary, 'publication_lag_ms', key) for key in ['med', 'p(95)', 'p(99)', 'max']]
+        visible = metric(summary, 'publication_visible', 'rate')
+        lines += ['### Publication lag (moderator approval -> visible in Elasticsearch search)', '',
+                  f'- Approved listings: {metric(summary, "publications", "count"):.0f}; '
+                  f'visible within 30 s: {visible:.2%}',
+                  f'- Lag p50 {lag[0]:.0f} ms, p95 {lag[1]:.0f} ms, p99 {lag[2]:.0f} ms, max {lag[3]:.0f} ms '
+                  '(client-side: approval response -> first search answer containing it; 200 ms poll interval)', '']
     return '\n'.join(lines)
 
 
@@ -61,13 +88,21 @@ def main():
     args = parser.parse_args()
     try:
         summary = json.loads(args.summary.read_text())
-        if args.expected_degraded is not None:
-            verify_engine_state(summary, args.expected_degraded)
-        if args.redis_state is not None:
-            if not args.metrics:
-                raise ValueError('--redis-state requires --metrics')
-            verify_redis_state(args.metrics.read_text(), args.redis_state)
-        print(draft_count(summary) if args.count else report(summary))
+        if args.count:
+            print(draft_count(summary))
+            return
+        # The measured numbers are printed even when a state check below fails, so a failed phase stays diagnosable.
+        print(report(summary))
+        try:
+            if args.expected_degraded is not None:
+                verify_engine_state(summary, args.expected_degraded)
+            if args.redis_state is not None:
+                if not args.metrics:
+                    raise ValueError('--redis-state requires --metrics')
+                verify_redis_state(args.metrics.read_text(), args.redis_state)
+        except ValueError as error:
+            print(f'- **Evidence check failed: {error}**\n')
+            raise
     except (ValueError, OSError, TypeError, AttributeError) as error:
         parser.exit(2, f'Invalid k6 evidence: {error}\n')
 

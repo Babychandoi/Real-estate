@@ -40,6 +40,7 @@ public interface ListingReadModelPort {
 
     long sellerCountCapped(UUID ownerId, int cap);
 
+    /** At most {@code limit} matches newest first; when there are more, which {@code limit} rows is unspecified (a probe). */
     List<MapPoint> mapPoints(SearchFilter filter, int limit);
 
     List<MapCluster> mapClusters(SearchFilter filter, double cellDegrees, int limit);

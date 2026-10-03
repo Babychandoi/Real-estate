@@ -44,6 +44,30 @@ class SummaryEvidenceTests(unittest.TestCase):
         metrics['degraded_reads']['values']['count'] = 0
         summary_parser.verify_engine_state({'metrics': metrics}, 0)
 
+    def test_engine_state_counts_search_reads_only_when_present(self):
+        metrics = {'read_attempts': {'values': {'count': 6000}}, 'search_reads': {'values': {'count': 3600}},
+                   'degraded_reads': {'values': {'count': 3600}}}
+        summary_parser.verify_engine_state({'metrics': metrics}, 1)
+        metrics['degraded_reads']['values']['count'] = 3599
+        with self.assertRaises(ValueError):
+            summary_parser.verify_engine_state({'metrics': metrics}, 1)
+
+    def test_report_lists_request_types_and_publication_lag(self):
+        metrics = {'drafts_created': {'values': {'count': 600}}, 'dropped_iterations': {'values': {'count': 0}},
+                   'publications': {'values': {'count': 300}}, 'publication_visible': {'values': {'rate': 1}},
+                   'publication_lag_ms': {'values': {'med': 900, 'p(95)': 1800, 'p(99)': 2500, 'max': 3100}},
+                   'http_req_duration{endpoint:detail}': {'values': {'med': 4, 'p(95)': 9, 'p(99)': 20, 'max': 80}},
+                   'http_req_failed{endpoint:detail}': {'values': {'rate': 0, 'passes': 0, 'fails': 1500}}}
+        for scenario in ['reads', 'writes']:
+            metrics[f'http_req_duration{{scenario:{scenario}}}'] = {'values': {'med': 1, 'p(95)': 2, 'p(99)': 3}}
+            metrics[f'http_req_failed{{scenario:{scenario}}}'] = {'values': {'rate': 0}}
+        output = summary_parser.report({'metrics': metrics})
+        self.assertIn('| detail | 1500 | 4.00 | 9.00 | 20.00 | 80.00 | 0.0000% |', output)
+        self.assertIn('Lag p50 900 ms, p95 1800 ms, p99 2500 ms, max 3100 ms', output)
+        del metrics['publication_lag_ms']['values']['p(95)']
+        with self.assertRaises(ValueError):
+            summary_parser.report({'metrics': metrics})
+
     def test_redis_outage_evidence_cannot_be_missing_or_claim_recovery_while_down(self):
         sample = 'bds_ratelimit_redis_available{application="bds"} 0.0\n'
         summary_parser.verify_redis_state(sample, 0)
