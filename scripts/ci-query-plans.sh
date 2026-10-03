@@ -93,7 +93,7 @@ plans() {
   uname -a; lscpu; free -m; df -h /; docker version --format '{{.Server.Version}}'
 } > "$out/environment.txt"
 
-docker run -d --name "$pg" -e POSTGRES_USER=bds -e POSTGRES_PASSWORD="$password" -e POSTGRES_DB="$db" \
+docker run -d --name "$pg" --shm-size=256m -e POSTGRES_USER=bds -e POSTGRES_PASSWORD="$password" -e POSTGRES_DB="$db" \
   -p "127.0.0.1:$port:5432" "$image" > /dev/null
 sleep 3
 wait_ready

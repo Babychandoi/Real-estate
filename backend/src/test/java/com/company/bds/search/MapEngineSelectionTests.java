@@ -34,7 +34,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -44,7 +43,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * W6-PERF map: no 10,001-row capped count per request, clusters from Elasticsearch, and a bounded database fallback
- * (viewport snapped to whole tiles, shared for a minute) so an outage plus map traffic cannot overload PostgreSQL.
+ * (identical exact viewports shared for a minute, with the original computation timestamp).
  */
 class MapEngineSelectionTests {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-03T00:00:00Z"));
@@ -113,23 +112,45 @@ class MapEngineSelectionTests {
     }
 
     @Test
-    void duringAnOutageDatabaseClustersOfTheSnappedViewportAreSharedAndTotalledFromTheCells() {
+    void anOutageSharesOnlyTheExactViewportAndPreservesItsSnapshotTime() {
         when(engine.mapClusters(any(), anyInt(), anyInt(), anyInt()))
                 .thenThrow(new ListingSearchEnginePort.EngineUnavailable("down", null));
-        ListingReadService.MapResult first = service.map(filter("105.701,20.951,105.899,21.099"), 11);
+        SearchFilter viewport = filter("105.701,20.951,105.899,21.099");
+        Instant computedAt = clock.instant();
+        ListingReadService.MapResult first = service.map(viewport, 11);
+        clock.advance(Duration.ofSeconds(20));
+        ListingReadService.MapResult second = service.map(viewport, 11);
         assertThat(breaker.state()).isEqualTo(SearchCircuitBreaker.State.OPEN);
-        // a slightly panned viewport inside the same whole tiles reuses the shared answer
-        ListingReadService.MapResult second = service.map(filter("105.705,20.955,105.895,21.095"), 11);
         assertThat(first.engine()).isEqualTo(SearchResults.ENGINE_DATABASE);
         assertThat(first.total()).isEqualTo(new SearchResults.Total(12, "eq"));
         assertThat(second.clusters()).isEqualTo(first.clusters());
-        verify(readModel, times(1)).mapClusters(argThat(f -> {
-            double tile = 360.0 / Math.pow(2, 11);
-            BoundingBox b = f.bbox();
-            return b.minLng() <= 105.701 && b.maxLng() >= 105.899 && Math.abs(b.minLng() / tile - Math.round(b.minLng() / tile)) < 1e-9;
-        }), anyDouble(), anyInt());
+        assertThat(first.dataAsOf()).isEqualTo(computedAt);
+        assertThat(second.dataAsOf()).isEqualTo(computedAt).isBefore(clock.instant());
+        verify(readModel, times(1)).mapClusters(eq(viewport), anyDouble(), eq(2000));
         verify(readModel, never()).countCapped(any(), anyInt());
-        verify(engine, times(1)).mapClusters(any(), anyInt(), anyInt(), anyInt()); // breaker open: no second engine call
+        verify(engine, times(1)).mapClusters(any(), anyInt(), anyInt(), anyInt());
+    }
+
+    @Test
+    void aPannedViewportExcludesClustersOutsideItsEdgeInsteadOfReusingAnExpandedBox() {
+        when(engine.mapClusters(any(), anyInt(), anyInt(), anyInt()))
+                .thenThrow(new ListingSearchEnginePort.EngineUnavailable("down", null));
+        SearchFilter wide = filter("105.701,20.951,105.899,21.099");
+        SearchFilter narrow = filter("105.705,20.955,105.895,21.095");
+        // The edge point at 105.703 belongs to the wide box only, although both boxes occupy the same tiles.
+        when(readModel.mapClusters(any(), anyDouble(), anyInt())).thenAnswer(call -> {
+            SearchFilter requested = call.getArgument(0);
+            if (requested.bbox().minLng() <= 105.703) {
+                return List.of(new MapCluster(21.0, 105.703, 1, 105.703, 21.0, 105.703, 21.0));
+            }
+            return List.of();
+        });
+        assertThat(service.map(wide, 11).total()).isEqualTo(new SearchResults.Total(1, "eq"));
+        ListingReadService.MapResult panned = service.map(narrow, 11);
+        assertThat(panned.clusters()).isEmpty();
+        assertThat(panned.total()).isEqualTo(new SearchResults.Total(0, "eq"));
+        verify(readModel).mapClusters(eq(wide), anyDouble(), eq(2000));
+        verify(readModel).mapClusters(eq(narrow), anyDouble(), eq(2000));
     }
 
     @Test

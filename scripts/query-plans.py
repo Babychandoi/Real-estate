@@ -26,11 +26,23 @@ OWNER_QUERY = ROOT / 'backend/src/main/java/com/company/bds/listing/infrastructu
 CATALOG = ROOT / 'infra/perf/query-catalog.sql'
 
 
+def java_string_constant(source, name):
+    """Read a literal or concatenated literals; reject expressions instead of emitting invalid/misleading SQL."""
+    match = re.search(r'\b' + re.escape(name) + r'\s*=\s*(.*?);', source, re.S)
+    if not match:
+        raise ValueError(f'missing Java constant {name}')
+    expression = match.group(1)
+    literal = r'"(?:[^"\\]|\\.)*"'
+    if not re.fullmatch(r'\s*' + literal + r'(?:\s*\+\s*' + literal + r')*\s*', expression):
+        raise ValueError(f'{name}: expected string literals only')
+    return ''.join(json.loads(part) for part in re.findall(literal, expression))
+
+
 def java_constants():
     adapter = ADAPTER.read_text()
     summary = re.search(r'SUMMARY_COLUMNS = """\s*\n(.*?)""";', adapter, re.S).group(1)
     summary = ' '.join(summary.split())
-    owner_active = re.search(r'OWNER_ACTIVE =\s*"(.*?)";', adapter, re.S).group(1)
+    owner_active = java_string_constant(adapter, 'OWNER_ACTIVE')
     detail = summary.replace('NULL::text AS description', 'description').replace('NULL::text[] AS media_urls', 'media_urls')
     owner = OWNER_QUERY.read_text()
     page = re.search(r'jdbc\.query\("""\s*\n(\s*SELECT l\.id, l\.slug.*?)WHERE l\.owner_id = \?', owner, re.S).group(1)

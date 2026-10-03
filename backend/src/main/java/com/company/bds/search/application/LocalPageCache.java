@@ -34,7 +34,8 @@ final class LocalPageCache {
         return entry.page();
     }
 
-    void put(String key, CachedPage page, long nowMillis) {
+    // Serialize admission so concurrent outage requests cannot all observe free capacity and exceed the memory bound.
+    synchronized void put(String key, CachedPage page, long nowMillis) {
         if (page == null) return;
         if (entries.size() >= maxEntries) evict(nowMillis);
         if (entries.size() >= maxEntries) return; // full of live entries: do not grow beyond the bound
