@@ -23,6 +23,10 @@ function audit(extraArgs) {
 
 /** Advisories (by GHSA id) reachable at high/critical severity, with the packages they come through. */
 export function blockingAdvisories(report) {
+  // npm also exits nonzero with JSON for registry failures; that is no evidence of a clean dependency tree.
+  if (!report || report.error || !report.vulnerabilities || typeof report.vulnerabilities !== 'object') {
+    throw new Error('npm audit did not return a complete vulnerability report');
+  }
   const found = new Map();
   for (const [name, vulnerability] of Object.entries(report.vulnerabilities ?? {})) {
     for (const via of vulnerability.via ?? []) {
