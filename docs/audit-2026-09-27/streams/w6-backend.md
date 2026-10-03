@@ -388,3 +388,20 @@ Final integrated focused Maven command:
 **BUILD SUCCESS, 45 tests / 8 classes, 0 failures/errors/skips.** Includes the new lead expiry/legacy-key collision
 regressions, bounded loopback HTTP body timeout, map cache bounds/time, current ES expiry/schema and cell completeness.
 Full CI and the remote final EXPLAIN/load evidence must be evaluated on the pushed integrated head before merge.
+
+
+**Final owner-state consistency fix:** new lead submission locks the owner and listing rows together (`users u JOIN
+listings l ... FOR SHARE OF u,l`), captures `owner_status`, and requires both ACTIVE plus a fresh/NULL deadline.
+Eligibility uses the same visibility rule; KYC eligibility also requires an ACTIVE account. A completed actor-scoped
+exact replay still resolves before current policy and returns its historical lead when the owner is suspended.
+`AdminUserService.changeStatus` takes the user FOR UPDATE; its status trigger only enqueues an owner-index job and
+never takes a listing lock. The lead's shared owner lock therefore makes a later suspension wait until commit.
+The actual PostgreSQL regression holds that accepted lead transaction, proves a concurrent owner suspension cannot
+acquire the lock, then proves suspension succeeds after release and the original lead stays valid. Separate fixtures
+keep the listing ACTIVE and owner KYC VERIFIED while setting SUSPENDED and PENDING_EMAIL_VERIFICATION: new requests
+return 409 `LISTING_NOT_ACCEPTING_LEADS`, leave no new key/quota-counted lead, and eligibility is false. Historical
+exact retries remain 201 with the original lead id and one CREATED event.
+
+`bash mvnw -B spotless:apply test -Dtest=LeadSubmissionConcurrencyTests,LeadInboxAndCommandTests,KycAbandonmentFunnelTests`:
+**BUILD SUCCESS, 18 tests / 3 classes, 0 failures/errors/skips, 23.959 s.** This is a focused follow-up; final integrated CI is
+still required. No production commands/data or local load stacks.
