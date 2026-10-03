@@ -11,10 +11,10 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 trap 'docker rm -f "$NAME" >/dev/null 2>&1' EXIT
 echo "== nginx -t"
 docker run --rm --add-host backend:127.0.0.1 \
-  -v "$REPO/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" -v "$REPO/frontend/nginx:/etc/nginx/bds:ro" \
+  -v "$REPO/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" -v "$REPO/frontend/nginx:/etc/nginx/bds:ro" -v "$REPO/frontend/nginx-templates:/etc/nginx/templates:ro" -e BDS_PUBLIC_HOST="${BDS_PUBLIC_HOST-nhadatchuan.online}" \
   nginx:1.27-alpine nginx -t 2>&1 | sed 's/^/   /'
 docker run -d --name "$NAME" --add-host backend:127.0.0.1 -p "127.0.0.1:$PORT:3000" \
-  -v "$REPO/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" -v "$REPO/frontend/nginx:/etc/nginx/bds:ro" \
+  -v "$REPO/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" -v "$REPO/frontend/nginx:/etc/nginx/bds:ro" -v "$REPO/frontend/nginx-templates:/etc/nginx/templates:ro" -e BDS_PUBLIC_HOST="${BDS_PUBLIC_HOST-nhadatchuan.online}" \
   nginx:1.27-alpine >/dev/null
 for _ in $(seq 1 20); do curl -fsS "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && break; sleep 0.5; done
 
