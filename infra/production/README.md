@@ -29,4 +29,4 @@ Invoke-WebRequest https://nhadatchuan.online/healthz -UseBasicParsing
 Invoke-WebRequest 'https://nhadatchuan.online/api/v1/listings/search?page=0&size=1' -UseBasicParsing
 ```
 
-The old `BDS-Cloudflare-Tunnel` scheduled task is disabled to avoid duplicate connectors. Docker Desktop must be configured to start with Windows if unattended recovery after a reboot is required. Never commit the tunnel token, tunnel credential JSON or `%USERPROFILE%\.cloudflared\cert.pem`.
+The old `BDS-Cloudflare-Tunnel` scheduled task is disabled to avoid duplicate connectors. Unattended recovery after a reboot needs Docker Desktop to start at sign-in, which with FileVault on still requires someone to log in; `BDS_RESTART_POLICY=always` in the production `.env` additionally brings back containers stopped before shutdown (incident October 2026, three outages after reboots): see `docs/operations/REBOOT_RECOVERY.md`. Never commit the tunnel token, tunnel credential JSON or `%USERPROFILE%\.cloudflared\cert.pem`.

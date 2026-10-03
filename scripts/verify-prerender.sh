@@ -6,12 +6,13 @@
 # For the home page, a listing, a project, an area and an article (taken from the live sitemap) it checks status,
 # <title>, canonical, JSON-LD type and server-rendered main content; then 301 for a trailing slash, 404 for unknown
 # pages and listings, noindex for filtered searches and account pages, robots.txt and the sitemap index.
-# Optional: VERIFY_GONE_PATH=/tin-tuc/<unpublished-slug> expects 410.
+# Optional: VERIFY_GONE_PATH=/tin-tuc/<unpublished-slug> expects 410; VERIFY_PACE_SECONDS=0.6 pauses before every
+# request (stay under 2 req/s against production).
 # Exit status: 0 all checks passed, 1 at least one failed, 2 usage or connection error.
 set -uo pipefail
 
 BASE_URL="${1:-}"
-[ -n "$BASE_URL" ] || { sed -n '2,11p' "$0"; exit 2; }
+[ -n "$BASE_URL" ] || { sed -n '2,12p' "$0"; exit 2; }
 BASE_URL="${BASE_URL%/}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -22,7 +23,9 @@ pass() { CHECKS=$((CHECKS + 1)); printf '  ok    %-28s %s\n' "$1" "$2"; }
 fail() { CHECKS=$((CHECKS + 1)); FAILURES=$((FAILURES + 1)); printf '  FAIL  %-28s %s\n' "$1" "$2"; }
 
 # fetch <name> <path>: body in $WORK/<name>.body, headers in $WORK/<name>.headers, status in STATUS
+pace() { [ "${VERIFY_PACE_SECONDS:-0}" = 0 ] || sleep "$VERIFY_PACE_SECONDS"; }
 fetch() {
+  pace
   STATUS="$(curl -sS -o "$WORK/$1.body" -D "$WORK/$1.headers" -w '%{http_code}' --max-time 20 \
     -H 'Accept: text/html' -A 'verify-prerender/1.0' "$BASE_URL$2")" || { echo "cannot reach $BASE_URL$2" >&2; exit 2; }
 }
@@ -56,6 +59,7 @@ page() {
 
 # first <loc> of a sitemap part, as a path
 first_loc() {
+  pace
   curl -sS --max-time 20 "$BASE_URL/sitemaps/$1.xml" | grep -o '<loc>[^<]*</loc>' | head -1 | sed 's/<[^>]*>//g;s#^'"$BASE_URL"'##'
 }
 
