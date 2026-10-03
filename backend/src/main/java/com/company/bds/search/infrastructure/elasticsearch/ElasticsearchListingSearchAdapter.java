@@ -115,6 +115,9 @@ public class ElasticsearchListingSearchAdapter implements ListingSearchEnginePor
         ObjectNode bool = body.putObject("query").putObject("bool");
         ArrayNode filters = bool.putArray("filter");
         term(filters, "purpose", f.purpose());
+        // Version 2 documents always carry a deadline (infinity for NULL). Filter at query time: aggregate map
+        // buckets cannot hydrate/recheck SQL rows and must not wait for the lifecycle sweep to drop expired docs.
+        filters.addObject().putObject("range").putObject("expires_at").put("gt", "now");
         terms(filters, "property_type", f.types());
         range(filters, "price_vnd", f.priceMin(), f.priceMax());
         if (f.areaMin() != null || f.areaMax() != null) {

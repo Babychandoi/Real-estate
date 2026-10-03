@@ -114,12 +114,28 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
             List<String> targets = client.aliasTargets(alias);
             if (!targets.isEmpty()) {
                 for (String target : targets) {
-                    if (states.find(target).isEmpty()) states.insert(target, alias, Role.ACTIVE, ListingIndexMapping.VERSION);
+                    if (states.find(target).isEmpty()) states.insert(target, alias, Role.ACTIVE, client.mappingVersion(target));
                 }
-                settings.markReady(true);
+                boolean compatible = targets.stream().allMatch(target -> client.mappingVersion(target) == ListingIndexMapping.VERSION);
+                settings.markReady(compatible);
+                if (!compatible) {
+                    // Old strict mappings have no expiry deadline: serve PostgreSQL until an asynchronously backfilled
+                    // current generation can be swapped in. Never treat a missing expiry field as a fresh document.
+                    IndexState building = states.withRole(alias, Role.BUILDING).orElse(null);
+                    if (building != null && building.mappingVersion() != ListingIndexMapping.VERSION) {
+                        states.setRole(building.indexName(), Role.RETIRED);
+                        building = null;
+                    }
+                    String next = building == null ? createIndex(alias) : building.indexName();
+                    jobs.enqueue(SearchIndexRebuildJobHandler.QUEUE, next + ":schema", Map.of("index", next), null);
+                }
                 return;
             }
             IndexState building = states.withRole(alias, Role.BUILDING).orElse(null);
+            if (building != null && building.mappingVersion() != ListingIndexMapping.VERSION) {
+                states.setRole(building.indexName(), Role.RETIRED);
+                building = null;
+            }
             String index = building != null ? building.indexName() : createIndex(alias);
             while (!backfillStep(index, Integer.MAX_VALUE)) {
                 // backfillStep returns when the whole read model is indexed
@@ -128,7 +144,10 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
             settings.markReady(true);
             log.info("Search index alias {} now points at {}", alias, index);
         });
-        if (!ran) settings.markReady(!client.aliasTargets(alias).isEmpty());
+        if (!ran) {
+            List<String> targets = client.aliasTargets(alias);
+            settings.markReady(!targets.isEmpty() && targets.stream().allMatch(target -> client.mappingVersion(target) == ListingIndexMapping.VERSION));
+        }
         return settings.ready();
     }
 
@@ -180,6 +199,7 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
             states.withRole(alias, Role.ACTIVE).ifPresent(active -> states.setRole(active.indexName(), Role.PREVIOUS));
             states.setRole(index, Role.ACTIVE);
         });
+        settings.markReady(states.find(index).orElseThrow().mappingVersion() == ListingIndexMapping.VERSION);
         cache.bumpGeneration(); // cached first pages carry engine cursors of the previous generation
     }
 
@@ -189,6 +209,10 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
         String alias = settings.alias();
         IndexState previous = states.withRole(alias, Role.PREVIOUS).orElseThrow(() -> new SearchProblemException(409,
                 "NO_PREVIOUS_INDEX", "Không có chỉ mục trước đó", "Không còn chỉ mục thế hệ trước để quay lại."));
+        if (previous.mappingVersion() != ListingIndexMapping.VERSION) {
+            throw new SearchProblemException(409, "MAPPING_VERSION_MISMATCH", "Chỉ mục trước chưa có thời hạn tin",
+                    "Thế hệ chỉ mục này không hỗ trợ kiểm tra tin hết hạn của phiên bản hiện tại. Hãy dựng lại chỉ mục trước khi chuyển.");
+        }
         IndexState active = states.withRole(alias, Role.ACTIVE).orElseThrow();
         client.refresh(previous.indexName());
         client.swapAlias(alias, client.aliasTargets(alias), previous.indexName(), null);

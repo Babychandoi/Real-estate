@@ -128,6 +128,12 @@ curl -fsS http://127.0.0.1:3000/backend-health; echo
 - **Giảm thiểu:** sửa nguyên nhân (DB chậm, handler lỗi); job tự thử lại. Không cần gửi lại thủ công — thông báo bị trễ chứ không mất.
 - **Rollback:** rollback ứng dụng nếu do deploy.
 
+### Đổi mapping chỉ mục thời hạn tin (W6)
+- Mapping v2 lưu `expires_at` và lọc `> now` cho cả tìm kiếm và cụm bản đồ; `NULL` dùng giá trị vô hạn. Tin ACTIVE hết hạn bị loại ngay cả khi job đổi trạng thái chưa chạy.
+- Alias v1 cũ chưa có trường này không được đánh dấu sẵn sàng. Backend trả lời qua PostgreSQL, tạo BUILDING v2 và tự enqueue `search-rebuild`; cần worker `APP_JOBS_ENABLED=true`. Xem `GET /api/v2/admin/search/index` đến `ready=true` và index ACTIVE có `mappingVersion=2`; theo dõi queue/dead letter nếu chậm.
+- Quay lại chỉ mục v1 trả 409 `MAPPING_VERSION_MISMATCH`; chỉ rollback giữa các thế hệ v2. Alias cũ vẫn được dual-write trong khi dựng, nhưng không được phục vụ bởi phiên bản mới.
+- Khi Elasticsearch lỗi, cache cụm bản đồ có thể giữ số lượng/vùng bao của tin vừa hết hạn trong TTL danh nghĩa 60 s (jitter ±20%); nội dung tin và ảnh vẫn kiểm tra thời hạn trực tiếp ở PostgreSQL.
+
 ## BdsSearchBulkFailures
 - **Ý nghĩa:** Elasticsearch từ chối lệnh bulk (mapping sai, đĩa đầy, cụm đỏ) trong 10 phút qua.
 - **Chẩn đoán:** log backend của `ListingIndexWriter`/`SearchIndexJobHandler`; `last_error` của job `search-index` trong `background_jobs`; cảnh báo BdsElasticsearchRed/BdsDiskSpaceLow.

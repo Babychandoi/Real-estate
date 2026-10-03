@@ -332,3 +332,23 @@ active expired ids via the existing `idx_listings_active_expires`, avoiding a re
 matrix now includes a real `ACTIVE/PAST_EXPIRY` row across every actor and listing/media/search/seller endpoint.
 Receipt Idempotency-Key payload binding uses a JSON record, preventing `reference="A|B", note="C"` from colliding
 with `reference="A", note="B|C"`; the second payload returns 409, the exact retry still replays once.
+
+
+**Elasticsearch expiry / schema transition:** mapping version 2 stores each listing deadline from one batched live
+listing lookup per indexing batch (NULL is an explicit infinity value); the same `expires_at > now` filter runs on
+search hits and direct map aggregations. It therefore excludes an elapsed ACTIVE document without waiting for the
+expiry sweep or a new indexing event. Existing strict version-1 aliases keep serving through the database while an
+automatic asynchronous schema rebuild runs. Dual-write removes the new field only on old targets; rollback to an
+old mapping returns 409 `MAPPING_VERSION_MISMATCH`, while same-version rollback remains available. No read-model
+column/backfill or public DTO change was needed. Outage map aggregates remain approximate for the cache's nominal
+60-second TTL (±20% jitter); SQL computes fresh visibility when that aggregate is refreshed.
+
+`SearchElasticsearchEngineTests` now proves elapsed ACTIVE documents disappear from both search and map counts,
+NULL expiry stays visible, an old alias is not marked ready, repeated bootstrap reuses its build, old strict dual-write
+succeeds, and the completed schema swap cannot roll back to an incompatible index.
+
+Fresh focused Maven `spotless:apply test -Dtest=SearchElasticsearchEngineTests,SchemaMigrationTests,BillingReviewIdempotencyReviewTests,MediaPipelineIntegrationTests,W6ReviewFollowUpTests`:
+**33 tests / 5 classes, 0 failures/errors/skips, BUILD SUCCESS, 40.522 s.** This includes the legacy migration upgrade,
+receipt delimiter-collision regression and media pipeline. Earlier full runs failed: a mistaken test-only Flyway target
+was corrected to the real pre-W6 version 95; one later media job had a PostgreSQL I/O/closed-connection failure during
+the run and passed this fresh focused rerun. The full integrated verify is still pending below.

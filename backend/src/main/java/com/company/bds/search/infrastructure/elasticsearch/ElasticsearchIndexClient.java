@@ -75,6 +75,13 @@ public class ElasticsearchIndexClient {
         return names;
     }
 
+    /** Mapping version from index metadata; pre-expiry mappings had no metadata and are version 1. */
+    public int mappingVersion(String index) {
+        ElasticsearchHttp.Response response = http.send("GET", "/" + encode(index) + "/_mapping", null, ADMIN_TIMEOUT);
+        if (!response.ok()) throw new IllegalStateException("Cannot inspect mapping " + index + ": " + response.status());
+        return readTree(response.body()).path(index).path("mappings").path("_meta").path("bds_listing_version").asInt(1);
+    }
+
     /** Whether a concrete index (not an alias) with this exact name exists. */
     public boolean concreteIndexExists(String name) {
         ElasticsearchHttp.Response response = http.send("GET", "/" + encode(name) + "/_settings", null, ADMIN_TIMEOUT);

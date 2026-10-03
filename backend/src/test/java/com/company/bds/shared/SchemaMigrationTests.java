@@ -181,7 +181,7 @@ class SchemaMigrationTests {
 
     @Test
     void auditCutoverPreservesLegacyRowsAndDatesOldImageInsertsWithTheDatabaseClock() {
-        flyway("99").migrate();
+        flyway("95").migrate();
         UUID legacy = UUID.randomUUID();
         String legacyHash = "a".repeat(64);
         jdbc.update("INSERT INTO audit_events(id,action,resource,result_status,event_hash) VALUES (?,'POST','/legacy-audit',201,?)",

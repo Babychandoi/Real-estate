@@ -2,6 +2,7 @@ package com.company.bds.search;
 
 import com.company.bds.search.application.SearchCircuitBreaker;
 import com.company.bds.search.application.SearchIndexSettings;
+import com.company.bds.search.application.SearchProblemException;
 import com.company.bds.search.infrastructure.JdbcListingReadModelAdapter;
 import com.company.bds.search.infrastructure.SearchIndexStateRepository;
 import com.company.bds.search.infrastructure.cache.ListingResponseCache;
@@ -43,6 +44,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -325,6 +327,77 @@ class SearchElasticsearchEngineTests {
     }
 
     @Test
+    void expiredActiveDocumentsLeaveSearchAndMapWithoutWaitingForTheExpiryScheduler() throws Exception {
+        String token = SearchFixtures.token();
+        TestData.TestUser seller = fixtures.seller("BROKER");
+        TestData.TestListing expired = data.listing(seller.id()).title("Nhà " + token + " hết hạn").location(21.03, 105.80).create();
+        TestData.TestListing noExpiry = data.listing(seller.id()).title("Nhà " + token + " không thời hạn").location(21.04, 105.81).create();
+        jdbc.update("UPDATE listings SET expires_at = NULL WHERE id = ?", noExpiry.id());
+        drain();
+        var row = readModel.findByIds(List.of(expired.id())).get(0);
+        Instant deadline = Instant.now().minusSeconds(1);
+        jdbc.update("UPDATE listings SET expires_at = ? WHERE id = ?", java.sql.Timestamp.from(deadline), expired.id());
+        // Keep an indexed ACTIVE document, just as it remains when time passes before the lifecycle job runs.
+        var elapsed = ListingIndexMapping.document(json, row).put("expires_at", deadline.toString());
+        assertThat(client.bulk(List.of(ElasticsearchIndexClient.BulkOp.index(activeIndex(), expired.id().toString(),
+                row.rowVersion() + 100, elapsed))).get(0).succeeded()).isTrue();
+        client.refresh(settings.alias());
+        assertThat(doc(activeIndex(), expired.id())).as("still stored, not scheduler-deleted").isNotNull();
+        assertThat(doc(activeIndex(), noExpiry.id()).path("_source").path("expires_at").asText()).startsWith("9999-");
+        JsonNode page = getJson(get("/api/v2/listings/search").param("q", token), 200);
+        assertThat(page.path("engine").asText()).isEqualTo("search");
+        assertThat(page.path("items")).hasSize(1);
+        assertThat(page.path("items").get(0).path("id").asText()).isEqualTo(noExpiry.id().toString());
+        JsonNode clusters = getJson(get("/api/v2/listings/map").param("q", token).param("bbox", "105.0,20.5,106.5,21.9")
+                .param("zoom", "9"), 200);
+        assertThat(clusters.path("engine").asText()).isEqualTo("search");
+        assertThat(clusters.path("total").path("value").asLong()).isEqualTo(1);
+        long count = 0;
+        for (JsonNode cluster : clusters.path("clusters")) count += cluster.path("count").asLong();
+        assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void anExistingAliasWithoutExpiryFallsBackUntilSchemaRebuildAndCannotBeRolledBack() throws Exception {
+        String alias = "s2-expiry-" + UUID.randomUUID().toString().substring(0, 8);
+        String old = alias + "-old";
+        var body = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(ListingIndexMapping.body(0));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) body.path("mappings")).remove("_meta");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) body.path("mappings").path("properties")).remove("expires_at");
+        HttpResponse<String> created = http.send(HttpRequest.newBuilder(URI.create(esUrl + "/" + old))
+                .header("Content-Type", "application/json").PUT(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertThat(created.statusCode()).as(created.body()).isEqualTo(200);
+        states.insert(old, alias, SearchIndexStateRepository.Role.ACTIVE, 1);
+        client.swapAlias(alias, List.of(), old, null);
+        SearchIndexSettings legacySettings = new SearchIndexSettings(true, alias);
+        SearchIndexLifecycle legacyLifecycle = new SearchIndexLifecycle(legacySettings, client, states, readModel, writer, taskLock,
+                jobs, jdbc, tx, clock, false, responseCache);
+        try {
+            assertThat(client.mappingVersion(old)).isEqualTo(1);
+            assertThat(legacyLifecycle.bootstrap()).isFalse();
+            assertThat(legacySettings.ready()).isFalse();
+            var building = states.withRole(alias, SearchIndexStateRepository.Role.BUILDING).orElseThrow();
+            assertThat(building.mappingVersion()).isEqualTo(2);
+            assertThat(legacyLifecycle.bootstrap()).as("second start reuses the build").isFalse();
+            assertThat(states.withRole(alias, SearchIndexStateRepository.Role.BUILDING).orElseThrow().indexName()).isEqualTo(building.indexName());
+            var rows = readModel.batchAfter(null, 2);
+            assertThat(writer.write(List.of(old, building.indexName()), rows, Map.of())).as("dual-write old strict schema").isEmpty();
+            assertThat(legacyLifecycle.backfillStep(building.indexName(), Integer.MAX_VALUE)).isTrue();
+            legacyLifecycle.activate(building.indexName());
+            assertThat(legacyLifecycle.bootstrap()).isTrue();
+            assertThat(client.mappingVersion(building.indexName())).isEqualTo(2);
+            assertThatThrownBy(legacyLifecycle::rollback).isInstanceOfSatisfying(SearchProblemException.class,
+                    error -> assertThat(error.code()).isEqualTo("MAPPING_VERSION_MISMATCH"));
+        } finally {
+            for (var state : states.all(alias)) {
+                client.deleteIndex(state.indexName());
+                states.delete(state.indexName());
+            }
+        }
+    }
+
+    @Test
     void bothEnginesReturnTheSamePagesForTheSameData() throws Exception {
         String token = SearchFixtures.token();
         TestData.TestUser seller = fixtures.seller("BROKER");
@@ -433,6 +506,8 @@ class SearchElasticsearchEngineTests {
                 HttpResponse.BodyHandlers.ofString()).body()).path(activeIndex()).path("mappings");
         assertThat(mapping.path("dynamic").asText()).isEqualTo("strict");
         assertThat(mapping.path("properties").path("published_at").path("type").asText()).isEqualTo("date_nanos");
+        assertThat(mapping.path("properties").path("expires_at").path("type").asText()).isEqualTo("date");
+        assertThat(mapping.path("_meta").path("bds_listing_version").asInt()).isEqualTo(2);
         assertThat(mapping.path("properties").path("search_text").path("analyzer").asText()).isEqualTo("vi_fold");
         JsonNode analyzed = json.readTree(http.send(HttpRequest.newBuilder(URI.create(esUrl + "/" + activeIndex() + "/_analyze"))
                 .header("Content-Type", "application/json")
@@ -441,6 +516,6 @@ class SearchElasticsearchEngineTests {
         List<String> tokens = new ArrayList<>();
         analyzed.path("tokens").forEach(t -> tokens.add(t.path("token").asText()));
         assertThat(tokens).containsExactly("dong", "da", "hoang", "mai");
-        assertThat(ListingIndexMapping.VERSION).isEqualTo(1);
+        assertThat(ListingIndexMapping.VERSION).isEqualTo(2);
     }
 }
