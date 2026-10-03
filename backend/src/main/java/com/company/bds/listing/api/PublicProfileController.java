@@ -43,7 +43,7 @@ public class PublicProfileController {
     }
 
     /**
-     * Approved, currently visible listings of one owner, newest first, paged ({@code page} from 0, {@code size} 1..100,
+     * Approved, currently visible listings of one owner, newest first, paged ({@code page} from 0, {@code size} clamped to 1..100,
      * default 60). R-2 (W6): this used to stop at 60 rows with no way to reach the rest; the total is in
      * {@code X-Total-Count} and the successor is {@code /api/v2/public/sellers/{id}/listings}.
      */
@@ -52,9 +52,9 @@ public class PublicProfileController {
     public ResponseEntity<java.util.List<PublicListingCard>> listings(@PathVariable UUID ownerId,
                                                                       @RequestParam(defaultValue = "0") int page,
                                                                       @RequestParam(defaultValue = "60") int size) {
-        if (page < 0 || size < 1 || size > 100) {
-            throw ApiException.badRequest("INVALID_PAGE", "page phải ≥ 0 và size trong khoảng 1..100.");
-        }
+        // Clamped, not refused: before W6 these parameters did not exist and any value was ignored (backward compatible).
+        page = Math.max(0, page);
+        size = Math.max(1, Math.min(size, 100));
         String from = """
                 FROM listings l
                 JOIN listing_revisions r ON r.id = l.public_revision_id

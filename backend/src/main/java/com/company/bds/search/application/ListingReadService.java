@@ -133,15 +133,30 @@ public class ListingReadService {
             return new MapResult("points", readModel.mapPoints(filter, MAP_POINT_LIMIT), List.of(), total,
                     SearchResults.ENGINE_DATABASE, now);
         }
-        double cell = 360.0 / Math.pow(2, zoom) / 4.0;
         // R-2 (W6): never drop the smallest cells to stay under the limit — that made the clusters add up to less than the
-        // list total. When there are more cells than the limit, use coarser cells (twice the size) until they all fit.
-        List<MapCluster> clusters = readModel.mapClusters(filter, cell, MAP_CLUSTER_LIMIT + 1);
-        while (clusters.size() > MAP_CLUSTER_LIMIT && cell < 360.0) {
-            cell *= 2;
-            clusters = readModel.mapClusters(filter, cell, MAP_CLUSTER_LIMIT + 1);
-        }
-        return new MapResult("clusters", List.of(), clusters, total, SearchResults.ENGINE_DATABASE, now);
+        // list total. The cell size is chosen up front so that the grid over the bbox has at most MAP_CLUSTER_LIMIT cells:
+        // one aggregation query, and every located match is in some cluster.
+        double cell = clusterCell(filter.bbox(), zoom);
+        return new MapResult("clusters", List.of(), readModel.mapClusters(filter, cell, MAP_CLUSTER_LIMIT), total,
+                SearchResults.ENGINE_DATABASE, now);
+    }
+
+    /**
+     * Grid cell (degrees) for the zoom — a quarter of a 256 px tile — doubled until the cells the bbox touches (aligned
+     * like the SQL: {@code floor(coordinate / cell)}) are at most {@value #MAP_CLUSTER_LIMIT}.
+     */
+    static double clusterCell(com.company.bds.search.domain.BoundingBox bbox, int zoom) {
+        double cell = 360.0 / Math.pow(2, zoom) / 4.0;
+        com.company.bds.search.domain.BoundingBox box = bbox != null ? bbox
+                : new com.company.bds.search.domain.BoundingBox(-180, -90, 180, 90);
+        while (cells(box, cell) > MAP_CLUSTER_LIMIT && cell < 360.0) cell *= 2;
+        return cell;
+    }
+
+    static long cells(com.company.bds.search.domain.BoundingBox box, double cell) {
+        long columns = (long) (Math.floor(box.maxLng() / cell) - Math.floor(box.minLng() / cell)) + 1;
+        long rows = (long) (Math.floor(box.maxLat() / cell) - Math.floor(box.minLat() / cell)) + 1;
+        return columns * rows;
     }
 
     /** Thumbnails of a page resolved with one resolver call (at most one query). */

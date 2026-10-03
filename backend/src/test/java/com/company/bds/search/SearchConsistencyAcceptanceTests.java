@@ -176,6 +176,9 @@ class SearchConsistencyAcceptanceTests {
             });
         }
         assertThat(sellerV1).containsExactlyInAnyOrderElementsOf(sellerV2);
+        // Backward compatible: an oversized page is clamped to 100, a negative page to the first one (W6 review).
+        JsonNode clamped = json(get("/api/v1/public/profiles/" + seller.id() + "/listings").param("size", "500").param("page", "-1"));
+        assertThat(clamped).hasSize(100);
 
         // Deprecated v1 search reaches every page (it used to answer [] after the first) and carries the rent unit.
         List<String> v1Rent = new ArrayList<>();

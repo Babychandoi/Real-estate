@@ -52,7 +52,12 @@ class ListingAccessMatrixTests {
     enum Actor { ANONYMOUS, OTHER_USER, OWNER, MODERATOR, ADMIN }
 
     /** One listing of the matrix: what it is, whether the public may see it, and the private text it must not leak. */
-    record Case(String name, TestData.TestListing listing, UUID ownerId, boolean publicVisible, String secret, String imageUrl) {}
+    /**
+     * {@code privateText}: text of this listing a non-insider must never receive (never-approved title, the description of
+     * a listing that is not public, the moderator's internal note); {@code privateImage}: an image only insiders may get.
+     */
+    record Case(String name, TestData.TestListing listing, UUID ownerId, boolean publicVisible, List<String> privateText, String imageUrl,
+                String privateImage) {}
 
     @Autowired MockMvc mvc;
     @Autowired TestData data;
@@ -77,24 +82,38 @@ class ListingAccessMatrixTests {
         bearer.put(Actor.MODERATOR, "Bearer " + data.sessionFor(data.user().role("MODERATOR").create().id()));
         bearer.put(Actor.ADMIN, "Bearer " + data.sessionFor(data.user().role("ADMIN").create().id()));
 
+        UUID moderatorId = data.user().role("MODERATOR").create().id();
         List<Case> cases = new ArrayList<>();
         for (String status : List.of("DRAFT", "PENDING_REVIEW", "ACTIVE", "PAUSED", "EXPIRED", "REJECTED", "LOCKED")) {
-            String secret = "Bimat" + token + status.toLowerCase().replace("_", "");
+            String code = token + status.toLowerCase().replace("_", "");
+            String titleSecret = "Bimat" + code;
+            String descriptionSecret = "Motarieng" + code;
+            String noteSecret = "Ghichunoibo" + code;
             String image = image(bearer.get(Actor.OWNER));
-            TestData.TestListing listing = data.listing(owner.id()).status(status).title("Nhà " + token + " " + secret)
+            TestData.TestListing listing = data.listing(owner.id()).status(status).title("Nhà " + token + " " + titleSecret)
                     .mediaUrls(List.of(image)).create();
-            // Hidden and expired listings were public once: their 410 may name the last public title (contract), so only
-            // never-approved titles count as private here.
-            boolean neverPublic = List.of("DRAFT", "PENDING_REVIEW", "REJECTED").contains(status);
-            cases.add(new Case(status, listing, owner.id(), status.equals("ACTIVE"), neverPublic ? secret : "never-private-" + token, image));
+            jdbc.update("UPDATE listing_revisions SET description = ? WHERE listing_id = ?", "Mô tả " + descriptionSecret, listing.id());
+            jdbc.update("""
+                    INSERT INTO moderation_decisions(id, listing_id, revision_id, moderator_id, decision, reason_code, note, created_at)
+                    VALUES (?, ?, ?, ?, 'AUDIT_PASSED', 'OTHER', ?, now())
+                    """, UUID.randomUUID(), listing.id(), listing.latestRevisionId(), moderatorId, "Ghi chú " + noteSecret);
+            boolean isPublic = status.equals("ACTIVE");
+            List<String> privateText = new ArrayList<>(List.of(noteSecret, owner.email()));
+            if (!isPublic) privateText.add(descriptionSecret);
+            // Hidden, expired and locked listings were public once: their 410 may name the last public title (contract),
+            // so only a never-approved title counts as private.
+            if (List.of("DRAFT", "PENDING_REVIEW", "REJECTED").contains(status)) privateText.add(titleSecret);
+            cases.add(new Case(status, listing, owner.id(), isPublic, privateText, image, isPublic ? null : image));
         }
         // ACTIVE with an edit waiting for moderation: the public sees the approved revision only, never the edit or its new image.
         String publicImage = image(bearer.get(Actor.OWNER));
         TestData.TestListing edited = data.listing(owner.id()).title("Nhà " + token + " congkhai").mediaUrls(List.of(publicImage)).create();
         String editSecret = "Suachuaduyet" + token;
         String editImage = image(bearer.get(Actor.OWNER));
-        pendingEdit(edited, "Nhà " + token + " " + editSecret, editImage);
-        cases.add(new Case("ACTIVE+PENDING_EDIT", edited, owner.id(), true, editSecret, publicImage));
+        String editDescriptionSecret = "Motasua" + token;
+        pendingEdit(edited, "Nhà " + token + " " + editSecret, "Mô tả " + editDescriptionSecret, editImage);
+        cases.add(new Case("ACTIVE+PENDING_EDIT", edited, owner.id(), true, List.of(editSecret, editDescriptionSecret, owner.email()),
+                publicImage, editImage));
         // ACTIVE listing of a seller who has since been suspended (a ban): hidden from the public at once.
         TestData.TestUser banned = data.user().role("BROKER").name("Bị khóa " + token).create();
         String bannedImage = image("Bearer " + data.sessionFor(banned.id()));
@@ -102,7 +121,8 @@ class ListingAccessMatrixTests {
         TestData.TestListing bannedListing = data.listing(banned.id()).title("Nhà " + token + " " + bannedSecret)
                 .mediaUrls(List.of(bannedImage)).create();
         jdbc.update("UPDATE users SET status = 'SUSPENDED' WHERE id = ?", banned.id());
-        cases.add(new Case("ACTIVE/BANNED_OWNER", bannedListing, banned.id(), false, bannedSecret, bannedImage));
+        cases.add(new Case("ACTIVE/BANNED_OWNER", bannedListing, banned.id(), false, List.of(bannedSecret, banned.email()), bannedImage,
+                bannedImage));
 
         Set<String> publicIds = new HashSet<>();
         for (Case c : cases) if (c.publicVisible()) publicIds.add(c.listing().id().toString());
@@ -119,14 +139,14 @@ class ListingAccessMatrixTests {
                     MockHttpServletResponse v1 = send(actor, bearer, get(path));
                     assertThat(v1.getStatus()).as("v1 " + who + " " + path).isEqualTo(v1Visible ? 200 : 404);
                     assertThat(v1.getHeader("Cache-Control")).as("v1 detail is never stored by a shared cache: " + who).contains("no-store");
-                    if (!staff && !ownCase) assertThat(body(v1)).as("v1 " + who).doesNotContain(c.secret()).doesNotContain(editImage);
+                    if (!staff && !ownCase) assertNothingPrivate(body(v1), c, "v1 " + who + " " + path);
                 }
 
                 // v2 public detail: public data only, for every caller (logged in or not).
                 MockHttpServletResponse v2 = send(actor, bearer, get("/api/v2/listings/" + c.listing().id()));
                 if (c.publicVisible()) assertThat(v2.getStatus()).as("v2 " + who).isEqualTo(200);
                 else assertThat(v2.getStatus()).as("v2 " + who).isIn(404, 410);
-                assertThat(body(v2)).as("v2 " + who).doesNotContain(c.secret()).doesNotContain(editImage);
+                assertNothingPrivate(body(v2), c, "v2 " + who);
 
                 // Owner workspace: the owner and staff only; a stranger cannot tell the listing exists.
                 MockHttpServletResponse draft = send(actor, bearer, get("/api/v2/me/listings/" + c.listing().id() + "/draft"));
@@ -150,14 +170,16 @@ class ListingAccessMatrixTests {
         for (Actor actor : Actor.values()) {
             JsonNode v2 = tree(send(actor, bearer, get("/api/v2/listings/search").param("q", token).param("size", "48")));
             assertThat(ids(v2.path("items"))).as("v2 search as " + actor).containsExactlyInAnyOrderElementsOf(publicIds);
-            assertThat(v2.toString()).doesNotContain(editSecret).doesNotContain(bannedSecret);
+            for (Case c : cases) assertNothingPrivate(v2.toString(), c, "v2 search as " + actor);
             JsonNode v1 = tree(send(actor, bearer, get("/api/v1/listings/search").param("keyword", token).param("size", "48")));
+            for (Case c : cases) assertNothingPrivate(v1.toString(), c, "v1 search as " + actor);
             assertThat(ids(v1)).as("v1 search as " + actor).containsExactlyInAnyOrderElementsOf(publicIds);
             JsonNode seller = tree(send(actor, bearer, get("/api/v2/public/sellers/" + owner.id() + "/listings").param("size", "48")));
             assertThat(ids(seller.path("items"))).as("v2 seller page as " + actor).containsExactlyInAnyOrderElementsOf(publicIds);
             JsonNode profile = tree(send(actor, bearer, get("/api/v1/public/profiles/" + owner.id() + "/listings")));
             assertThat(ids(profile)).as("v1 profile listings as " + actor).containsExactlyInAnyOrderElementsOf(publicIds);
-            assertThat(profile.toString()).doesNotContain(editSecret);
+            for (Case c : cases) assertNothingPrivate(profile.toString(), c, "v1 profile listings as " + actor);
+            for (Case c : cases) assertNothingPrivate(seller.toString(), c, "v2 seller page as " + actor);
         }
         assertThat(send(Actor.ANONYMOUS, bearer, get("/api/v1/public/profiles/" + banned.id())).getStatus()).isEqualTo(404);
         assertThat(tree(send(Actor.ANONYMOUS, bearer, get("/api/v1/public/profiles/" + banned.id() + "/listings")))).isEmpty();
@@ -298,16 +320,24 @@ class ListingAccessMatrixTests {
 
     // ------------------------------------------------------------------------------------------------ helpers
 
-    private void pendingEdit(TestData.TestListing listing, String title, String imageUrl) {
+    private static void assertNothingPrivate(String body, Case c, String where) {
+        for (String text : c.privateText()) assertThat(body).as(where + " leaks private text of " + c.name()).doesNotContain(text);
+        if (c.privateImage() != null) {
+            String key = c.privateImage().substring(c.privateImage().lastIndexOf('/') + 1);
+            assertThat(body).as(where + " leaks a private image of " + c.name()).doesNotContain(key);
+        }
+    }
+
+    private void pendingEdit(TestData.TestListing listing, String title, String description, String imageUrl) {
         UUID revision = UUID.randomUUID();
         Timestamp now = Timestamp.from(Instant.now());
         jdbc.update("""
                 INSERT INTO listing_revisions(id,listing_id,revision_number,status,title,purpose,property_type,price_vnd,area_m2,
                     description,province_code,district_code,address_summary,created_at,submitted_at)
                 SELECT ?, listing_id, revision_number + 1, 'SUBMITTED', ?, purpose, property_type, price_vnd + 1, area_m2,
-                       'Mô tả bản sửa chưa duyệt.', province_code, district_code, address_summary, ?, ?
+                       ?, province_code, district_code, address_summary, ?, ?
                 FROM listing_revisions WHERE id = ?
-                """, revision, title, now, now, listing.publicRevisionId());
+                """, revision, title, description, now, now, listing.publicRevisionId());
         jdbc.update("INSERT INTO listing_media(id,revision_id,media_url,is_primary,sort_order,created_at) VALUES (?,?,?,TRUE,0,?)",
                 UUID.randomUUID(), revision, imageUrl, now);
     }
