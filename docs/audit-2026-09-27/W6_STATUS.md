@@ -1,7 +1,7 @@
-# Trạng thái đợt W6 (hoàn thiện các mục còn mở) — 2026-10-03
+# Trạng thái đợt W6 (hoàn thiện các mục còn mở) — 2026-10-04
 
 Đợt này chạy vòng code → review → sửa → review cho các mục còn mở của `01_REQUIREMENTS.md`.
-Đã **tiếp tục** theo yêu cầu ngày 2026-10-03. PR #26 đã merge tại `16677a0`, PR #22 đã merge tại `12149d8`; các PR còn lại đang hoàn thiện review.
+Đã **tiếp tục** theo yêu cầu ngày 2026-10-04. PR #26, #22, #23, #24 đã merge; `main` hiện `e4bc1dd`.
 Production vẫn là `13e41a2`; chưa deploy W6.
 
 ## 1. Đã làm xong và đã lên production (trước W6)
@@ -16,9 +16,9 @@ Production vẫn là `13e41a2`; chưa deploy W6.
 |---|---|---|---|
 | #26 | `fix/npm-audit-braces` | Đã merge; CI backend/frontend/security/e2e đều xanh | Hoàn tất, merge đầu tiên tại `16677a0` |
 | #22 | `audit/w6-ops` | **Đã merge**, review vòng 3 không còn BLOCKER/MAJOR; toàn bộ CI và artifact khôi phục/rollback PASS | Hoàn tất `--no-deps`, hàm shell bash/zsh, env mẫu, xác thực hostname trước envsubst; CI `37103278682` và drills `37103278738` xanh, RTO PITR 25,2 s / mất máy 47,5 s (CI) |
-| #24 | `audit/w6-backend` | Đã sửa vòng 3; full verify và review tích hợp đang chạy | `801f897`: sửa kiểm tra audit đồng thời/backlog, tách index V106 khỏi V103, checkpoint kiểm tra tăng dần, giới hạn 50 lần tìm chung, idempotency lưu response và chống hash nhập nhằng. Rà quyền phát hiện thêm tin ACTIVE đã quá hạn: sửa SQL/cache/media và mapping ES v2, tự rebuild mapping cũ. 33 test tập trung xanh; chưa kết luận CI cuối |
-| #25 | `audit/w6-ux` | Đã sửa baseline/inert/focus; CI `37103393159` còn lỗi E2E | `cf74476`: frontend/backend/security xanh. Đang sửa vùng bấm nhỏ ở CMS/reports, focus ban đầu của filter thuê và thứ tự Tab trong CMS/projects; kiểm tra riêng visual theo browser, không giảm assertion |
-| #23 | `audit/w6-perf` | CI + PR smoke xanh tại `3128409`; phép đo đầy đủ còn lỗi | Đã gom cụm bản đồ bằng ES, giới hạn truy vấn DB, cache fallback và warmup/readiness. Burst/soak 100k đã có lượt xanh; fault/cold và 1M chưa đạt. Đang bổ sung làm ấm HTTP trước readiness, `shm_size: 256mb` cho PostgreSQL và ràng buộc dung lượng cache; phải đo lại |
+| #24 | `audit/w6-backend` | **Đã merge** tại `e4bc1dd`; review không còn BLOCKER/MAJOR | Head `55cb498`, core CI `37121779106` và smoke xanh. Audit/checkpoint/V103–V106, quyền API/cache/media/ES, hạn tin và owner ACTIVE khi nhận lead, legacy idempotency đã sửa. Recovery schema V106 đo 31,6/57,2 s; artifact restart còn health 503 dù workflow xanh — đang sửa gate/chờ healthy trên nhánh tổng hợp, chưa nghiệm thu phần này |
+| #25 | `audit/w6-ux` | Còn hai lỗi kiểm tra vòng Tab trong CMS/Dự án | `a63b339`: các route/axe/reflow/touch targets, filter thuê và Chromium visual đã xanh. Trace xác định native date/time input có nhiều segment Tab dùng cùng DOM node; phép đo blur/refocus làm sai vòng Tab. Đang sửa phép đo với regression native browser, giữ assertion; thêm fixture Redis UUID chỉ chứa chữ để tránh số điện thoại ngẫu nhiên |
+| #23 | `audit/w6-perf` | **Đã merge** tại `84df652`; core CI + smoke xanh ở `841971e` | HTTP warmup giới hạn cả body trên JDK 17, bbox dự phòng chính xác và thời điểm snapshot thật, cache có giới hạn đồng thời, PostgreSQL shm 256 MB, SQL extractor đọc được guard ghép chuỗi. Smoke 10k/1 phút p95 đọc 8,05 ms / ghi 10,61 ms, 0 lỗi/rớt; đang đo lại strict 100k/1M trên bản tích hợp, không coi smoke là nghiệm thu tải đầy đủ |
 
 **Thứ tự merge bắt buộc** (Flyway không cho chạy lệch thứ tự): #26 → #23 (V100–V101; V102 không dùng) → #24 (V103–V106); #22, #25 lúc nào cũng được.
 **Deploy:** dùng đúng lệnh trong runbook mới của #22: `-p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml`, app dùng `--no-deps`.
