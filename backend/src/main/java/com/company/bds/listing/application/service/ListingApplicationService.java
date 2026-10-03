@@ -161,15 +161,18 @@ public class ListingApplicationService implements
         if (base.isBlank()) base = "bat-dong-san";
         base = base.substring(0, Math.min(160, base.length())).replaceAll("-+$", "");
         // Check-then-insert raced: two drafts with the same title read the same free slug and the second failed with a 500
-        // on uq_listings_slug. Serialise allocation per base slug until this transaction (which inserts it) ends.
-        jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtext('listing-slug'), hashtext(?))", Object.class, base);
+        // on uq_listings_slug. Each candidate is claimed with a NON-blocking transaction advisory lock: a candidate another
+        // open transaction is about to insert is skipped, never waited for. Waiting (pg_advisory_xact_lock, or an insert
+        // that meets the other transaction's uncommitted row on the unique index) deadlocks two CSV imports that create
+        // the same titles in opposite order, because an import inserts every row in one transaction (W6 review).
         String candidate = base;
-        for (int suffix = 2; persistencePort.existsBySlug(candidate); suffix++) {
+        for (int attempt = 1; ; attempt++) {
+            Boolean claimed = jdbc.queryForObject("SELECT pg_try_advisory_xact_lock(hashtext('listing-slug'), hashtext(?))",
+                    Boolean.class, candidate);
+            if (Boolean.TRUE.equals(claimed) && !persistencePort.existsBySlug(candidate)) return candidate;
             // A popular title must not cost one query per earlier copy: after a few tries take a random suffix.
-            candidate = suffix <= 5 ? base + "-" + suffix
-                    : base + "-" + UUID.randomUUID().toString().substring(0, 8);
+            candidate = attempt < 5 ? base + "-" + (attempt + 1) : base + "-" + UUID.randomUUID().toString().substring(0, 8);
         }
-        return candidate;
     }
 
     @Override
