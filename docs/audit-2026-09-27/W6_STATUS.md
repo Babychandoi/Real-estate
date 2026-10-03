@@ -1,7 +1,7 @@
 # Trạng thái đợt W6 (hoàn thiện các mục còn mở) — 2026-10-03
 
 Đợt này chạy vòng code → review → sửa → review cho các mục còn mở của `01_REQUIREMENTS.md`.
-Đã **tiếp tục** theo yêu cầu ngày 2026-10-03. PR #26 đã merge vào `main` tại `16677a0`; bốn PR tính năng đang hoàn thiện review.
+Đã **tiếp tục** theo yêu cầu ngày 2026-10-03. PR #26 đã merge tại `16677a0`, PR #22 đã merge tại `12149d8`; các PR còn lại đang hoàn thiện review.
 Production vẫn là `13e41a2`; chưa deploy W6.
 
 ## 1. Đã làm xong và đã lên production (trước W6)
@@ -15,7 +15,7 @@ Production vẫn là `13e41a2`; chưa deploy W6.
 | PR | Nhánh | Trạng thái review | Còn phải làm trước khi merge |
 |---|---|---|---|
 | #26 | `fix/npm-audit-braces` | Đã merge; CI backend/frontend/security/e2e đều xanh | Hoàn tất, merge đầu tiên tại `16677a0` |
-| #22 | `audit/w6-ops` | Review vòng 2: **đồng ý merge sau khi sửa** | Vòng 3 đang làm dở (worktree `agent-a2b12c509b7a7fc3c`, có thay đổi chưa commit): thêm `--no-deps` cho lệnh backup/runbook sau khi chuyển `restart: always`; runbook chạy được trong zsh; thêm `BDS_RESTART_POLICY=always`, `PUBLIC_HOST` vào `.env.production.example`; kiểm tra an toàn biến host của nginx |
+| #22 | `audit/w6-ops` | **Đã merge**, review vòng 3 không còn BLOCKER/MAJOR; toàn bộ CI và artifact khôi phục/rollback PASS | Hoàn tất `--no-deps`, hàm shell bash/zsh, env mẫu, xác thực hostname trước envsubst; CI `37103278682` và drills `37103278738` xanh, RTO PITR 25,2 s / mất máy 47,5 s (CI) |
 | #24 | `audit/w6-backend` | Review vòng 2: **chưa merge được** | Vòng 3 đang làm dở (worktree `agent-a978170b66845c17b`): `verify()` báo nhầm "bị sửa" khi bộ ghép chạy (MAJOR); endpoint kiểm tra báo `intact=false` vì backlog 1 s; V103 vẫn khóa bảng suốt lúc tạo index (tách index ra migration riêng); giới hạn 50 lượt tìm/request phải tính chung cả lần khởi động lại; vài NIT. Test tái hiện của reviewer: nhánh local `review2/w6-backend` commit `8535980` |
 | #25 | `audit/w6-ux` | Review vòng 1 xong: 1 BLOCKER, 2 MAJOR | Vòng 2 đang làm dở (worktree `agent-a3d5d7ca89c67e347`): tạo lại 8 ảnh mẫu visual từ ảnh CI; đặt `inert` cho nền khi mở hộp thoại (trình đọc màn hình vẫn đọc được nền); kiểm tra focus đủ chặt + sửa ô tìm trong trang So sánh không có focus; mũi tên mở rộng ở trang Phân tích; nút eKYC hiện nhầm lúc đầu. Test của reviewer: nhánh local `review/w6-ux` commit `e1fc2c7` |
 | #23 | `audit/w6-perf` | Review vòng 1 xong: 0 BLOCKER, 3 MAJOR | Vòng 2 đang làm dở (worktree `agent-a5a713c90ea2fb7df`): sửa nhãn CPU sai ở 3 chỗ; sửa chẩn đoán khởi động nguội; workflow đo tải chỉ chạy bản rút gọn trên PR; làm bản đồ nhanh hơn (O1 → nếu chưa đạt thì O2: gom cụm bằng Elasticsearch) + làm ấm DB trước khi nhận traffic. Test của reviewer: nhánh local `review/w6-perf` commit `5f1ca20` |

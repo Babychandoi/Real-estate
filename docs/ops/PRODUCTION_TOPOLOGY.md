@@ -217,8 +217,8 @@ cd /path/to/Real-estate && git rev-parse HEAD > /srv/bds-deploys/$(date +%Y%m%d%
 STAMP=$(date +%Y%m%d%H%M)
 docker tag bds-production-backend:latest  bds-production-backend:rollback-$STAMP
 docker tag bds-production-frontend:latest bds-production-frontend:rollback-$STAMP
-docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
-  "SELECT max(version) FROM flyway_schema_history WHERE success" > /srv/bds-deploys/$STAMP.flyway
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml exec -T postgres sh -c \
+  'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT max(version::int) FROM flyway_schema_history WHERE success AND version IS NOT NULL"' > /srv/bds-deploys/$STAMP.flyway
 docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm --no-deps backup db
 ```
 
