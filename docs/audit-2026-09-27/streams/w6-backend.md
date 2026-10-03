@@ -403,5 +403,5 @@ return 409 `LISTING_NOT_ACCEPTING_LEADS`, leave no new key/quota-counted lead, a
 exact retries remain 201 with the original lead id and one CREATED event.
 
 `bash mvnw -B spotless:apply test -Dtest=LeadSubmissionConcurrencyTests,LeadInboxAndCommandTests,KycAbandonmentFunnelTests`:
-**BUILD SUCCESS, 18 tests / 3 classes, 0 failures/errors/skips.** This is a focused follow-up; final integrated CI is
+**BUILD SUCCESS, 18 tests / 3 classes, 0 failures/errors/skips, 23.959 s.** This is a focused follow-up; final integrated CI is
 still required. No production commands/data or local load stacks.

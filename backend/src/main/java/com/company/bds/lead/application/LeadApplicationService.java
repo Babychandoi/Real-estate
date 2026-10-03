@@ -105,8 +105,8 @@ public class LeadApplicationService {
         if (key != null && !key.matches(KEY_PATTERN)) {
             throw ApiException.badRequest("IDEMPOTENCY_KEY_INVALID", "Idempotency-Key không hợp lệ.");
         }
-        // 1. Owner first, then listing: hold both through validation/insert. A suspension committed first rejects a
-        // new lead; one arriving after these locks waits. Status changes enqueue indexing but never lock listings.
+        // 1. Hold owner and listing rows through validation/insert. A suspension committed first rejects a new lead;
+        // one arriving after these locks waits. Status changes enqueue indexing but never lock listings.
         List<Map<String, Object>> listingRows = jdbc.queryForList("""
                 SELECT l.owner_id, l.status, l.public_revision_id, l.expires_at, u.status AS owner_status
                 FROM users u JOIN listings l ON l.owner_id = u.id WHERE l.id = ? FOR SHARE OF u, l
