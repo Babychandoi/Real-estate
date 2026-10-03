@@ -179,6 +179,32 @@ class SchemaMigrationTests {
         jdbc.update("INSERT INTO user_roles(user_id, role) VALUES (?, ?)", id, role);
     }
 
+    @Test
+    void auditCutoverPreservesLegacyRowsAndDatesOldImageInsertsWithTheDatabaseClock() {
+        flyway("95").migrate();
+        UUID legacy = UUID.randomUUID();
+        String legacyHash = "a".repeat(64);
+        jdbc.update("INSERT INTO audit_events(id,action,resource,result_status,event_hash) VALUES (?,'POST','/legacy-audit',201,?)",
+                legacy, legacyHash);
+
+        flyway(null).migrate();
+        assertThat(jdbc.queryForObject("SELECT stored_at FROM audit_events WHERE id = ?", Timestamp.class, legacy)).isNull();
+        assertThat(jdbc.queryForObject("SELECT TRIM(event_hash) FROM audit_events WHERE id = ?", String.class, legacy)).isEqualTo(legacyHash);
+        assertThat(jdbc.queryForObject("SELECT genesis_hash FROM audit_chain_head", String.class)).isEqualTo(legacyHash);
+        assertThat(jdbc.queryForObject("SELECT verified_seq FROM audit_chain_checkpoint", Long.class)).isZero();
+
+        // An old image supplies its own occurred_at and hash but does not know stored_at or chain_seq.
+        UUID rolling = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO audit_events(id,occurred_at,action,resource,result_status,event_hash)
+                VALUES (?,now() - interval '1 day','POST','/rolling-audit',201,?)
+                """, rolling, "b".repeat(64));
+        assertThat(jdbc.queryForObject("SELECT stored_at IS NOT NULL AND chain_seq IS NULL FROM audit_events WHERE id = ?", Boolean.class, rolling))
+                .isTrue();
+        assertThat(jdbc.queryForObject("SELECT stored_at > occurred_at FROM audit_events WHERE id = ?", Boolean.class, rolling)).isTrue();
+        assertThat(flyway(null).migrate().migrationsExecuted).isZero();
+    }
+
     private void insertListing(UUID id, String status, Instant updatedAt) {
         jdbc.update("INSERT INTO listings(id,owner_id,status,slug,created_at,updated_at) VALUES (?,?,?,?,?,?)",
                 id, OWNER, status, "legacy-" + id, Timestamp.from(updatedAt.minusSeconds(86_400)), Timestamp.from(updatedAt));

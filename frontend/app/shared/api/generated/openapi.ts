@@ -3,6 +3,38 @@
  * Use the aliases in app/shared/api/schema.ts rather than importing this file directly.
  */
 export type paths = {
+  '/api/v1/admin/audit-chain/verification': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['run'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/audit-chain/verification/restart': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['restart'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/admin/listings': {
     parameters: {
       query?: never;
@@ -2618,6 +2650,7 @@ export type paths = {
       path?: never;
       cookie?: never;
     };
+    /** @deprecated */
     get: operations['listings_1'];
     put?: never;
     post?: never;
@@ -4768,6 +4801,7 @@ export type components = {
       legalStatus?: string;
       /** Format: uuid */
       ownerId?: string;
+      pricePeriod?: string;
       /** Format: int64 */
       priceVnd?: number;
       propertyType?: string;
@@ -4960,6 +4994,7 @@ export type components = {
       id?: string;
       isShowcase?: boolean;
       isVerified?: boolean;
+      pricePeriod?: string;
       /** Format: int64 */
       priceVnd?: number;
       primaryImageUrl?: string;
@@ -5599,6 +5634,7 @@ export type components = {
       /** Format: uuid */
       id?: string;
       isVerified?: boolean;
+      pricePeriod?: string;
       /** Format: int64 */
       priceVnd?: number;
       primaryImageUrl?: string;
@@ -6434,6 +6470,24 @@ export type components = {
       returnTo?: string;
       status?: string;
     };
+    VerificationView: {
+      /** Format: date-time */
+      checkedAt?: string;
+      complete?: boolean;
+      /** Format: int64 */
+      firstBrokenSeq?: number;
+      /** Format: int64 */
+      fromSeq?: number;
+      /** Format: int64 */
+      headSeq?: number;
+      intact?: boolean;
+      /** Format: int64 */
+      staleUnchainedEvents?: number;
+      /** Format: int64 */
+      unchainedEvents?: number;
+      /** Format: int64 */
+      verifiedThrough?: number;
+    };
     VersionSummary: {
       areaM2?: number;
       /** Format: date-time */
@@ -6489,6 +6543,44 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
+  run: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          '*/*': components['schemas']['VerificationView'];
+        };
+      };
+    };
+  };
+  restart: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Verification checkpoint reset */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   search_3: {
     parameters: {
       query?: {
@@ -7460,7 +7552,9 @@ export interface operations {
   approve_2: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -7486,7 +7580,9 @@ export interface operations {
   receipt: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -7512,7 +7608,9 @@ export interface operations {
   reject_2: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -7538,7 +7636,9 @@ export interface operations {
   resolve: {
     parameters: {
       query?: never;
-      header?: never;
+      header?: {
+        'Idempotency-Key'?: string;
+      };
       path: {
         id: string;
       };
@@ -10835,7 +10935,10 @@ export interface operations {
   };
   listings_1: {
     parameters: {
-      query?: never;
+      query?: {
+        page?: number;
+        size?: number;
+      };
       header?: never;
       path: {
         ownerId: string;

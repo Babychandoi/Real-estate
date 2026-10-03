@@ -10,9 +10,10 @@ import java.time.Clock;
 import java.time.Duration;
 
 /**
- * Deletes lead idempotency keys (scopes {@code lead:<actor>} and the legacy {@code PUBLIC_LEAD}; other modules keep
- * their own policy) past their retention (F17.2: 24 h; legacy rows without {@code expires_at} count from
- * {@code created_at}). Runs under {@link ScheduledTaskLock} so only one instance purges; bounded batches keep locks short.
+ * Deletes idempotency keys past their retention (24 h; legacy rows without {@code expires_at} count from
+ * {@code created_at}): lead keys (scopes {@code lead:<actor>} and the legacy {@code PUBLIC_LEAD}, F17.2) and billing keys
+ * (order creation {@code billing-order:<user>}, admin reviews {@code billing-review:<admin>}, W6). Other scopes keep
+ * their own policy. Runs under {@link ScheduledTaskLock} so only one instance purges; bounded batches keep locks short.
  */
 @Component
 public class IdempotencyKeyPurgeTask {
@@ -41,7 +42,7 @@ public class IdempotencyKeyPurgeTask {
             int deleted = jdbc.update("""
                     DELETE FROM api_idempotency_keys WHERE ctid IN (
                         SELECT ctid FROM api_idempotency_keys
-                        WHERE (scope LIKE 'lead:%' OR scope = 'PUBLIC_LEAD')
+                        WHERE (scope LIKE 'lead:%' OR scope = 'PUBLIC_LEAD' OR scope LIKE 'billing-order:%' OR scope LIKE 'billing-review:%')
                           AND COALESCE(expires_at, created_at + interval '24 hours') <= ? LIMIT ?)
                     """, now, BATCH);
             total += deleted;

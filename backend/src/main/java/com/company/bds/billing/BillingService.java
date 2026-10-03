@@ -137,7 +137,8 @@ public class BillingService {
         String scope = "billing-order:" + userId;
         String requestHash = AuthService.sha256("plan:" + plan.code());
         if (key != null) {
-            List<Object[]> previous = jdbc.query("SELECT request_hash, resource_id FROM api_idempotency_keys WHERE scope=? AND idempotency_key=?",
+            List<Object[]> previous = jdbc.query("SELECT request_hash, resource_id FROM api_idempotency_keys WHERE scope=? AND idempotency_key=? "
+                            + "AND " + KEY_ALIVE,
                     (rs, n) -> new Object[]{rs.getString(1), rs.getObject(2, UUID.class)}, scope, key);
             if (!previous.isEmpty()) {
                 if (!requestHash.equals(previous.get(0)[0])) {
@@ -171,8 +172,8 @@ public class BillingService {
             created = true;
         }
         if (key != null) {
-            int bound = jdbc.update("INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id) VALUES(?,?,?,?) ON CONFLICT DO NOTHING",
-                    scope, key, requestHash, id);
+            int bound = jdbc.update("INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id,expires_at) "
+                            + "VALUES(?,?,?,?, now() + interval '24 hours') " + REUSE_EXPIRED_KEY, scope, key, requestHash, id);
             if (bound == 0) {
                 // Defence in depth behind the key lock: never leave an order the key does not point at.
                 throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này vừa được dùng cho một yêu cầu khác.");
@@ -188,6 +189,8 @@ public class BillingService {
                 WHERE id=? AND user_id=? AND status='CREATED'
                 """, now(), now(), id, userId);
         Order order = load(id, userId, false);
+        // A retry of a report that already happened is answered with the order; any other state means another action won.
+        if (changed == 0 && !"TRANSFER_REPORTED".equals(order.status())) throw stateChanged(order.status());
         if (changed > 0) {
             event(id, "TRANSFER_REPORTED", "CREATED", "TRANSFER_REPORTED", userId, null, null);
             notifications.notify(userId, "PAYMENT_REPORTED", "Đã gửi đối soát", "Yêu cầu " + order.reference() + " đã chuyển đến quản trị viên.");
@@ -203,7 +206,11 @@ public class BillingService {
                 WHERE id=? AND user_id=? AND status='CREATED'
                 """, now(), now(), id, userId);
         if (changed > 0) event(id, "CANCELLED", "CREATED", "CANCELLED", userId, "Người dùng đã hủy", null);
-        return load(id, userId, false);
+        Order order = load(id, userId, false);
+        // Cancel racing an admin receipt: if the admin won, the order was paid/approved, not cancelled — say so (409)
+        // instead of a 200 the client would read as "cancelled". A retry of a done cancel is answered with the order.
+        if (changed == 0 && !"CANCELLED".equals(order.status())) throw stateChanged(order.status());
+        return order;
     }
 
     @Transactional(readOnly = true)
@@ -258,16 +265,24 @@ public class BillingService {
      */
     @Transactional
     public Order recordReceipt(UUID id, UUID adminId, long receivedAmount, String receivedReference, String note) {
+        return recordReceipt(id, adminId, receivedAmount, receivedReference, note, null).order();
+    }
+
+    @Transactional
+    public Review recordReceipt(UUID id, UUID adminId, long receivedAmount, String receivedReference, String note, String idempotencyKey) {
         if (receivedAmount < 0) throw ApiException.badRequest("INVALID_AMOUNT", "Số tiền nhận không hợp lệ.");
         String reference = receivedReference == null ? "" : receivedReference.trim();
         if (reference.length() > 100) throw ApiException.badRequest("INVALID_REFERENCE", "Nội dung chuyển khoản tối đa 100 ký tự.");
-        Order order = lockForReview(id, Set.of("CREATED", "TRANSFER_REPORTED"));
+        ReviewKey key = reviewKey(adminId, idempotencyKey, "receipt", id, writeJson(new ReceiptPayload(receivedAmount, reference, trimOrNull(note))));
+        Review locked = lockForReview(id, Set.of("CREATED", "TRANSFER_REPORTED"), key);
+        if (locked.replayed()) return locked;
+        Order order = locked.order();
         boolean amountOk = receivedAmount == order.amountVnd();
         boolean referenceOk = normalize(reference).contains(normalize(order.reference()));
         jdbc.update("UPDATE package_orders SET received_amount_vnd=?, received_reference=? WHERE id=?", receivedAmount, reference.isEmpty() ? null : reference, id);
         if (amountOk && referenceOk) {
-            return applyApproval(order, adminId, note == null || note.isBlank() ? "Khớp số tiền và nội dung chuyển khoản" : note.trim(), "MATCHED",
-                    Set.of("CREATED", "TRANSFER_REPORTED"));
+            return bind(key, applyApproval(order, adminId, note == null || note.isBlank() ? "Khớp số tiền và nội dung chuyển khoản" : note.trim(), "MATCHED",
+                    Set.of("CREATED", "TRANSFER_REPORTED")));
         }
         String reason = !amountOk && !referenceOk ? "AMOUNT_AND_REFERENCE_MISMATCH" : !amountOk ? "AMOUNT_MISMATCH" : "REFERENCE_MISMATCH";
         int changed = jdbc.update("""
@@ -281,22 +296,32 @@ public class BillingService {
                 + "). Quản trị viên sẽ liên hệ để xử lý; gói chưa được kích hoạt.";
         notifications.notify(order.userId(), "PAYMENT_EXCEPTION", "Thanh toán cần đối chiếu thêm", message);
         emailUser(order, "[Nhà Đất Chuẩn] Thanh toán cần đối chiếu thêm " + order.reference(), message, "EXCEPTION");
-        return load(id, null, true);
+        return bind(key, load(id, null, true));
     }
 
     /** Resolution of an EXCEPTION: APPROVE_WITH_NOTE, REJECT or REFUNDED_OFFLINE, always with a note. */
     @Transactional
     public Order resolveException(UUID id, UUID adminId, String resolution, String note) {
+        return resolveException(id, adminId, resolution, note, null).order();
+    }
+
+    @Transactional
+    public Review resolveException(UUID id, UUID adminId, String resolution, String note, String idempotencyKey) {
         String why = note == null ? "" : note.trim();
         if (why.length() < 5) throw ApiException.badRequest("NOTE_REQUIRED", "Cần ghi chú cách xử lý (ít nhất 5 ký tự).");
-        Order order = lockForReview(id, Set.of("EXCEPTION"));
         String normalized = resolution == null ? "" : resolution.trim().toUpperCase(Locale.ROOT);
-        return switch (normalized) {
+        if (!Set.of("APPROVE_WITH_NOTE", "REJECT", "REFUNDED_OFFLINE").contains(normalized)) {
+            throw ApiException.badRequest("INVALID_RESOLUTION", "Cách xử lý không hợp lệ.");
+        }
+        ReviewKey key = reviewKey(adminId, idempotencyKey, "resolve", id, normalized + "|" + why);
+        Review locked = lockForReview(id, Set.of("EXCEPTION"), key);
+        if (locked.replayed()) return locked;
+        Order order = locked.order();
+        return bind(key, switch (normalized) {
             case "APPROVE_WITH_NOTE" -> applyApproval(order, adminId, why, "APPROVED_WITH_NOTE", Set.of("EXCEPTION"));
             case "REJECT" -> applyTerminal(order, adminId, why, "REJECTED", "REJECTED", "EXCEPTION");
-            case "REFUNDED_OFFLINE" -> applyTerminal(order, adminId, why, "REFUNDED", "REFUNDED_OFFLINE", "EXCEPTION");
-            default -> throw ApiException.badRequest("INVALID_RESOLUTION", "Cách xử lý không hợp lệ.");
-        };
+            default -> applyTerminal(order, adminId, why, "REFUNDED", "REFUNDED_OFFLINE", "EXCEPTION");
+        });
     }
 
     /**
@@ -307,19 +332,34 @@ public class BillingService {
     @Deprecated
     @Transactional
     public Order approve(UUID id, UUID adminId, String note) {
+        return approve(id, adminId, note, null).order();
+    }
+
+    @Deprecated
+    @Transactional
+    public Review approve(UUID id, UUID adminId, String note, String idempotencyKey) {
         String why = note == null ? "" : note.trim();
         if (why.length() < 5) {
             throw ApiException.badRequest("NOTE_REQUIRED", "Duyệt không qua đối soát cần ghi chú lý do (ít nhất 5 ký tự); hãy dùng ghi nhận khoản nhận.");
         }
-        Order order = lockForReview(id, Set.of("TRANSFER_REPORTED"));
-        return applyApproval(order, adminId, why, "APPROVED_WITH_NOTE", Set.of("TRANSFER_REPORTED"));
+        ReviewKey key = reviewKey(adminId, idempotencyKey, "approve", id, why);
+        Review locked = lockForReview(id, Set.of("TRANSFER_REPORTED"), key);
+        if (locked.replayed()) return locked;
+        return bind(key, applyApproval(locked.order(), adminId, why, "APPROVED_WITH_NOTE", Set.of("TRANSFER_REPORTED")));
     }
 
     @Transactional
     public Order reject(UUID id, UUID adminId, String reason) {
+        return reject(id, adminId, reason, null).order();
+    }
+
+    @Transactional
+    public Review reject(UUID id, UUID adminId, String reason, String idempotencyKey) {
         if (reason == null || reason.isBlank()) throw new IllegalArgumentException("Cần nhập lý do từ chối đối soát.");
-        Order order = lockForReview(id, Set.of("TRANSFER_REPORTED"));
-        return applyTerminal(order, adminId, reason.trim(), "REJECTED", "REJECTED", "TRANSFER_REPORTED");
+        ReviewKey key = reviewKey(adminId, idempotencyKey, "reject", id, reason.trim());
+        Review locked = lockForReview(id, Set.of("TRANSFER_REPORTED"), key);
+        if (locked.replayed()) return locked;
+        return bind(key, applyTerminal(locked.order(), adminId, reason.trim(), "REJECTED", "REJECTED", "TRANSFER_REPORTED"));
     }
 
     // ------------------------------------------------------------------------------------------------ transitions
@@ -365,13 +405,84 @@ public class BillingService {
         return load(order.id(), null, true);
     }
 
-    private Order lockForReview(UUID id, Set<String> allowed) {
+    /**
+     * Row lock first, then (under it) the replay check, then the state check: a retry with the same Idempotency-Key
+     * after the first attempt committed gets that result back (no second effect), even though the state moved on.
+     */
+    private Review lockForReview(UUID id, Set<String> allowed, ReviewKey key) {
         List<String> status = jdbc.queryForList("SELECT status FROM package_orders WHERE id=? FOR UPDATE", String.class, id);
         if (status.isEmpty()) throw ApiException.notFound("ORDER_NOT_FOUND", "Không tìm thấy yêu cầu thanh toán.");
-        if (!allowed.contains(status.get(0))) {
-            throw ApiException.conflict("ORDER_STATE_CHANGED", "Đơn đang ở trạng thái " + status.get(0) + ", không thể thực hiện thao tác này.");
+        if (key != null) {
+            List<Object[]> previous = jdbc.query("""
+                    SELECT request_hash, resource_id, response_snapshot FROM api_idempotency_keys
+                    WHERE scope=? AND idempotency_key=? AND """ + KEY_ALIVE,
+                    (rs, n) -> new Object[]{rs.getString(1), rs.getObject(2, UUID.class), rs.getString(3)}, key.scope(), key.key());
+            if (!previous.isEmpty()) {
+                if (!key.requestHash().equals(previous.get(0)[0]) || !id.equals(previous.get(0)[1])) {
+                    throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này đã dùng cho một thao tác khác.");
+                }
+                // The answer the keyed request gave, not the order as it is now (another admin may have acted since).
+                String snapshot = (String) previous.get(0)[2];
+                return new Review(snapshot == null ? load(id, null, true) : readOrder(snapshot), true);
+            }
         }
-        return load(id, null, true);
+        if (!allowed.contains(status.get(0))) throw stateChanged(status.get(0));
+        return new Review(load(id, null, true), false);
+    }
+
+    /** A key is alive for 24 h; legacy rows without {@code expires_at} count from {@code created_at} (like lead keys). */
+    private static final String KEY_ALIVE = " COALESCE(expires_at, created_at + interval '24 hours') > now()";
+    /** Binds the key, or takes over an expired one (the purge job may not have removed it yet); a live key is left alone. */
+    private static final String REUSE_EXPIRED_KEY = """
+            ON CONFLICT (scope, idempotency_key) DO UPDATE SET request_hash = EXCLUDED.request_hash, resource_id = EXCLUDED.resource_id,
+                created_at = now(), expires_at = EXCLUDED.expires_at, response_snapshot = EXCLUDED.response_snapshot
+            WHERE COALESCE(api_idempotency_keys.expires_at, api_idempotency_keys.created_at + interval '24 hours') <= now()
+            """;
+
+    private record ReceiptPayload(long amount, String reference, String note) {}
+
+    private String writeJson(Object value) {
+        try {
+            return json.writeValueAsString(value);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private Order readOrder(String snapshot) {
+        try {
+            return json.readValue(snapshot, Order.class);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalStateException(ex);
+        }
+    }
+
+    private static ApiException stateChanged(String status) {
+        return ApiException.conflict("ORDER_STATE_CHANGED", "Đơn đang ở trạng thái " + status + ", không thể thực hiện thao tác này.");
+    }
+
+    private record ReviewKey(String scope, String key, String requestHash) {}
+
+    /** Scoped to the admin (another admin's key never replays) and bound to the action, the order and its payload. */
+    private static ReviewKey reviewKey(UUID adminId, String idempotencyKey, String action, UUID orderId, String payload) {
+        String key = idempotencyKey == null || idempotencyKey.isBlank() ? null : idempotencyKey.trim();
+        if (key == null) return null;
+        if (key.length() > 128 || !key.matches("[A-Za-z0-9._:-]+")) {
+            throw ApiException.badRequest("INVALID_IDEMPOTENCY_KEY", "Idempotency-Key tối đa 128 ký tự chữ, số, . _ : -");
+        }
+        return new ReviewKey("billing-review:" + adminId, key, AuthService.sha256(action + "|" + orderId + "|" + payload));
+    }
+
+    private Review bind(ReviewKey key, Order order) {
+        if (key != null) {
+            int bound = jdbc.update("""
+                    INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id,expires_at,response_snapshot)
+                    VALUES(?,?,?,?, now() + interval '24 hours', ?)
+                    """ + REUSE_EXPIRED_KEY, key.scope(), key.key(), key.requestHash(), order.id(), writeJson(order));
+            // The same key raced on another order: roll this one back rather than leave an effect the key does not name.
+            if (bound == 0) throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này vừa được dùng cho một thao tác khác.");
+        }
+        return new Review(order, false);
     }
 
     // ------------------------------------------------------------------------------------------------ reads & helpers
@@ -500,6 +611,9 @@ public class BillingService {
                         String resolution, Instant updatedAt, String invoiceNumber) {}
 
     public record CreateResult(Order order, boolean created) {}
+
+    /** An admin review result; {@code replayed} when an Idempotency-Key retry got the committed result back. */
+    public record Review(Order order, boolean replayed) {}
 
     public record OrderPage(List<Order> items, int page, int size, long total) {}
 

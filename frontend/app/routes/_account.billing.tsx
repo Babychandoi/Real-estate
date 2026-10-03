@@ -4,6 +4,7 @@ import { apiClient } from '@/shared/api/client';
 import { billingApi, newIdempotencyKey } from '@/entities/admin/api/adminApi';
 import type { BillingOrder, OrderEvent } from '@/entities/admin/model/types';
 import { errorMessage } from '@/shared/api/errors';
+import { ApiProblemException } from '@/shared/types/problem-details';
 import { StatusBadge, formatDateTime, formatVnd } from '@/shared/admin/adminUi';
 import { ORDER_STATUS } from '@/entities/admin/model/billingStatus';
 import { Button } from '@/shared/ui/Button';
@@ -36,15 +37,17 @@ export function BillingPage() {
   // One key per plan intention: double clicks and retries return the same order.
   const keys = useRef<Record<string, string>>({});
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<BillingOrder[] | null> => {
     try {
       const [p, o] = await Promise.all([apiClient<Plan[]>('/billing/plans'), billingApi.myOrders(page)]);
       setPlans(p);
       setOrders(o.items);
       setTotal(o.total);
+      return o.items;
     } catch (err) {
       setError(errorMessage(err, 'Không tải được gói dịch vụ.'));
       setPlans((p) => p ?? []);
+      return null;
     }
   }, [page]);
   useEffect(() => {
@@ -59,7 +62,18 @@ export function BillingPage() {
       await action();
       await load();
     } catch (err) {
-      setError(errorMessage(err, 'Không thể thực hiện thao tác.'));
+      if (err instanceof ApiProblemException && err.problem.status === 409) {
+        // The order changed meanwhile (e.g. an admin recorded the payment while you cancelled): show the new state.
+        const fresh = await load();
+        const now = fresh?.find((o) => o.id === id);
+        setError(
+          now
+            ? `Yêu cầu vừa được xử lý nên thao tác chưa được thực hiện. Trạng thái hiện tại: ${ORDER_STATUS[now.status].label}.`
+            : 'Yêu cầu vừa được xử lý nên thao tác chưa được thực hiện. Danh sách đã được tải lại.',
+        );
+      } else {
+        setError(errorMessage(err, 'Không thể thực hiện thao tác.'));
+      }
     } finally {
       setBusy(null);
     }

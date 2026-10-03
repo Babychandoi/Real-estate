@@ -9,14 +9,15 @@ import java.time.Instant;
 
 /**
  * Explicit index mapping (version {@value #VERSION}, audit D-08) and the document built from a read-model row. The index
- * holds only what filtering, sorting and matching need; responses are always built from PostgreSQL rows.
+ * holds only what filtering, sorting and matching need. Listing content responses come from PostgreSQL rows;
+ * map bucket counts/bounds can come directly from Elasticsearch and apply the same expiry filter.
  * {@code vi_fold} = standard tokenizer + lowercase + asciifolding, which folds Vietnamese diacritics and {@code đ} the
  * same way {@code bds_search_normalize} does. {@code published_at} is {@code date_nanos} so the sort keeps the
  * microsecond precision of PostgreSQL (identical order on both engines). {@code gc_deletes} is raised so a delete
  * tombstone outlives any delayed index call with an older external version.
  */
 public final class ListingIndexMapping {
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
 
     public static final String BODY = """
             {
@@ -31,6 +32,7 @@ public final class ListingIndexMapping {
                 }
               },
               "mappings": {
+                "_meta": { "bds_listing_version": 2 },
                 "dynamic": "strict",
                 "properties": {
                   "listing_id":          { "type": "keyword" },
@@ -50,6 +52,7 @@ public final class ListingIndexMapping {
                   "ownership_expires_at":{ "type": "date" },
                   "location":            { "type": "geo_point" },
                   "published_at":        { "type": "date_nanos" },
+                  "expires_at":          { "type": "date" },
                   "title":               { "type": "text", "analyzer": "vi_fold" },
                   "location_text":       { "type": "text", "analyzer": "vi_fold" },
                   "search_text":         { "type": "text", "analyzer": "vi_fold" },
@@ -84,6 +87,9 @@ public final class ListingIndexMapping {
         putInstant(doc, "ownership_expires_at", row.ownershipExpiresAt());
         if (row.lat() != null && row.lng() != null) doc.putObject("location").put("lat", row.lat()).put("lon", row.lng());
         doc.put("published_at", row.publishedAt().toString());
+        // No-expiry fixtures use the same explicit infinity sentinel as indexing. Real expiry comes from one batched
+        // listings lookup in ListingIndexWriter, without adding a field to public DTOs or a large read-model backfill.
+        doc.put("expires_at", "9999-12-31T23:59:59Z");
         // indexed free text is redacted like the display (search_text already is, in SQL: V036 bds_redact_contact)
         doc.put("title", nonNull(ContactInfoGuard.redact(row.title(), " ")));
         doc.put("location_text", String.join(" ", nonNull(ContactInfoGuard.redact(row.addressSummary(), " ")), nonNull(row.districtName()),

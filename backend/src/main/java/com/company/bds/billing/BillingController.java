@@ -78,24 +78,43 @@ public class BillingController {
     @GetMapping("/admin/orders/{id}")
     public BillingService.OrderDetail orderDetail(@PathVariable UUID id) { return service.detail(id, null, true); }
 
+    /*
+     * Admin review actions. Each runs under the order's row lock and changes it only from the states it accepts, so
+     * concurrent or repeated actions have one effect and the others get 409 ORDER_STATE_CHANGED. With an optional
+     * Idempotency-Key (scoped to the admin, bound to the action, order and payload, kept 24 h) a retry after a lost
+     * response gets the committed result back with "Idempotent-Replayed: true" instead of a 409.
+     */
+
     @PostMapping("/admin/reconciliation/{id}/receipt")
-    public BillingService.Order receipt(@PathVariable UUID id, @Valid @RequestBody ReceiptRequest r, Authentication a) {
-        return service.recordReceipt(id, CurrentUser.id(a), r.receivedAmountVnd(), r.receivedReference(), r.note());
+    public ResponseEntity<BillingService.Order> receipt(@PathVariable UUID id, @Valid @RequestBody ReceiptRequest r,
+                                                        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                        Authentication a) {
+        return reviewed(service.recordReceipt(id, CurrentUser.id(a), r.receivedAmountVnd(), r.receivedReference(), r.note(), idempotencyKey));
     }
 
     @PostMapping("/admin/reconciliation/{id}/resolve")
-    public BillingService.Order resolve(@PathVariable UUID id, @Valid @RequestBody ResolveRequest r, Authentication a) {
-        return service.resolveException(id, CurrentUser.id(a), r.resolution(), r.note());
+    public ResponseEntity<BillingService.Order> resolve(@PathVariable UUID id, @Valid @RequestBody ResolveRequest r,
+                                                        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                        Authentication a) {
+        return reviewed(service.resolveException(id, CurrentUser.id(a), r.resolution(), r.note(), idempotencyKey));
     }
 
     @PostMapping("/admin/reconciliation/{id}/approve")
-    public BillingService.Order approve(@PathVariable UUID id, @RequestBody(required = false) ReviewRequest r, Authentication a) {
-        return service.approve(id, CurrentUser.id(a), r == null ? null : r.note());
+    public ResponseEntity<BillingService.Order> approve(@PathVariable UUID id, @RequestBody(required = false) ReviewRequest r,
+                                                        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                        Authentication a) {
+        return reviewed(service.approve(id, CurrentUser.id(a), r == null ? null : r.note(), idempotencyKey));
     }
 
     @PostMapping("/admin/reconciliation/{id}/reject")
-    public BillingService.Order reject(@PathVariable UUID id, @Valid @RequestBody RejectRequest r, Authentication a) {
-        return service.reject(id, CurrentUser.id(a), r.reason());
+    public ResponseEntity<BillingService.Order> reject(@PathVariable UUID id, @Valid @RequestBody RejectRequest r,
+                                                       @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+                                                       Authentication a) {
+        return reviewed(service.reject(id, CurrentUser.id(a), r.reason(), idempotencyKey));
+    }
+
+    private static ResponseEntity<BillingService.Order> reviewed(BillingService.Review review) {
+        return ResponseEntity.ok().header("Idempotent-Replayed", String.valueOf(review.replayed())).body(review.order());
     }
 
     public record PlanRequest(@NotBlank String planCode) {}
