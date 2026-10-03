@@ -78,7 +78,7 @@ bds_prod up -d --dry-run | grep -c Recreate        # phải là 0
 docker inspect -f '{{.Name}} {{.HostConfig.RestartPolicy.Name}}' $(bds_prod ps -aq)
 ```
 Sau bước 4, lệnh có hay không có `--no-deps` đều không tạo lại dependency ngoài ý muốn (cùng script
-`restart-policy-apply-check.sh`, 13/13 PASS: dry-run báo Recreate trước, một lần tạo lại, sau đó 0 và `up` không có
+`restart-policy-apply-check.sh`, 14/14 PASS: dry-run báo Recreate trước, một lần tạo lại, sau đó 0 và `up` không có
 `--no-deps` giữ nguyên dependency). Nếu dùng overlay backup/PITR/observability, chạy bước 1 và 4 với cùng các `-f` đó.
 
 **Cho tới khi bước 4 xong**, các lệnh sau vẫn tạo lại dependency — chỉ chạy trong cửa sổ bảo trì:
