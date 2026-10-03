@@ -1,6 +1,7 @@
 -- R-2 acceptance fixture (search-consistency.spec.ts): the UAT seed has 46 public SALE listings, fewer than the
 -- 100 that the old search capped at. This adds 3 copies of every ACTIVE listing of the synthetic UAT sellers
--- (owners @example.invalid; never the demo.* accounts other specs count), so SALE has 142 public results and RENT 44.
+-- (owners @example.invalid; never the demo.* accounts other specs count): on a fresh seed SALE goes from 46 to
+-- 46 + 3 x 32 = 142 public results and RENT from 14 to 14 + 3 x 10 = 44 (more if a suite published listings first).
 -- Copies get their own id, slug ("-vol-N"), title suffix and price, and are dated 60+ days before their original,
 -- so the newest-first pages that the visual baselines show keep the seeded listings. The listing_public_read rows
 -- are built by the existing triggers (V033) when public_revision_id is set. Idempotent: a second run adds nothing.

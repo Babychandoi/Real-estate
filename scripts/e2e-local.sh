@@ -20,8 +20,8 @@
 #   --keep-db              leave the database for inspection (prints its name)
 #   --serve                set the stack up, run no suite and keep serving until interrupted (authoring specs)
 # E2E_SQL_AFTER_SEED: SQL run on the seeded database before the suites (stream-specific fixtures).
-# E2E_SQL_AFTER_SEED_FILES: space-separated SQL files run the same way, e.g. the R-2 search volume fixture
-# (frontend/tests/e2e/fixtures/search-volume.sql, needed by search-consistency.spec.ts).
+# E2E_SQL_AFTER_SEED_FILES: space-separated SQL files (absolute, or relative to the repository root) run the same
+# way, e.g. the R-2 volume fixture frontend/tests/e2e/fixtures/search-volume.sql (search-consistency.spec.ts).
 # E2E_WORKERS: Playwright worker count (default: the config's).
 # E2E_MFA_REQUIRED=true: staff sign-in needs TOTP (only for the mfa suite; the other staff suites expect false).
 # Environment overrides: E2E_BACKEND_PORT (18111), E2E_FRONTEND_PORT (5311), E2E_REDIS_DB (2), E2E_DB_PREFIX
@@ -205,9 +205,15 @@ if [ -n "${E2E_SQL_AFTER_SEED:-}" ]; then
   log "extra fixture SQL (E2E_SQL_AFTER_SEED)"
   "${COMPOSE[@]}" exec -T postgres psql -U bds_test -d "$DB_NAME" -v ON_ERROR_STOP=1 -qc "$E2E_SQL_AFTER_SEED"
 fi
-for sql_file in ${E2E_SQL_AFTER_SEED_FILES:-}; do
+# Space-separated paths, absolute or relative to the repository root (the script may be started from anywhere).
+# (${A[@]+...} keeps an empty list safe under `set -u` on macOS bash 3.2.)
+SQL_FILES=()
+if [ -n "${E2E_SQL_AFTER_SEED_FILES:-}" ]; then read -r -a SQL_FILES <<<"$E2E_SQL_AFTER_SEED_FILES"; fi
+for sql_file in ${SQL_FILES[@]+"${SQL_FILES[@]}"}; do
+  case "$sql_file" in /*) ;; *) sql_file="$ROOT/$sql_file" ;; esac
+  [ -f "$sql_file" ] || { echo "E2E_SQL_AFTER_SEED_FILES: $sql_file not found" >&2; exit 1; }
   log "extra fixture SQL file $sql_file"
-  "${COMPOSE[@]}" exec -T postgres psql -U bds_test -d "$DB_NAME" -v ON_ERROR_STOP=1 -q < "$sql_file"
+  "${COMPOSE[@]}" exec -T postgres psql -U bds_test -d "$DB_NAME" -v ON_ERROR_STOP=1 -q <"$sql_file"
 done
 
 # --- frontend ------------------------------------------------------------------------------------------------------
