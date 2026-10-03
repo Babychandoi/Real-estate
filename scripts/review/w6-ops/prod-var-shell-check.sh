@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Review round 2 for PR #22 (W6-OPS): REBOOT_RECOVERY.md §3 defines PROD="docker compose -p bds-production -f ... --profile edge"
-# and then runs `$PROD ps -aq`, `$PROD up -d ...`. bash word-splits an unquoted variable; zsh (the default login shell
-# on macOS, and the shell of the production Mac) does not. This runs the same pattern with `echo` in both shells.
-# Nothing touches Docker.
-snippet='PROD="echo docker compose -p bds-production --profile edge"; $PROD ps -aq'
-echo "SHELL of this user: $SHELL"
-printf 'bash: '; bash -c "$snippet" 2>&1
-printf 'zsh:  '; zsh -f -c "$snippet" 2>&1; echo "      (zsh exit $?)"
+# The production runbook uses a function so zsh and bash preserve every argument.
+set -eu
+snippet='bds_prod() { printf "<%s>\n" docker compose -p bds-production --profile edge "$@"; }; bds_prod ps "a b"'
+expected=$(printf '<%s>\n' docker compose -p bds-production --profile edge ps 'a b')
+for shell in bash zsh; do
+  actual=$("$shell" -f -c "$snippet")
+  [ "$actual" = "$expected" ] || { echo "FAIL $shell argument preservation"; exit 1; }
+  echo "PASS $shell runbook function preserves arguments"
+done

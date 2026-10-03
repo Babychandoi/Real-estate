@@ -130,7 +130,7 @@ age-keygen -o bds-backup-identity.txt        # in ra "Public key: age1..."
 # trên máy production
 mkdir -p /srv/bds-backups && chmod 700 /srv/bds-backups   # Linux: chown 10001:10001 (999:999 nếu bật PITR shipping)
 BACKUP_DIR=/srv/bds-backups BACKUP_AGE_RECIPIENTS=age1... \
-  docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops up -d backup
+  docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops up -d --no-deps backup
 ```
 `BACKUP_DIR` phải nằm ngoài repository và nên được đồng bộ ra ngoài máy (ví dụ `rclone sync` sang object storage khác
 vùng): các file đều đã mã hóa, đích đồng bộ không cần tin cậy nội dung.
@@ -219,7 +219,7 @@ docker tag bds-production-backend:latest  bds-production-backend:rollback-$STAMP
 docker tag bds-production-frontend:latest bds-production-frontend:rollback-$STAMP
 docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
   "SELECT max(version) FROM flyway_schema_history WHERE success" > /srv/bds-deploys/$STAMP.flyway
-docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm backup db
+docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm --no-deps backup db
 ```
 
 ### Deploy và kiểm tra

@@ -45,25 +45,50 @@ Các dependency của `bds-production` (PostgreSQL chạy `platform: linux/amd64
 tạo **với** `infra/compose.apple-silicon.yaml`; backend/frontend từng được tạo chỉ với file gốc. Overlay này không đổi gì ở
 backend/frontend, nên **mọi** lệnh production dùng cùng một cách gọi có overlay — nếu bỏ overlay, compose thấy định nghĩa
 PostgreSQL/ClamAV khác với container đang chạy và một lệnh `up` có dependency sẽ tạo lại chúng (ClamAV với image không có
-bản arm64). Deploy/rollback ứng dụng luôn thêm `--no-deps` để không bao giờ chạm dependency
-(`scripts/review/w6-ops/compose-converge-check.sh` chứng minh cả hai rủi ro).
+bản arm64). Deploy/rollback ứng dụng luôn thêm `--no-deps` (`scripts/review/w6-ops/compose-converge-check.sh`).
+
+Dùng **hàm** shell, không dùng biến (`PROD="docker compose …"; $PROD …` hỏng trong zsh — shell mặc định của macOS — vì
+zsh không tách từ của biến; `scripts/review/w6-ops/prod-var-shell-check.sh`). Hàm chạy được trong cả zsh và bash:
 ```bash
 cd /path/to/Real-estate   # thư mục có .env production
-PROD="docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml --profile edge"
+bds_prod() { docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml --profile edge "$@"; }
+# khi cần dịch vụ backup (BACKUP_DIR, BACKUP_AGE_RECIPIENTS đã có trong .env):
+bds_prod_ops() { docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml \
+  -f infra/compose.backup.yaml --profile edge --profile ops "$@"; }
 ```
 
 ## 4. Áp dụng thay đổi lên máy Mac đang chạy (coordinator/chủ máy, không phải agent)
 
-Không tạo lại dependency; đã kiểm chứng bằng `scripts/review/w6-ops/restart-policy-apply-check.sh` (project tạm, 8/8 PASS:
-container dependency giữ nguyên id, policy `always`, deploy app với `--no-deps` không đụng dependency).
+Thêm `BDS_RESTART_POLICY=always` vào `.env` làm **mọi** service đổi cấu hình theo compose (policy nằm trong hash cấu hình),
+nên từ lúc đó mọi lệnh **không** có `--no-deps` sẽ tạo lại dependency của nó (đã kiểm chứng:
+`scripts/review/w6-ops/after-apply-commands-check.sh` — `run --rm backup` và `up -d backup`/`up -d backend` không có
+`--no-deps` tạo lại PostgreSQL; bản có `--no-deps` thì không). Vì vậy làm theo đúng thứ tự, và kết thúc bằng **một lần tạo
+lại có kế hoạch** để hash hội tụ:
 ```bash
-$PROD ps -aq | xargs docker update --restart=always            # 1. đổi policy tại chỗ cho mọi container hiện có
-# 2. thêm một dòng vào .env production (không commit): BDS_RESTART_POLICY=always
-docker inspect -f '{{.Name}} {{.HostConfig.RestartPolicy.Name}}' $($PROD ps -aq)   # 3. kiểm tra: tất cả always
+# 1. Bảo vệ ngay, không tạo lại gì: policy tại chỗ cho mọi container hiện có
+bds_prod ps -aq | xargs docker update --restart=always
+# 2. Thêm vào .env production (không commit):  BDS_RESTART_POLICY=always   và   PUBLIC_HOST=nhadatchuan.online
+# 3. Sao lưu trước cửa sổ bảo trì (--no-deps: không đụng PostgreSQL/MinIO)
+bds_prod_ops run --rm --no-deps backup db          # nếu chưa bật overlay backup: dùng một pg_dump thủ công
+# 4. Cửa sổ bảo trì (vài phút gián đoạn; ClamAV cần tới ~90 s): xem trước rồi tạo lại MỘT lần mọi container
+bds_prod up -d --dry-run                           # liệt kê các container sẽ "Recreate"
+bds_prod up -d --wait
+# 5. Kiểm tra hội tụ: không còn gì để tạo lại, mọi policy là always
+bds_prod up -d --dry-run | grep -c Recreate        # phải là 0
+docker inspect -f '{{.Name}} {{.HostConfig.RestartPolicy.Name}}' $(bds_prod ps -aq)
 ```
-`docker update` không đổi nhãn cấu hình compose của container: một lệnh `$PROD up -d` **không** có `--no-deps` sau này sẽ
-tạo lại các dependency một lần (cùng policy `always`) — chỉ chạy nó trong cửa sổ bảo trì. Nếu dùng overlay backup/PITR
-thì thêm các `-f` đó vào `$PROD` khi đổi policy cho các container tương ứng.
+Sau bước 4, lệnh có hay không có `--no-deps` đều không tạo lại dependency ngoài ý muốn (cùng script
+`restart-policy-apply-check.sh`, 13/13 PASS: dry-run báo Recreate trước, một lần tạo lại, sau đó 0 và `up` không có
+`--no-deps` giữ nguyên dependency). Nếu dùng overlay backup/PITR/observability, chạy bước 1 và 4 với cùng các `-f` đó.
+
+**Cho tới khi bước 4 xong**, các lệnh sau vẫn tạo lại dependency — chỉ chạy trong cửa sổ bảo trì:
+
+| Lệnh (ở đâu) | Tạo lại | Ghi chú |
+|---|---|---|
+| Mọi `up -d <service>` / `run <service>` **không** `--no-deps` | Dependency của service đó | Các runbook đã dùng `--no-deps` cho deploy, rollback, backup thủ công, Redis, secret |
+| `bds_prod up -d` (không chỉ định service), `--scale cloudflared=2` (`PRODUCTION_SEPARATION_PLAN.md`) | Mọi container | Chính là bước 4 |
+| Bật PITR: `… -f infra/compose.pitr.yaml … up -d postgres backup postgres-basebackup` (`PRODUCTION_TOPOLOGY.md` §6) | PostgreSQL | Cố ý: `archive_mode` cần khởi động lại PostgreSQL |
+| Bật giám sát: `… -f infra/compose.observability.yaml --profile observability up -d` (header của overlay) | PostgreSQL + mọi service | Cố ý: overlay đổi cấu hình log của PostgreSQL |
 
 Việc của chủ máy (một lần): Docker Desktop → Settings → General → bật **Start Docker Desktop when you sign in to your
 computer**; quyết định A/B ở mục 1; lên lịch cập nhật macOS/Docker Desktop vào giờ có người ở máy.
@@ -72,25 +97,26 @@ computer**; quyết định A/B ở mục 1; lên lịch cập nhật macOS/Dock
 
 Build trong lúc bản cũ còn phục vụ, `stop` có chủ đích, rồi `up -d --no-deps`:
 ```bash
-$PROD build backend frontend
-$PROD stop backend frontend
-$PROD up -d --no-build --no-deps backend frontend
+bds_prod build backend frontend
+bds_prod stop backend frontend
+bds_prod up -d --no-build --no-deps backend frontend
 ```
 - Nếu máy khởi động lại giữa `stop` và `up -d`, Docker chạy lại container cũ (ý nghĩa của `always`): chỉ cần chạy lại
-  `up -d`. Muốn một service **không** quay lại sau reboot thì gỡ hẳn: `$PROD rm -sf <service>`.
+  `up -d`. Muốn một service **không** quay lại sau reboot thì gỡ hẳn: `bds_prod rm -sf <service>`.
 - Quy trình trước/sau deploy và rollback: `docs/ops/PRODUCTION_TOPOLOGY.md` mục 8.
 
 ## 6. Kiểm tra sau khi máy khởi động lại
 
 ```bash
-$PROD ps                                   # mọi service running/healthy
-docker inspect -f '{{.Name}} policy={{.HostConfig.RestartPolicy.Name}} restarts={{.RestartCount}}' $($PROD ps -aq)
+bds_prod ps                                   # mọi service running/healthy
+docker inspect -f '{{.Name}} policy={{.HostConfig.RestartPolicy.Name}} restarts={{.RestartCount}}' $(bds_prod ps -aq)
 curl -fsS http://127.0.0.1:3000/healthz && curl -fsS http://127.0.0.1:3000/backend-health
 VERIFY_PACE_SECONDS=0.6 scripts/verify-headers.sh https://nhadatchuan.online
 ```
-Nếu backend healthy nhưng API qua Nginx vẫn trả 503 (`SERVICE_UNAVAILABLE`): `$PROD restart frontend` và ghi vào sổ sự cố.
+Nếu backend healthy nhưng API qua Nginx vẫn trả 503 (`SERVICE_UNAVAILABLE`): `bds_prod restart frontend` và ghi vào sổ
+sự cố.
 
-Số đo trên runner CI (Linux Docker Engine, `BDS_RESTART_POLICY=always`, 2 lần chạy): sau `systemctl restart docker`, trang
+Số đo trên runner CI (Linux Docker Engine, `BDS_RESTART_POLICY=always`, 3 lần chạy): sau `systemctl restart docker`, trang
 đầu tiên 11,7–11,9 s, app phục vụ đầy đủ (tìm kiếm qua ES) 63–67 s; kiểu mất điện (daemon và mọi container bị SIGKILL)
 34–58 s; mọi container chạy lại, restart count 0. Trên Mac, thời gian thật = thời gian tới khi có người đăng nhập (nếu giữ
 FileVault) + khởi động Docker Desktop VM + các con số trên; cần đo ở lần khởi động lại kế tiếp.

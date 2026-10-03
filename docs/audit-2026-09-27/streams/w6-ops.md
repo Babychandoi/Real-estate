@@ -130,3 +130,8 @@ production and must not be restarted by an agent; measure at the next reboot wit
   `nginx-redirect-check.sh` `nginx -t` OK and 308 to the canonical host for every edge-HTTP shape.
 - No backend or TypeScript source changed: no local `mvn verify` / Vitest needed; `bash -n` on every changed script,
   `docker compose config` on the base file and the PITR/backup overlays.
+
+## Review round 3 — 2026-10-03 resume
+- Backup/schedule/Redis commands use `--no-deps` while Compose hashes differ after the restart-policy switch. The reboot runbook uses shell functions valid in bash/zsh, and documents one deliberate maintenance-window convergence. `.env.production.example` now includes `BDS_RESTART_POLICY=always` and `PUBLIC_HOST`.
+- Added sourced `frontend/docker-entrypoint.d/19-validate-public-host.envsh` before envsubst. It exports an empty value when unset, accepts plain DNS labels, and refuses schemes, ports, whitespace, quotes, CRLF and Nginx variables before rendering config. This prevents invalid configuration and variable/config injection; production sets a canonical host, empty remains the existing demo/local fallback.
+- Local regression: `bash scripts/review/w6-ops/prod-var-shell-check.sh` → both shells preserve arguments; `bash scripts/review/w6-ops/nginx-canonical-host-check.sh` → 13 cases PASS (4 valid/unset/empty startup cases with three request hosts each; 9 invalid cases rejected before envsubst). Minimal throwaway Nginx containers removed by the script.

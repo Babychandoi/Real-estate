@@ -23,6 +23,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx/ /etc/nginx/bds/
 # Canonical host of the HTTP->HTTPS redirect, rendered by the image's envsubst step at start (empty = request Host).
 COPY nginx-templates/ /etc/nginx/templates/
+COPY --chmod=755 docker-entrypoint.d/ /docker-entrypoint.d/
 ENV BDS_PUBLIC_HOST=""
 EXPOSE 3000
 HEALTHCHECK --interval=20s --timeout=3s --retries=3 CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1

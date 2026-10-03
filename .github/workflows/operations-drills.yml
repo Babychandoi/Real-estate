@@ -20,6 +20,7 @@ on:
       - "frontend/nginx.conf"
       - "frontend/nginx/**"
       - "frontend/nginx-templates/**"
+      - "frontend/docker-entrypoint.d/**"
       - "frontend/Dockerfile"
       - "backend/src/main/resources/db/migration/**"
   workflow_dispatch:

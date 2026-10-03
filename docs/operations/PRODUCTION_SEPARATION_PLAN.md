@@ -91,7 +91,7 @@ PRODUCTION_TOPOLOGY.md §6; các bước dưới chỉ ghi phần `<lệnh>`.
    chuyển hostname công khai sau khi laptop đã dừng ghi (bước 11–14).
 
 **B. Diễn tập (ít nhất một lần, đo thời gian từng bước)**
-4. Trên laptop: tạo bản sao lưu mới — `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm backup db` (và `… run --rm backup media`).
+4. Trên laptop: tạo bản sao lưu mới — `docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.backup.yaml --profile ops run --rm --no-deps backup db` (và `… run --rm --no-deps backup media`).
 5. Kiểm tra chính bản sao lưu: `scripts/restore-drill.sh --env production`, lưu biên bản ở `docs/ops/drills/`.
 6. Khôi phục vào DB managed với tên database thử: `restore.sh db latest bds_rehearsal`, rồi `restore.sh verify-db latest bds_rehearsal` (phải in `RESULT: PASS`).
 7. Nạp ảnh vào bucket thử: `restore.sh media latest -rehearsal`, `restore.sh verify-media latest -rehearsal`,

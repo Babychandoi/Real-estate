@@ -51,4 +51,17 @@ new_web="$(dc ps -q web)"
 check "web running after deploy" "$(docker inspect -f '{{.State.Status}}' "$new_web")" running
 check "web policy after deploy" "$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$new_web")" always
 info "$dep_id" "$new_web" | sed 's/^/      /'
+
+# step 4 (REBOOT_RECOVERY.md §4): the planned one-time convergence. Before it, a plain `up` would recreate dep; the
+# dry run shows that, the real `up -d` recreates once, and afterwards commands without --no-deps keep dep.
+plan_before="$(dc up -d --dry-run 2>&1 | grep -c 'Recreate' || true)"
+check "dry run before convergence lists recreations" "$([ "$plan_before" -gt 0 ] && echo yes || echo no)" yes
+dc up -d --wait >/dev/null 2>&1
+converged="$(dc ps -q dep)"
+check "dep recreated once by the planned up -d" "$([ "$converged" != "$dep_id" ] && echo yes || echo no)" yes
+check "dep policy after convergence" "$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$converged")" always
+plan_after="$(dc up -d --dry-run 2>&1 | grep -c 'Recreate' || true)"
+check "dry run after convergence: nothing to recreate" "$plan_after" 0
+dc up -d web >/dev/null 2>&1                         # a command without --no-deps, after convergence
+check "dep kept by a later up without --no-deps" "$(dc ps -q dep)" "$converged"
 exit "$FAIL"
