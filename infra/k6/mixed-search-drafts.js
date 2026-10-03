@@ -37,7 +37,9 @@ if (publishEvery > 0 && !moderatorToken.trim()) throw new Error('Publishing need
 const BURST_FACTOR = 3;
 const rates = (read) => {
   const base = read ? 100 : 10;
-  const shared = { timeUnit: '1s', preAllocatedVUs: read ? 150 : 20, maxVUs: read ? 600 : 100 };
+  // Ten writes/s can occupy 23 VUs at the observed cold-start maximum of 2.264 s (run 37101809547). Preallocate headroom
+  // so creating VUs under load does not drop scheduled arrivals; rates, maxVUs and every latency/drop gate stay fixed.
+  const shared = { timeUnit: '1s', preAllocatedVUs: read ? 150 : 30, maxVUs: read ? 600 : 100 };
   if (profile === 'burst') {
     // 3x the steady arrival rate held for 60 s, with 10 s ramps and 20 s back at the steady rate.
     return {

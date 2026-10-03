@@ -1,7 +1,7 @@
 # W6-PERF — query plans at 100k/1M, soak/burst/cold/fault load evidence, publication lag
 
 Branch `audit/w6-perf` (from `main` @ `13e41a2`), draft PR [#23](https://github.com/Babychandoi/Real-estate/pull/23).
-Flyway: **V100** only (range V100–V102). Every number below was measured on disposable GitHub-hosted runners
+Flyway: **V100–V101** (reserved range V100–V102; V102 unused). Every number below was measured on disposable GitHub-hosted runners
 (workflow `.github/workflows/performance.yml`), never on the production machine. Rows F09.3, D-05, F09.2, D-13, R-5,
 F05.5.
 
@@ -12,14 +12,15 @@ F05.5.
 | F09.3 | **DONE** | EXPLAIN (ANALYZE, BUFFERS, SETTINGS) of 40 application query shapes at **100k and 1M** public listings, **warm and cold**, before/after V100: runs [37067923955](https://github.com/Babychandoi/Real-estate/actions/runs/37067923955) and [37069904979](https://github.com/Babychandoi/Real-estate/actions/runs/37069904979), artifacts `query-plans-<run>-1` (§3). | Repeat on an anonymised production snapshot before tuning further (synthetic skew, §3.1). |
 | D-05 | **DONE** | The EXPLAINs show the intended indexes on their shapes (owner/status `idx_listings_owner_status_created`, `idx_listings_owner_created`; feed `idx_lpr_newest`; price/area `idx_lpr_price`/`idx_lpr_area`; GiST `idx_lpr_location`; GIN `idx_lpr_search_tsv`; seller `idx_lpr_owner_newest`). One missing index found by EXPLAIN — the public detail slug lookup was a sequential scan — added in **V100** with before/after: 1M warm 223 ms → 0.099 ms, cold 3858 ms → 1.0 ms (run 37069904979: 201 ms → 0.102 ms, 4964 ms → 1.1 ms) (§3.2). No other index added: the remaining slow shapes are not index problems (§3.3). | Map clusters / similar listings / capped counts need query or design changes (§3.3, §6). |
 | F09.2 | **DONE** | GiST `idx_lpr_location` used for bbox (`map.count.zoom15`, `map.points.zoom15` 2.9 ms at 1M, `map.clusters.zoom13` BitmapAnd), GIN `idx_lpr_search_tsv` for selective keywords (`search.keyword.rare.newest`: 4.9 ms at 1M). Keyword search is FTS (`plainto_tsquery('simple')`); trigram is used only by duplicate detection, not by public search. Common keywords correctly walk `idx_lpr_newest` (0.75 ms at 1M). | — |
-| D-13 | **PARTIAL** | Constant arrival 100 reads/s + 10 writes/s on **100k** listings: 10-min soak green four times (runs 37063450468, 37065843904, 37067923955, 37069904979), cold cache, burst, ES and Redis outage/recovery, index rebuild (14.7–16.9 s for 100,060 documents) all measured (§4). | **Burst 3× fails** (reads p95 3.2–3.4 s; map clusters + map counts use 86 % of database time), **cold restart fails** for its first ~25 s, load at **1M** listings and the restore/rollback drill were not run (§6). |
-| R-5 | **PARTIAL** | Measured per phase: p50/p95/p99 per request type, API error rate (0 % in every phase), index lag (bds.search.index.lag deltas), job backlog (5-s samples), outbox backlog (0 — outbox disabled in this stack), SQL statements per request type (pg_stat_statements), top statements by database time (§4, §5). **Controlled fallback**: the degraded phase now passes (p95 137 / 119 / 119 ms in three runs) after a fix in `ListingSearchService` (§4.4). | Not controlled during a cold restart (cold Elasticsearch trips the breaker onto a cold database for ~25 s) or a 3× burst (database-only map aggregation saturates PostgreSQL). |
+| D-13 | **PARTIAL** | Constant arrival 100 reads/s + 10 writes/s on **100k** listings: 10-min soak green four times (runs 37063450468, 37065843904, 37067923955, 37069904979), cold cache, burst, ES and Redis outage/recovery, index rebuild (14.7–16.9 s for 100,060 documents) all measured (§4). | **Burst 3× now passes** after O2 (§9); latest cold gate still fails on 2 dropped iterations, despite latency/error gates passing. Load at **1M** listings and the restore/rollback drill were not run (§6). |
+| R-5 | **PARTIAL** | Measured per phase: p50/p95/p99 per request type, API error rate (0 % in every phase), index lag (bds.search.index.lag deltas), job backlog (5-s samples), outbox backlog (0 — outbox disabled in this stack), SQL statements per request type (pg_stat_statements), top statements by database time (§4, §5). **Controlled fallback**: the degraded phase now passes (p95 137 / 119 / 119 ms in three runs) after a fix in `ListingSearchService` (§4.4). | O2 burst and steady ES stop/hang fallback pass (§9). Cold restart still has 2 dropped arrivals; 1M load remains unmeasured. |
 | F05.5 | **DONE** | Approval → visible in Elasticsearch search under the 100/10 soak: **p95 1.68–1.85 s** (301 approvals per run, 100 % visible), four runs (37063450468 p95 1676 ms, 37065843904 1678 ms, 37067923955 1846 ms, 37069904979 1685 ms); server-side `bds.search.index.lag` 98.2–98.6 % ≤ 1 s, 100 % ≤ 5 s, max 1.03 s; job backlog ≤ 12 (§4.2). | Under the 3× burst the index lag is 22–23 s mean (only 30 % ≤ 10 s) — a burst gap, not the F05.5 load. |
 
 ## 2. Harness (what runs where)
 
 `.github/workflows/performance.yml` (pull requests touching the harness/migrations/search code, and `workflow_dispatch`
-with `suites` = all|plans|load, `listings`, `soak`). Three parallel jobs on `ubuntu-latest` (4 vCPU, 16 GB; CPU model
+with `suites` = all|plans|load, `listings`, `soak`, plus weekly schedule). PRs run only a gated **10k smoke**; full
+evidence runs only on dispatch/schedule. The full workflow has three parallel jobs on `ubuntu-latest` (4 vCPU, 16 GB; CPU model
 varies per runner and is recorded — AMD EPYC 7763, AMD EPYC 9V74 or Intel Xeon 8573C were all seen):
 
 - **query-plans** (`scripts/ci-query-plans.sh`, ~11 min): fresh `postgis/postgis:16-3.4` container with the same
@@ -43,9 +44,10 @@ varies per runner and is recorded — AMD EPYC 7763, AMD EPYC 9V74 or Intel Xeon
   CI IP (search-v2 300/min × 100 = 500/s, needed for the 3× burst); every 429 counts as a failure (none occurred).
 - Fault order (faults suite): warm-up (reported only) → warm → search-cache eviction → **cold restart** (backend+frontend
   stopped, PostgreSQL and Elasticsearch restarted, Redis search keys evicted, kernel page cache dropped, backend started
-  under the next phase's load) → **ES transition** (20 s, non-blocking, ES stopped and search keys evicted just before)
+  and warm-up/health waits completed before the next phase's load) → **ES transition** (20 s, non-blocking, ES stopped and search keys evicted just before)
   → wait until `bds_search_breaker_state == 1` → **ES unavailable** (60 s, gated, every search must be degraded) → SQL
-  statements per request type while ES is down → ES recovered → Redis unavailable → Redis recovered.
+  statements per request type while ES is down → ES recovered → ES hanging (paused, transition + gated fallback)
+  → ES unpaused → Redis unavailable → Redis recovered.
 
 ## 3. Query plans (F09.3, D-05, F09.2)
 
@@ -187,7 +189,7 @@ The burst target is therefore not reachable with database-side map clusters on t
 
 ### 4.4 Faults suite
 
-| Phase | Run 37063450468 (EPYC 9V74, before the fix) | Run 37065843904 (EPYC 7763, with the fix) | Run 37067923955 (EPYC 7763, with the fix) |
+| Phase | Run 37063450468 (Xeon 8573C, before the fix) | Run 37065843904 (EPYC 7763, with the fix) | Run 37067923955 (EPYC 7763, with the fix) |
 |---|---|---|---|
 | warm (60 s) | reads 3.3 / 26 / 219, writes 8.7 / 16.7 / 25.3, 0 dropped — pass | 4.1 / 27.8 / 243, 8.3 / 17.9 / 27.5, 0 — pass | 4.5 / 34.4 / 258, 8.8 / 20.0 / 30.8, 0 — pass |
 | search cache evicted | 3.0 / 25 / 216, 0 dropped — pass | 3.7 / 28.1 / 237, 0 — pass | 3.9 / 23.6 / 241, 0 — pass |
@@ -202,8 +204,8 @@ Run 37069904979 (EPYC 7763, with the fix) repeated the same picture: warm p95 28
 p95 2,450 / 99 dropped (fail), transition p95 141 / p99 739 / 0 dropped, ES unavailable **p95 119 / p99 310 (pass)**,
 ES recovered 71.9, Redis unavailable 42.9, Redis recovered 27.6 (ms, reads).
 
-(Run 37061342752, EPYC 7763, also before the fix: ES unavailable reads p95 3,049 ms with 103 dropped starts —
-the database fallback saturated completely on the slower CPU.)
+(Faults job of run 37061342752, EPYC 9V74, also before the fix: ES unavailable reads p95 3,049 ms with 103 dropped starts —
+the database fallback saturated. CPU models above describe each job, not the entire run; steady and faults have different runners.)
 
 API error rate is **0 %** in every phase of every run (the only 5xx are 3 `GET /actuator/health` 503s while Redis is
 down — the container health check, not user traffic). 429s: none.
@@ -219,15 +221,15 @@ per 2-s bucket, max 474 ms, 0 dropped. Breaker state read from `bds_search_break
 change): with the breaker open, the first-page cache key already is the database engine's key, yet a degraded page was
 never cached, so every repeated first page and its capped count ran on PostgreSQL. In run 37063450468 the default first
 page's count alone cost 102 s of database time per minute. The page is now cached under the database key (a fallback
-computed under the engine's key is still never cached; closing the breaker switches back to the engine's key). Same
-CPU class, before → after: ES-unavailable reads p95 3,049 ms → 137 ms and 119 ms (EPYC 7763, two runs), first-page
-cache hits 0 → 2,407 per minute.
+computed under the engine's key is still never cached; closing the breaker switches back to the engine's key). Measured before → after: ES-unavailable reads p95 3,049 ms (EPYC 9V74) → 137 ms and 119 ms (EPYC 7763), first-page
+cache hits 0 → 2,407 per minute. The machines differ, so these runs alone do not isolate the improvement due to the cache;
+the reviewer tests separately pin the cache behavior.
 
-**Cold restart** (not fixed): Elasticsearch, PostgreSQL, the JVM and the page cache all start cold under the full
-100/10 load. The first Elasticsearch calls exceed the 800 ms budget, the breaker opens, the database fallback (cold,
-plus the map clusters) saturates, and the first ~20–25 s are slow (10-s buckets: p95 3.1 s, 3.1 s, 0.4 s, 0.14 s, then
-42–48 ms); steady state is back after ~30–40 s. Passing this gate needs warm-up before taking traffic (readiness that
-waits for warm caches / JIT) or cheaper fallback queries — an operational/design decision, left to the owner.
+**Cold restart, original implementation**: Elasticsearch, PostgreSQL, the JVM and the page cache all start cold before
+the full 100/10 load. The first ~20–25 s are slow (10-s buckets: p95 3.1 s, 3.1 s, 0.4 s, 0.14 s, then 42–48 ms);
+steady state is back after ~30–40 s. Degraded searches are observed, but these measurements do not distinguish index
+readiness from breaker opening, nor isolate JVM, ES or DB cold-start costs. The earlier claim that the first cold ES
+calls opened the breaker was a hypothesis. Startup warm-up and the O2 map change are evaluated separately in §9.
 
 ### 4.5 Other measured facts
 
@@ -261,13 +263,12 @@ recorded and excluded) → 30 sequential requests of one type → calls / 30. Ru
 
 ## 6. What is not done and why
 
-- **Burst 3×** (D-13/R-5): fails on every runner; 83–86 % of database time is the database-only map clusters/counts.
-  Needs the map moved to Elasticsearch aggregations (or a slim grid table) — a search-module design change outside this
-  stream; the numbers above are the evidence. Not "fixed" by caching the map: the k6 viewports come from 30 district
-  centres, so a cache would pass the test without reflecting real panning traffic.
-- **Cold restart gate**: fails for ~25 s (§4.4); needs warm-up/readiness design.
-- **1M listings under load**: only the EXPLAIN evidence exists at 1M; from it, map clusters (1 s warm), similar
-  listings (363 ms warm) and the fallback counts (150–330 ms warm) would break the 100/s gate at 1M on this hardware.
+- **Burst 3×** (D-13/R-5): original DB-only version fails (§4); O2 Elasticsearch aggregation now passes on 100k (§9).
+  The remaining validation is a repeat on the final PR head and representative production skew.
+- **Cold restart gate**: original version fails for ~25 s (§4.4); warm-up/O2 brings read p95 to 72 ms, but 2 dropped
+  iterations still fail the gate (§9). No gate has been weakened.
+- **1M listings under load**: only the EXPLAIN evidence exists at 1M; DB fallback maps (1 s warm), similar
+  listings (363 ms warm) and fallback counts (150–330 ms warm) remain scaling risks. O2 ES at 1M has not been load tested.
 - **Restore / migration rollback drill** (D-13 "khôi phục") and **concurrent writes to the same listing**: not run here.
 - **Production configuration observations** (not changed, production stack is out of scope): default shared_buffers
   128 MB is ~6 % of a 1M-listing read model; Docker's default 64 MB `/dev/shm` makes a manual `VACUUM` with parallel
@@ -295,3 +296,60 @@ Runs used as evidence (all on PR #23, workflow file `.github/workflows/performan
 the search fix), 37063450468, 37065843904 (search fix), 37067923955 (first complete 1M plans), 37069904979 (plans
 repeat with the corrected map-points probe, fourth load sample). CI (`ci.yml`) on the same commits: 37061342623,
 37063450279, 37065843900 (with the search change: 452 backend tests green).
+
+
+## 9. Review round 2 and O2 evidence (2026-10-03)
+
+The O1 measurements (§4) show map counts/clusters taking 83–86 % of DB time; removing the separate count alone does
+not remove the aggregation cost. O2 therefore moves clusters to Elasticsearch `geotile_grid` with a bounded 2,000-cell
+answer, centroid and bounds. Zoomed-in points use one SQL probe limited to 401 rows, returning points only at ≤400.
+There is no capped map count. `MapEngineSelectionTests` covers points, dense viewports, engine clusters, exact DB mode
+and shared outage fallback; `SearchElasticsearchEngineTests` exercises the aggregation against the real engine.
+
+Elasticsearch clusters follow the index refresh lag (roughly 1 s), unlike SQL points. **Contract deviation / outage
+policy:** during an ES outage, the DB cluster viewport is snapped outward to whole tiles and cached for 60 s to share
+nearly identical pans. Counts and cluster bounds can therefore include points just outside the requested viewport.
+When ES is disabled, SQL uses the exact viewport. Redis unavailable uses request collapsing without shared caching.
+This policy bounds repeated identical work, not the cost of arbitrary distinct viewports; 1M fallback load is unproven.
+
+Startup warm-up (`SearchWarmup`, off by default, enabled by Compose) prewarms DB indexes/heap when `pg_prewarm` exists
+(V101), calls representative engine searches/aggregations directly without tripping the breaker and hydrates hits.
+Warm-up is best effort, with a 60 s default deadline: failures/timeouts are reported in health/logs and release startup
+to the existing fallback. It does not guarantee a latency target for every query or warm the listing-write JVM path.
+The health contributor gates Compose startup. Readiness explicitly includes `readinessState,searchWarmup,db`; liveness
+excludes dependencies. A regression check holds readiness at 503 while warm-up or DB is unavailable, preserves
+liveness 200, then observes readiness 200 after recovery. The contributor is necessary because Boot publishes its
+normal ACCEPTING_TRAFFIC event after ApplicationReadyEvent; see [Spring health groups](https://docs.spring.io/spring-boot/3.5/reference/actuator/endpoints.html).
+
+[Run 37101809547](https://github.com/Babychandoi/Real-estate/actions/runs/37101809547), commit `2d7ab74`, **100k**,
+full realistic read mix, normal unchanged thresholds; artifacts `mixed-load-steady-37101809547-1` and
+`mixed-load-faults-37101809547-1`:
+
+| Job/CPU | Phase | Read p50/p95/p99 ms | Write p50/p95/p99 ms | Dropped | Gate |
+|---|---|---|---|---:|---|
+| steady / EPYC 7763 | 10-minute soak | 3.78 / 10.33 / 21.84 | 6.27 / 10.20 / 15.61 | 0 | PASS |
+| steady / EPYC 7763 | burst 3× | 5.21 / 20.34 / 49.44 | 6.64 / 20.93 / 42.43 | 0 | PASS |
+| faults / EPYC 9V45 | cold restart | 4.21 / 72.19 / 386.40 | 9.23 / 72.00 / 1691.69 | 2 | FAIL (dropped arrivals) |
+| faults / EPYC 9V45 | ES unavailable | 2.67 / 60.21 / 90.51 | 6.32 / 10.79 / 18.14 | 0 | PASS |
+| faults / EPYC 9V45 | ES hanging | 2.66 / 61.00 / 92.83 | 5.38 / 10.03 / 15.22 | 0 | PASS |
+| faults / EPYC 9V45 | Redis unavailable | 3.96 / 8.10 / 17.15 | 4.87 / 7.18 / 9.95 | 0 | PASS |
+
+Warm, cache eviction, ES recovered and Redis recovered also pass. Cold restart has **0 degraded searches, 0 5xx,
+0 429**; all latency/error thresholds pass, but the first ten seconds drop two writes while k6 grows from 20 to 22
+write VUs (maximum write latency 2,264 ms, 10 arrivals/s). Its zero-drop gate remains failed. The generator now
+preallocates 30 write VUs, enough for that observed latency with headroom; rate, maximum VUs, latency/error/drop gates
+stay unchanged. A final-head CI repeat is required before claiming the cold gate passes.
+
+Soak publication: **300/300** approvals visible, lag p50/p95/p99/max **1039 / 1840 / 1860 / 1890 ms**. Query plans at
+100k/1M also pass on this run. These are synthetic CI results, not production measurements. D-13 and R-5 remain PARTIAL
+for final-head cold verification, 1M mixed load, concurrent same-listing writes and restore/rollback coverage.
+
+Reviewer cache tests now assert the formerly missing behavior: the DB first page/count remain cached during an
+in-flight half-open probe, and a bounded 10-second local ID-only cache serves degraded first pages when Redis is also
+unavailable. Hydration always rechecks public visibility. Healthy engine results never use that local fallback cache.
+
+Local focused check (2026-10-03): `sh mvnw -B -ntp
+-Dtest=SearchWarmupTests,MapEngineSelectionTests,SearchDegradedCacheReviewTests,SearchDegradedFirstPageCacheTests,SearchCircuitBreakerTests
+test` — **19 tests, 0 failures/errors** before adding the DB variant of the readiness test; the final variant is verified
+in CI. `python3 -B scripts/perf_summary_test.py` — **7 pass**; `bash -n scripts/ci-mixed-load.sh scripts/ci-query-plans.sh`
+and `git diff --check` pass. No local load, full stack, production command or production data was used.
