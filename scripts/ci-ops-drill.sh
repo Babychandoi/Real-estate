@@ -89,15 +89,21 @@ wait_tcp_postgres() { # wait_tcp_postgres <timeout s>
   return 1
 }
 
-# The app serves: Nginx up, a prerendered listing page from the restored data, search answered by Elasticsearch
-# (degraded=false) with at least one result. Echoes the epoch ms when all three first held.
+# The app serves: Nginx up, a prerendered listing page, backend healthy (including startup warm-up), search answered
+# by Elasticsearch (degraded=false) with at least one result. First-page time is kept separately from full readiness.
 wait_serving() { # wait_serving <timeout s> <listing path>
   local timeout="$1" listing="$2" deadline body first_ok=""
   deadline=$(( $(date +%s) + timeout ))
   while [ "$(date +%s)" -lt "$deadline" ]; do
-    if curl -fsS -o /dev/null --max-time 5 "$BASE/healthz" 2>/dev/null \
+    if [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/healthz" 2>/dev/null)" = 200 ] \
        && [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H 'Accept: text/html' "$BASE$listing")" = 200 ]; then
       [ -n "$first_ok" ] || first_ok="$(ms)"
+      # Docker daemon restarts do not honour Compose's service_healthy ordering. A page/search can answer while the
+      # warm-up contributor still returns 503; that is not full readiness and must not end the RTO timer early.
+      if [ "$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$BASE/backend-health" 2>/dev/null)" != 200 ]; then
+        sleep 1
+        continue
+      fi
       body="$(curl -fsS --max-time 10 "$BASE/api/v2/listings/search" 2>/dev/null || true)"
       if echo "$body" | grep -q '"degraded":false' && echo "$body" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if (d.get("items") or d.get("content") or d.get("results")) else 1)' 2>/dev/null; then
         echo "$first_ok $(ms)"
@@ -463,8 +469,12 @@ rollback() {
   compose build backend frontend minio > "$ART/build.log" 2>&1
   record build_seconds "$(secs "$t" "$(ms)")"
   docker tag "${PROJECT}-backend:latest" bds-backend:current
-  local refs="${PREVIOUS_REFS:-$(previous_refs)}" ref sha label
-  record previous_refs "$refs"
+  local refs="${PREVIOUS_REFS:-$(previous_refs)}" ref sha label resolved_refs=""
+  # Outcome keys use resolved SHAs; preserve that correspondence for symbolic overrides too.
+  for ref in $refs; do
+    resolved_refs="$resolved_refs $(git -C "$REPO" rev-parse --short "$ref")"
+  done
+  record previous_refs "${resolved_refs# }"
   for ref in $refs; do
     sha="$(git -C "$REPO" rev-parse --short "$ref")"
     log "building backend image of $ref ($sha)"

@@ -32,10 +32,10 @@ Spacing ưu tiên 4/8/12/16/20/24/32/40/48/64 px. Radius hiện hữu có overri
 ## Typography và layout
 
 - Font: Be Vietnam Pro; fallback system sans-serif nếu chưa tải font. Không thêm thư viện font mới.
-- Hero: 30 px trên điện thoại, 48 px từ `sm`; semibold, line-height chặt. H2 khối: 24 px. Tiêu đề card/body: 16 px. Nội dung phụ: 14 px. Badge/caption: 12 px.
+- Hero: 30 px trên điện thoại, 48 px từ `sm`; semibold, line-height chặt. H2 khối: 24 px. Tiêu đề card/body: 16 px. Nội dung phụ: 14 px. Badge/caption: 12 px (tối thiểu cho mọi chữ). Giá, trạng thái (`role=status`), lỗi (`role=alert`, lỗi của FormField) và nhãn nút/tab/menu luôn ≥ 14 px; badge là nhãn 12 px, không phải chữ trạng thái.
 - Input/select/textarea trên mobile: tối thiểu 16 px để tránh zoom form ngoài ý muốn.
 - Content công khai: max-width 1280 px; gutter 16 px mobile, 24 px từ 640, 32 px từ 1024.
-- Header công khai cao tối thiểu 80 px, sticky. Menu mobile mở dialog; link đang chọn có nền riêng. Account navigation cuộn ngang trong vùng của nó.
+- Header công khai cao tối thiểu 80 px, sticky; tự xuống dòng khi chữ phóng to và thôi sticky khi cao hơn 1/4 cửa sổ hoặc màn hình thấp hơn 480 px (`useTallHeader`). `scroll-padding-top` giữ phần tử đang focus không bị header che. Menu mobile mở dialog; link đang chọn có nền riêng. Account navigation cuộn ngang trong vùng của nó.
 - Listing grid: 1 cột dưới 640; 2 cột từ 640; 3 cột từ 1024. Gap 20 px. Ảnh tỷ lệ 4:3.
 - Màn hình chi tiết: gallery, khối giá/thông số, mô tả và liên hệ. Desktop có cột liên hệ sticky; mobile chuyển theo luồng dọc.
 - Admin: sidebar sáng trên desktop, menu dialog trên mobile; bảng được cuộn trong vùng bảng. Form bộ lọc không làm tràn toàn trang.
@@ -44,7 +44,7 @@ Spacing ưu tiên 4/8/12/16/20/24/32/40/48/64 px. Radius hiện hữu có overri
 
 | Component | Biến thể/trạng thái | Quy tắc |
 | --- | --- | --- |
-| Button | primary, secondary, outline, ghost; loading, disabled | Tối thiểu 44 px ở component dùng chung; chỉ dùng button cho hành động |
+| Button | primary, secondary, outline, ghost; loading, disabled | md/lg 44/48 px; sm 36 px chỉ trên desktop, tự thành 44 px trên màn hình cảm ứng (`--control-sm` theo `pointer: coarse`); chữ nút ≥ 14 px; chỉ dùng button cho hành động |
 | Link CTA | primary-link, text-link, icon | Điều hướng bằng Link; không bọc button trong Link |
 | ListingCard | SALE, RENT; verified; ảnh lỗi; so sánh chọn/chưa chọn | Giá thuê có `/tháng`; tiêu đề và người đăng là link độc lập; compare không điều hướng |
 | ListingGallery | không ảnh, thumbnail, viewer | Hiển thị tất cả ảnh API trả về; Escape đóng, phím mũi tên chuyển ảnh; trả focus về nút mở |
@@ -67,4 +67,4 @@ Một số modal/biểu mẫu nghiệp vụ legacy vẫn giữ cấu trúc cũ. 
 
 ## Accessibility và responsive
 
-Giữ một `main` và h1 hiển thị mỗi trang; skip link, nhãn form, focus-visible, native dialog cho component mới. Tôn trọng `prefers-reduced-motion`. Nút đóng và icon action có accessible name. Tránh nội dung chỉ xuất hiện khi hover. Mục tiêu sản phẩm là WCAG 2.2 AA; bằng chứng hiện tại chỉ là tập kiểm tra tự động theo tag WCAG 2/2.1 A/AA và các thao tác bàn phím nêu trong QA, chưa phải chứng nhận.
+Giữ một `main` và h1 hiển thị mỗi trang; skip link, nhãn form, focus-visible, native dialog cho component mới. Tôn trọng `prefers-reduced-motion`. Nút đóng và icon action có accessible name. Tránh nội dung chỉ xuất hiện khi hover. Mục tiêu sản phẩm là WCAG 2.2 AA. Bằng chứng tự động (W6-UX): `ux-audit.spec.ts` (mọi route, đúng vai trò: axe tag WCAG 2.0/2.1/2.2 A/AA, cỡ chữ, vùng chạm 44 px cảm ứng / 24 px desktop, chỉ icon Lucide, không emoji, reflow 390 px và zoom 200 %), `ux-dialogs.spec.ts` (mọi dialog/sheet/menu) và `keyboard.spec.ts` (bốn luồng cốt lõi chỉ bằng bàn phím). Trình đọc màn hình thật (NVDA/VoiceOver) vẫn là kiểm tra thủ công; chưa phải chứng nhận.

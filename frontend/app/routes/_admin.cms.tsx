@@ -407,7 +407,7 @@ function ArticleDialog({
             {article.publishedAt && <p>Công khai từ {formatDateTime(article.publishedAt)}</p>}
             {article.status === 'PUBLISHED' && (
               <a
-                className="font-medium text-primary underline"
+                className="inline-flex min-h-11 items-center font-medium text-primary underline"
                 href={article.publicPath}
                 target="_blank"
                 rel="noopener"

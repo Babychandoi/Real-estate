@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BLOCKING = new Set(['high', 'critical']);
+const SEVERITIES = new Set(['info', 'low', 'moderate', 'high', 'critical']);
+
+function incomplete() {
+  throw new Error('npm audit did not return a complete vulnerability report');
+}
 
 function audit(extraArgs) {
   let output;
@@ -23,9 +28,60 @@ function audit(extraArgs) {
 
 /** Advisories (by GHSA id) reachable at high/critical severity, with the packages they come through. */
 export function blockingAdvisories(report) {
+  // npm also exits nonzero with JSON for registry failures; that is no evidence of a clean dependency tree.
+  if (
+    !report ||
+    report.error ||
+    !report.vulnerabilities ||
+    typeof report.vulnerabilities !== 'object' ||
+    Array.isArray(report.vulnerabilities)
+  ) {
+    incomplete();
+  }
+  const entries = report.vulnerabilities;
+  for (const vulnerability of Object.values(entries)) {
+    if (
+      !vulnerability ||
+      typeof vulnerability !== 'object' ||
+      Array.isArray(vulnerability) ||
+      !SEVERITIES.has(vulnerability.severity) ||
+      !Array.isArray(vulnerability.via)
+    )
+      incomplete();
+    for (const via of vulnerability.via) {
+      if (typeof via === 'string') {
+        if (!Object.hasOwn(entries, via)) incomplete();
+      } else if (
+        !via ||
+        typeof via !== 'object' ||
+        Array.isArray(via) ||
+        !SEVERITIES.has(via.severity) ||
+        !((typeof via.url === 'string' && via.url.length > 0) || Number.isFinite(via.source))
+      )
+        incomplete();
+    }
+  }
+  // Aggregate entries legitimately refer to other packages. A blocking entry with no reachable blocking advisory
+  // (including an empty list or dependency cycle) is incomplete evidence, never proof of a clean dependency tree.
+  for (const [name, vulnerability] of Object.entries(entries)) {
+    if (!BLOCKING.has(vulnerability.severity)) continue;
+    const pending = [name];
+    const visited = new Set();
+    let blocking = false;
+    while (pending.length && !blocking) {
+      const dependency = pending.pop();
+      if (visited.has(dependency)) continue;
+      visited.add(dependency);
+      for (const via of entries[dependency].via) {
+        if (typeof via === 'string') pending.push(via);
+        else if (BLOCKING.has(via.severity)) blocking = true;
+      }
+    }
+    if (!blocking) incomplete();
+  }
   const found = new Map();
-  for (const [name, vulnerability] of Object.entries(report.vulnerabilities ?? {})) {
-    for (const via of vulnerability.via ?? []) {
+  for (const [name, vulnerability] of Object.entries(entries)) {
+    for (const via of vulnerability.via) {
       if (typeof via !== 'object' || !BLOCKING.has(via.severity)) continue;
       const id =
         String(via.url ?? '')

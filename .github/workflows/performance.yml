@@ -10,6 +10,7 @@ on:
       - "scripts/ci-mixed-load.sh"
       - "scripts/ci-query-plans.sh"
       - "scripts/query-plans.py"
+      - "scripts/query_plans_test.py"
       - "scripts/plan-compare.py"
       - "scripts/query-counts.py"
       - "scripts/perf-metrics.py"
@@ -66,6 +67,7 @@ jobs:
         run: |
           bash -n scripts/ci-mixed-load.sh scripts/ci-query-plans.sh
           python3 -B scripts/perf_summary_test.py
+          python3 -B scripts/query_plans_test.py
           python3 -B -m py_compile scripts/query-counts.py scripts/perf-metrics.py scripts/k6-timeline.py \
             scripts/query-plans.py scripts/plan-compare.py
       - name: Smoke (10k listings, 1 gated minute)
@@ -91,6 +93,7 @@ jobs:
       - name: Validate scripts
         run: |
           bash -n scripts/ci-query-plans.sh
+          python3 -B scripts/query_plans_test.py
           python3 -B -m py_compile scripts/query-plans.py scripts/plan-compare.py
       - name: EXPLAIN (ANALYZE, BUFFERS) at 100k and 1M listings, warm and cold
         run: bash scripts/ci-query-plans.sh
@@ -124,6 +127,7 @@ jobs:
         run: |
           bash -n scripts/ci-mixed-load.sh
           python3 -B scripts/perf_summary_test.py
+          python3 -B scripts/query_plans_test.py
           python3 -B -m py_compile scripts/query-counts.py scripts/perf-metrics.py scripts/k6-timeline.py
       - name: Measure and verify persisted effects
         run: bash scripts/ci-mixed-load.sh

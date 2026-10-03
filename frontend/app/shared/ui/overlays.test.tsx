@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { Dialog } from './Dialog';
 import { Sheet } from './Sheet';
 import { Tabs } from './Tabs';
+import { focusableWithin } from './internal/useModal';
 
 function DialogHarness({ onClose }: { onClose?: () => void }) {
   const [open, setOpen] = useState(false);
@@ -53,6 +54,34 @@ describe('Dialog', () => {
 
     fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
     expect(send).toHaveFocus();
+  });
+
+  it('wraps past hidden descendants and roving controls excluded from the tab order', () => {
+    render(
+      <Dialog open onClose={() => undefined} title="Trang công khai">
+        <input aria-label="Nguồn thông tin" />
+        <button tabIndex={0}>Tab đang chọn</button>
+        <button tabIndex={-1}>Tab khác</button>
+        <div style={{ display: 'none' }}>
+          <div>
+            <button>Thao tác trong phần ẩn</button>
+          </div>
+        </div>
+        <fieldset disabled>
+          <button>Thao tác bị vô hiệu</button>
+        </fieldset>
+      </Dialog>,
+    );
+    const dialog = screen.getByRole('dialog');
+    const close = screen.getByRole('button', { name: 'Đóng hộp thoại' });
+    const selected = screen.getByRole('button', { name: 'Tab đang chọn' });
+    expect(focusableWithin(dialog)).toEqual([close, screen.getByRole('textbox'), selected]);
+
+    selected.focus();
+    fireEvent.keyDown(selected, { key: 'Tab' });
+    expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(selected).toHaveFocus();
   });
 
   it('closes on Escape and returns focus to the opener', () => {

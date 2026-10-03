@@ -173,7 +173,7 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
                   ).map(([value, label]) => (
                     <label
                       key={value}
-                      className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-sm font-semibold ${requestType === value ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant bg-surface text-on-surface'}`}
+                      className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-sm font-semibold has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-focus has-[:focus-visible]:ring-offset-2 ${requestType === value ? 'border-primary bg-primary/5 text-primary' : 'border-outline-variant bg-surface text-on-surface'}`}
                     >
                       <input
                         type="radio"
@@ -240,7 +240,7 @@ export const LeadConsultationModal: React.FC<Props> = ({ isOpen, onClose, listin
                   className="mt-1 w-full p-3 rounded-lg border border-outline-variant bg-surface focus:ring-2 focus:ring-primary"
                 />
               </label>
-              <label className="flex items-start gap-3 text-sm text-on-surface-variant">
+              <label className="flex min-h-11 items-start gap-3 py-1 text-sm text-on-surface-variant">
                 <input
                   type="checkbox"
                   checked={consent}

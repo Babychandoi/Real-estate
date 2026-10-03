@@ -88,6 +88,7 @@ export function Tabs<Id extends string>({ label, items, value, onChange, default
               {item.label}
               {item.count != null && (
                 <span
+                  data-badge=""
                   className={cn(
                     'rounded-pill px-2 py-0.5 text-xs font-semibold',
                     isSelected ? 'bg-primary text-primary-on' : 'bg-surface-container-high text-on-surface-variant',

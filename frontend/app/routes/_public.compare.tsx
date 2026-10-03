@@ -217,7 +217,7 @@ function ListingPicker({
               ))}
             </div>
           )}
-          <label className="flex min-h-11 items-center gap-2 rounded-input border border-outline px-3">
+          <label className="flex min-h-11 items-center gap-2 rounded-input border border-outline px-3 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-[rgb(var(--color-focus-ring))]">
             <Search className="h-4 w-4 text-on-surface-variant" aria-hidden="true" />
             <input
               ref={searchRef}
@@ -264,9 +264,11 @@ function ListingPicker({
                           {propertyTypeLabel(listing.propertyType)} · {formatArea(listing.areaM2)} ·{' '}
                           {listing.location.addressSummary}
                         </p>
-                        <p className="mt-0.5 text-body-sm font-bold text-primary">{formatMoney(listing.price)}</p>
+                        <p data-price="" className="mt-0.5 text-body-sm font-bold text-primary">
+                          {formatMoney(listing.price)}
+                        </p>
                       </div>
-                      <span className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-input px-3 text-label font-bold text-primary">
+                      <span className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-input px-3 text-body-sm font-bold text-primary">
                         {added ? (
                           <>
                             <Check className="h-4 w-4" aria-hidden="true" /> Đã chọn
@@ -518,16 +520,18 @@ export const PropertyComparePage: React.FC = () => {
                             </div>
                           )}
                         </div>
-                        <p className="text-headline-sm text-primary">{formatMoney(item.price)}</p>
+                        <p data-price="" className="text-headline-sm text-primary">
+                          {formatMoney(item.price)}
+                        </p>
                         <Link
                           to={listingPath(item)}
                           className="mt-1 line-clamp-2 block text-body-sm font-bold text-on-surface hover:text-primary"
                         >
                           {item.title}
                         </Link>
-                        <p className="mt-2 flex items-start gap-1 text-label font-normal text-on-surface-variant">
+                        <p className="mt-2 flex min-w-0 items-start gap-1 text-label font-normal text-on-surface-variant">
                           <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />{' '}
-                          {item.location.addressSummary}
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{item.location.addressSummary}</span>
                         </p>
                       </article>
                     );
@@ -600,13 +604,16 @@ export const PropertyComparePage: React.FC = () => {
                       {current.map((slot) => (
                         <div
                           key={slot.id}
-                          className={`flex items-center gap-2 border-l border-outline-variant/60 p-4 ${slot.kind === 'ready' && winners.has(slot.id) ? 'bg-success-container font-semibold text-success-on-container' : 'text-on-surface'}`}
+                          className={`flex min-w-0 flex-wrap items-center gap-2 border-l border-outline-variant/60 p-4 ${slot.kind === 'ready' && winners.has(slot.id) ? 'bg-success-container font-semibold text-success-on-container' : 'text-on-surface'}`}
                         >
                           {slot.kind === 'ready' ? (
                             <>
-                              <span>{row.display(slot.item)}</span>
+                              <span className="min-w-0 [overflow-wrap:anywhere]">{row.display(slot.item)}</span>
                               {winners.has(slot.id) && (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-success-container px-2 py-0.5 text-xs font-bold">
+                                <span
+                                  data-badge=""
+                                  className="inline-flex items-center gap-1 rounded-full bg-success-container px-2 py-0.5 text-xs font-bold"
+                                >
                                   <Trophy className="h-3 w-3" aria-hidden="true" /> Tốt nhất
                                 </span>
                               )}

@@ -9,6 +9,8 @@ on:
       - ".github/workflows/operations-drills.yml"
       - "scripts/ci-ops-drill.sh"
       - "scripts/ops_drill_report.py"
+      - "scripts/ops_drill_report_test.py"
+      - "scripts/ops_serving_test.py"
       - "scripts/restore-drill.sh"
       - "docker-compose.yml"
       - "infra/compose.backup.yaml"
@@ -49,6 +51,7 @@ jobs:
         run: |
           bash -n scripts/ci-ops-drill.sh
           python3 -m py_compile scripts/ops_drill_report.py
+          python3 -m unittest discover -s scripts -p 'ops_*_test.py'
       - name: Backup, write, lose, restore (PITR and full host) and measure
         run: bash scripts/ci-ops-drill.sh recovery
       - name: Upload evidence
@@ -71,7 +74,9 @@ jobs:
         with:
           fetch-depth: 0 # previous releases are built from history
       - name: Validate scripts
-        run: bash -n scripts/ci-ops-drill.sh
+        run: |
+          bash -n scripts/ci-ops-drill.sh
+          python3 -m unittest discover -s scripts -p 'ops_*_test.py'
       - name: Roll back to previous images, IP chain, daemon restarts
         run: bash scripts/ci-ops-drill.sh rollback
       - name: Upload evidence

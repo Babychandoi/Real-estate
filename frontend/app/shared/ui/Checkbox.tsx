@@ -44,7 +44,9 @@ export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(functi
         <label
           htmlFor={inputId}
           className={cn(
-            'cursor-pointer text-body-sm font-medium text-on-surface',
+            // The label is the touch target: 11 px of padding above and below, cancelled by the margin so the row
+            // keeps its layout, make it 44 px tall with its 22 px line (DS-03).
+            '-my-[11px] cursor-pointer py-[11px] text-body-sm font-medium text-on-surface',
             disabled && 'cursor-not-allowed text-on-surface-variant',
           )}
         >

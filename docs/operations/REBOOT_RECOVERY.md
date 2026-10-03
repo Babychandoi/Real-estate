@@ -99,7 +99,9 @@ Build trong lúc bản cũ còn phục vụ, `stop` có chủ đích, rồi `up 
 ```bash
 bds_prod build backend frontend
 bds_prod stop backend frontend
-bds_prod up -d --no-build --no-deps backend frontend
+bds_prod up -d --no-build --no-deps --wait --wait-timeout 180 backend
+# Chỉ mở lại frontend khi backend đã healthy (gồm làm ấm DB/Elasticsearch của W6).
+bds_prod up -d --no-build --no-deps --wait --wait-timeout 180 frontend
 ```
 - Nếu máy khởi động lại giữa `stop` và `up -d`, Docker chạy lại container cũ (ý nghĩa của `always`): chỉ cần chạy lại
   `up -d`. Muốn một service **không** quay lại sau reboot thì gỡ hẳn: `bds_prod rm -sf <service>`.
