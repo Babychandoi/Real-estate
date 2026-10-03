@@ -37,8 +37,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Review checks for W6-PERF commit 333ee1f (degraded first pages cached under the database key). These tests record
- * the behaviour as it is on the branch; the ones named "...gap" pass because the gap exists, not because it is wanted.
+ * Review checks for W6-PERF (degraded first pages cached under the database key). The two gaps the review recorded
+ * (half-open probe in flight; Redis down as well) are closed: those tests now assert the fixed behaviour.
  */
 class SearchDegradedCacheReviewTests {
     private final MutableClock clock = new MutableClock(Instant.parse("2026-10-03T00:00:00Z"));
@@ -107,25 +107,36 @@ class SearchDegradedCacheReviewTests {
     }
 
     @Test
-    void whileTheHalfOpenProbeIsInFlightEveryRepeatedFirstPageGoesToTheDatabaseUncached_gap() {
+    void whileTheHalfOpenProbeIsInFlightRepeatedFirstPagesAreServedFromTheDatabaseKey() {
         breaker.recordFailure();
         firstSalePage(); // cached under the database key
         clock.advance(Duration.ofSeconds(31));
         assertThat(breaker.tryAcquire()).isTrue(); // another request holds the half-open probe (ES hanging up to 800 ms)
-        // state() is HALF_OPEN -> the engine key is used -> miss -> no probe left -> database fallback, never cached
+        // callable() is false while the probe is in flight -> the database key is used -> cache hit
         for (int i = 0; i < 5; i++) assertThat(firstSalePage().degraded()).isTrue();
-        verify(readModel, times(1 + 5)).page(any(), any(), any(), anyInt());
-        verify(readModel, times(1 + 5)).countCapped(any(), anyInt());
+        verify(readModel, times(1)).page(any(), any(), any(), anyInt());
+        verify(readModel, times(1)).countCapped(any(), anyInt());
+        verify(engine, never()).search(any(), any(), any(), anyInt(), anyBoolean(), anyInt());
     }
 
     @Test
-    void withRedisAlsoDownEveryDegradedFirstPageIsComputedOnTheDatabase_gap() {
+    void withRedisAlsoDownDegradedFirstPagesAreKeptBrieflyInMemory() {
         breaker.recordFailure();
         cache.generation = -1; // Redis breaker open (ListingResponseCache.generation() == -1)
-        for (int i = 0; i < 5; i++) firstSalePage();
-        verify(readModel, times(5)).page(any(), any(), any(), anyInt());
-        verify(readModel, times(5)).countCapped(any(), anyInt());
+        for (int i = 0; i < 5; i++) assertThat(firstSalePage().degraded()).isTrue();
+        verify(readModel, times(1)).page(any(), any(), any(), anyInt());
+        verify(readModel, times(1)).countCapped(any(), anyInt());
+        clock.advance(Duration.ofSeconds(11)); // the in-memory entry expires after 10 s
+        firstSalePage();
+        verify(readModel, times(2)).page(any(), any(), any(), anyInt());
         verify(engine, never()).search(any(), any(), any(), anyInt(), anyBoolean(), anyInt());
+    }
+
+    @Test
+    void withRedisDownButTheEngineHealthyNothingIsKeptInMemory() {
+        cache.generation = -1;
+        for (int i = 0; i < 3; i++) assertThat(firstSalePage().degraded()).isFalse();
+        verify(engine, times(3)).search(any(), any(), any(), anyInt(), anyBoolean(), anyInt());
     }
 
     /** In-memory {@link ResponseCachePort}: stores non-null values. */
