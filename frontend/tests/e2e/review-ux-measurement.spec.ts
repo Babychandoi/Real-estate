@@ -5,14 +5,11 @@ import { auditReflow, auditUi } from './support/targetAudit';
 
 // Adversarial review of the W6-UX measurement (PR #25): can the DS-03/DS-06 audits and the focus checks fail at all?
 //
-// Part A (no backend): the audit functions are run on small synthetic pages. Tests marked `test.fail` document a
-// BLIND SPOT: the assertion states what the audit should report, and today it does not. When the blind spot is fixed
-// the test turns into an "unexpected pass" and the `test.fail` marker must be removed.
-// Part B (seeded stack, PLAYWRIGHT_BASE_URL): the real pages are mutated in the browser (a smaller button, a smaller
-// price, an overflowing element, a removed focus style) and the same audits must catch the mutation.
-//
-// The focus-indicator rule is the same in ux-dialogs.spec.ts `focusIsVisible` and support/keyboard.ts `check`
-// (`boxShadow !== 'none'` counts as a focus ring), so KeyboardWalker stands for both here.
+// Part A (no backend): synthetic pages verify that the audits detect the review findings. These are ordinary
+// regression assertions after the review fixes; no expected-failure markers remain.
+// Part B (seeded stack, PLAYWRIGHT_BASE_URL): real pages are mutated in the browser and the audits must catch it.
+// ux-dialogs and KeyboardWalker share support/focusCheck.ts; the independent focusLooksDifferent probe below
+// cross-checks that a resting shadow or transparent outline cannot substitute for a visible focus indicator.
 
 test.beforeEach(({ browserName }, testInfo) => {
   void browserName;
@@ -55,8 +52,7 @@ test.describe('A. the audit functions on synthetic pages', () => {
     expect(kinds).toContain('page-scroll');
   });
 
-  test('A4 BLIND SPOT: text typed in a 10 px input or shown in a 10 px select is never measured', async ({ page }) => {
-    test.fail(true, 'auditUi only walks text nodes; input values, placeholders and <select> text are not text nodes');
+  test('A4 regression: tiny input and select text is measured', async ({ page }) => {
     await synthetic(
       page,
       '<main><label>Giá <input value="3950000000" style="font-size:10px;height:44px;width:200px"></label>' +
@@ -66,13 +62,7 @@ test.describe('A. the audit functions on synthetic pages', () => {
     expect(kinds).toContain('tiny-text');
   });
 
-  test('A5 BLIND SPOT: one hidden [aria-modal] element anywhere switches off the audit of the whole page', async ({
-    page,
-  }) => {
-    test.fail(
-      true,
-      'hiddenTree() treats everything outside the FIRST [aria-modal="true"] in the DOM as covered, even a display:none one',
-    );
+  test('A5 regression: a hidden modal does not suppress the page audit', async ({ page }) => {
     await synthetic(
       page,
       '<div role="dialog" aria-modal="true" style="display:none"><button>x</button></div>' +
@@ -96,10 +86,7 @@ test.describe('A. the audit functions on synthetic pages', () => {
     expect((await auditReflow(page)).map((f) => f.kind)).toContain('page-scroll');
   });
 
-  test('A7 BLIND SPOT: a control with a permanent box-shadow and no focus style passes the focus check', async ({
-    page,
-  }) => {
-    test.fail(true, 'focus "ring" = boxShadow !== none, without comparing with the unfocused look (shadow-sm buttons)');
+  test('A7 regression: a resting shadow cannot hide a missing focus indicator', async ({ page }) => {
     await synthetic(
       page,
       '<main><a href="#x">trước</a> <button id="b" style="outline:none;box-shadow:0 1px 2px rgba(0,0,0,.05)">Gửi yêu cầu</button></main>',
@@ -121,10 +108,7 @@ test.describe('A. the audit functions on synthetic pages', () => {
     expect(keys.problems.join('\n')).toContain('no visible focus indicator');
   });
 
-  test('A10 BLIND SPOT: Tailwind `outline-none` (2px solid transparent) counts as a visible focus indicator', async ({
-    page,
-  }) => {
-    test.fail(true, 'the check reads outline-style/width only; a transparent outline colour is accepted as visible');
+  test('A10 regression: a transparent outline is not a visible focus indicator', async ({ page }) => {
     await synthetic(
       page,
       '<main><a href="#x">trước</a> <input id="f" aria-label="Lọc tin đăng"></main>',
@@ -136,8 +120,7 @@ test.describe('A. the audit functions on synthetic pages', () => {
     expect(keys.problems.join('\n')).toContain('no visible focus indicator');
   });
 
-  test('A9 BLIND SPOT: a small button nested in a large link or [role=button] is never measured', async ({ page }) => {
-    test.fail(true, 'auditUi keeps only the outermost of nested targets');
+  test('A9 regression: a small nested button is measured', async ({ page }) => {
     await synthetic(
       page,
       '<main><div role="button" tabindex="0" style="display:block;height:120px;width:360px">Thẻ tin' +
@@ -193,13 +176,7 @@ test.describe('B. mutations of the real pages are caught', () => {
     await close();
   });
 
-  test('B4 BLIND SPOT: the focus style removed from the primary button in the sign-in dialog is not noticed', async ({
-    browser,
-  }) => {
-    test.fail(
-      true,
-      'primary Button has a resting shadow, so boxShadow is never "none" and the check passes without a ring',
-    );
+  test('B4 regression: removing the sign-in button focus style is detected', async ({ browser }) => {
     const { page, close } = await openRoute(
       browser,
       session,
@@ -226,12 +203,7 @@ test.describe('B. mutations of the real pages are caught', () => {
     await close();
   });
 
-  test('B5 DEFECT missed by ux-dialogs: the compare picker search field shows no focus at all', async ({ browser }) => {
-    test.fail(
-      true,
-      'app/routes/_public.compare.tsx:228 <input class="… focus:outline-none"> in a label without focus-within: the ' +
-        'outline is transparent; the shipped checks accept it (A10) and never re-check the initially focused field',
-    );
+  test('B5 regression: the compare picker search field shows keyboard focus', async ({ browser }) => {
     const { page, close } = await openRoute(
       browser,
       session,
@@ -251,7 +223,7 @@ test.describe('B. mutations of the real pages are caught', () => {
     await close();
   });
 
-  test('B6 the filter sheet has more Tab stops than the 12 Tabs ux-dialogs presses', async ({ browser }) => {
+  test('B6 the filter sheet has more than 12 Tab stops and the audit covers the full cycle', async ({ browser }) => {
     const spec = { name: 'search', as: 'guest' as const, path: () => '/search?purpose=SALE' };
     const { page, close } = await openRoute(browser, session, spec, { viewport: { width: 1440, height: 900 } });
     await page.getByRole('button', { name: /^Bộ lọc/ }).click();
@@ -340,11 +312,6 @@ test.describe('B. mutations of the real pages are caught', () => {
   test('B8 a verified seeker never sees the "Xác minh eKYC để liên hệ" detour on a listing (contact CTA fix)', async ({
     browser,
   }) => {
-    test.fail(
-      true,
-      'DEFECT: kycStatus starts as NONE and becomes LOADING only in an effect after the first commit, so the eKYC ' +
-        'link is rendered once (and kyc_required_shown is tracked) for an already verified seeker',
-    );
     const spec = { name: 'listing', as: 'buyer' as const, path: (s: Session) => `/listings/${s.ids.listing}` };
     const record = async (page: Page) => {
       // Every text the contact CTA ever shows, including states that last a single commit.
@@ -369,11 +336,6 @@ test.describe('B. mutations of the real pages are caught', () => {
   test('B9 with a dialog open, the page behind is out of the accessibility tree (virtual cursor)', async ({
     browser,
   }) => {
-    test.fail(
-      true,
-      'DEFECT: Chromium keeps the page behind an aria-modal dialog in its accessibility tree (not ignored); nothing ' +
-        'sets inert/aria-hidden on the app root, so a screen-reader virtual cursor can leave the dialog',
-    );
     const { page, close } = await openRoute(
       browser,
       session,
@@ -402,7 +364,7 @@ test.describe('B. mutations of the real pages are caught', () => {
 /**
  * Strict focus check: the focused element (or the label that draws a visually hidden input's focus, or its
  * stretched ::after) must LOOK different from the same element unfocused — an outline with a visible colour, a
- * changed box-shadow, background or border. The shipped checks only ask "is there an outline style or any shadow".
+ * changed box-shadow, background or border. This independent probe cross-checks the shared focus audit.
  */
 async function focusLooksDifferent(page: Page): Promise<boolean> {
   return page.evaluate(() => {

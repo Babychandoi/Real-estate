@@ -294,6 +294,14 @@ jobs:
         run: |
           export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
           npx playwright test tests/e2e/ux-dialogs.spec.ts --project=chromium-1440 --workers=2
+      - name: 'E2E: UX audit adversarial regressions'
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_SUITE: ux-review
+        run: |
+          export DEMO_ACCOUNT_PASSWORD="$(grep '^DEMO_ACCOUNT_PASSWORD=' ../.env.demo.example | cut -d= -f2-)"
+          npx playwright test tests/e2e/review-ux-measurement.spec.ts --project=chromium-1440 --workers=1
       # R-2: more than 100 public listings (the UAT seed has 46 SALE), added after the visual baselines so they keep
       # their seeded pages; Elasticsearch is re-synced before the search-consistency suite.
       - name: Seed search volume fixture (R-2)
