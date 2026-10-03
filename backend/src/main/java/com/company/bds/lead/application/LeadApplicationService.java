@@ -105,9 +105,12 @@ public class LeadApplicationService {
         if (key != null && !key.matches(KEY_PATTERN)) {
             throw ApiException.badRequest("IDEMPOTENCY_KEY_INVALID", "Idempotency-Key không hợp lệ.");
         }
-        // 1. Hold the listing lock throughout the replay/validation/insert (F17.3).
-        List<Map<String, Object>> listingRows = jdbc.queryForList(
-                "SELECT owner_id, status, public_revision_id, expires_at FROM listings WHERE id = ? FOR SHARE", listingId);
+        // 1. Owner first, then listing: hold both through validation/insert. A suspension committed first rejects a
+        // new lead; one arriving after these locks waits. Status changes enqueue indexing but never lock listings.
+        List<Map<String, Object>> listingRows = jdbc.queryForList("""
+                SELECT l.owner_id, l.status, l.public_revision_id, l.expires_at, u.status AS owner_status
+                FROM users u JOIN listings l ON l.owner_id = u.id WHERE l.id = ? FOR SHARE OF u, l
+                """, listingId);
         if (listingRows.isEmpty()) throw ApiException.notFound("LISTING_NOT_FOUND", "Tin đăng không tồn tại.");
         Map<String, Object> listing = listingRows.get(0);
         UUID ownerId = (UUID) listing.get("owner_id");
@@ -211,15 +214,18 @@ public class LeadApplicationService {
 
     private static boolean acceptsLeads(Map<String, Object> listing, Instant now) {
         Timestamp expiry = (Timestamp) listing.get("expires_at");
-        return "ACTIVE".equals(listing.get("status")) && listing.get("public_revision_id") != null
+        return "ACTIVE".equals(listing.get("owner_status")) && "ACTIVE".equals(listing.get("status"))
+                && listing.get("public_revision_id") != null
                 && (expiry == null || expiry.toInstant().isAfter(now));
     }
 
     /** What the contact form needs to know before the visitor types anything (DS-11, F17.4). */
     @Transactional(readOnly = true)
     public Map<String, Object> eligibility(UUID requesterId, UUID listingId) {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT owner_id, status, public_revision_id, expires_at FROM listings WHERE id = ?", listingId);
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT l.owner_id, l.status, l.public_revision_id, l.expires_at, u.status AS owner_status
+                FROM users u JOIN listings l ON l.owner_id = u.id WHERE l.id = ?
+                """, listingId);
         if (rows.isEmpty()) throw ApiException.notFound("LISTING_NOT_FOUND", "Tin đăng không tồn tại.");
         UUID ownerId = (UUID) rows.get(0).get("owner_id");
         boolean accepting = acceptsLeads(rows.get(0), clock.instant());
@@ -256,8 +262,9 @@ public class LeadApplicationService {
     /** VERIFIED and not expired (contract §6: identity VERIFIED = status VERIFIED and expires_at null or future). */
     private boolean isKycVerified(UUID userId) {
         Boolean verified = jdbc.queryForObject("""
-                SELECT EXISTS (SELECT 1 FROM user_kyc_profiles WHERE user_id = ? AND status = 'VERIFIED'
-                               AND (expires_at IS NULL OR expires_at > ?))
+                SELECT EXISTS (SELECT 1 FROM user_kyc_profiles k JOIN users u ON u.id = k.user_id
+                               WHERE k.user_id = ? AND u.status = 'ACTIVE' AND k.status = 'VERIFIED'
+                               AND (k.expires_at IS NULL OR k.expires_at > ?))
                 """, Boolean.class, userId, Timestamp.from(clock.instant()));
         return Boolean.TRUE.equals(verified);
     }
