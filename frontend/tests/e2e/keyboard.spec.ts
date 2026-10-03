@@ -98,7 +98,6 @@ async function seekerJourney(page: Page, request: APIRequestContext, width: numb
   // Focus returns to where the journey started the dialog from, never to the top of the page.
   await expect(contact).toBeFocused();
   keys.assertClean();
-  test.info().annotations.push(...keys.notes.map((description) => ({ type: 'keyboard', description })));
 }
 
 test('1. seeker: search → detail → contact form, keyboard only (desktop)', async ({ page, request }) => {
@@ -153,8 +152,6 @@ test('2. owner: posts a listing through the four-step wizard, keyboard only', as
   await keys.press('Enter');
   await expect(page.getByTestId('submit-success')).toBeVisible();
   keys.assertClean();
-  test.info().annotations.push(...keys.notes.map((description) => ({ type: 'keyboard', description })));
-  test.info().annotations.push(...keys.notes.map((description) => ({ type: 'keyboard', description })));
 });
 
 test('3. moderator: reviews the owner’s submission and approves it with a reason, keyboard only', async ({
@@ -207,8 +204,6 @@ test('3. moderator: reviews the owner’s submission and approves it with a reas
   await keys.press('Enter');
   await expect(page.getByText(`Đã phê duyệt: ${ownerTitle}`)).toBeVisible();
   keys.assertClean();
-  test.info().annotations.push(...keys.notes.map((description) => ({ type: 'keyboard', description })));
-  test.info().annotations.push(...keys.notes.map((description) => ({ type: 'keyboard', description })));
 });
 
 test('4. admin: concludes a reported listing with a note, keyboard only', async ({ page, request }) => {
@@ -257,5 +252,4 @@ test('4. admin: concludes a reported listing with a note, keyboard only', async 
   await keys.press('Enter');
   await expect(page.getByText(`Đã cập nhật ${report.caseNumber}`)).toBeVisible();
   keys.assertClean();
-  test.info().annotations.push(...keys.notes.map((description) => ({ type: 'keyboard', description })));
 });

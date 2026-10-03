@@ -1,4 +1,5 @@
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { focusProblem } from './focusCheck';
 
 /**
  * Keyboard-only driving for R-7 / DS-04: every move is a Tab / Shift+Tab / Enter / Space / arrow / typed key, never a
@@ -38,15 +39,18 @@ export class KeyboardWalker {
 
   /**
    * Picks an option of the focused native <select> with the arrow keys. Where the platform opens the OS popup on an
-   * arrow key instead (macOS), Playwright cannot press keys inside that popup; the value is then set with
-   * selectOption on the focused element and the step is annotated — operating a native select is the browser's own
-   * keyboard support, not the page's.
+   * arrow key instead (macOS only), Playwright cannot press keys inside that popup; the value is then set with
+   * selectOption on the focused element and the step is annotated. On any other platform that fallback fails.
    */
   async chooseOption(select: Locator, value: string, within?: Locator) {
     for (let i = 0; i < 12 && (await select.inputValue()) !== value; i += 1) await this.press('ArrowDown', within);
     if ((await select.inputValue()) !== value) {
+      // Only macOS opens the native popup on an arrow key; everywhere else the arrow keys must have worked.
+      expect(process.platform, `${this.journey}: arrow keys did not reach "${value}" in a native select`).toBe(
+        'darwin',
+      );
       await select.selectOption(value);
-      this.notes.push(`native select ${value}: OS popup, set with selectOption`);
+      this.notes.push(`native select ${value}: macOS OS popup, set with selectOption`);
     }
   }
 
@@ -72,27 +76,22 @@ export class KeyboardWalker {
         last = now;
       }
     });
+    // Focus indicator: the focused element must look different from its resting state (support/focusCheck.ts).
+    const invisible = await focusProblem(this.page);
+    if (invisible && !this.problems.includes(invisible)) this.problems.push(invisible);
     const problem = await this.page.evaluate(() => {
       const el = document.activeElement as HTMLElement | null;
       if (!el || el === document.body || el === document.documentElement) return null;
       const name = (el.getAttribute('aria-label') || el.textContent || el.tagName).replace(/\s+/g, ' ').trim();
       const label = `${el.tagName.toLowerCase()} "${name.slice(0, 50)}"`;
-      // Containers focused on purpose (a page heading or dialog after a step change) need no ring.
-      const programmatic = el.tabIndex === -1;
       const rect = el.getBoundingClientRect();
-      // A visually hidden input (custom radio/checkbox) shows its focus on its label; its own outline is invisible.
+      // A visually hidden input (custom radio/checkbox) shows its focus on its label.
       const hidden = rect.width <= 2 || rect.height <= 2;
-      const drawn: Element | null = hidden ? ((el as HTMLInputElement).labels?.[0] ?? el.closest('label')) : el;
-      if (!drawn) return `visually hidden ${label} has no label to show its focus`;
-      const cs = getComputedStyle(drawn);
-      const outline = cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 1;
-      const ring = cs.boxShadow !== 'none';
-      const after = getComputedStyle(drawn, '::after');
-      const stretched = after.content !== 'none' && after.boxShadow !== 'none';
-      if (!programmatic && el.matches(':focus-visible') && !outline && !ring && !stretched) {
-        return `no visible focus indicator on ${label}`;
+      if (hidden) {
+        return (el as HTMLInputElement).labels?.[0] || el.closest('label')
+          ? null
+          : `visually hidden ${label} has no label to show its focus`;
       }
-      if (hidden) return null;
       if (rect.bottom <= 0 || rect.top >= window.innerHeight) return `focused ${label} is off screen`;
       const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
       const y = Math.min(Math.max(rect.top + Math.min(rect.height / 2, 20), 0), window.innerHeight - 1);
@@ -114,6 +113,7 @@ export class KeyboardWalker {
   }
 
   assertClean() {
+    test.info().annotations.push(...this.notes.map((description) => ({ type: 'keyboard', description })));
     expect(this.problems, `${this.journey}: keyboard problems after ${this.steps} key presses`).toEqual([]);
   }
 }

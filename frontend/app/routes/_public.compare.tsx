@@ -217,7 +217,7 @@ function ListingPicker({
               ))}
             </div>
           )}
-          <label className="flex min-h-11 items-center gap-2 rounded-input border border-outline px-3">
+          <label className="flex min-h-11 items-center gap-2 rounded-input border border-outline px-3 focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-[rgb(var(--color-focus-ring))]">
             <Search className="h-4 w-4 text-on-surface-variant" aria-hidden="true" />
             <input
               ref={searchRef}
