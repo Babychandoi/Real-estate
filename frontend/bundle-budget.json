@@ -90,15 +90,15 @@
     },
     "/kyc": {
       "module": "app/routes/_account.kyc.tsx",
-      "budgetKb": 137,
+      "budgetKb": 138,
       "measuredKb": 135.1,
-      "note": "W2 integration: shared chunks grew by ~1-3 kB after merging S2+S3a+S4; budget = measured + margin. Reduction (target /search ≤130 kB) owned by S10-PERF. W4 integration: shared shell grew (S8 consent/RUM loader, S7 prerender head reset, S5B auth); budget = measured + margin; reduction owned by S10-PERF."
+      "note": "W2 integration: shared chunks grew by ~1-3 kB after merging S2+S3a+S4; budget = measured + margin. Reduction (target /search ≤130 kB) owned by S10-PERF. W4 integration: shared shell grew (S8 consent/RUM loader, S7 prerender head reset, S5B auth); budget = measured + margin; reduction owned by S10-PERF. W6-UX review fixes (2026-10-03): shared useModal now makes background inert/aria-hidden with reference-counted restoration for nested overlays (+~0.4-0.5 kB gzip-1 across routes). Measured 137.2 kB vs prior 137 kB ceiling; budget +1 kB, with no change to the gzip metric or bundle gate."
     },
     "/account": {
       "module": "app/routes/_account.profile.tsx",
-      "budgetKb": 134,
+      "budgetKb": 135,
       "measuredKb": 132.6,
-      "note": "W4 integration: shared shell grew (S8 consent/RUM loader, S7 prerender head reset, S5B auth); budget = measured + margin; reduction owned by S10-PERF."
+      "note": "W4 integration: shared shell grew (S8 consent/RUM loader, S7 prerender head reset, S5B auth); budget = measured + margin; reduction owned by S10-PERF. W6-UX review fixes (2026-10-03): shared useModal now makes background inert/aria-hidden with reference-counted restoration for nested overlays (+~0.4-0.5 kB gzip-1 across routes). Measured 134.2 kB vs prior 134 kB ceiling; budget +1 kB, with no change to the gzip metric or bundle gate."
     },
     "admin/login": {
       "module": "app/routes/_admin.login.tsx",
@@ -203,9 +203,9 @@
     },
     "/khu-vuc (areas)": {
       "module": "app/routes/_public.areas.tsx",
-      "budgetKb": 140,
+      "budgetKb": 141,
       "measuredKb": 136.5,
-      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB."
+      "note": "S7-SEO public landing/CMS pages (listing cards and favourite button included). Budget = measured + ~3 kB. W6-UX review fixes (2026-10-03): shared useModal now makes background inert/aria-hidden with reference-counted restoration for nested overlays (+~0.4-0.5 kB gzip-1 across routes). Measured 140.1 kB vs prior 140 kB ceiling; budget +1 kB, with no change to the gzip metric or bundle gate."
     },
     "/tin-tuc (articles)": {
       "module": "app/routes/_public.articles.tsx",
