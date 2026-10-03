@@ -189,6 +189,10 @@ public class SearchIndexLifecycle implements SearchIndexAdministration {
 
     /** Atomic alias swap to {@code index}; ACTIVE → PREVIOUS, PREVIOUS → RETIRED. */
     public void activate(String index) {
+        IndexState target = states.find(index).orElseThrow(() -> new IllegalStateException("Unknown index " + index));
+        if (target.mappingVersion() != ListingIndexMapping.VERSION) {
+            throw new IllegalStateException("Cannot activate incompatible mapping for " + index);
+        }
         String alias = settings.alias();
         List<String> from = client.aliasTargets(alias);
         boolean legacy = from.isEmpty() && client.concreteIndexExists(alias);

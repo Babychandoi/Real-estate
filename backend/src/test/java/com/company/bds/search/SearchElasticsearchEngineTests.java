@@ -332,8 +332,11 @@ class SearchElasticsearchEngineTests {
         TestData.TestUser seller = fixtures.seller("BROKER");
         TestData.TestListing expired = data.listing(seller.id()).title("Nhà " + token + " hết hạn").location(21.03, 105.80).create();
         TestData.TestListing noExpiry = data.listing(seller.id()).title("Nhà " + token + " không thời hạn").location(21.04, 105.81).create();
-        jdbc.update("UPDATE listings SET expires_at = NULL WHERE id = ?", noExpiry.id());
+        Instant future = Instant.now().plusSeconds(3600).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        jdbc.update("UPDATE listings SET expires_at = ?, updated_at = now() WHERE id = ?", java.sql.Timestamp.from(future), expired.id());
+        jdbc.update("UPDATE listings SET expires_at = NULL, updated_at = now() WHERE id = ?", noExpiry.id());
         drain();
+        assertThat(Instant.parse(doc(activeIndex(), expired.id()).path("_source").path("expires_at").asText())).isEqualTo(future);
         var row = readModel.findByIds(List.of(expired.id())).get(0);
         Instant deadline = Instant.now().minusSeconds(1);
         jdbc.update("UPDATE listings SET expires_at = ? WHERE id = ?", java.sql.Timestamp.from(deadline), expired.id());
@@ -375,6 +378,9 @@ class SearchElasticsearchEngineTests {
                 jobs, jdbc, tx, clock, false, responseCache);
         try {
             assertThat(client.mappingVersion(old)).isEqualTo(1);
+            assertThatThrownBy(() -> legacyLifecycle.activate(old)).isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("incompatible mapping");
+            assertThat(client.aliasTargets(alias)).containsExactly(old);
             assertThat(legacyLifecycle.bootstrap()).isFalse();
             assertThat(legacySettings.ready()).isFalse();
             var building = states.withRole(alias, SearchIndexStateRepository.Role.BUILDING).orElseThrow();

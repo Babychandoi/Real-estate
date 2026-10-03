@@ -352,3 +352,16 @@ Fresh focused Maven `spotless:apply test -Dtest=SearchElasticsearchEngineTests,S
 receipt delimiter-collision regression and media pipeline. Earlier full runs failed: a mistaken test-only Flyway target
 was corrected to the real pre-W6 version 95; one later media job had a PostgreSQL I/O/closed-connection failure during
 the run and passed this fresh focused rerun. The full integrated verify is still pending below.
+
+
+Integrated full verification at `f986b40` (expiry commit `801f897` plus `origin/main` operations):
+`JAVA_HOME=~/.local/opt/jdk17 MAVEN_OPTS=-Xmx1g bash mvnw -B verify`, shared disposable test infrastructure:
+**BUILD SUCCESS, 519 tests, 0 failures/errors/skips, 3:12.** Includes every backend test, architecture checks,
+OpenAPI snapshot, package and Spotless check. No production access. A final safety guard now rejects activation of
+an incompatible mapping before changing the alias, covering a retired old-schema job that was already running;
+its focused validation will be recorded with the subsequent performance warmup integration.
+
+Safety-guard focused validation: `bash mvnw -B spotless:apply test -Dtest=SearchElasticsearchEngineTests`:
+**BUILD SUCCESS, 11 tests, 0 failures/errors/skips, 23.016 s.** Also proves the live finite expiry is copied exactly
+and a NULL expiry remains visible. Compose config with both OPS and audit env settings passed using example env
+and a dummy signing value.
