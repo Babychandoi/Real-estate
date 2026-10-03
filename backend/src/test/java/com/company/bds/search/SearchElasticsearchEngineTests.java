@@ -297,6 +297,34 @@ class SearchElasticsearchEngineTests {
     }
 
     @Test
+    void mapClustersComeFromElasticsearchAndPointsFromABoundedProbe() throws Exception {
+        String token = SearchFixtures.token();
+        TestData.TestUser seller = fixtures.seller("BROKER");
+        for (int i = 0; i < 5; i++) data.listing(seller.id()).title("Nhà " + token + " " + i).location(21.03 + i * 0.001, 105.80 + i * 0.001).create();
+        data.listing(seller.id()).title("Nhà " + token + " xa").location(21.30, 105.60).create();
+        drain();
+
+        JsonNode clusters = getJson(get("/api/v2/listings/map").param("q", token).param("bbox", "105.0,20.5,106.5,21.9")
+                .param("zoom", "9"), 200);
+        assertThat(clusters.path("mode").asText()).isEqualTo("clusters");
+        assertThat(clusters.path("engine").asText()).isEqualTo("search");
+        long clustered = 0;
+        for (JsonNode cluster : clusters.path("clusters")) {
+            clustered += cluster.path("count").asLong();
+            assertThat(cluster.path("bbox")).hasSize(4);
+            assertThat(cluster.path("lat").asDouble()).isBetween(21.0, 21.31);
+        }
+        assertThat(clustered).isEqualTo(6);
+        assertThat(clusters.path("total").path("value").asLong()).isEqualTo(6);
+
+        JsonNode points = getJson(get("/api/v2/listings/map").param("q", token).param("bbox", "105.79,21.02,105.82,21.05")
+                .param("zoom", "15"), 200);
+        assertThat(points.path("mode").asText()).isEqualTo("points");
+        assertThat(points.path("points")).hasSize(5);
+        assertThat(points.path("total").path("value").asLong()).isEqualTo(5);
+    }
+
+    @Test
     void bothEnginesReturnTheSamePagesForTheSameData() throws Exception {
         String token = SearchFixtures.token();
         TestData.TestUser seller = fixtures.seller("BROKER");
