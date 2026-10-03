@@ -105,7 +105,10 @@ class RedisOutageResilienceTests {
 
     private long createDraft(String clientIp) throws Exception {
         if (token == null) token = data.sessionFor(data.user().role("BROKER").verifiedKyc().plan("PRO", 1_000).create().id());
-        String body = json.writeValueAsString(java.util.Map.of("title", "Tin nháp kiểm thử Redis " + UUID.randomUUID(),
+        // UUID digit/hyphen runs can legitimately match the contact-info guard's phone pattern. Keep the fixture
+        // unique without accidentally embedding phone-like public text (CI 37120781979).
+        String nonce = UUID.randomUUID().toString().replaceAll("[0-9]", "x");
+        String body = json.writeValueAsString(java.util.Map.of("title", "Tin nháp kiểm thử Redis " + nonce,
                 "purpose", "SALE", "propertyType", "APARTMENT", "priceVnd", 2_500_000_000L, "areaM2", 60,
                 "description", "Kiểm thử Redis mất kết nối", "imageUrls", List.of()));
         long started = System.nanoTime();
