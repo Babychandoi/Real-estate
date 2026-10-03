@@ -97,7 +97,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/v1/listings/*/draft").hasAnyRole(posters)
                         .requestMatchers(HttpMethod.GET, "/api/v1/listings/my-listings").hasAnyRole(posters)
                         .requestMatchers(HttpMethod.GET, "/api/v1/listings/{id}").permitAll()
-                        .requestMatchers("/api/v1/admin/users/**", "/api/v1/admin/listings/**").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/admin/users/**", "/api/v1/admin/listings/**", "/api/v1/admin/audit-chain/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()
                         .requestMatchers("/api/v1/billing/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/v1/billing/**").hasAnyRole(posters)
@@ -144,7 +144,8 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Idempotency-Key", "Last-Event-ID",
                 "X-Request-Id", "traceparent"));
-        configuration.setExposedHeaders(List.of("X-Request-Id"));
+        // Headers the SPA reads: v1 profile total (X-Total-Count), idempotent replays (Idempotent-Replayed, X-Order-Reused).
+        configuration.setExposedHeaders(List.of("X-Request-Id", "X-Total-Count", "Idempotent-Replayed", "X-Order-Reused"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

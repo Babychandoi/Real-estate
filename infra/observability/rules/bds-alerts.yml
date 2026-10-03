@@ -155,8 +155,20 @@ groups:
           severity: critical
         annotations:
           summary: Nhật ký kiểm toán không ghi được
-          description: Có bản ghi kiểm toán yêu cầu không lưu được sau 3 lần thử, hoặc tiến trình nối chuỗi băm liên tục lỗi.
+          description: Có bản ghi kiểm toán yêu cầu không lưu được (sau khi thử lại, hoặc ngay khi hết kết nối), hoặc tiến trình nối chuỗi băm liên tục lỗi.
           runbook: docs/operations/ALERT_RUNBOOK.md#bdsauditwritefailures
+      # W6 review: the linker stopped (no completed run for 5 min) or cannot keep up (backlog never drained and growing).
+      - alert: BdsAuditChainStalled
+        expr: >-
+          (time() - max(bds_audit_chain_last_link_success_seconds) > 300)
+          or (min(min_over_time(bds_audit_chain_backlog[10m])) > 0 and max(delta(bds_audit_chain_backlog[10m])) > 0)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Chuỗi băm nhật ký kiểm toán không được nối
+          description: Tiến trình nối chuỗi kiểm toán không chạy xong trong 5 phút hoặc số sự kiện chưa nối tăng liên tục; bản ghi vẫn được lưu nhưng chưa chống sửa đổi.
+          runbook: docs/operations/ALERT_RUNBOOK.md#bdsauditchainstalled
 
   - name: bds-rate-limit
     rules:
