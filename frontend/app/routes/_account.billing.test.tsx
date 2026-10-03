@@ -12,7 +12,13 @@ const api = vi.hoisted(() => ({
 
 vi.mock('@/shared/api/client', () => ({ apiClient: api.apiClient }));
 vi.mock('@/entities/admin/api/adminApi', () => ({
-  billingApi: { myOrders: api.myOrders, cancel: api.cancel, report: api.report, createOrder: vi.fn(), myOrder: vi.fn() },
+  billingApi: {
+    myOrders: api.myOrders,
+    cancel: api.cancel,
+    report: api.report,
+    createOrder: vi.fn(),
+    myOrder: vi.fn(),
+  },
   newIdempotencyKey: () => 'key',
 }));
 
