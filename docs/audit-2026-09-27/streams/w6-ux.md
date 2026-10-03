@@ -168,7 +168,7 @@ Local tests on the continued branch:
 - `npm run lint`: zero problems; `npm run build` (`tsc -b` + Vite): passes.
 - `npx vitest run --maxWorkers=1`: **302/302**, 45 files.
 - `PLAYWRIGHT_BASE_URL=http://127.0.0.1:5341 PLAYWRIGHT_SUITE=ux-review-synthetic npx playwright test tests/e2e/review-ux-measurement.spec.ts --project=chromium-1440 --workers=1 -g 'the audit functions on synthetic pages'`: **10/10**, no app server or backend needed.
-- `npm run check:bundle`: all 37 routes and shell pass after `9c257ba`: +1 kB ceilings on /kyc, /account and /khu-vuc with explicit reasons (shared nested modal isolation adds ~0.4–0.5 kB gzip-1; measured 137.2, 134.2, 140.1 kB). Compression and checking rules unchanged.
+- `npm run check:bundle`: all 36 routes and shell pass after `9c257ba`: +1 kB ceilings on /kyc, /account and /khu-vuc with explicit reasons (shared nested modal isolation adds ~0.4–0.5 kB gzip-1; measured 137.2, 134.2, 140.1 kB). Compression and checking rules unchanged.
 - CI YAML parses with js-yaml; `bash -n scripts/e2e-local.sh scripts/review-w6-ux-mutations.sh`; `git diff --check`: passes.
 
 Fresh seeded full-stack E2E, visuals and real-page adversarial probes run on GitHub CI; no backend JVM/full stack
@@ -177,3 +177,28 @@ run showed 15 ordinary passes plus 9 unexpected passes of expected-failure regre
 markers are now removed. Source-mutant builds were not re-run in this continuation. Manual screen readers,
 DS-05 product decisions, and UI-12 retention policy remain open as described above. Root histories/matrix are
 updated by the coordinator after merge; this stream records evidence here.
+
+## 10. CI failure follow-up — 2026-10-03
+
+[Run 37103393159](https://github.com/Babychandoi/Real-estate/actions/runs/37103393159) at `cf74476` passed all
+12 required Chromium visual comparisons and all 24 reviewer probes. The remaining required failures were two
+39×44 px “Mở” buttons (reports/CMS), rent-range setup leaving focus on body, and CMS/project modal wrap-around.
+The nine Firefox/WebKit/iOS visual mismatches were in the existing advisory step, not the required Chromium step.
+Those advisory baselines were not changed in this follow-up.
+
+- Shared `Button` now enforces minimum width matching its height token, including 44 px on coarse pointers.
+- `focusableWithin` excludes native controls with negative tabindex, disabled fieldset descendants and descendants
+  of CSS `display:none` ancestors. They cannot become an unreachable first/last stop in a modal focus trap.
+- The invalid rent-range scenario leaves the field with native Tab, triggering validation while focus stays inside
+  the sheet; its focus/axe/size/wrap assertions remain unchanged. `focusProblem` blur/refocus was verified to preserve
+  the current stop, so that helper needed no change.
+- The new regression fails against the previous helper: it includes all three excluded controls. With the fix,
+  forward and reverse trap boundaries select the reachable controls. Focused overlay suites: **15/15**, three files.
+- A temporary Vite harness using the production Dialog/Tabs/Button components passed native Chromium Tab/Shift+Tab
+  and `focusProblem` at 390 and 1440 px: six stops per cycle, focus stays inside, no hidden/roving/disabled stops.
+  “Mở” measured **45.28×44 px** on touch and **45.28×36 px** on desktop. The harness and dev server were removed.
+- `npm run lint`, `npm run build`, touched-file Prettier and `git diff --check` pass. Full Vitest: **303/303**, 45 files.
+  Bundle check: all **36 routes plus shell** pass. The ~0.1 kB gzip-1 shared accessibility growth put /verify-email
+  and /my-inquiries just over their old ceilings; each ceiling increased 1 kB with the reason recorded in the budget.
+
+Fresh CI verification of these fixes remains required; no local backend/full stack or production command was run.

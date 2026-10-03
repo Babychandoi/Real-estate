@@ -24,9 +24,9 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'min-h-control-sm text-sm px-3 gap-1.5',
-  md: 'min-h-control-md text-sm px-4 gap-2',
-  lg: 'min-h-control-lg text-base px-5 gap-2.5',
+  sm: 'min-h-control-sm min-w-control-sm text-sm px-3 gap-1.5',
+  md: 'min-h-control-md min-w-control-md text-sm px-4 gap-2',
+  lg: 'min-h-control-lg min-w-control-lg text-base px-5 gap-2.5',
 };
 
 /** Class names of a button look, for elements that cannot use <Button> (e.g. a download <a>). */

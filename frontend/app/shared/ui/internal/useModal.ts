@@ -24,9 +24,21 @@ let savedBodyStyle: { overflow: string; paddingRight: string } | null = null;
 
 export function focusableWithin(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((element) => {
-    if (element.closest('[hidden],[inert]') || element.getAttribute('aria-hidden') === 'true') return false;
+    // Native controls can also have tabindex=-1 (roving tabs), and a display:none ancestor hides every descendant
+    // even when its own computed display is block. Neither may become the trap's first or last keyboard stop.
+    if (
+      element.tabIndex < 0 ||
+      element.matches(':disabled') ||
+      element.closest('[hidden],[inert],[aria-hidden="true"]')
+    )
+      return false;
     const style = window.getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden';
+    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+    for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+      if (window.getComputedStyle(node).display === 'none') return false;
+      if (node === container) break;
+    }
+    return true;
   });
 }
 

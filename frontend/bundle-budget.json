@@ -49,9 +49,9 @@
     },
     "/verify-email": {
       "module": "app/routes/_public.verify-email.tsx",
-      "budgetKb": 131,
+      "budgetKb": 132,
       "measuredKb": 129.3,
-      "note": "W4 integration: shared shell grew (S8 consent/RUM loader, S7 prerender head reset, S5B auth); budget = measured + margin; reduction owned by S10-PERF."
+      "note": "W4 integration: shared shell grew (S8 consent/RUM loader, S7 prerender head reset, S5B auth); budget = measured + margin; reduction owned by S10-PERF. W6-UX CI follow-up (2026-10-03): shared modal excludes roving tabindex=-1, disabled fieldsets and CSS-hidden descendants from the focus trap; shared buttons enforce minimum width as well as height (+~0.1 kB gzip-1). Measured 131.0 kB just over the prior 131 kB ceiling; budget +1 kB, metric and gate unchanged."
     },
     "/listings/new": {
       "module": "app/routes/_public.listings.new.tsx",
@@ -72,9 +72,9 @@
     },
     "/my-inquiries": {
       "module": "app/routes/_account.inquiries.tsx",
-      "budgetKb": 139,
+      "budgetKb": 140,
       "measuredKb": 135.0,
-      "note": "S3b-LEADS (W3): real response state, withdraw dialog; appointments/history lazy on expand. Budget = measured + ~3 kB. W6-UX (2026-10-03): shell +~0.5 kB (137.9 -> 138.4 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF."
+      "note": "S3b-LEADS (W3): real response state, withdraw dialog; appointments/history lazy on expand. Budget = measured + ~3 kB. W6-UX (2026-10-03): shell +~0.5 kB (137.9 -> 138.4 kB): DS-06 tall-header hook (header stops being sticky when enlarged text makes it cover a quarter of the window), DS-04 focusable scrolling dialog body, DS-03 44 px label targets and 14 px action text, DS-08 SearchBox/Gallery states. Budget +1 kB; reduction owned by S10-PERF. W6-UX CI follow-up (2026-10-03): shared modal excludes roving tabindex=-1, disabled fieldsets and CSS-hidden descendants from the focus trap; shared buttons enforce minimum width as well as height (+~0.1 kB gzip-1). Measured 139.0 kB just over the prior 139 kB ceiling; budget +1 kB, metric and gate unchanged."
     },
     "/broker/workspace": {
       "module": "app/routes/_account.broker-workspace.tsx",

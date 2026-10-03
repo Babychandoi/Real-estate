@@ -119,7 +119,8 @@ const EXTRA: Scenario[] = [
       const opened = await dialogNamed(page, 'Bộ lọc', opener);
       await opened.panel.getByLabel(/^Từ \(/).fill('50');
       await opened.panel.getByLabel(/^Đến \(/).fill('5');
-      await opened.panel.getByLabel(/^Đến \(/).blur();
+      // Leave the field as a keyboard user does: trigger range validation while keeping focus inside the sheet.
+      await opened.panel.getByLabel(/^Đến \(/).press('Tab');
       return opened;
     },
   },
