@@ -44,7 +44,7 @@ jobs:
     env:
       BDS_DRILL_ISOLATED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate scripts
         run: |
           bash -n scripts/ci-ops-drill.sh
@@ -67,7 +67,7 @@ jobs:
       BDS_DRILL_ISOLATED: "1"
       DRILL_QUICK_TUNNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.quick_tunnel && '1' || '0' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # previous releases are built from history
       - name: Validate scripts

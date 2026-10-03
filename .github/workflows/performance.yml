@@ -61,7 +61,7 @@ jobs:
       PERF_LISTINGS: "10000"
       PERF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate scripts
         run: |
           bash -n scripts/ci-mixed-load.sh scripts/ci-query-plans.sh
@@ -87,7 +87,7 @@ jobs:
       BDS_PERF_ISOLATED: "1"
       PERF_HEAD_SHA: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate scripts
         run: |
           bash -n scripts/ci-query-plans.sh
@@ -119,7 +119,7 @@ jobs:
       PERF_KNOWN_FAILING: ${{ inputs.known_failing || '' }}
       PERF_HEAD_SHA: ${{ github.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Validate scripts
         run: |
           bash -n scripts/ci-mixed-load.sh
