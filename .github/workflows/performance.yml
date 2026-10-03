@@ -1,51 +1,137 @@
-name: Isolated mixed-load evidence
+name: Isolated performance evidence
 
+# Pull requests touching the harness, migrations or search code get a short smoke (10k listings, one gated minute at
+# 100 reads/s + 10 writes/s). The full evidence (EXPLAIN at 100k/1M, 10-min soak, 3x burst, cold restart, ES/Redis
+# faults) runs weekly and on demand: gh workflow run performance.yml -f suites=all
 on:
   pull_request:
     paths:
       - ".github/workflows/performance.yml"
       - "scripts/ci-mixed-load.sh"
+      - "scripts/ci-query-plans.sh"
+      - "scripts/query-plans.py"
+      - "scripts/plan-compare.py"
+      - "scripts/query-counts.py"
+      - "scripts/perf-metrics.py"
       - "scripts/perf-summary.py"
       - "scripts/perf_summary_test.py"
+      - "scripts/k6-timeline.py"
       - "infra/k6/mixed-search-drafts.js"
-      - "infra/perf/verify-draft-writes.sql"
+      - "infra/perf/**"
+      - "backend/src/main/resources/db/migration/**"
+      - "backend/src/main/java/com/company/bds/search/**"
+  schedule:
+    - cron: "30 2 * * 1"
   workflow_dispatch:
     inputs:
-      profile:
-        description: Workload on disposable GitHub-hosted infrastructure
+      suites:
+        description: Which evidence to collect on disposable GitHub-hosted runners
         type: choice
-        options: [steady, burst, soak]
-        default: steady
+        options: [all, plans, load]
+        default: all
+      listings:
+        description: Public listings in the load-test dataset
+        type: string
+        default: "100000"
+      soak:
+        description: Soak duration (constant arrival 100 reads/s + 10 writes/s), e.g. 10m
+        type: string
+        default: "10m"
+      known_failing:
+        description: Comma-separated phases measured with the normal thresholds but reported as KNOWN FAILING (not gating)
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 concurrency:
-  group: mixed-load-${{ github.ref }}
+  # Independent datasets can collect evidence concurrently; only superseded runs of the same dataset cancel.
+  group: performance-${{ github.ref }}-${{ github.event_name }}-${{ inputs.listings || '100000' }}
   cancel-in-progress: true
 
 jobs:
-  mixed-load:
+  smoke:
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       BDS_PERF_ISOLATED: "1"
-      PROFILE: ${{ inputs.profile || 'steady' }}
-      # PRs get a one-minute diagnostic; manual steady runs use the full five minutes.
-      PERF_DURATION: ${{ github.event_name == 'pull_request' && '1m' || '5m' }}
+      SUITE: smoke
+      PERF_LISTINGS: "10000"
+      PERF_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts
+        run: |
+          bash -n scripts/ci-mixed-load.sh scripts/ci-query-plans.sh
+          python3 -B scripts/perf_summary_test.py
+          python3 -B -m py_compile scripts/query-counts.py scripts/perf-metrics.py scripts/k6-timeline.py \
+            scripts/query-plans.py scripts/plan-compare.py
+      - name: Smoke (10k listings, 1 gated minute)
+        run: bash scripts/ci-mixed-load.sh
+      - name: Upload smoke evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: mixed-load-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/mixed-load/
+          if-no-files-found: error
+          retention-days: 14
+
+  query-plans:
+    if: ${{ github.event_name != 'pull_request' && inputs.suites != 'load' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      BDS_PERF_ISOLATED: "1"
+      PERF_HEAD_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts
+        run: |
+          bash -n scripts/ci-query-plans.sh
+          python3 -B -m py_compile scripts/query-plans.py scripts/plan-compare.py
+      - name: EXPLAIN (ANALYZE, BUFFERS) at 100k and 1M listings, warm and cold
+        run: bash scripts/ci-query-plans.sh
+      - name: Upload query plans
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: query-plans-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/query-plans/
+          if-no-files-found: error
+          retention-days: 30
+
+  mixed-load:
+    if: ${{ github.event_name != 'pull_request' && inputs.suites != 'plans' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [steady, faults]
+    env:
+      BDS_PERF_ISOLATED: "1"
+      SUITE: ${{ matrix.suite }}
+      PERF_LISTINGS: ${{ inputs.listings || '100000' }}
+      PERF_SOAK: ${{ inputs.soak || '10m' }}
+      PERF_KNOWN_FAILING: ${{ inputs.known_failing || '' }}
+      PERF_HEAD_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate scripts
         run: |
           bash -n scripts/ci-mixed-load.sh
           python3 -B scripts/perf_summary_test.py
+          python3 -B -m py_compile scripts/query-counts.py scripts/perf-metrics.py scripts/k6-timeline.py
       - name: Measure and verify persisted effects
         run: bash scripts/ci-mixed-load.sh
       - name: Upload completed and failed-run evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: mixed-load-${{ github.run_id }}-${{ github.run_attempt }}
+          name: mixed-load-${{ matrix.suite }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: .artifacts/mixed-load/
           if-no-files-found: error
           retention-days: 30

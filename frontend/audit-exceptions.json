@@ -1,0 +1,12 @@
+{
+  "$comment": "Advisories accepted for the dependency audit gate (scripts/npm-audit-gate.mjs). Each entry needs a reason and an expiry; an expired entry fails the gate again. Runtime (production) dependencies are never exempt.",
+  "exceptions": [
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "Stack-exhaustion DoS through deeply nested brace patterns. braces <=3.0.3 has no patched release; it reaches us only through tailwindcss 3 (devDependency: chokidar, micromatch, fast-glob) at build time, where the patterns come from tailwind.config content globs written by us, not from user input. Nothing from this chain is in the production bundle (npm audit --omit=dev reports 0). Removal path: migrate to tailwindcss 4.",
+      "devOnly": true,
+      "expires": "2026-12-31"
+    }
+  ]
+}

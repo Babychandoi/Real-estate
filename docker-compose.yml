@@ -124,6 +124,8 @@ services:
       APP_SEARCH_BOOTSTRAP_ON_STARTUP: ${APP_SEARCH_BOOTSTRAP_ON_STARTUP:-true}
       APP_SEARCH_TRUST_EXPIRY_CRON: "${APP_SEARCH_TRUST_EXPIRY_CRON:-0 40 3 * * *}"
       APP_SEARCH_CACHE_ENABLED: ${APP_SEARCH_CACHE_ENABLED:-true}
+      # Start-up warm-up before the backend reports healthy/ready (pg_prewarm + Elasticsearch/JVM), at most 60 s.
+      APP_WARMUP_ENABLED: ${APP_WARMUP_ENABLED:-true}
       # Off until the rate-limit policy for POST /api/v1/events (stream S5) is deployed.
       APP_ANALYTICS_INGESTION_ENABLED: ${APP_ANALYTICS_INGESTION_ENABLED:-false}
       APP_ANALYTICS_INTERNAL_NETWORKS: ${APP_ANALYTICS_INTERNAL_NETWORKS:-}

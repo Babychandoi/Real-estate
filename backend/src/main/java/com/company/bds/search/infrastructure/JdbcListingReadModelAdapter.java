@@ -163,9 +163,13 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
 
     @Override
     public List<MapPoint> mapPoints(SearchFilter filter, int limit) {
-        Sql sql = new Sql("SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type FROM listing_public_read WHERE ");
+        // The inner LIMIT without ORDER BY keeps this a bounded probe on the GiST index (W6-PERF): the caller only shows
+        // points when there are fewer than `limit` matches, so the newest-first order is applied to that small set and a
+        // dense viewport never walks the newest index looking for matches inside the box.
+        Sql sql = new Sql("SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type FROM (SELECT listing_id, "
+                + "slug, lat, lng, price_vnd, price_period, property_type, published_at FROM listing_public_read WHERE ");
         where(sql, filter);
-        sql.append(" AND public_location IS NOT NULL ORDER BY published_at DESC, listing_id DESC LIMIT ?").param(limit);
+        sql.append(" AND public_location IS NOT NULL LIMIT ?) probe ORDER BY published_at DESC, listing_id DESC").param(limit);
         return jdbc.query(sql.text(), (rs, n) -> new MapPoint(rs.getObject(1, UUID.class), rs.getString(2), rs.getDouble(3),
                 rs.getDouble(4), rs.getLong(5), rs.getString(6), rs.getString(7)), sql.params());
     }

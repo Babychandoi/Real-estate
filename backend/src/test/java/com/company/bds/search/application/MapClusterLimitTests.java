@@ -53,7 +53,8 @@ class MapClusterLimitTests {
         SearchFilter filter = mock(SearchFilter.class);
         when(filter.bbox()).thenReturn(wide);
         ListingReadService service = new ListingReadService(readModel, mock(PublicImageResolver.class), mock(ResponseCachePort.class),
-                mock(SearchCursorCodec.class), Clock.systemUTC());
+                mock(SearchCursorCodec.class), Clock.systemUTC(), mock(com.company.bds.search.application.port.ListingSearchEnginePort.class),
+                mock(SearchCircuitBreaker.class), new SearchIndexSettings(false, "w6-map-limit-test"));
 
         assertThat(service.map(filter, 11).mode()).isEqualTo("clusters");
         verify(readModel, times(1)).mapClusters(any(), anyDouble(), anyInt());

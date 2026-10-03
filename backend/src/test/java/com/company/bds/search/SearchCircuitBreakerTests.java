@@ -52,6 +52,19 @@ class SearchCircuitBreakerTests {
     }
 
     @Test
+    void callableIsFalseWhileOpenAndWhileTheHalfOpenProbeIsTaken() {
+        assertThat(breaker.callable()).isTrue();
+        for (int i = 0; i < 4; i++) breaker.recordFailure();
+        assertThat(breaker.callable()).isFalse();
+        clock.advance(Duration.ofSeconds(31));
+        assertThat(breaker.callable()).as("half-open, probe free").isTrue();
+        assertThat(breaker.tryAcquire()).isTrue();
+        assertThat(breaker.callable()).as("probe in flight").isFalse();
+        breaker.recordSuccess();
+        assertThat(breaker.callable()).isTrue();
+    }
+
+    @Test
     void rejectedQueriesDoNotCount() {
         for (int i = 0; i < 20; i++) breaker.recordIgnored();
         breaker.recordSuccess();
