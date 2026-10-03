@@ -263,6 +263,11 @@ app:
     cache:
       enabled: ${APP_SEARCH_CACHE_ENABLED:true}
       first-page: true
+  # W6-PERF: start-up warm-up (pg_prewarm of the read model, Elasticsearch/JVM warm-up) before readiness turns
+  # ACCEPTING_TRAFFIC and the searchWarmup health contributor turns UP. Off by default; docker-compose.yml enables it.
+  warmup:
+    enabled: ${APP_WARMUP_ENABLED:false}
+    max-duration: ${APP_WARMUP_MAX_DURATION:PT60S}
   analytics:
     ingestion:
       # POST /api/v1/events writes rows for anonymous callers: keep it off until the rate-limit policy for that path
