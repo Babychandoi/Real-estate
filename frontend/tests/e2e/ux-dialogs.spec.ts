@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { axeViolations } from './support/helpers';
 import { DIALOGS } from './support/dialogCatalog';
 import { ADMIN, loadSession, openRoute, type Role, type Session } from './support/routeCatalog';
-import { focusProblem } from './support/focusCheck';
+import { focusStop, modalTabCycle } from './support/modalFocus';
 import { auditUi } from './support/targetAudit';
 import { ALLOW } from './support/uxAllow';
 
@@ -285,21 +285,6 @@ test.beforeEach(({ browserName }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium-1440', 'sets its own viewports: runs once, in chromium-1440');
 });
 
-/** A stable id for the focused element (set once as data-ux-stop), its label and whether it sits in the overlay. */
-async function focusStop(page: Page): Promise<{ id: string; label: string; inside: boolean }> {
-  return page.evaluate(() => {
-    const el = document.activeElement as HTMLElement | null;
-    if (!el || el === document.body) return { id: 'body', label: 'body', inside: false };
-    if (!el.dataset.uxStop) el.dataset.uxStop = String(Math.random()).slice(2, 10);
-    const name = (el.getAttribute('aria-label') || el.textContent || el.tagName).replace(/\s+/g, ' ').trim();
-    return {
-      id: el.dataset.uxStop,
-      label: `${el.tagName.toLowerCase()} "${name.slice(0, 40)}"`,
-      inside: Boolean(el.closest('[data-ux-scope]')),
-    };
-  });
-}
-
 for (const scenario of SCENARIOS) {
   test(`${scenario.name} (${scenario.as}): axe, sizes, focus and Escape`, async ({ browser }) => {
     test.setTimeout(180_000);
@@ -352,29 +337,15 @@ for (const scenario of SCENARIOS) {
 
       // Keyboard: Tab through EVERY stop until focus wraps to the first one again; each stop stays inside the modal
       // and shows a visible focus; then Shift+Tab from the first stop wraps to the last one.
-      const leaks: string[] = [];
-      const invisible: string[] = [];
-      const order: string[] = [];
-      for (let step = 0; step < 150; step += 1) {
-        await page.keyboard.press('Tab');
-        await page.waitForTimeout(120); // focus transitions
-        const stop = await focusStop(page);
-        if (opened.modal && !stop.inside) leaks.push(`Tab #${step + 1} left the overlay to ${stop.label}`);
-        const problem = await focusProblem(page);
-        if (problem && !invisible.includes(problem)) invisible.push(problem);
-        if (!opened.modal) break;
-        if (order.includes(stop.id)) {
-          expect.soft(stop.id, `Tab wraps to the first stop @${label}`).toBe(order[0]);
-          break;
+      const { order, repeated, back, leaks, invisible } = await modalTabCycle(page, opened.modal);
+      if (opened.modal) {
+        expect.soft(repeated, `Tab wraps to the first stop @${label}`).toBe(order[0]);
+        if (order.length > 1) {
+          expect.soft(back, `Shift+Tab from the first stop wraps to the last @${label}`).toBe(order[order.length - 1]);
+          test
+            .info()
+            .annotations.push({ type: 'tab stops', description: `${scenario.name} @${label}: ${order.length}` });
         }
-        order.push(stop.id);
-        if (step === 149) leaks.push('no wrap-around after 150 Tabs');
-      }
-      if (opened.modal && order.length > 1) {
-        await page.keyboard.press('Shift+Tab');
-        const back = await focusStop(page);
-        expect.soft(back.id, `Shift+Tab from the first stop wraps to the last @${label}`).toBe(order[order.length - 1]);
-        test.info().annotations.push({ type: 'tab stops', description: `${scenario.name} @${label}: ${order.length}` });
       }
       expect.soft(leaks, `focus trap @${label}`).toEqual([]);
       expect.soft(invisible, `visible focus @${label}`).toEqual([]);
