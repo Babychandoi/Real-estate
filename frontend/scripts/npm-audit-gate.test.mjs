@@ -15,7 +15,14 @@ const today = new Date('2026-10-03T00:00:00Z');
 
 describe('npm audit gate', () => {
   it('refuses registry errors and incomplete reports instead of accepting them as clean', () => {
-    for (const result of [null, {}, { error: { code: 'EAUDITENDPOINT' } }, { error: {}, vulnerabilities: {} }]) {
+    for (const result of [
+      null,
+      {},
+      { error: { code: 'EAUDITENDPOINT' } },
+      { error: {}, vulnerabilities: {} },
+      { vulnerabilities: [] },
+      { vulnerabilities: 'unavailable' },
+    ]) {
       expect(() => blockingAdvisories(result)).toThrow('complete vulnerability report');
     }
     expect(blockingAdvisories({ vulnerabilities: {} }).size).toBe(0);
