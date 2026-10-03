@@ -9,7 +9,8 @@ Yêu cầu audit F21.1 (phân loại backup) và nền tảng cho F21.2/F21.3. T
 |---|---|
 | Thư mục | `backups/20260926-005833/` |
 | Commit | `2d226a4` "backup: add local data snapshot 2026-09-26", 26/09/2026 01:12 (+07) |
-| Đã đẩy lên GitHub | Có: commit nằm trong `origin/main` và `origin/feat/macos-uat-compare-map-profiles` (`git branch -r --contains 2d226a4`) |
+| Đã đẩy lên GitHub | Có: commit nằm trong `origin/main` (và vẫn nằm **trong cây hiện tại** của `main`) cùng phần lớn nhánh remote (`git branch -r --contains 2d226a4`) |
+| Repository | **Công khai** (`visibility: public` từ khi tạo 11/09/2026; 0 fork ngày 03/10/2026): archive **tải công khai được, không cần tài khoản, từ 26/09/2026**. Chủ dự án quyết định tạm giữ công khai; xử lý khẩn cấp: `GIT_HISTORY_REMEDIATION_PLAN.md` bước 0 |
 | Cách lưu | Git LFS (`.gitattributes`: `backups/20260926-005833/*.tar.gz filter=lfs`); trong Git chỉ có file con trỏ, nội dung nằm ở kho LFS của GitHub và trong `.git/lfs` của mọi bản clone đã tải LFS |
 | Bản chất (README) | "raw volume snapshots, not logical exports", tạo từ các Docker volume đã dừng; README tự khuyến cáo coi PostgreSQL và MinIO là nhạy cảm |
 | Nguồn dữ liệu | Theo yêu cầu của đợt audit: volume **production** (PostgreSQL, MinIO gồm ảnh KYC, Redis, Elasticsearch) |
@@ -50,18 +51,17 @@ cập, và không thể thu hồi riêng từng file khỏi các bản clone.
 
 ## 3. Ai đang có thể truy cập
 
-Không cần thao tác gì thêm, những bên sau đã hoặc có thể lấy được nội dung:
+Repository công khai, nên câu trả lời là **bất kỳ ai trên Internet** kể từ 26/09/2026: tải ZIP/tarball của `main`, xem
+file qua giao diện web (GitHub phục vụ nội dung LFS), hoặc `git clone` + `git lfs pull`, không cần tài khoản. Không có
+nhật ký nào cho biết ai đã tải; phải coi như dữ liệu đã bị sao chép. Ngoài ra:
 
-- Mọi tài khoản có quyền đọc repository `Babychandoi/Real-estate` trên GitHub (collaborator, thành viên/owner của
-  tổ chức, team được cấp quyền): `git lfs pull` tải toàn bộ archive.
-- Ứng dụng GitHub, deploy key, token cá nhân có quyền `contents:read` trên repository.
-- Mọi fork của repository và bản clone của fork: lịch sử chứa commit backup; coi như đã có thể có bản sao archive.
+- Mọi fork (0 ngày 03/10/2026) và bản clone đã tải LFS: không thu hồi được từ xa.
 - Mọi bản clone đã tải LFS: máy phát triển đang chạy production (`/Users/connecty/Real-estate` và các worktree dùng
   chung `.git`), máy của cộng tác viên, và bản sao lưu của các máy đó (Time Machine, iCloud, ổ ngoài...).
 - GitHub Actions hiện **không** tải LFS (`actions/checkout` không bật `lfs: true`), nên log và artifact CI không chứa
   archive; điều này phải được giữ nguyên.
 
-Lệnh để chủ repo lập danh sách chính xác (cần quyền admin):
+Lệnh để chủ repo rà soát quyền **ghi** và fork (quyền đọc thì là mọi người):
 
 ```bash
 gh api repos/Babychandoi/Real-estate/collaborators --paginate --jq '.[] | [.login, .role_name] | @tsv'
@@ -79,16 +79,18 @@ gh api repos/Babychandoi/Real-estate/forks --jq '.[] | .full_name'
 | Lộ dữ liệu cá nhân | Email, họ tên, lead; số điện thoại chỉ an toàn khi `PII_ENCRYPTION_KEY` không bị lộ (khóa ở `.env`, không nằm trong volume) | Cao |
 | Bẻ khóa mật khẩu ngoại tuyến | Băm bcrypt (cost 12) của mọi tài khoản; người dùng dùng lại mật khẩu ở nơi khác bị ảnh hưởng | Trung bình–cao |
 | Bí mật hạ tầng | Verifier SCRAM của mật khẩu PostgreSQL; cấu hình IAM của MinIO | Trung bình |
-| Không thu hồi được | Clone và fork đã tồn tại không thể xóa từ xa; đối tượng LFS trên GitHub chỉ mất khi repository bị xóa và tạo lại | Cao |
-| Pháp lý | Có thể phát sinh nghĩa vụ theo Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân (dữ liệu nhạy cảm, đánh giá và thông báo sự cố). Tài liệu này không kết luận pháp lý; cần người có chuyên môn pháp lý đánh giá | Cần quyết định |
+| Không thu hồi được | Repository công khai: bản đã tải không thể xóa từ xa; đối tượng LFS trên GitHub chỉ mất khi GitHub Support xóa hoặc repository bị xóa | Cao |
+| Pháp lý | Dữ liệu cá nhân nhạy cảm (ảnh CCCD) công khai tải được từ 26/09/2026: có thể phát sinh nghĩa vụ đánh giá và thông báo sự cố có thời hạn theo Nghị định 13/2023/NĐ-CP. Tài liệu này không kết luận pháp lý; người có chuyên môn pháp lý phải đánh giá **ngay** | **Khẩn cấp** |
 | Toàn vẹn/khôi phục | Snapshot volume thô chỉ khôi phục được với đúng phiên bản dịch vụ; chưa từng được diễn tập | Trung bình |
 
 ## 5. Việc cần chủ dự án quyết định (EXTERNAL)
 
-1. Rà soát và thu hẹp quyền đọc repository (mục 3).
+1. **Khẩn cấp:** chặn tải công khai — `GIT_HISTORY_REMEDIATION_PLAN.md` bước 0 (0a chuyển riêng tư, hoặc 0b giữ công
+   khai + gỡ khỏi cây + viết lại lịch sử + yêu cầu GitHub Support xóa đối tượng LFS).
 2. Chọn phương án xử lý lịch sử Git: `docs/ops/GIT_HISTORY_REMEDIATION_PLAN.md` (không agent nào tự viết lại lịch sử).
 3. Xoay vòng các bí mật và yêu cầu đặt lại mật khẩu theo danh sách kiểm tra trong kế hoạch đó.
-4. Nhờ người có chuyên môn pháp lý đánh giá nghĩa vụ đối với dữ liệu cá nhân và ảnh KYC.
+4. **Khẩn cấp:** nhờ người có chuyên môn pháp lý đánh giá nghĩa vụ thông báo đối với dữ liệu cá nhân và ảnh KYC đã
+   công khai.
 
 ## 6. Quy tắc sao lưu từ nay (đã có công cụ)
 

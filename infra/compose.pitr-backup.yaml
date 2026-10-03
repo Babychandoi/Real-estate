@@ -1,6 +1,6 @@
 # Off-host PITR material: archived WAL segments (zstd + age, every 5 minutes) and a daily physical base backup, both
 # into BACKUP_DIR. Use together with compose.backup.yaml and compose.pitr.yaml:
-#   docker compose -p bds-production -f docker-compose.yml -f infra/compose.pitr.yaml \
+#   docker compose -p bds-production -f docker-compose.yml -f infra/compose.apple-silicon.yaml -f infra/compose.pitr.yaml \
 #     -f infra/compose.backup.yaml -f infra/compose.pitr-backup.yaml --profile ops up -d postgres backup postgres-basebackup
 # PostgreSQL writes archived segments with mode 0600 as uid 999, so both services run as that uid; on a Linux host
 # prepare BACKUP_DIR with `chown 999:999` (Docker Desktop needs nothing). Restore procedure and RPO/RTO:
@@ -27,7 +27,7 @@ services:
     profiles: ["ops"]
     build: { context: ./infra/backup }
     image: bds-backup:1
-    restart: unless-stopped
+    restart: ${BDS_RESTART_POLICY:-unless-stopped}
     user: "${BACKUP_UID:-999}:${BACKUP_GID:-999}"
     network_mode: "service:postgres"
     command: ["schedule"]

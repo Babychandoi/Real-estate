@@ -1,0 +1,6 @@
+# Rendered at container start by the nginx image's envsubst step into /etc/nginx/conf.d/ (http level).
+# BDS_PUBLIC_HOST (docker-compose.yml passes PUBLIC_HOST) is the canonical public host used by the HTTP->HTTPS
+# redirect in nginx.conf; empty uses the request Host. The entrypoint rejects malformed values before envsubst.
+map $host $bds_canonical_host {
+    default "${BDS_PUBLIC_HOST}";
+}
