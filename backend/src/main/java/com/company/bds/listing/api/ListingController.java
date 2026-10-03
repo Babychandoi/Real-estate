@@ -208,7 +208,7 @@ public class ListingController {
         Listing listing = found.orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
         boolean insider = privileged(authentication) || owns(listing, authentication);
         if (!insider && !(listing.getStatus().name().equals("ACTIVE") && listing.getPublicRevision().isPresent()
-                && trust.ownerActive(listing.getOwnerId()))) {
+                && trust.publiclyVisible(listing.getId()))) {
             throw ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng.");
         }
         ListingRevision revision = insider ? listing.getPublicRevision().or(listing::getLatestRevision).orElseThrow(() ->

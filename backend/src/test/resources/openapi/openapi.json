@@ -7312,18 +7312,37 @@
       },
       "VerificationView" : {
         "properties" : {
+          "checkedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "complete" : {
+            "type" : "boolean"
+          },
           "firstBrokenSeq" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "fromSeq" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "headSeq" : {
             "format" : "int64",
             "type" : "integer"
           },
           "intact" : {
             "type" : "boolean"
           },
+          "staleUnchainedEvents" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
           "unchainedEvents" : {
             "format" : "int64",
             "type" : "integer"
           },
-          "verifiedEvents" : {
+          "verifiedThrough" : {
             "format" : "int64",
             "type" : "integer"
           }
@@ -7460,8 +7479,8 @@
   "openapi" : "3.1.0",
   "paths" : {
     "/api/v1/admin/audit-chain/verification" : {
-      "get" : {
-        "operationId" : "verify",
+      "post" : {
+        "operationId" : "run",
         "responses" : {
           "200" : {
             "content" : {
@@ -7472,6 +7491,17 @@
               }
             },
             "description" : "OK"
+          }
+        },
+        "tags" : [ "admin-audit-chain-controller" ]
+      }
+    },
+    "/api/v1/admin/audit-chain/verification/restart" : {
+      "post" : {
+        "operationId" : "restart",
+        "responses" : {
+          "204" : {
+            "description" : "Verification checkpoint reset"
           }
         },
         "tags" : [ "admin-audit-chain-controller" ]

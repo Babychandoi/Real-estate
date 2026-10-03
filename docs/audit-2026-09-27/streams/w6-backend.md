@@ -273,3 +273,62 @@ The linker query, after 900 k linked rows, takes about 30 ms.
 | `npm run check:api` | match |
 | prettier on touched files | clean |
 | promtool | `test rules` SUCCESS, `check rules` 35 rules |
+
+## Resume / review round 3 — 2026-10-03
+
+This section supersedes the round-1/2 descriptions above where they differ. All W6 changes remain on PR #24 until the
+orchestrator merges them after PR #23 (V100–V102). No production command or production data was used in this round.
+
+- **Concurrent verification:** capture the head first and verify only the committed prefix through that position.
+  `AuditTrailRound2ReviewTests` covers the original race; `W6ReviewFollowUpTests.aLinkerCommitAfterTheHeadReadIsOutsideTheVerifiedPrefix`
+  also appends *after* the head was captured and proves no false tamper report.
+- **Routine backlog:** expose both pending and stale (>5 minutes) unchained counts. A fresh event awaiting the normal
+  one-second linker remains intact; a stuck event does not. `verifyReportsTheBacklogSeparatelyAndOnlyAStuckEventMakesTheChainNonIntact`.
+- **Old image / clock skew:** V103 adds `stored_at` without backfilling, then installs its DB-clock default. The linker
+  chains every post-V103 insert by this marker even if an old pod supplies an `occurred_at` before cutover. Legacy rows
+  retain their hashes and NULL marker. `AuditTrailRound2ReviewTests` and `SchemaMigrationTests.auditCutoverPreservesLegacyRowsAndDatesOldImageInsertsWithTheDatabaseClock`.
+- **Migration locks:** V103 metadata and genesis selection commit before V104 validation and V106 index construction.
+  V106 has the unique chain position index and one small partial pending index on `(stored_at,id)`. Plain builds hold
+  SHARE (inserts wait); they no longer inherit V103's ACCESS EXCLUSIVE lock. The old timing table is historical, not a
+  measurement of V106. The runbook states this limit and explains prerequisites for concurrent pre-creation.
+- **Bounded operator verification:** the new, previously unreleased endpoint is now POST; each call checks at most
+  50,000 positions and stores a checkpoint, rate-limited to 30 calls/hour/account. `complete` is separate from `intact`.
+  Restart explicitly rechecks historical rows; changes behind an old checkpoint require that restart. Checkpoint row
+  locking serializes runs with restart without locking audit inserts or the linker. OpenAPI and generated TS match,
+  including restart's 204. `anAdminRunsBoundedIncrementalVerificationsThatContinueFromTheCheckpoint`.
+- **Stalled-linker signal:** a run that only skips a locked head does not refresh `last.link.success`. A fixed backlog
+  cannot mask a stuck competing linker. Regression holds the real head lock and checks the unchanged success gauge;
+  releasing it and draining updates the gauge. `skippingAHeadLockedByAnotherLinkerDoesNotRefreshItsSuccessGauge`.
+- **Legacy request bound:** one budget counts every search attempt (also the failed engine-switch call) across the
+  restart. Beyond depth 2,400, one first-page probe returns an empty array only when an exact total or exhausted page
+  proves the offset is beyond the end; otherwise 400 with the cursor successor. Reviewer tests from `8535980`, already
+  cherry-picked as `52617df`, remain unchanged. Existing bound test now expects this one documented probe.
+- **Configuration:** the two audit scheduler settings and shared scheduler pool size are documented in both example
+  env files and passed through Compose. No secrets, dependencies or framework changes were introduced.
+- **Analytics wording:** the two-group abandonment comparison describes association; the metric description no longer
+  attributes the difference causally to KYC. Existing server event `user_id` is retained as the owner's earlier choice.
+
+**Bounded v1 limitation:** after a very late engine switch or unusually short rechecked pages, the remaining shared
+50-search budget can be exhausted before the requested window is reached. The legacy response can then be empty or
+short; it never combines items from different engines. Use the v2 cursor endpoint for complete deep traversal.
+
+**Checks recorded while resuming:**
+
+| Check | Result |
+|---|---|
+| Focused Maven `spotless:apply test -Dtest=AuditTrailRound2ReviewTests,LegacySearchV1Round2ReviewTests,SlugClaimRound2ReviewTests,W6ReviewFollowUpTests,AuditTrailReviewTests,AuditTrailConcurrencyTests,LegacySearchV1BoundsTests,OpenApiSnapshotTests -Dopenapi.snapshot.update=true` | Initial resume: 27 tests, 8 classes, 0 failures/errors/skips, 30 s; later follow-up tests are included in the final verify below. |
+| `npm run gen:api`, generated-file Prettier, `npm run lint`, `npm run build`, `npm run check:api`, `npm run check:bundle` | Passed; lint 0 errors/warnings, TS + Vite build and all bundle budgets passed. |
+| `npx vitest run app/routes/_account.billing.test.tsx --testTimeout=30000` | 1 file / 1 test passed. |
+| `MEDIA_SIGNING_SECRET=<dummy test value> docker compose --env-file .env.example -f docker-compose.yml config --quiet` | Passed using examples only. |
+
+Full backend verification and post-integration results are recorded below after they finish. No local full stack,
+production smoke test, large dataset/load test or new large-table timing was run. The orchestrator updates the root
+requirement matrix and histories after integration.
+
+**Additional root review fixes while resuming:** public v1 detail/profile list/count and v2 database/detail/cache
+validation now exclude `ACTIVE` listings whose deadline has passed, before the sweep changes their state. Public
+media applies the same live cutoff; authenticated owner/staff views remain available. The v2 predicate anti-joins
+active expired ids via the existing `idx_listings_active_expires`, avoiding a read-model column/backfill. The access
+matrix now includes a real `ACTIVE/PAST_EXPIRY` row across every actor and listing/media/search/seller endpoint.
+Receipt Idempotency-Key payload binding uses a JSON record, preventing `reference="A|B", note="C"` from colliding
+with `reference="A", note="B|C"`; the second payload returns 409, the exact retry still replays once.

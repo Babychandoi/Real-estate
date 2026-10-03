@@ -97,6 +97,9 @@ public class RateLimitPolicies {
                         rule(IP, 300, Duration.ofMinutes(1))),
                 policy("search-map-v2", "GET", "/api/v2/listings/map", EVICT,
                         rule(IP, 300, Duration.ofMinutes(1))),
+                // W6: audit chain verification runs scan up to 50 000 rows each: a few per hour per admin.
+                policy("admin-audit-chain", "POST", "/api/v1/admin/audit-chain/**", FAIL_CLOSED,
+                        rule(ACCOUNT, 30, Duration.ofHours(1))),
                 // Rebuild/rollback/cleanup of the search index: a handful per hour is plenty.
                 policy("admin-search-index", "POST", "/api/v2/admin/search/**", FAIL_CLOSED,
                         rule(ACCOUNT, 20, Duration.ofHours(1))),

@@ -105,6 +105,16 @@ class ListingAccessMatrixTests {
             if (List.of("DRAFT", "PENDING_REVIEW", "REJECTED").contains(status)) privateText.add(titleSecret);
             cases.add(new Case(status, listing, owner.id(), isPublic, privateText, image, isPublic ? null : image));
         }
+        // The clock passed the expiry deadline while the sweep has not changed the ACTIVE state yet.
+        String expiredImage = image(bearer.get(Actor.OWNER));
+        String expiredDescription = "HetHanTrongLucChoQuet" + token;
+        TestData.TestListing timedOut = data.listing(owner.id()).title("Nhà " + token + " hethan").mediaUrls(List.of(expiredImage)).create();
+        jdbc.update("UPDATE listing_revisions SET description = ? WHERE listing_id = ?", expiredDescription, timedOut.id());
+        jdbc.update("UPDATE listings SET expires_at = now() - interval '1 second' WHERE id = ?", timedOut.id());
+        assertThat(jdbc.queryForObject("SELECT status FROM listings WHERE id = ?", String.class, timedOut.id())).isEqualTo("ACTIVE");
+        cases.add(new Case("ACTIVE/PAST_EXPIRY", timedOut, owner.id(), false, List.of(expiredDescription, owner.email()), expiredImage,
+                expiredImage));
+
         // ACTIVE with an edit waiting for moderation: the public sees the approved revision only, never the edit or its new image.
         String publicImage = image(bearer.get(Actor.OWNER));
         TestData.TestListing edited = data.listing(owner.id()).title("Nhà " + token + " congkhai").mediaUrls(List.of(publicImage)).create();

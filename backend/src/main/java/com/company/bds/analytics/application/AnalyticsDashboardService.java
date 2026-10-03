@@ -140,12 +140,12 @@ public class AnalyticsDashboardService {
                 "Phiên được yêu cầu KYC nhưng không gửi liên hệ / phiên được yêu cầu KYC.", WEB,
                 kyc == null ? Metric.notMeasured("percent", searchReason)
                         : Metric.percent(kyc.kycShownSessions() - kyc.submittedAfterKyc(), kyc.kycShownSessions())));
-        // F17.4 (W6): the "before KYC" side — the same form without the KYC wall — so the cost of KYC is the difference.
+        // F17.4 (W6): compare sessions that did and did not meet the KYC wall; this describes groups, not causation.
         long withoutKyc = kyc == null ? 0 : kyc.formSessions() - kyc.kycShownSessions();
         long submittedWithoutKyc = kyc == null ? 0 : kyc.submittedSessions() - kyc.submittedAfterKyc();
         metrics.add(named("leadAbandonmentWithoutKyc", "Bỏ cuộc trước bước xác minh (không gặp KYC)", "funnel",
                 "Phiên mở form liên hệ, không bị yêu cầu KYC và không gửi liên hệ / phiên mở form liên hệ không bị yêu cầu KYC. "
-                        + "So với \"Bỏ cuộc sau yêu cầu xác minh\": phần chênh lệch là mức bỏ cuộc do KYC.", WEB,
+                        + "Chênh lệch với nhóm gặp yêu cầu xác minh mô tả tỷ lệ bỏ cuộc giữa hai nhóm phiên.", WEB,
                 kyc == null ? Metric.notMeasured("percent", searchReason)
                         : Metric.percent(withoutKyc - submittedWithoutKyc, withoutKyc)));
         // Server side: measured from the lead API itself, with or without web collection and consent.

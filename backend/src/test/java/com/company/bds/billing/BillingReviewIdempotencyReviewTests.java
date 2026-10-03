@@ -69,6 +69,24 @@ class BillingReviewIdempotencyReviewTests {
                 .isEqualTo("EXCEPTION");
     }
 
+    @Test
+    void movingAPipeBetweenReceiptReferenceAndNoteCannotReplayAnotherPayload() throws Exception {
+        String order = reportedOrder(data.user().role("BROKER").plan("FREE", 2).create());
+        String admin = admin();
+        String key = "rv-" + UUID.randomUUID();
+        Map<String, Object> firstPayload = Map.of("receivedAmountVnd", 190_000, "receivedReference", "A|B", "note", "C");
+        MockHttpServletResponse first = send(admin, post(review(order, "receipt"), firstPayload).header("Idempotency-Key", key));
+        assertThat(first.getStatus()).isEqualTo(200);
+        Map<String, Object> differentPayload = Map.of("receivedAmountVnd", 190_000, "receivedReference", "A", "note", "B|C");
+        MockHttpServletResponse collision = send(admin, post(review(order, "receipt"), differentPayload).header("Idempotency-Key", key));
+        assertThat(collision.getStatus()).as(content(collision)).isEqualTo(409);
+        assertThat(json.readTree(content(collision)).path("code").asText()).isEqualTo("IDEMPOTENCY_KEY_REUSED");
+        MockHttpServletResponse retry = send(admin, post(review(order, "receipt"), firstPayload).header("Idempotency-Key", key));
+        assertThat(retry.getStatus()).isEqualTo(200);
+        assertThat(retry.getHeader("Idempotent-Replayed")).isEqualTo("true");
+        assertThat(jdbc.queryForObject("SELECT received_reference FROM package_orders WHERE id = ?::uuid", String.class, order)).isEqualTo("A|B");
+    }
+
     /** "Kept for 24 h": IdempotencyKeyPurgeTask only deletes lead scopes, so billing-review keys are never removed. */
     @Test
     void anExpiredAdminReviewKeyIsPurged() throws Exception {

@@ -45,7 +45,8 @@ import java.util.concurrent.atomic.AtomicLong;
  *   still hashed on its own — those are re-hashed into the chain.</li>
  * </ol>
  * The unique {@code chain_seq} makes a fork impossible whoever writes. {@link #verify} recomputes the chain page by page
- * and reports the unchained backlog (admin endpoint {@code GET /api/v1/admin/audit-chain/verification}).
+ * and reports the unchained backlog; operators run {@link #verifyIncrementally} through the admin endpoint
+ * {@code POST /api/v1/admin/audit-chain/verification} (bounded per call, continues from a stored checkpoint).
  *
  * <p>The audit insert runs after the business transaction committed, so it can never undo it. A failed insert is
  * retried with the same event id (a lost acknowledgement never stores it twice), except when no pooled connection could
@@ -60,16 +61,19 @@ public class AuditTrail {
     static final int VERIFY_PAGE = 5_000;
     private static final Logger log = LoggerFactory.getLogger(AuditTrail.class);
 
-    /** Unchained rows, oldest first; each branch is served by its own partial index (V103). */
+    /**
+     * Unchained rows in arrival order (database clock). {@code stored_at} is NULL for every pre-V103 row and set by the
+     * database for every later one, also for rows the previous image inserts during a rolling deploy (V103), so this is
+     * exactly what must be chained — whatever any application clock says. Served by idx_audit_events_unchained (V106).
+     */
     private static final String PENDING = """
-            SELECT id, occurred_at, actor_id, action, resource, result_status, client_fingerprint FROM (
-                (SELECT id, occurred_at, actor_id, action, resource, result_status, client_fingerprint FROM audit_events
-                 WHERE event_hash IS NULL ORDER BY occurred_at, id LIMIT ?)
-                UNION ALL
-                (SELECT id, occurred_at, actor_id, action, resource, result_status, client_fingerprint FROM audit_events
-                 WHERE chain_seq IS NULL AND event_hash IS NOT NULL AND occurred_at >= ? ORDER BY occurred_at, id LIMIT ?)
-            ) pending ORDER BY occurred_at, id LIMIT ?
+            SELECT id, occurred_at, actor_id, action, resource, result_status, client_fingerprint FROM audit_events
+            WHERE chain_seq IS NULL AND stored_at IS NOT NULL ORDER BY stored_at, id LIMIT ?
             """;
+    /** An event waits up to a second for the linker; only one still unchained after this long is a problem. */
+    static final java.time.Duration UNCHAINED_GRACE = java.time.Duration.ofMinutes(5);
+    /** Rows one incremental verification run checks at most (bounded request-thread cost). */
+    public static final int VERIFY_MAX_ROWS_PER_RUN = 50_000;
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate independent;
@@ -150,12 +154,14 @@ public class AuditTrail {
     public long linkAll() {
         long total = 0;
         try {
-            int linked;
+            LinkBatch result;
             do {
-                linked = linkPending(LINK_BATCH);
-                total += linked;
-            } while (linked == LINK_BATCH);
-            lastLinkSuccess.set(Instant.now().getEpochSecond());
+                result = linkBatch(LINK_BATCH);
+                total += result.linked();
+            } while (result.linked() == LINK_BATCH);
+            // SKIP LOCKED is a no-op, not proof that a linker completed. Otherwise a stuck head lock plus a stable
+            // backlog could keep refreshing this gauge on every instance and mask BdsAuditChainStalled forever.
+            if (result.acquiredHead()) lastLinkSuccess.set(Instant.now().getEpochSecond());
             return total;
         } finally {
             // Also after a failure, so a stalled linker shows as a growing backlog (alert BdsAuditChainStalled).
@@ -173,18 +179,23 @@ public class AuditTrail {
      * (and counted as a failure: someone deleted it).
      */
     public int linkPending(int limit) {
-        Integer linked = independent.execute(status -> {
+        return linkBatch(limit).linked();
+    }
+
+    private record LinkBatch(int linked, boolean acquiredHead) {}
+
+    private LinkBatch linkBatch(int limit) {
+        LinkBatch result = independent.execute(status -> {
             List<Map<String, Object>> head = jdbc.queryForList(
-                    "SELECT last_seq, last_hash, cutover_at FROM audit_chain_head WHERE singleton_id = 1 FOR UPDATE SKIP LOCKED");
+                    "SELECT last_seq, last_hash FROM audit_chain_head WHERE singleton_id = 1 FOR UPDATE SKIP LOCKED");
             if (head.isEmpty()) {
                 recreateHeadIfMissing();
-                return 0;
+                return new LinkBatch(0, false);
             }
             long sequence = ((Number) head.get(0).get("last_seq")).longValue();
             String previous = ((String) head.get(0).get("last_hash")).strip();
-            Timestamp cutover = (Timestamp) head.get(0).get("cutover_at");
-            List<Map<String, Object>> pending = jdbc.queryForList(PENDING, limit, cutover, limit, limit);
-            if (pending.isEmpty()) return 0;
+            List<Map<String, Object>> pending = jdbc.queryForList(PENDING, limit);
+            if (pending.isEmpty()) return new LinkBatch(0, true);
             List<Object[]> updates = new ArrayList<>(pending.size());
             for (Map<String, Object> row : pending) {
                 sequence++;
@@ -195,9 +206,9 @@ public class AuditTrail {
             jdbc.batchUpdate("UPDATE audit_events SET chain_seq = ?, previous_hash = ?, event_hash = ? WHERE id = ? AND chain_seq IS NULL",
                     updates);
             jdbc.update("UPDATE audit_chain_head SET last_seq = ?, last_hash = ? WHERE singleton_id = 1", sequence, previous);
-            return pending.size();
+            return new LinkBatch(pending.size(), true);
         });
-        return linked == null ? 0 : linked;
+        return result == null ? new LinkBatch(0, false) : result;
     }
 
     private void recreateHeadIfMissing() {
@@ -206,7 +217,7 @@ public class AuditTrail {
         List<Map<String, Object>> last = jdbc.queryForList(
                 "SELECT chain_seq, event_hash FROM audit_events WHERE chain_seq IS NOT NULL ORDER BY chain_seq DESC LIMIT 1");
         List<String> first = jdbc.queryForList("SELECT previous_hash FROM audit_events WHERE chain_seq = 1", String.class);
-        String legacyLatest = jdbc.query("SELECT TRIM(event_hash) FROM audit_events WHERE chain_seq IS NULL AND event_hash IS NOT NULL "
+        String legacyLatest = jdbc.query("SELECT TRIM(event_hash) FROM audit_events WHERE stored_at IS NULL AND event_hash IS NOT NULL "
                 + "ORDER BY occurred_at DESC, id DESC LIMIT 1", rs -> rs.next() ? rs.getString(1) : GENESIS);
         long lastSeq = last.isEmpty() ? 0 : ((Number) last.get(0).get("chain_seq")).longValue();
         String lastHash = last.isEmpty() ? legacyLatest : ((String) last.get(0).get("event_hash")).strip();
@@ -221,12 +232,15 @@ public class AuditTrail {
 
     /** Stored events that are not (yet) in the chain. */
     public long unchained() {
-        Timestamp cutover = jdbc.query("SELECT cutover_at FROM audit_chain_head WHERE singleton_id = 1",
-                rs -> rs.next() ? rs.getTimestamp(1) : new Timestamp(0));
+        Long count = jdbc.queryForObject("SELECT count(*) FROM audit_events WHERE chain_seq IS NULL AND stored_at IS NOT NULL", Long.class);
+        return count == null ? 0 : count;
+    }
+
+    /** Unchained events older than {@link #UNCHAINED_GRACE}: the linker is behind or something keeps them out. */
+    public long staleUnchained() {
         Long count = jdbc.queryForObject("""
-                SELECT (SELECT count(*) FROM audit_events WHERE event_hash IS NULL)
-                     + (SELECT count(*) FROM audit_events WHERE chain_seq IS NULL AND event_hash IS NOT NULL AND occurred_at >= ?)
-                """, Long.class, cutover);
+                SELECT count(*) FROM audit_events WHERE chain_seq IS NULL AND stored_at IS NOT NULL AND stored_at < now() - make_interval(secs => ?)
+                """, Long.class, UNCHAINED_GRACE.toSeconds());
         return count == null ? 0 : count;
     }
 
@@ -241,45 +255,101 @@ public class AuditTrail {
     }
 
     /**
-     * Result of {@link #verify()}: how many chained events verified, the first position that does not (or {@code null})
-     * and how many stored events are not in the chain yet. Intact means a valid chain AND nothing left outside it.
+     * Result of a verification: how many chained events verified, the first position that does not (or {@code null}),
+     * how many stored events are not chained yet ({@code unchained}, normally a few awaiting the next 1 s linking run)
+     * and how many of those are older than {@link #UNCHAINED_GRACE} ({@code staleUnchained}). Intact means a valid chain
+     * and nothing stuck outside it; events inside the normal linking delay do not make it non-intact.
      */
-    public record Verification(long verified, Long firstBrokenSeq, long unchained) {
-        public boolean intact() { return firstBrokenSeq == null && unchained == 0; }
+    public record Verification(long verified, Long firstBrokenSeq, long unchained, long staleUnchained) {
+        public boolean intact() { return firstBrokenSeq == null && staleUnchained == 0; }
     }
 
     /**
-     * Recomputes every chained event (those stored since V103) in order, {@value #VERIFY_PAGE} rows at a time: each must
-     * take the next position, name its predecessor's hash and hash to its stored value; the head must point at the last
-     * one. Also counts the events still outside the chain.
+     * Recomputes the whole chain from position 1, {@value #VERIFY_PAGE} rows at a time. The head is read FIRST and only
+     * positions up to its {@code last_seq} are checked: rows the linker appends while this runs are outside the snapshot
+     * and cannot make an intact chain look broken (W6 review round 2). Linked rows never change, so the prefix is stable.
      */
     public Verification verify() {
-        String expectedPrevious = jdbc.queryForObject("SELECT genesis_hash FROM audit_chain_head WHERE singleton_id = 1", String.class).strip();
-        long expectedSeq = 1;
-        long after = 0;
-        while (true) {
+        Segment segment = verifySegment(0, null, Long.MAX_VALUE);
+        return new Verification(segment.verifiedThrough(), segment.brokenSeq(), unchained(), staleUnchained());
+    }
+
+    /** Result of {@link #verifyIncrementally}: the range checked by this run and where the chain stands. */
+    public record IncrementalVerification(long fromSeq, long verifiedThrough, long headSeq, boolean complete, Long firstBrokenSeq,
+                                          long unchained, long staleUnchained, Instant checkpointAt) {
+        public boolean intact() { return firstBrokenSeq == null && staleUnchained == 0; }
+    }
+
+    /**
+     * Continues from the stored checkpoint (the last position a previous run proved intact) for at most
+     * {@code maxRows} positions, and moves the checkpoint forward when they verify. Bounded cost per call; a full
+     * re-check is {@link #resetCheckpoint()} followed by runs until {@code complete}.
+     */
+    public IncrementalVerification verifyIncrementally(int maxRows) {
+        // Serialize operator runs with restart across instances: an in-flight run cannot undo a reset checkpoint.
+        // This lock belongs only to verification metadata; request audit inserts and linking never wait for it.
+        return independent.execute(status -> verifyFromCheckpoint(Math.min(VERIFY_MAX_ROWS_PER_RUN, Math.max(1, maxRows))));
+    }
+
+    private IncrementalVerification verifyFromCheckpoint(int maxRows) {
+        Map<String, Object> checkpoint = jdbc.queryForMap("SELECT verified_seq, verified_hash FROM audit_chain_checkpoint WHERE singleton_id = 1 FOR UPDATE");
+        long fromSeq = ((Number) checkpoint.get("verified_seq")).longValue();
+        String fromHash = (String) checkpoint.get("verified_hash");
+        Segment segment = verifySegment(fromSeq, fromHash == null ? null : fromHash.strip(), Math.max(1, maxRows));
+        Instant now = Instant.now();
+        if (segment.brokenSeq() == null) {
+            jdbc.update("""
+                    UPDATE audit_chain_checkpoint SET verified_seq = ?, verified_hash = ?, verified_at = ?, broken_seq = NULL
+                    WHERE singleton_id = 1 AND verified_seq = ?
+                    """, segment.verifiedThrough(), segment.lastHash(), Timestamp.from(now), fromSeq);
+        } else {
+            jdbc.update("UPDATE audit_chain_checkpoint SET broken_seq = ?, verified_at = ? WHERE singleton_id = 1",
+                    segment.brokenSeq(), Timestamp.from(now));
+        }
+        return new IncrementalVerification(fromSeq, segment.verifiedThrough(), segment.headSeq(),
+                segment.brokenSeq() == null && segment.verifiedThrough() >= segment.headSeq(), segment.brokenSeq(), unchained(),
+                staleUnchained(), now);
+    }
+
+    /** Forgets the checkpoint: the next incremental runs re-verify the chain from position 1. */
+    public void resetCheckpoint() {
+        jdbc.update("UPDATE audit_chain_checkpoint SET verified_seq = 0, verified_hash = NULL, verified_at = NULL, broken_seq = NULL WHERE singleton_id = 1");
+    }
+
+    private record Segment(long verifiedThrough, String lastHash, Long brokenSeq, long headSeq) {}
+
+    /** Verifies positions (fromSeq, min(head, fromSeq + maxRows)]; {@code fromHash} is the hash at fromSeq (genesis for 0). */
+    private Segment verifySegment(long fromSeq, String fromHash, long maxRows) {
+        // Head first: everything up to last_seq is committed and immutable when it is read (see verify()).
+        Map<String, Object> head = jdbc.queryForMap("SELECT last_seq, last_hash, genesis_hash FROM audit_chain_head WHERE singleton_id = 1");
+        long headSeq = ((Number) head.get("last_seq")).longValue();
+        String headHash = ((String) head.get("last_hash")).strip();
+        String expectedPrevious = fromSeq == 0 || fromHash == null ? ((String) head.get("genesis_hash")).strip() : fromHash;
+        if (fromSeq > headSeq) return new Segment(fromSeq, expectedPrevious, headSeq + 1, headSeq);
+        long until = Math.min(headSeq, fromSeq + maxRows);
+        long expectedSeq = fromSeq + 1;
+        long after = fromSeq;
+        while (after < until) {
             List<Map<String, Object>> rows = jdbc.queryForList("""
                     SELECT chain_seq, occurred_at, actor_id, action, resource, result_status, client_fingerprint, previous_hash, event_hash
-                    FROM audit_events WHERE chain_seq > ? ORDER BY chain_seq LIMIT ?
-                    """, after, VERIFY_PAGE);
+                    FROM audit_events WHERE chain_seq > ? AND chain_seq <= ? ORDER BY chain_seq LIMIT ?
+                    """, after, until, VERIFY_PAGE);
+            if (rows.isEmpty()) break;
             for (Map<String, Object> row : rows) {
                 long sequence = ((Number) row.get("chain_seq")).longValue();
                 String previous = ((String) row.get("previous_hash")).strip();
                 String hash = ((String) row.get("event_hash")).strip();
                 boolean valid = sequence == expectedSeq && previous.equals(expectedPrevious)
                         && sha256(material(previous, sequence, ((Timestamp) row.get("occurred_at")).toInstant(), entry(row))).equals(hash);
-                if (!valid) return new Verification(expectedSeq - 1, sequence, unchained());
+                if (!valid) return new Segment(expectedSeq - 1, expectedPrevious, sequence, headSeq);
                 expectedPrevious = hash;
                 expectedSeq++;
                 after = sequence;
             }
-            if (rows.size() < VERIFY_PAGE) break;
         }
-        Map<String, Object> head = jdbc.queryForMap("SELECT last_seq, last_hash FROM audit_chain_head WHERE singleton_id = 1");
-        if (((Number) head.get("last_seq")).longValue() != expectedSeq - 1 || !((String) head.get("last_hash")).strip().equals(expectedPrevious)) {
-            return new Verification(expectedSeq - 1, expectedSeq, unchained());
-        }
-        return new Verification(expectedSeq - 1, null, unchained());
+        if (after < until) return new Segment(after, expectedPrevious, after + 1, headSeq); // a position is missing
+        if (until == headSeq && !headHash.equals(expectedPrevious)) return new Segment(after, expectedPrevious, headSeq, headSeq);
+        return new Segment(after, expectedPrevious, null, headSeq);
     }
 
     /** Lower-case hex SHA-256 of the UTF-8 bytes (the format of the pre-V103 hashes). */

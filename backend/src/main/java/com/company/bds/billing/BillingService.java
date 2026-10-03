@@ -273,7 +273,7 @@ public class BillingService {
         if (receivedAmount < 0) throw ApiException.badRequest("INVALID_AMOUNT", "Số tiền nhận không hợp lệ.");
         String reference = receivedReference == null ? "" : receivedReference.trim();
         if (reference.length() > 100) throw ApiException.badRequest("INVALID_REFERENCE", "Nội dung chuyển khoản tối đa 100 ký tự.");
-        ReviewKey key = reviewKey(adminId, idempotencyKey, "receipt", id, receivedAmount + "|" + reference + "|" + trimOrNull(note));
+        ReviewKey key = reviewKey(adminId, idempotencyKey, "receipt", id, writeJson(new ReceiptPayload(receivedAmount, reference, trimOrNull(note))));
         Review locked = lockForReview(id, Set.of("CREATED", "TRANSFER_REPORTED"), key);
         if (locked.replayed()) return locked;
         Order order = locked.order();
@@ -439,9 +439,11 @@ public class BillingService {
             WHERE COALESCE(api_idempotency_keys.expires_at, api_idempotency_keys.created_at + interval '24 hours') <= now()
             """;
 
-    private String writeOrder(Order order) {
+    private record ReceiptPayload(long amount, String reference, String note) {}
+
+    private String writeJson(Object value) {
         try {
-            return json.writeValueAsString(order);
+            return json.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException(ex);
         }
@@ -476,7 +478,7 @@ public class BillingService {
             int bound = jdbc.update("""
                     INSERT INTO api_idempotency_keys(scope,idempotency_key,request_hash,resource_id,expires_at,response_snapshot)
                     VALUES(?,?,?,?, now() + interval '24 hours', ?)
-                    """ + REUSE_EXPIRED_KEY, key.scope(), key.key(), key.requestHash(), order.id(), writeOrder(order));
+                    """ + REUSE_EXPIRED_KEY, key.scope(), key.key(), key.requestHash(), order.id(), writeJson(order));
             // The same key raced on another order: roll this one back rather than leave an effect the key does not name.
             if (bound == 0) throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key này vừa được dùng cho một thao tác khác.");
         }

@@ -10,9 +10,25 @@ export type paths = {
       path?: never;
       cookie?: never;
     };
-    get: operations['verify'];
+    get?: never;
     put?: never;
-    post?: never;
+    post: operations['run'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/admin/audit-chain/verification/restart': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: operations['restart'];
     delete?: never;
     options?: never;
     head?: never;
@@ -6455,13 +6471,22 @@ export type components = {
       status?: string;
     };
     VerificationView: {
+      /** Format: date-time */
+      checkedAt?: string;
+      complete?: boolean;
       /** Format: int64 */
       firstBrokenSeq?: number;
+      /** Format: int64 */
+      fromSeq?: number;
+      /** Format: int64 */
+      headSeq?: number;
       intact?: boolean;
+      /** Format: int64 */
+      staleUnchainedEvents?: number;
       /** Format: int64 */
       unchainedEvents?: number;
       /** Format: int64 */
-      verifiedEvents?: number;
+      verifiedThrough?: number;
     };
     VersionSummary: {
       areaM2?: number;
@@ -6518,7 +6543,7 @@ export type components = {
 };
 export type $defs = Record<string, never>;
 export interface operations {
-  verify: {
+  run: {
     parameters: {
       query?: never;
       header?: never;
@@ -6535,6 +6560,24 @@ export interface operations {
         content: {
           '*/*': components['schemas']['VerificationView'];
         };
+      };
+    };
+  };
+  restart: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Verification checkpoint reset */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

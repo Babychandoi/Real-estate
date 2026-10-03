@@ -30,14 +30,15 @@ import static org.mockito.Mockito.when;
 class LegacySearchV1BoundsTests {
 
     @Test
-    void aPageBeyondTheDepthLimitIsA400WithoutAnySearch() {
+    void aPageBeyondTheDepthLimitIsA400AfterOneBoundedProbe() {
         ListingSearchService search = mock(ListingSearchService.class);
         AtomicInteger calls = new AtomicInteger();
         when(search.search(any())).thenAnswer(call -> { calls.incrementAndGet(); return page(48, true); });
         LegacySearchV1Controller controller = new LegacySearchV1Controller(search);
         assertThatThrownBy(() -> controller.search(null, null, null, null, null, null, null, null, null, null, null, "LATEST", 50, 48))
                 .isInstanceOf(InvalidFilterException.class);
-        assertThat(calls.get()).isZero();
+        assertThat(calls.get()).isEqualTo(1);
+        calls.set(0);
         // The deepest allowed page (results 2 352..2 399) costs exactly 50 searches.
         ResponseEntity<List<ListingSummaryResponse>> deepest = controller.search(null, null, null, null, null, null, null, null, null, null,
                 null, "LATEST", 49, 48);

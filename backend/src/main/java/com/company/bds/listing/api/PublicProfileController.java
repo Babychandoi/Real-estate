@@ -31,7 +31,8 @@ public class PublicProfileController {
                                WHERE k.user_id = u.id AND k.status = 'VERIFIED' AND k.revoked_at IS NULL
                                  AND (k.expires_at IS NULL OR k.expires_at > now())) AS identity_verified,
                        (SELECT COUNT(*) FROM listings l
-                        WHERE l.owner_id = u.id AND l.status = 'ACTIVE' AND l.public_revision_id IS NOT NULL) AS active_listing_count
+                        WHERE l.owner_id = u.id AND l.status = 'ACTIVE' AND l.public_revision_id IS NOT NULL
+                          AND (l.expires_at IS NULL OR l.expires_at > now())) AS active_listing_count
                 FROM users u
                 WHERE u.id = ? AND u.status = 'ACTIVE'
                 """, (rs, row) -> new PublicProfileResponse(
@@ -59,7 +60,7 @@ public class PublicProfileController {
                 FROM listings l
                 JOIN listing_revisions r ON r.id = l.public_revision_id
                 JOIN users u ON u.id = l.owner_id AND u.status = 'ACTIVE'
-                WHERE l.owner_id = ? AND l.status = 'ACTIVE'
+                WHERE l.owner_id = ? AND l.status = 'ACTIVE' AND (l.expires_at IS NULL OR l.expires_at > now())
                 """;
         Long total = jdbc.queryForObject("SELECT COUNT(*) " + from, Long.class, ownerId);
         java.util.List<PublicListingCard> items = jdbc.query("""

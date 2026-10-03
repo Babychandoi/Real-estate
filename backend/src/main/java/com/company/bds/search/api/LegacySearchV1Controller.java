@@ -25,7 +25,7 @@ import java.util.Map;
  * the v2 cursors (W6, R-2: before, every page after the first was empty), up to {@value #MAX_DEPTH} results deep (400
  * beyond) and at most {@value #MAX_SEARCHES_PER_REQUEST} v2 searches per request; rate limited like v2 search.
  * Answers carry {@code Deprecation: true} and a {@code Link} to the successor. Invalid values are no longer swallowed
- * (400 {@code INVALID_FILTER}); {@code purpose} defaults to SALE like v2; a page past the last one is an empty array.
+ * (400 {@code INVALID_FILTER}); {@code purpose} defaults to SALE like v2; a page past a known exact total is an empty array, including beyond the depth bound.
  */
 @RestController
 public class LegacySearchV1Controller {
@@ -78,12 +78,22 @@ public class LegacySearchV1Controller {
         // page, so one v1 request costs at most MAX_SEARCHES_PER_REQUEST searches: results beyond MAX_DEPTH are refused
         // (400) and the client is pointed at the v2 cursor API, which has no such limit.
         long offset = (long) page * pageSize;
-        if (offset + pageSize > MAX_DEPTH) {
-            throw new InvalidFilterException(InvalidFilterException.INVALID_FILTER, List.of(new InvalidFilterException.FilterError("page",
-                    "API v1 chỉ trả tối đa " + MAX_DEPTH + " kết quả đầu (page × size); dùng /api/v2/listings/search với con trỏ để xem tiếp.")));
-        }
         put(params, "size", Integer.toString(SearchFilterParser.MAX_SIZE));
-        List<PublicListing> window = walk(params, (int) (offset + pageSize));
+        List<PublicListing> window;
+        if (offset + pageSize > MAX_DEPTH) {
+            // One bounded probe preserves the legacy empty-page contract when the first page proves the offset
+            // exceeds all results. An estimated/lower-bound total cannot establish that: use the cursor API then.
+            SearchResults.Page first = search.search(SearchFilterParser.parse(params));
+            boolean pastLast = first.total() != null && "eq".equals(first.total().relation()) && offset >= first.total().value();
+            pastLast |= !first.hasNext() && offset >= first.items().size();
+            if (!pastLast) {
+                throw new InvalidFilterException(InvalidFilterException.INVALID_FILTER, List.of(new InvalidFilterException.FilterError("page",
+                        "API v1 chỉ trả tối đa " + MAX_DEPTH + " kết quả đầu (page × size); dùng /api/v2/listings/search với con trỏ để xem tiếp.")));
+            }
+            window = List.of();
+        } else {
+            window = walk(params, (int) (offset + pageSize));
+        }
         List<ListingSummaryResponse> items = window.size() <= offset ? List.of()
                 : window.subList((int) offset, (int) Math.min(window.size(), offset + pageSize)).stream()
                         .map(LegacySearchV1Controller::legacy).toList();
@@ -99,24 +109,27 @@ public class LegacySearchV1Controller {
      * cannot handle cursors, so they never see that 409.
      */
     private List<PublicListing> walk(Map<String, String[]> params, int wanted) {
-        for (int attempt = 0; ; attempt++) {
+        // Failed searches also consume the budget, and restarting on another engine does not reset it.
+        int searches = 0;
+        for (int attempt = 0; searches < MAX_SEARCHES_PER_REQUEST; attempt++) {
             params.remove("cursor");
             List<PublicListing> rows = new ArrayList<>();
             try {
+                searches++;
                 SearchResults.Page result = search.search(SearchFilterParser.parse(params));
                 rows.addAll(result.items());
-                int searches = 1;
                 while (rows.size() < wanted && result.hasNext() && result.nextCursor() != null && searches < MAX_SEARCHES_PER_REQUEST) {
                     put(params, "cursor", result.nextCursor());
+                    searches++;
                     result = search.search(SearchFilterParser.parse(params));
                     rows.addAll(result.items());
-                    searches++;
                 }
                 return rows;
             } catch (SearchProblemException ex) {
                 if (!"CURSOR_ENGINE_CHANGED".equals(ex.code()) || attempt >= 1) throw ex;
             }
         }
+        return List.of(); // engine switched on the last allowed call; no partial page from the old engine is exposed
     }
 
     private static ListingSummaryResponse legacy(PublicListing row) {

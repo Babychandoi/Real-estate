@@ -22,8 +22,11 @@ public class PublicListingTrustQuery {
         this.jdbc = jdbc;
     }
 
-    public boolean ownerActive(UUID ownerId) {
-        Boolean active = jdbc.query("SELECT status = 'ACTIVE' FROM users WHERE id = ?", rs -> rs.next() ? rs.getBoolean(1) : Boolean.FALSE, ownerId);
+    public boolean publiclyVisible(UUID listingId) {
+        Boolean active = jdbc.query("""
+                SELECT l.status = 'ACTIVE' AND (l.expires_at IS NULL OR l.expires_at > now()) AND u.status = 'ACTIVE'
+                FROM listings l JOIN users u ON u.id = l.owner_id WHERE l.id = ?
+                """, rs -> rs.next() ? rs.getBoolean(1) : Boolean.FALSE, listingId);
         return Boolean.TRUE.equals(active);
     }
 
