@@ -463,8 +463,12 @@ rollback() {
   compose build backend frontend minio > "$ART/build.log" 2>&1
   record build_seconds "$(secs "$t" "$(ms)")"
   docker tag "${PROJECT}-backend:latest" bds-backend:current
-  local refs="${PREVIOUS_REFS:-$(previous_refs)}" ref sha label
-  record previous_refs "$refs"
+  local refs="${PREVIOUS_REFS:-$(previous_refs)}" ref sha label resolved_refs=""
+  # Outcome keys use resolved SHAs; preserve that correspondence for symbolic overrides too.
+  for ref in $refs; do
+    resolved_refs="$resolved_refs $(git -C "$REPO" rev-parse --short "$ref")"
+  done
+  record previous_refs "${resolved_refs# }"
   for ref in $refs; do
     sha="$(git -C "$REPO" rev-parse --short "$ref")"
     log "building backend image of $ref ($sha)"
