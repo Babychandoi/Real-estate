@@ -43,7 +43,11 @@ describe('shared modal stack (M2)', () => {
     const sheet = screen.getByRole('dialog', { name: 'Bộ lọc' });
     expect(sheet).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Mở đăng nhập' }));
+    fireEvent.click(
+      // The page behind an open modal is inert/aria-hidden (useModal); the harness opens the login dialog the way the
+      // app does (from code, e.g. a 401), so the hidden button is queried with hidden: true.
+      screen.getByRole('button', { name: 'Mở đăng nhập', hidden: true }),
+    );
     const login = screen.getByRole('dialog', { name: 'Đăng nhập' });
     expect(login).toBeVisible();
     // Focus must land inside the newest (top-most) modal, not be pulled back into the Sheet underneath.
@@ -61,7 +65,11 @@ describe('shared modal stack (M2)', () => {
 
   it('Tab stays inside the login dialog while the Sheet is open behind it', () => {
     render(<Harness sheetOpen />);
-    fireEvent.click(screen.getByRole('button', { name: 'Mở đăng nhập' }));
+    fireEvent.click(
+      // The page behind an open modal is inert/aria-hidden (useModal); the harness opens the login dialog the way the
+      // app does (from code, e.g. a 401), so the hidden button is queried with hidden: true.
+      screen.getByRole('button', { name: 'Mở đăng nhập', hidden: true }),
+    );
     const login = screen.getByRole('dialog', { name: 'Đăng nhập' });
     const closeButton = screen.getByRole('button', { name: 'Đóng hộp thoại đăng nhập' });
 
@@ -73,15 +81,23 @@ describe('shared modal stack (M2)', () => {
 
   it('a Sheet opened after the login dialog becomes the top of the stack', () => {
     const { rerender } = render(<Harness sheetOpen={false} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Mở đăng nhập' }));
+    fireEvent.click(
+      // The page behind an open modal is inert/aria-hidden (useModal); the harness opens the login dialog the way the
+      // app does (from code, e.g. a 401), so the hidden button is queried with hidden: true.
+      screen.getByRole('button', { name: 'Mở đăng nhập', hidden: true }),
+    );
     expect(screen.getByRole('dialog', { name: 'Đăng nhập' })).toBeVisible();
 
     rerender(<Harness sheetOpen />);
     const sheet = screen.getByRole('dialog', { name: 'Bộ lọc' });
     expect(sheet.contains(document.activeElement)).toBe(true);
 
+    // The login dialog below is now hidden from assistive tech and the pointer while the Sheet is on top.
+    const lower = screen.getByRole('dialog', { name: 'Đăng nhập', hidden: true });
+    expect(lower.closest('[inert]')).not.toBeNull();
+
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
     // Sheet's onClose is a no-op here, so only the fact that the login dialog was untouched matters.
-    expect(screen.getByRole('dialog', { name: 'Đăng nhập' })).toBeVisible();
+    expect(lower).toBeVisible();
   });
 });

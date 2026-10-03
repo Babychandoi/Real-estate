@@ -50,6 +50,100 @@ function unlockScroll() {
   }
 }
 
+/*
+ * Everything outside the open modal is made `inert` (and `aria-hidden`, for assistive tech that predates inert): a
+ * screen reader's virtual cursor, Tab and the pointer cannot reach the page behind it (WCAG 1.3.1/2.4.3, review of
+ * PR #25). The modal's layer is its nearest fixed-position ancestor (the overlay that also holds the backdrop); every
+ * sibling of that layer and of each of its ancestors up to <body> is hidden. Marks are reference-counted, so nested
+ * modals hide the lower modal too and closing the top one gives it back; an element that was already inert or
+ * aria-hidden before any modal opened is left as it was. `[data-modal-keep]` (the toast live region) stays reachable.
+ */
+interface Mark {
+  /** Open modals that hide this element. */
+  hide: number;
+  /** Open modals that live inside it (a modal rendered inside the page while another modal hid the page). */
+  lift: number;
+  /** What the element had before any modal touched it. */
+  inert: boolean;
+  ariaHidden: string | null;
+}
+const marks = new Map<Element, Mark>();
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'LINK', 'TEMPLATE', 'NOSCRIPT']);
+
+function markOf(element: Element): Mark {
+  let mark = marks.get(element);
+  if (!mark) {
+    mark = { hide: 0, lift: 0, inert: element.hasAttribute('inert'), ariaHidden: element.getAttribute('aria-hidden') };
+    marks.set(element, mark);
+  }
+  return mark;
+}
+
+function apply(element: Element, mark: Mark) {
+  if (mark.hide > 0 && mark.lift === 0) {
+    element.setAttribute('inert', '');
+    element.setAttribute('aria-hidden', 'true');
+  } else {
+    if (!mark.inert) element.removeAttribute('inert');
+    if (mark.ariaHidden == null) element.removeAttribute('aria-hidden');
+    else element.setAttribute('aria-hidden', mark.ariaHidden);
+  }
+  if (mark.hide === 0 && mark.lift === 0) marks.delete(element);
+}
+
+function layerOf(panel: HTMLElement): HTMLElement {
+  for (let node: HTMLElement | null = panel; node && node !== document.body; node = node.parentElement) {
+    if (window.getComputedStyle(node).position === 'fixed') return node;
+  }
+  return panel;
+}
+
+interface HiddenState {
+  hidden: Element[];
+  lifted: Element[];
+}
+
+function hideOutside(panel: HTMLElement): HiddenState {
+  const state: HiddenState = { hidden: [], lifted: [] };
+  const layer = layerOf(panel);
+  // A modal opened inside a subtree that a lower modal hid (the login dialog lives in the page, the filter Sheet is
+  // portalled): its own ancestors are made reachable again while it is open.
+  for (let node: Element | null = layer; node && node !== document.body; node = node.parentElement) {
+    const mark = marks.get(node);
+    if (!mark || mark.hide === 0) continue;
+    mark.lift += 1;
+    apply(node, mark);
+    state.lifted.push(node);
+  }
+  for (let node: Element | null = layer; node && node !== document.body; node = node.parentElement) {
+    const parent: Element | null = node.parentElement;
+    if (!parent) break;
+    for (const sibling of Array.from(parent.children)) {
+      if (sibling === node || SKIP_TAGS.has(sibling.tagName) || sibling.hasAttribute('data-modal-keep')) continue;
+      const mark = markOf(sibling);
+      mark.hide += 1;
+      apply(sibling, mark);
+      state.hidden.push(sibling);
+    }
+  }
+  return state;
+}
+
+function restore(state: HiddenState) {
+  for (const element of state.hidden) {
+    const mark = marks.get(element);
+    if (!mark) continue;
+    mark.hide -= 1;
+    apply(element, mark);
+  }
+  for (const element of state.lifted) {
+    const mark = marks.get(element);
+    if (!mark) continue;
+    mark.lift -= 1;
+    apply(element, mark);
+  }
+}
+
 export interface UseModalOptions {
   open: boolean;
   onClose: () => void;
@@ -73,6 +167,7 @@ export function useModal({ open, onClose, panelRef, initialFocusRef }: UseModalO
     const isTop = () => stack[stack.length - 1] === id;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     lockScroll();
+    const hidden = hideOutside(panel);
 
     const first = initialFocusRef?.current ?? focusableWithin(panel)[0] ?? panel;
     first.focus({ preventScroll: true });
@@ -116,6 +211,7 @@ export function useModal({ open, onClose, panelRef, initialFocusRef }: UseModalO
       const index = stack.indexOf(id);
       if (index >= 0) stack.splice(index, 1);
       unlockScroll();
+      restore(hidden);
       if (opener && opener.isConnected) opener.focus({ preventScroll: true });
     };
   }, [open, panelRef, initialFocusRef]);
