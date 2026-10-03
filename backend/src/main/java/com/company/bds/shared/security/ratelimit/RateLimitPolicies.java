@@ -92,8 +92,14 @@ public class RateLimitPolicies {
                 // S2 search/map v2: dearer than a plain read (engine call + count); generous for people paging and panning.
                 policy("search-v2", "GET", "/api/v2/listings/search", EVICT,
                         rule(IP, 300, Duration.ofMinutes(1))),
+                // W6: the deprecated v1 search runs up to 50 v2 searches for a deep page; same budget as v2 search.
+                policy("search-v1", "GET", "/api/v1/listings/search", EVICT,
+                        rule(IP, 300, Duration.ofMinutes(1))),
                 policy("search-map-v2", "GET", "/api/v2/listings/map", EVICT,
                         rule(IP, 300, Duration.ofMinutes(1))),
+                // W6: audit chain verification runs scan up to 50 000 rows each: a few per hour per admin.
+                policy("admin-audit-chain", "POST", "/api/v1/admin/audit-chain/**", FAIL_CLOSED,
+                        rule(ACCOUNT, 30, Duration.ofHours(1))),
                 // Rebuild/rollback/cleanup of the search index: a handful per hour is plenty.
                 policy("admin-search-index", "POST", "/api/v2/admin/search/**", FAIL_CLOSED,
                         rule(ACCOUNT, 20, Duration.ofHours(1))),

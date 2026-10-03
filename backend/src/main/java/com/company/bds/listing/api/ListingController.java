@@ -48,6 +48,7 @@ public class ListingController {
     private final MediaUrlPolicy mediaUrlPolicy;
     private final ObjectProvider<MediaStorageService> mediaStorageProvider;
     private final SellerSummaryQuery sellerSummaryQuery;
+    private final PublicListingTrustQuery trust;
 
     public ListingController(
             CreateListingDraftUseCase createDraftUseCase,
@@ -57,7 +58,8 @@ public class ListingController {
             ListingPersistencePort persistencePort,
             MediaUrlPolicy mediaUrlPolicy,
             ObjectProvider<MediaStorageService> mediaStorageProvider,
-            SellerSummaryQuery sellerSummaryQuery) {
+            SellerSummaryQuery sellerSummaryQuery,
+            PublicListingTrustQuery trust) {
         this.createDraftUseCase = createDraftUseCase;
         this.updateDraftUseCase = updateDraftUseCase;
         this.submitRevisionUseCase = submitRevisionUseCase;
@@ -66,6 +68,7 @@ public class ListingController {
         this.mediaUrlPolicy = mediaUrlPolicy;
         this.mediaStorageProvider = mediaStorageProvider;
         this.sellerSummaryQuery = sellerSummaryQuery;
+        this.trust = trust;
     }
 
     @PostMapping
@@ -188,29 +191,34 @@ public class ListingController {
 
     @GetMapping("/{id}")
     public ResponseEntity<ListingDetailResponse> getListingById(@PathVariable UUID id, Authentication authentication) {
-        return getListingDetailUseCase.getListingById(id)
-                .filter(listing -> canView(listing, authentication))
-                .map(this::mapToDetailResponse)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
+        return detail(getListingDetailUseCase.getListingById(id), authentication);
     }
 
     @GetMapping("/by-slug/{slug}")
     public ResponseEntity<ListingDetailResponse> getListingBySlug(@PathVariable String slug, Authentication authentication) {
-        return persistencePort.findBySlug(slug)
-                .filter(listing -> canView(listing, authentication))
-                .map(this::mapToDetailResponse)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
+        return detail(persistencePort.findBySlug(slug), authentication);
+    }
+
+    /**
+     * R-3: staff and the owner see every state (the newest revision); everyone else sees an ACTIVE listing of an ACTIVE
+     * owner through its approved public revision only — never a pending edit, a hidden/expired/locked listing or the
+     * listing of a suspended seller (whose sessions are revoked, so the seller is anonymous here too).
+     */
+    private ResponseEntity<ListingDetailResponse> detail(java.util.Optional<Listing> found, Authentication authentication) {
+        Listing listing = found.orElseThrow(() -> ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng."));
+        boolean insider = privileged(authentication) || owns(listing, authentication);
+        if (!insider && !(listing.getStatus().name().equals("ACTIVE") && listing.getPublicRevision().isPresent()
+                && trust.publiclyVisible(listing.getId()))) {
+            throw ApiException.notFound("LISTING_NOT_FOUND", "Không tìm thấy tin đăng.");
+        }
+        ListingRevision revision = insider ? listing.getPublicRevision().or(listing::getLatestRevision).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Tin đăng chưa có phiên bản dữ liệu.")) : listing.getPublicRevision().orElseThrow();
+        return ResponseEntity.ok(mapToDetailResponse(listing, revision, !trust.ownershipVerified(List.of(listing.getId())).isEmpty()));
     }
 
     @GetMapping("/my-listings")
     public ResponseEntity<List<ListingDetailResponse>> getMyListings(Authentication authentication) {
-        List<Listing> myListings = getListingDetailUseCase.getMyListings(CurrentUser.id(authentication));
-        List<ListingDetailResponse> responses = myListings.stream()
-                .map(this::mapToDetailResponse)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(responses);
+        return ResponseEntity.ok(mapAll(getListingDetailUseCase.getMyListings(CurrentUser.id(authentication))));
     }
 
     @GetMapping("/admin/all")
@@ -219,7 +227,7 @@ public class ListingController {
             @RequestParam(defaultValue = "20") int size) {
         int safePage = Math.max(0, page);
         int safeSize = Math.max(1, Math.min(size, 100));
-        return ResponseEntity.ok(persistencePort.findAll(safePage, safeSize).stream().map(this::mapToDetailResponse).toList());
+        return ResponseEntity.ok(mapAll(persistencePort.findAll(safePage, safeSize)));
     }
 
     @PostMapping("/{id}/visibility")
@@ -240,9 +248,15 @@ public class ListingController {
 
     // GET /api/v1/listings/search moved to search.api.LegacySearchV1Controller (deprecated wrapper over API v2).
 
-    private ListingDetailResponse mapToDetailResponse(Listing listing) {
-        ListingRevision rev = listing.getPublicRevision().or(listing::getLatestRevision).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Tin đăng chưa có phiên bản dữ liệu."));
+    private List<ListingDetailResponse> mapAll(List<Listing> listings) {
+        java.util.Set<UUID> verified = trust.ownershipVerified(listings.stream().map(Listing::getId).toList());
+        return listings.stream().map(listing -> mapToDetailResponse(listing,
+                listing.getPublicRevision().or(listing::getLatestRevision).orElseThrow(() ->
+                        new ResponseStatusException(HttpStatus.NOT_FOUND, "Tin đăng chưa có phiên bản dữ liệu.")),
+                verified.contains(listing.getId()))).collect(Collectors.toList());
+    }
+
+    private ListingDetailResponse mapToDetailResponse(Listing listing, ListingRevision rev, boolean ownershipVerified) {
 
         List<String> images = new ArrayList<>();
         for (ListingMedia m : rev.getMediaList()) {
@@ -260,6 +274,7 @@ public class ListingController {
                 rev.getPurpose().name(),
                 rev.getPropertyType().name(),
                 rev.getPriceVnd(),
+                rev.getPurpose().name().equals("RENT") ? "MONTH" : null,
                 rev.getAreaM2(),
                 rev.getBedrooms(), rev.getBathrooms(), rev.getFloors(),
                 rev.getFrontageM(), rev.getRoadWidthM(), ContactInfoGuard.redact(rev.getDirection()), ContactInfoGuard.redact(rev.getLegalStatus()),
@@ -270,7 +285,7 @@ public class ListingController {
                 ContactInfoGuard.redact(rev.getAddressSummary()),
                 rev.getPublicLatitude(),
                 rev.getPublicLongitude(),
-                listing.isVerifiedOwner(),
+                ownershipVerified,
                 false,
                 images,
                 listing.getCreatedAt(),
@@ -278,12 +293,13 @@ public class ListingController {
         );
     }
 
-    private boolean canView(Listing listing, Authentication authentication) {
-        if (listing.getStatus().name().equals("ACTIVE")) return true;
-        if (authentication == null || !authentication.isAuthenticated()) return false;
-        boolean privileged = authentication.getAuthorities().stream()
+    private static boolean privileged(Authentication authentication) {
+        return authentication != null && authentication.isAuthenticated() && authentication.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_MODERATOR"));
-        if (privileged) return true;
+    }
+
+    private static boolean owns(Listing listing, Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) return false;
         try { return listing.getOwnerId().equals(CurrentUser.id(authentication)); }
         catch (IllegalStateException ex) { return false; }
     }

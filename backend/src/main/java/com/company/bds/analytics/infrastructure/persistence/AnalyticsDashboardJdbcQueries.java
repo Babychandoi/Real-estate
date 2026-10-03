@@ -121,6 +121,23 @@ class AnalyticsDashboardJdbcQueries implements AnalyticsDashboardQueries {
                 concat(where.with(), leads.with()));
     }
 
+    @Override
+    public KycServerFunnel kycServerFunnel(Window window) {
+        Where blocked = serverWindow(window);
+        Where leads = serverWindow(window);
+        return jdbc.queryForObject("""
+                WITH blocked AS (
+                    SELECT e.user_id, MIN(e.occurred_at) AS first_blocked FROM analytics_events e
+                    WHERE e.name = 'lead_kyc_blocked' AND e.user_id IS NOT NULL %s
+                    GROUP BY e.user_id)
+                SELECT COUNT(*),
+                       COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM analytics_events e WHERE e.name = 'lead_submitted'
+                                        AND e.user_id = blocked.user_id AND e.occurred_at > blocked.first_blocked %s))
+                FROM blocked
+                """.formatted(blocked.sql(), leads.sql()),
+                (rs, i) -> new KycServerFunnel(rs.getLong(1), rs.getLong(2)), concat(blocked.with(), leads.with()));
+    }
+
     /** Server events in the window (no device/source: the server does not know them). */
     private static Where serverWindow(Window window) {
         return new Where(" AND e.occurred_at >= ? AND e.occurred_at < ? AND e.is_bot = FALSE AND e.is_internal = FALSE",

@@ -48,6 +48,47 @@ public class ElasticsearchListingSearchAdapter implements ListingSearchEnginePor
         if (trackTotal) body.put("track_total_hits", totalCap);
         else body.put("track_total_hits", false);
         if (after != null) body.set("search_after", after);
+        JsonNode root = post(body);
+        List<Hit> hits = new ArrayList<>();
+        for (JsonNode hit : root.path("hits").path("hits")) {
+            hits.add(new Hit(UUID.fromString(hit.path("_id").asText()), (ArrayNode) hit.path("sort")));
+        }
+        Total total = null;
+        JsonNode totalNode = root.path("hits").path("total");
+        if (trackTotal && totalNode.isObject()) {
+            total = new Total(totalNode.path("value").asLong(), "eq".equals(totalNode.path("relation").asText()) ? "eq" : "gte");
+        }
+        return new Hits(hits, total);
+    }
+
+    @Override
+    public MapClusters mapClusters(SearchFilter filter, int precision, int limit, int totalCap) {
+        ObjectNode body = query(filter, SearchSort.NEWEST);
+        body.remove("sort");
+        body.put("size", 0);
+        body.put("timeout", Math.max(100, budget.toMillis() - 100) + "ms");
+        body.put("track_total_hits", totalCap);
+        ObjectNode cells = body.putObject("aggs").putObject("cells");
+        cells.putObject("geotile_grid").put("field", "location").put("precision", precision).put("size", limit);
+        ObjectNode sub = cells.putObject("aggs");
+        sub.putObject("centroid").putObject("geo_centroid").put("field", "location");
+        sub.putObject("bounds").putObject("geo_bounds").put("field", "location");
+        JsonNode root = post(body);
+        List<Cluster> clusters = new ArrayList<>();
+        for (JsonNode bucket : root.path("aggregations").path("cells").path("buckets")) {
+            JsonNode centroid = bucket.path("centroid").path("location");
+            JsonNode bounds = bucket.path("bounds").path("bounds");
+            clusters.add(new Cluster(centroid.path("lat").asDouble(), centroid.path("lon").asDouble(),
+                    bucket.path("doc_count").asLong(),
+                    bounds.path("top_left").path("lon").asDouble(), bounds.path("bottom_right").path("lat").asDouble(),
+                    bounds.path("bottom_right").path("lon").asDouble(), bounds.path("top_left").path("lat").asDouble()));
+        }
+        JsonNode totalNode = root.path("hits").path("total");
+        Total total = new Total(totalNode.path("value").asLong(), "eq".equals(totalNode.path("relation").asText()) ? "eq" : "gte");
+        return new MapClusters(clusters, total);
+    }
+
+    private JsonNode post(ObjectNode body) {
         ElasticsearchHttp.Response response;
         try {
             response = http.send("POST", "/" + ElasticsearchIndexClient.encode(settings.alias()) + "/_search",
@@ -66,16 +107,7 @@ public class ElasticsearchListingSearchAdapter implements ListingSearchEnginePor
             throw new EngineUnavailable("Unreadable Elasticsearch response", ex);
         }
         if (root.path("timed_out").asBoolean(false)) throw new EngineUnavailable("Elasticsearch search timed out", null);
-        List<Hit> hits = new ArrayList<>();
-        for (JsonNode hit : root.path("hits").path("hits")) {
-            hits.add(new Hit(UUID.fromString(hit.path("_id").asText()), (ArrayNode) hit.path("sort")));
-        }
-        Total total = null;
-        JsonNode totalNode = root.path("hits").path("total");
-        if (trackTotal && totalNode.isObject()) {
-            total = new Total(totalNode.path("value").asLong(), "eq".equals(totalNode.path("relation").asText()) ? "eq" : "gte");
-        }
-        return new Hits(hits, total);
+        return root;
     }
 
     ObjectNode query(SearchFilter f, SearchSort sort) {
@@ -83,6 +115,9 @@ public class ElasticsearchListingSearchAdapter implements ListingSearchEnginePor
         ObjectNode bool = body.putObject("query").putObject("bool");
         ArrayNode filters = bool.putArray("filter");
         term(filters, "purpose", f.purpose());
+        // Version 2 documents always carry a deadline (infinity for NULL). Filter at query time: aggregate map
+        // buckets cannot hydrate/recheck SQL rows and must not wait for the lifecycle sweep to drop expired docs.
+        filters.addObject().putObject("range").putObject("expires_at").put("gt", "now");
         terms(filters, "property_type", f.types());
         range(filters, "price_vnd", f.priceMin(), f.priceMax());
         if (f.areaMin() != null || f.areaMax() != null) {

@@ -52,6 +52,7 @@ public class MediaStorageService {
             (EXISTS (SELECT 1 FROM listing_media lm
                      JOIN listing_revisions r ON r.id = lm.revision_id AND r.status = 'APPROVED'
                      JOIN listings l ON l.public_revision_id = r.id AND l.id = r.listing_id AND l.status = 'ACTIVE'
+                                      AND (l.expires_at IS NULL OR l.expires_at > now())
                      JOIN users u ON u.id = l.owner_id AND u.status = 'ACTIVE'
                      WHERE lm.media_url = '/api/v1/public/media/' || m.object_key)
              OR EXISTS (SELECT 1 FROM users au

@@ -213,6 +213,20 @@ public class GlobalExceptionHandler {
                 "Dữ liệu vừa được thay đổi bởi thao tác khác. Vui lòng tải lại rồi thử lại.", request, null);
     }
 
+    /**
+     * PostgreSQL gave up a lock wait (lock_timeout, a deadlock victim, a serialization failure): nothing was written and
+     * the same request can simply be sent again — 503 with Retry-After, never a 500.
+     */
+    @ExceptionHandler(org.springframework.dao.PessimisticLockingFailureException.class)
+    public ResponseEntity<ProblemDetails> handleLockFailure(org.springframework.dao.PessimisticLockingFailureException ex,
+                                                            HttpServletRequest request) {
+        log.warn("lock_failure type={} path={}", ex.getClass().getSimpleName(), request.getRequestURI());
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RETRY_AFTER, "1");
+        return respond(HttpStatus.SERVICE_UNAVAILABLE, "TRY_AGAIN", "Hệ thống đang bận",
+                "Thao tác trùng thời điểm với một thao tác khác và chưa được lưu. Vui lòng thử lại.", request, null, headers);
+    }
+
     @ExceptionHandler(UnsupportedOperationException.class)
     public ResponseEntity<ProblemDetails> handleUnavailable(UnsupportedOperationException ex, HttpServletRequest request) {
         return respond(HttpStatus.SERVICE_UNAVAILABLE, "FEATURE_UNAVAILABLE", "Tính năng chưa được cấu hình", ex.getMessage(),

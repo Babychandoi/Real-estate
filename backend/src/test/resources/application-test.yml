@@ -50,6 +50,10 @@ app:
   engagement:
     # Tests call AlertDigestService directly.
     scheduler-enabled: false
+  audit:
+    chain:
+      # Tests link the audit chain explicitly (AuditTrail.linkAll).
+      scheduler-enabled: false
   jobs:
     # Tests drive the worker explicitly (JobWorker.drain) so they never race a background poller.
     enabled: false

@@ -142,6 +142,140 @@ class LeadSubmissionConcurrencyTests {
     }
 
     @Test
+    void legacyPipeHashCollisionsCannotReplayAnotherLeadPayload() throws Exception {
+        TestData.TestListing listing = listing();
+        TestData.TestUser buyer = data.user().verifiedKyc().create();
+        String bearer = "Bearer " + data.sessionFor(buyer.id());
+        String key = "pipe-collision-" + UUID.randomUUID();
+        String firstName = "Khách|0911000091|CONSULTATION|B";
+        String secondNote = "B|0911000092|CONSULTATION|C";
+        String firstCanonical = String.join("|", listing.id().toString(), firstName, "0911000092", "CONSULTATION", "C", "true");
+        String secondCanonical = String.join("|", listing.id().toString(), "Khách", "0911000091", "CONSULTATION", secondNote, "true");
+        assertThat(secondCanonical).as("the existing production hash format collides").isEqualTo(firstCanonical);
+        String first = json.writeValueAsString(Map.of("listingId", listing.id(), "fullName", firstName, "phone", "0911000092",
+                "requestType", "CONSULTATION", "note", "C", "consentPolicy", true));
+        String changed = json.writeValueAsString(Map.of("listingId", listing.id(), "fullName", "Khách", "phone", "0911000091",
+                "requestType", "CONSULTATION", "note", secondNote, "consentPolicy", true));
+        MockHttpServletResponse created = submit(bearer, key, first);
+        assertThat(created.getStatus()).as(created.getContentAsString()).isEqualTo(201);
+        MockHttpServletResponse refused = submit(bearer, key, changed);
+        assertThat(refused.getStatus()).as(refused.getContentAsString()).isEqualTo(409);
+        assertThat(refused.getContentAsString()).contains("IDEMPOTENCY_KEY_REUSED");
+        MockHttpServletResponse replay = submit(bearer, key, first);
+        assertThat(replay.getStatus()).isEqualTo(201);
+        assertThat(replay.getHeader("Idempotent-Replayed")).isEqualTo("true");
+        assertThat(json.readTree(replay.getContentAsString()).path("leadId").asText())
+                .isEqualTo(json.readTree(created.getContentAsString()).path("leadId").asText());
+        assertThat(count("SELECT count(*) FROM leads WHERE requester_id = ?", buyer.id())).isEqualTo(1);
+    }
+
+    @Test
+    void elapsedActiveListingsRejectNewLeadsWithoutEffectsAndCommittedRetriesStillReplay() throws Exception {
+        TestData.TestListing expired = listing();
+        TestData.TestUser buyer = data.user().verifiedKyc().create();
+        String bearer = "Bearer " + data.sessionFor(buyer.id());
+        String key = "expired-listing-" + UUID.randomUUID();
+        jdbc.update("UPDATE listings SET expires_at = now() - interval '1 second', updated_at = now() WHERE id = ?", expired.id());
+        MockHttpServletResponse refused = submit(bearer, key, body(expired.id(), "0911000090"));
+        assertThat(refused.getStatus()).as(refused.getContentAsString()).isEqualTo(409);
+        assertThat(refused.getContentAsString()).contains("LISTING_NOT_ACCEPTING_LEADS");
+        assertThat(count("SELECT count(*) FROM leads WHERE requester_id = ?", buyer.id())).isZero();
+        assertThat(count("SELECT count(*) FROM api_idempotency_keys WHERE scope = ?", "lead:" + buyer.id())).isZero();
+        JsonNode eligibility = json.readTree(mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/me/inquiries/eligibility").param("listingId", expired.id().toString())
+                        .header("Authorization", bearer)).andReturn().getResponse().getContentAsString());
+        assertThat(eligibility.path("listingAcceptsLeads").asBoolean()).isFalse();
+        assertThat(eligibility.path("requesterKycVerified").asBoolean()).isTrue();
+        assertThat(eligibility.path("ownerKycVerified").asBoolean()).isTrue();
+
+        TestData.TestListing fresh = listing();
+        String replayKey = "expiry-replay-" + UUID.randomUUID();
+        String payload = body(fresh.id(), "0911000090");
+        MockHttpServletResponse created = submit(bearer, replayKey, payload);
+        assertThat(created.getStatus()).as(created.getContentAsString()).isEqualTo(201);
+        String leadId = json.readTree(created.getContentAsString()).path("leadId").asText();
+        jdbc.update("UPDATE listings SET expires_at = now() - interval '1 second', updated_at = now() WHERE id = ?", fresh.id());
+        for (String state : List.of("ACTIVE", "EXPIRED")) {
+            jdbc.update("UPDATE listings SET status = ? WHERE id = ?", state, fresh.id());
+            MockHttpServletResponse replay = submit(bearer, replayKey, payload);
+            assertThat(replay.getStatus()).as(replay.getContentAsString()).isEqualTo(201);
+            assertThat(replay.getHeader("Idempotent-Replayed")).isEqualTo("true");
+            assertThat(json.readTree(replay.getContentAsString()).path("leadId").asText()).isEqualTo(leadId);
+        }
+        assertThat(count("SELECT count(*) FROM leads WHERE requester_id = ?", buyer.id())).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM lead_events WHERE lead_id = ?::uuid AND type = 'CREATED'", leadId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM api_idempotency_keys WHERE scope = ?", "lead:" + buyer.id())).isEqualTo(1);
+    }
+
+    @Test
+    void inactiveOwnersRejectNewLeadsAndExactCommittedRetriesRemainAvailable() throws Exception {
+        TestData.TestUser owner = data.user().role("BROKER").verifiedKyc().create();
+        TestData.TestListing listing = data.listing(owner.id()).create();
+        TestData.TestUser buyer = data.user().verifiedKyc().create();
+        String bearer = "Bearer " + data.sessionFor(buyer.id());
+        String payload = body(listing.id(), "0911000093");
+        String replayKey = "owner-state-replay-" + UUID.randomUUID();
+        MockHttpServletResponse created = submit(bearer, replayKey, payload);
+        assertThat(created.getStatus()).as(created.getContentAsString()).isEqualTo(201);
+        String leadId = json.readTree(created.getContentAsString()).path("leadId").asText();
+        for (String state : List.of("SUSPENDED", "PENDING_EMAIL_VERIFICATION")) {
+            jdbc.update("UPDATE users SET status = ? WHERE id = ?", state, owner.id());
+            assertThat(jdbc.queryForObject("SELECT status FROM listings WHERE id = ?", String.class, listing.id())).isEqualTo("ACTIVE");
+            String freshKey = "inactive-owner-" + UUID.randomUUID();
+            MockHttpServletResponse refused = submit(bearer, freshKey, payload);
+            assertThat(refused.getStatus()).as(refused.getContentAsString()).isEqualTo(409);
+            assertThat(refused.getContentAsString()).contains("LISTING_NOT_ACCEPTING_LEADS");
+            assertThat(count("SELECT count(*) FROM api_idempotency_keys WHERE scope = ? AND idempotency_key = ?",
+                    "lead:" + buyer.id(), freshKey)).isZero();
+            JsonNode eligibility = json.readTree(mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                            .get("/api/v1/me/inquiries/eligibility").param("listingId", listing.id().toString())
+                            .header("Authorization", bearer)).andReturn().getResponse().getContentAsString());
+            assertThat(eligibility.path("listingAcceptsLeads").asBoolean()).isFalse();
+            assertThat(eligibility.path("ownerKycVerified").asBoolean()).isFalse();
+            assertThat(eligibility.path("requesterKycVerified").asBoolean()).isTrue();
+            MockHttpServletResponse replay = submit(bearer, replayKey, payload);
+            assertThat(replay.getStatus()).as(replay.getContentAsString()).isEqualTo(201);
+            assertThat(replay.getHeader("Idempotent-Replayed")).isEqualTo("true");
+            assertThat(json.readTree(replay.getContentAsString()).path("leadId").asText()).isEqualTo(leadId);
+        }
+        assertThat(count("SELECT count(*) FROM leads WHERE requester_id = ?", buyer.id())).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM lead_events WHERE lead_id = ?::uuid AND type = 'CREATED'", leadId)).isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM api_idempotency_keys WHERE scope = ?", "lead:" + buyer.id())).isEqualTo(1);
+    }
+
+    @Test
+    void ownerSuspensionWaitsForAnAlreadyAcceptedLeadWithoutTakingAListingLock() throws Exception {
+        TestData.TestUser owner = data.user().role("BROKER").verifiedKyc().create();
+        TestData.TestListing listing = data.listing(owner.id()).create();
+        TestData.TestUser buyer = data.user().verifiedKyc().create();
+        CountDownLatch inserted = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        TransactionTemplate tx = new TransactionTemplate(txManager);
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<UUID> result = pool.submit(() -> tx.execute(status -> {
+                UUID id = leads.submit(buyer.id(), listing.id(), "Khách", "0911000094", LeadRequestType.VIEWING, null, true, null)
+                        .lead().getId();
+                inserted.countDown();
+                try { release.await(10, TimeUnit.SECONDS); } catch (InterruptedException ex) { Thread.currentThread().interrupt(); }
+                return id;
+            }));
+            assertThat(inserted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> tx.executeWithoutResult(status -> {
+                jdbc.execute("SET LOCAL lock_timeout = '300ms'");
+                jdbc.update("UPDATE users SET status = 'SUSPENDED' WHERE id = ?", owner.id());
+            })).hasMessageContaining("lock");
+            release.countDown();
+            UUID leadId = result.get(10, TimeUnit.SECONDS);
+            assertThat(jdbc.update("UPDATE users SET status = 'SUSPENDED' WHERE id = ?", owner.id())).isEqualTo(1);
+            assertThat(jdbc.queryForObject("SELECT status FROM leads WHERE id = ?", String.class, leadId)).isEqualTo("NEW");
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
     void pauseCommittedFirstRefusesTheLeadAndAPauseDuringTheInsertWaitsForIt() throws Exception {
         TestData.TestUser buyer = data.user().verifiedKyc().create();
         TestData.TestListing paused = listing();

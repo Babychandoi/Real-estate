@@ -49,8 +49,12 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
      * The seller account must still be ACTIVE: a ban hides every listing of the seller on the database path at once,
      * without waiting for the owner fan-out job (which removes the rows and the index documents later).
      */
+    // The lifecycle sweep may not have marked an expired ACTIVE listing yet. Excluding its id uses the partial
+    // idx_listings_active_expires index; map queries can anti-join the small expired set without hydrating every match.
     static final String OWNER_ACTIVE =
-            " AND EXISTS (SELECT 1 FROM users ou WHERE ou.id = listing_public_read.owner_id AND ou.status = 'ACTIVE')";
+            " AND EXISTS (SELECT 1 FROM users ou WHERE ou.id = listing_public_read.owner_id AND ou.status = 'ACTIVE')"
+            + " AND NOT EXISTS (SELECT 1 FROM listings expired WHERE expired.id = listing_public_read.listing_id"
+            + " AND expired.status = 'ACTIVE' AND expired.expires_at <= now())";
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -134,7 +138,8 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
                 FROM listings l
                 JOIN listing_revisions r ON r.id = l.public_revision_id AND r.status = 'APPROVED'
                 LEFT JOIN users u ON u.id = l.owner_id
-                WHERE %s AND NOT EXISTS (SELECT 1 FROM listing_public_read p WHERE p.listing_id = l.id AND u.status = 'ACTIVE')
+                WHERE %s AND NOT EXISTS (SELECT 1 FROM listing_public_read p WHERE p.listing_id = l.id AND u.status = 'ACTIVE'
+                    AND (l.expires_at IS NULL OR l.expires_at > now()))
                 """.formatted(id != null ? "l.id = ?" : "l.slug = ?");
         return jdbc.query(sql, (rs, n) -> new GoneListing(rs.getObject(1, UUID.class), rs.getString(2), rs.getString(3)),
                 id != null ? id : slugOrId).stream().findFirst();
@@ -158,9 +163,13 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
 
     @Override
     public List<MapPoint> mapPoints(SearchFilter filter, int limit) {
-        Sql sql = new Sql("SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type FROM listing_public_read WHERE ");
+        // The inner LIMIT without ORDER BY keeps this a bounded probe on the GiST index (W6-PERF): the caller only shows
+        // points when there are fewer than `limit` matches, so the newest-first order is applied to that small set and a
+        // dense viewport never walks the newest index looking for matches inside the box.
+        Sql sql = new Sql("SELECT listing_id, slug, lat, lng, price_vnd, price_period, property_type FROM (SELECT listing_id, "
+                + "slug, lat, lng, price_vnd, price_period, property_type, published_at FROM listing_public_read WHERE ");
         where(sql, filter);
-        sql.append(" AND public_location IS NOT NULL ORDER BY published_at DESC, listing_id DESC LIMIT ?").param(limit);
+        sql.append(" AND public_location IS NOT NULL LIMIT ?) probe ORDER BY published_at DESC, listing_id DESC").param(limit);
         return jdbc.query(sql.text(), (rs, n) -> new MapPoint(rs.getObject(1, UUID.class), rs.getString(2), rs.getDouble(3),
                 rs.getDouble(4), rs.getLong(5), rs.getString(6), rs.getString(7)), sql.params());
     }
@@ -207,9 +216,13 @@ public class JdbcListingReadModelAdapter implements ListingReadModelPort {
         return jdbc.query("""
                 SELECT u.id, u.full_name, u.avatar_media_url, %s AS role, u.created_at,
                        k.status AS kyc_status, k.verified_at, k.expires_at,
-                       (SELECT count(*) FROM listing_public_read p WHERE p.owner_id = u.id) AS active_listings,
+                       (SELECT count(*) FROM listing_public_read p WHERE p.owner_id = u.id
+                           AND NOT EXISTS (SELECT 1 FROM listings expired WHERE expired.id = p.listing_id
+                                           AND expired.status = 'ACTIVE' AND expired.expires_at <= now())) AS active_listings,
                        (SELECT count(*) FROM listing_public_read p WHERE p.owner_id = u.id AND p.ownership_status = 'VERIFIED'
-                           AND (p.ownership_expires_at IS NULL OR p.ownership_expires_at > ?)) AS ownership_verified,
+                           AND (p.ownership_expires_at IS NULL OR p.ownership_expires_at > ?)
+                           AND NOT EXISTS (SELECT 1 FROM listings expired WHERE expired.id = p.listing_id
+                                           AND expired.status = 'ACTIVE' AND expired.expires_at <= now())) AS ownership_verified,
                        stats.samples, stats.median_minutes
                 FROM users u
                 LEFT JOIN user_kyc_profiles k ON k.user_id = u.id

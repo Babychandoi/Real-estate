@@ -31,7 +31,7 @@ import java.util.*;
  * <p>Submission policy (documented in {@code streams/s3b-leads.md}):</p>
  * <ul>
  *   <li><b>Pause vs lead (F17.3):</b> the listing row is locked {@code FOR SHARE} and must be ACTIVE with a public
- *   revision inside the lock. A pause/hide committed first refuses the lead; a pause arriving while the lead is being
+ *   revision and an unelapsed deadline inside the lock. A pause/hide committed first refuses a new lead; a pause arriving while the lead is being
  *   inserted waits for it, and the lead stays valid.</li>
  *   <li><b>Idempotency (F17.2):</b> the key is bound to scope {@code lead:<actor>} (actor + route) and the SHA-256 of the
  *   canonical payload, kept {@link #IDEMPOTENCY_TTL}. Concurrent duplicates wait on the key row and replay the winner's
@@ -105,23 +105,16 @@ public class LeadApplicationService {
         if (key != null && !key.matches(KEY_PATTERN)) {
             throw ApiException.badRequest("IDEMPOTENCY_KEY_INVALID", "Idempotency-Key không hợp lệ.");
         }
-        Instant now = clock.instant();
-
-        // 1. Listing must accept leads; FOR SHARE makes a concurrent pause wait for this transaction (F17.3).
-        List<Map<String, Object>> listingRows = jdbc.queryForList(
-                "SELECT owner_id, status, public_revision_id FROM listings WHERE id = ? FOR SHARE", listingId);
+        // 1. Hold owner and listing rows through validation/insert. A suspension committed first rejects a new lead;
+        // one arriving after these locks waits. Status changes enqueue indexing but never lock listings.
+        List<Map<String, Object>> listingRows = jdbc.queryForList("""
+                SELECT l.owner_id, l.status, l.public_revision_id, l.expires_at, u.status AS owner_status
+                FROM users u JOIN listings l ON l.owner_id = u.id WHERE l.id = ? FOR SHARE OF u, l
+                """, listingId);
         if (listingRows.isEmpty()) throw ApiException.notFound("LISTING_NOT_FOUND", "Tin đăng không tồn tại.");
         Map<String, Object> listing = listingRows.get(0);
         UUID ownerId = (UUID) listing.get("owner_id");
-        if (!"ACTIVE".equals(listing.get("status")) || listing.get("public_revision_id") == null) {
-            throw ApiException.conflict("LISTING_NOT_ACCEPTING_LEADS", "Tin đăng không còn nhận yêu cầu liên hệ.");
-        }
-        if (ownerId.equals(requesterId)) {
-            throw ApiException.conflict("SELF_LEAD", "Bạn không thể gửi yêu cầu liên hệ cho tin của chính mình.");
-        }
-        requireVerifiedKyc(requesterId, "KYC_REQUIRED", "Bạn cần hoàn tất eKYC trước khi gửi yêu cầu liên hệ.");
-        requireVerifiedKyc(ownerId, "OWNER_KYC_REQUIRED",
-                "Người đăng chưa hoàn tất eKYC nên tin này tạm thời chưa nhận yêu cầu liên hệ.");
+        Instant now = clock.instant();
 
         // 2. Idempotency bound to the actor and route; concurrent duplicates block on the key row until the winner ends.
         UUID leadId = UUID.randomUUID();
@@ -147,9 +140,29 @@ public class LeadApplicationService {
                 }
                 Lead previous = leadPersistencePort.findById((UUID) existing.get("resource_id"))
                         .orElseThrow(() -> ApiException.conflict("IDEMPOTENCY_IN_PROGRESS", "Yêu cầu đang được xử lý; vui lòng thử lại."));
+                // Keep legacy hashes valid across deployment, but never let a delimiter collision replay another
+                // payload. The committed lead retains every canonical field, including the protected phone index.
+                if (!requesterId.equals(previous.getRequesterId()) || !listingId.equals(previous.getListingId())
+                        || !name.equals(previous.getFullName())
+                        || !piiProtection.blindIndex(phone).equals(previous.getPhoneLookupHash())
+                        || type != previous.getRequestType() || !Objects.equals(cleanNote, previous.getNote())
+                        || consentPolicy != previous.isConsentPolicy()) {
+                    throw ApiException.conflict("IDEMPOTENCY_KEY_REUSED", "Idempotency-Key đã được dùng cho yêu cầu khác.");
+                }
                 return new SubmitResult(previous, true);
             }
         }
+
+        // Only new submissions need current eligibility; an exact actor-scoped replay returns its committed lead.
+        if (!acceptsLeads(listing, clock.instant())) {
+            throw ApiException.conflict("LISTING_NOT_ACCEPTING_LEADS", "Tin đăng không còn nhận yêu cầu liên hệ.");
+        }
+        if (ownerId.equals(requesterId)) {
+            throw ApiException.conflict("SELF_LEAD", "Bạn không thể gửi yêu cầu liên hệ cho tin của chính mình.");
+        }
+        requireVerifiedKyc(requesterId, "KYC_REQUIRED", "Bạn cần hoàn tất eKYC trước khi gửi yêu cầu liên hệ.");
+        requireVerifiedKyc(ownerId, "OWNER_KYC_REQUIRED",
+                "Người đăng chưa hoàn tất eKYC nên tin này tạm thời chưa nhận yêu cầu liên hệ.");
 
         // 3. Atomic quota: advisory locks on both keys (sorted, so two transactions never wait on each other in a cycle).
         String lookupHash = piiProtection.blindIndex(phone);
@@ -199,14 +212,23 @@ public class LeadApplicationService {
         return new SubmitResult(saved, false);
     }
 
+    private static boolean acceptsLeads(Map<String, Object> listing, Instant now) {
+        Timestamp expiry = (Timestamp) listing.get("expires_at");
+        return "ACTIVE".equals(listing.get("owner_status")) && "ACTIVE".equals(listing.get("status"))
+                && listing.get("public_revision_id") != null
+                && (expiry == null || expiry.toInstant().isAfter(now));
+    }
+
     /** What the contact form needs to know before the visitor types anything (DS-11, F17.4). */
     @Transactional(readOnly = true)
     public Map<String, Object> eligibility(UUID requesterId, UUID listingId) {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT owner_id, status, public_revision_id FROM listings WHERE id = ?", listingId);
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT l.owner_id, l.status, l.public_revision_id, l.expires_at, u.status AS owner_status
+                FROM users u JOIN listings l ON l.owner_id = u.id WHERE l.id = ?
+                """, listingId);
         if (rows.isEmpty()) throw ApiException.notFound("LISTING_NOT_FOUND", "Tin đăng không tồn tại.");
         UUID ownerId = (UUID) rows.get(0).get("owner_id");
-        boolean accepting = "ACTIVE".equals(rows.get(0).get("status")) && rows.get(0).get("public_revision_id") != null;
+        boolean accepting = acceptsLeads(rows.get(0), clock.instant());
         List<Map<String, Object>> open = jdbc.queryForList("""
                 SELECT id, status, created_at FROM leads WHERE listing_id = ? AND requester_id = ?
                   AND status IN ('NEW','CONTACTED','APPOINTED') ORDER BY created_at DESC, id DESC LIMIT 1
@@ -221,6 +243,18 @@ public class LeadApplicationService {
         return result;
     }
 
+    /**
+     * F17.4: the requester hit the KYC wall of the lead API. Called by the controller after {@link #submit} was refused
+     * (its transaction is already rolled back), in a transaction of its own; one event per requester, listing and day
+     * (Vietnam time), so retries do not inflate the funnel.
+     */
+    @Transactional
+    public void recordKycBlocked(UUID requesterId, UUID listingId) {
+        String day = java.time.LocalDate.ofInstant(clock.instant(), java.time.ZoneId.of("Asia/Ho_Chi_Minh")).toString();
+        analytics.recordServer("lead_kyc_blocked", 1, requesterId + ":" + listingId + ":" + day, requesterId, listingId,
+                Map.of("context", "lead_form"));
+    }
+
     private void requireVerifiedKyc(UUID userId, String code, String message) {
         if (!isKycVerified(userId)) throw ApiException.conflict(code, message);
     }
@@ -228,8 +262,9 @@ public class LeadApplicationService {
     /** VERIFIED and not expired (contract §6: identity VERIFIED = status VERIFIED and expires_at null or future). */
     private boolean isKycVerified(UUID userId) {
         Boolean verified = jdbc.queryForObject("""
-                SELECT EXISTS (SELECT 1 FROM user_kyc_profiles WHERE user_id = ? AND status = 'VERIFIED'
-                               AND (expires_at IS NULL OR expires_at > ?))
+                SELECT EXISTS (SELECT 1 FROM user_kyc_profiles k JOIN users u ON u.id = k.user_id
+                               WHERE k.user_id = ? AND u.status = 'ACTIVE' AND k.status = 'VERIFIED'
+                               AND (k.expires_at IS NULL OR k.expires_at > ?))
                 """, Boolean.class, userId, Timestamp.from(clock.instant()));
         return Boolean.TRUE.equals(verified);
     }

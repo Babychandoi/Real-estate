@@ -140,6 +140,21 @@ public class AnalyticsDashboardService {
                 "Phiên được yêu cầu KYC nhưng không gửi liên hệ / phiên được yêu cầu KYC.", WEB,
                 kyc == null ? Metric.notMeasured("percent", searchReason)
                         : Metric.percent(kyc.kycShownSessions() - kyc.submittedAfterKyc(), kyc.kycShownSessions())));
+        // F17.4 (W6): compare sessions that did and did not meet the KYC wall; this describes groups, not causation.
+        long withoutKyc = kyc == null ? 0 : kyc.formSessions() - kyc.kycShownSessions();
+        long submittedWithoutKyc = kyc == null ? 0 : kyc.submittedSessions() - kyc.submittedAfterKyc();
+        metrics.add(named("leadAbandonmentWithoutKyc", "Bỏ cuộc trước bước xác minh (không gặp KYC)", "funnel",
+                "Phiên mở form liên hệ, không bị yêu cầu KYC và không gửi liên hệ / phiên mở form liên hệ không bị yêu cầu KYC. "
+                        + "Chênh lệch với nhóm gặp yêu cầu xác minh mô tả tỷ lệ bỏ cuộc giữa hai nhóm phiên.", WEB,
+                kyc == null ? Metric.notMeasured("percent", searchReason)
+                        : Metric.percent(withoutKyc - submittedWithoutKyc, withoutKyc)));
+        // Server side: measured from the lead API itself, with or without web collection and consent.
+        AnalyticsDashboardQueries.KycServerFunnel kycServer = serverNoWebFilter == null ? queries.kycServerFunnel(window) : null;
+        metrics.add(named("kycAbandonmentServer", "Bỏ cuộc sau khi bị chặn vì chưa KYC (máy chủ)", "funnel",
+                "Người dùng bị API liên hệ từ chối vì chưa xác minh danh tính trong khoảng thời gian và không gửi được liên hệ nào "
+                        + "sau lần bị chặn đầu tiên / người dùng bị chặn. Ghi nhận phía máy chủ, không phụ thuộc đồng ý phân tích.", SERVER,
+                kycServer == null ? Metric.notMeasured("percent", serverNoWebFilter)
+                        : Metric.percent(kycServer.blockedUsers() - kycServer.submittedAfterBlock(), kycServer.blockedUsers())));
 
         // Zero result
         AnalyticsDashboardQueries.ZeroResults zero = searchReason == null ? queries.zeroResults(window, filters) : null;

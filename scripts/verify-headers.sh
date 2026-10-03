@@ -9,6 +9,7 @@
 # Environment:
 #   VERIFY_BEARER_TOKEN  optional session token; the SSE check then expects 200 text/event-stream.
 #   VERIFY_API_PATH      public JSON endpoint to probe (default /api/v1/listings/search?page=0&size=1).
+#   VERIFY_PACE_SECONDS  pause before every request (default 0); use 0.6 against production to stay under 2 req/s.
 # Exit status: 0 all required headers present, 1 at least one check failed, 2 usage or connection error.
 # Compatible with the bash 3.2 shipped by macOS.
 set -uo pipefail
@@ -47,9 +48,11 @@ lower() { tr '[:upper:]' '[:lower:]'; }
 # fetch <target> <path> <max-time> [extra curl args...]
 # Writes $WORK/<target>.headers and .body and sets STATUS. Runs in the main shell so a connection error ends the script.
 STATUS=""
+pace() { [ "${VERIFY_PACE_SECONDS:-0}" = 0 ] || sleep "$VERIFY_PACE_SECONDS"; }
 fetch() {
   local target="$1" path="$2" max_time="$3"
   shift 3
+  pace
   local extra=()
   if [ "$SIMULATE_HTTPS" -eq 1 ]; then
     extra+=(-H 'X-Forwarded-Proto: https' -H 'CF-Visitor: {"scheme":"https"}')
@@ -193,6 +196,29 @@ fetch sitemap /sitemap.xml 20
 expect_status sitemap "$STATUS" 200
 expect_contains sitemap Content-Type xml "sitemap index is XML"
 security_headers sitemap app
+
+# 9. Plain HTTP at the edge is redirected to HTTPS, never answered with content. Against the public domain: the http://
+#    URL itself; against a local origin with --simulate-https: the CF-Visitor header Cloudflare sends for an HTTP visitor.
+plain_url=""
+plain_args=()
+case "$BASE_URL" in
+  https://*) plain_url="http://${BASE_URL#https://}/" ;;
+  *) if [ "$SIMULATE_HTTPS" -eq 1 ]; then plain_url="$BASE_URL/"; plain_args=(-H 'CF-Visitor: {"scheme":"http"}' -H 'X-Forwarded-Proto: http'); fi ;;
+esac
+if [ -n "$plain_url" ]; then
+  pace
+  plain_status="$(curl -sS -o /dev/null -D "$WORK/plainhttp.headers" -w '%{http_code}' --max-time 20 ${plain_args[@]+"${plain_args[@]}"} "$plain_url" 2>"$WORK/plainhttp.err")" \
+    || plain_status="error: $(cat "$WORK/plainhttp.err")"
+  plain_location="$(value plainhttp Location)"
+  case "$plain_status" in
+    301|302|307|308)
+      case "$plain_location" in
+        https://*) pass plainhttp "plain HTTP answered $plain_status -> $plain_location" ;;
+        *) fail plainhttp "plain HTTP redirected to a non-HTTPS location '$plain_location'" ;;
+      esac ;;
+    *) fail plainhttp "plain HTTP answered $plain_status instead of a redirect to HTTPS" ;;
+  esac
+fi
 
 echo "----"
 echo "$CHECKS checks, $FAILURES failed, $WARNINGS warnings"

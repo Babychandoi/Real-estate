@@ -21,6 +21,17 @@ public interface ListingSearchEnginePort {
      */
     Hits search(SearchFilter filter, SearchSort sort, @Nullable ArrayNode after, int size, boolean trackTotal, int totalCap);
 
+    /**
+     * Map clusters of the matches of {@code filter} (whose bbox is set): Web-Mercator tiles of zoom {@code precision},
+     * at most {@code limit} cells, most populated first, each with its centroid and bounds; total counted up to
+     * {@code totalCap}. Same failure contract as {@link #search}.
+     */
+    MapClusters mapClusters(SearchFilter filter, int precision, int limit, int totalCap);
+
+    record Cluster(double lat, double lng, long count, double minLng, double minLat, double maxLng, double maxLat) {}
+
+    record MapClusters(List<Cluster> clusters, Total total) {}
+
     record Hit(UUID id, ArrayNode sortValues) {}
 
     record Total(long value, String relation) {}

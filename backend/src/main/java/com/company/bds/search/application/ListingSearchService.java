@@ -44,6 +44,7 @@ import java.util.UUID;
 public class ListingSearchService {
     private static final Logger log = LoggerFactory.getLogger(ListingSearchService.class);
     private static final Duration FIRST_PAGE_TTL = Duration.ofSeconds(20);
+    private final LocalPageCache degradedLocal = new LocalPageCache(512, Duration.ofSeconds(10));
 
     private final ListingReadModelPort readModel;
     private final ListingSearchEnginePort engine;
@@ -74,7 +75,9 @@ public class ListingSearchService {
         SearchFilter filter = request.filter();
         String hash = filter.filterHash();
         SearchCursorCodec.Cursor cursor = request.cursor() == null ? null : cursors.decode(request.cursor(), hash);
-        boolean engineUsable = settings.enabled() && engine.ready() && breaker.state() != SearchCircuitBreaker.State.OPEN;
+        // callable(): while another request holds the half-open probe, this one uses the database engine and its cache
+        // key (a hit while the engine is still being probed) instead of missing the engine's key and falling back uncached.
+        boolean engineUsable = settings.enabled() && engine.ready() && breaker.callable();
         String current = engineUsable ? SearchResults.ENGINE_SEARCH : SearchResults.ENGINE_DATABASE;
         if (cursor != null && !cursor.engine().equals(current)) throw engineChanged();
 
@@ -86,15 +89,28 @@ public class ListingSearchService {
                 CachedPage cached = cache.getOrCompute("search-first-page", key, FIRST_PAGE_TTL, CachedPage.class, () -> {
                     Page page = compute(request, null, current);
                     fresh[0] = page;
-                    // a fallback page carries a database cursor: never serve it under the search engine's key
-                    return page.degraded() ? null : toCached(page);
+                    // A fallback computed under the search engine's key carries a database cursor: never serve it under
+                    // that key. While the breaker is open the key already is the database key, so the degraded page is
+                    // cached like any other: an Elasticsearch outage must not turn every repeated first page (and its
+                    // capped count) into database work (W6-PERF). Closing the breaker switches back to the engine's key.
+                    return page.degraded() && !SearchResults.ENGINE_DATABASE.equals(current) ? null : toCached(page);
                 });
                 if (fresh[0] != null) return fresh[0];
                 if (cached != null) return fromCached(cached, request, filter);
                 return compute(request, null, current);
             }
+            String localKey = "search:" + current + ":" + hash + ":" + request.size();
+            if (SearchResults.ENGINE_DATABASE.equals(current) && settings.enabled()) {
+                // Elasticsearch and Redis both unavailable: no shared cache, so degraded first pages are kept in a small
+                // bounded in-memory cache of this instance for a few seconds instead of hitting the database each time.
+                CachedPage local = degradedLocal.get(localKey, clock.millis());
+                if (local != null) return fromCached(local, request, filter);
+                Page page = cache.collapse(localKey, () -> compute(request, null, current));
+                degradedLocal.put(localKey, toCached(page), clock.millis());
+                return page;
+            }
             // Cache unavailable (Redis down): identical concurrent first pages are still computed once, not once each.
-            return cache.collapse("search:" + current + ":" + hash + ":" + request.size(), () -> compute(request, null, current));
+            return cache.collapse(localKey, () -> compute(request, null, current));
         }
         return compute(request, cursor, current);
     }
@@ -269,6 +285,7 @@ public class ListingSearchService {
             if (row != null && effective.matches(row, now)) items.add(row);
         }
         boolean degraded = cached.notices().contains(SearchResults.NOTICE_ENGINE_UNAVAILABLE);
+        count(cached.engine(), degraded ? "cached_degraded" : "cached");
         List<Suggestion> suggestions = items.isEmpty() && !cached.hasNext() ? suggestions(filter) : List.of();
         return new Page(List.copyOf(items), cached.hasNext(), cached.nextCursor(), request.size(), cached.total(), cached.engine(),
                 degraded, cached.notices(), now, suggestions);

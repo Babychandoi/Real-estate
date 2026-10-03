@@ -91,6 +91,16 @@ public class SearchCircuitBreaker {
         if (state == State.HALF_OPEN) probeInFlight = false;
     }
 
+    /**
+     * Whether a call arriving now could go to the engine: closed, or half-open with the probe slot still free. While
+     * another request holds the half-open probe the answer is false, so callers pick the database engine (and its cache
+     * key) instead of missing the engine's key and falling back uncached.
+     */
+    public synchronized boolean callable() {
+        State current = state();
+        return current == State.CLOSED || (current == State.HALF_OPEN && !(state == State.HALF_OPEN && probeInFlight));
+    }
+
     public synchronized State state() {
         if (state == State.OPEN && !clock.instant().isBefore(openedAt.plus(openFor))) return State.HALF_OPEN;
         return state;

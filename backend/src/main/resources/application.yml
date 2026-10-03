@@ -10,6 +10,13 @@ spring:
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
 
+  # @Scheduled tasks share this pool: with the default of 1 thread a slow sweep (digest, freshness, outbox) would
+  # starve the others, including the audit chain linker (W6 review).
+  task:
+    scheduling:
+      pool:
+        size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:4}
+
   # Cấu hình đa ngôn ngữ và validation i18n
   messages:
     basename: i18n/messages,i18n/validation
@@ -91,6 +98,11 @@ management:
       show-details: when_authorized
       probes:
         enabled: true
+      group:
+        readiness:
+          # ApplicationReadyEvent is followed by Boot's ACCEPTING_TRAFFIC event; the contributor must also be in this
+          # group so an asynchronous warm-up keeps /actuator/health/readiness at 503 until it has finished.
+          include: readinessState,searchWarmup,db
   metrics:
     tags:
       application: ${spring.application.name}
@@ -215,6 +227,11 @@ app:
     scheduler-enabled: ${APP_ENGAGEMENT_SCHEDULER_ENABLED:true}
     digest-ms: ${APP_ENGAGEMENT_DIGEST_MS:60000}
     retention-cron: ${APP_ENGAGEMENT_RETENTION_CRON:0 23 4 * * *}
+  audit:
+    chain:
+      # Links stored request audit events into the hash chain (AuditTrail); one linker at a time across instances.
+      scheduler-enabled: ${APP_AUDIT_CHAIN_SCHEDULER_ENABLED:true}
+      delay-ms: ${APP_AUDIT_CHAIN_DELAY_MS:1000}
   outbox:
     enabled: ${OUTBOX_ENABLED:false}
     webhook-url: ${OUTBOX_WEBHOOK_URL:}
@@ -263,6 +280,11 @@ app:
     cache:
       enabled: ${APP_SEARCH_CACHE_ENABLED:true}
       first-page: true
+  # W6-PERF: start-up warm-up (pg_prewarm of the read model, Elasticsearch/JVM warm-up) before readiness turns
+  # ACCEPTING_TRAFFIC and the searchWarmup health contributor turns UP. Off by default; docker-compose.yml enables it.
+  warmup:
+    enabled: ${APP_WARMUP_ENABLED:false}
+    max-duration: ${APP_WARMUP_MAX_DURATION:PT60S}
   analytics:
     ingestion:
       # POST /api/v1/events writes rows for anonymous callers: keep it off until the rate-limit policy for that path
